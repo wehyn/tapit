@@ -876,14 +876,18 @@ The following deviations are intentional local-MVP boundaries rather than silent
    without a Convex deployment or transactional email. The Convex UI provider wiring and generated API
    bindings remain a deployment gate; the checked-in `_generated` files are a documented bootstrap because
    code generation returned `MissingAccessToken` without an authenticated deployment.
-2. Local image uploads validate JPG/PNG/WebP and 5 MB and show a centered crop preview, but do not yet
-   resize or persist through Convex Storage. `convex/storage.ts` provides the authorized upload URL path;
-   server-side optimization and retention are production gates.
-3. Local unique-view counts are time-bucket approximations and the Convex ingestion contract accepts a
+2. Local image uploads validate JPG/PNG/WebP and 5 MB, resize accepted images to a bounded JPEG data URL,
+   and show a centered crop preview, but do not persist through Convex Storage. `convex/storage.ts` provides
+   the authorized upload URL path; server-side optimization and retention are production gates.
+3. Because the verified local demo stores profile data in browser localStorage, server-rendered public-route
+   metadata cannot safely read or verify the profile snapshot. Public metadata therefore uses a generic Tapit
+   title/description plus a route-derived canonical URL; profile-specific names, descriptions, and images remain
+   a Convex-backed production gate so unavailable profiles do not leak identity through metadata.
+4. Local unique-view counts are time-bucket approximations and the Convex ingestion contract accepts a
    caller-provided first-view flag without retaining visitor history. The privacy-preserving unique-view
    algorithm and disclosure/consent policy remain launch gates and must be selected before production
    analytics are treated as authoritative.
-4. Setup links use the safe local display adapter; provider delivery, expiry/resend policy, password
+5. Setup links use the safe local display adapter; provider delivery, expiry/resend policy, password
    recovery, email verification, real-device NFC/QR testing, normal-4G performance measurement, final
    branding, monitoring, backups, and retention remain explicitly unverified launch gates. Evidence and
    the manual matrix are in `docs/design-proof.md` and `e2e/real-device-checklist.md`.
