@@ -76,7 +76,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
-  await expect(page.getByText("Your profile is now unavailable")).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Faccount$/);
   await page.goto("/mara-velasquez");
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),

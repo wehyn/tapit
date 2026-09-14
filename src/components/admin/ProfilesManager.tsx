@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { publishProfile, type ProfileStatus } from "@/lib/domain";
+import { publishProfile, validatePublicationAccess, type ProfileStatus } from "@/lib/domain";
 import {
   getDemoProfiles,
   updateDemoProfile,
@@ -71,25 +71,46 @@ export function ProfilesManager() {
 
   function publish() {
     if (profile === undefined) return;
+    const owner = state.customers.find((customer) => customer.id === profile.ownerId);
+    const lifecycleErrors = validatePublicationAccess(
+      profile.status,
+      owner?.status,
+      owner?.deletionStatus,
+    );
+    if (lifecycleErrors.length > 0) {
+      setMessage({
+        tone: "error",
+        text: lifecycleErrors.join(" "),
+      });
+      return;
+    }
     try {
-      const nextProfile = {
-        ...publishProfile(profile, new Date().toISOString()),
-        theme: profile.theme,
-      };
-      updateDemoState((current) => ({
-        ...updateDemoProfile(current, profile.id, () => nextProfile),
-        audits: [
-          {
-            id: `audit-${Date.now()}`,
-            actor: "admin@tapit.local",
-            action: "profile.published",
-            target: nextProfile.draft.slug,
-            occurredAt: new Date().toISOString(),
-            after: "published",
-          },
-          ...current.audits,
-        ],
-      }));
+      updateDemoState((current) => {
+        const existingSlugs = getDemoProfiles(current)
+          .filter((candidate) => candidate.id !== profile.id)
+          .flatMap((candidate) => [
+            candidate.draft.slug,
+            ...(candidate.published === null ? [] : [candidate.published.slug]),
+          ]);
+        const nextProfile = {
+          ...publishProfile(profile, new Date().toISOString(), { existingSlugs }),
+          theme: profile.theme,
+        };
+        return {
+          ...updateDemoProfile(current, profile.id, () => nextProfile),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: "admin@tapit.local",
+              action: "profile.published",
+              target: nextProfile.draft.slug,
+              occurredAt: new Date().toISOString(),
+              after: "published",
+            },
+            ...current.audits,
+          ],
+        };
+      });
       setMessage({
         tone: "success",
         text: "Profile published. The stable public URL now serves the approved snapshot.",

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 
-import { canTransitionCard, transitionCard } from "@/lib/domain";
+import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import type { DemoCard } from "@/lib/demo/fixtures";
 import {
   getDemoProfileById,
@@ -24,8 +24,9 @@ type Confirmation = { type: "deactivate" | "replace"; card: DemoCard } | null;
 function cardTokenFromUrl(value: string): string | null {
   try {
     const parsed = new URL(value, "https://tapit.local");
-    if (!parsed.pathname.startsWith("/c/")) return null;
-    const token = parsed.pathname.split("/").filter(Boolean).at(-1);
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    if (segments.length !== 2 || segments[0] !== "c") return null;
+    const token = segments[1];
     return token && /^[A-Za-z0-9_-]+$/.test(token) ? token : null;
   } catch {
     return null;
@@ -34,6 +35,12 @@ function cardTokenFromUrl(value: string): string | null {
 
 function normalizedCardUrl(value: string): string {
   return value.trim();
+}
+
+function cardUrlIdentity(value: string): string {
+  const parsed = new URL(normalizedCardUrl(value), "https://tapit.local");
+  const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
+  return `${parsed.origin}${pathname}`;
 }
 
 export function CardsManager() {
@@ -58,9 +65,12 @@ export function CardsManager() {
   }, [query, state.cards]);
 
   function validateCardUrl(value: string): string | null {
-    if (!cardTokenFromUrl(value)) return "Enter a card URL with a /c/<unique-token> path.";
-    if (state.cards.some((card) => card.cardUrl === normalizedCardUrl(value)))
+    const token = cardTokenFromUrl(value);
+    if (!token) return "Enter a card URL with a /c/<unique-token> path.";
+    if (state.cards.some((card) => cardUrlIdentity(card.cardUrl) === cardUrlIdentity(value)))
       return "That card URL is already registered.";
+    if (state.cards.some((card) => card.token === token))
+      return `The card token “${token}” is already registered. Enter a unique token.`;
     return null;
   }
 
@@ -108,6 +118,15 @@ export function CardsManager() {
     }
     if (selectedProfile === undefined) {
       setMessage({ tone: "error", text: "Create a profile before assigning a card." });
+      return;
+    }
+    if (selectedProfile.status !== "published") {
+      setMessage({ tone: "error", text: "Publish the selected profile before assigning a card." });
+      return;
+    }
+    const owner = state.customers.find((customer) => customer.id === selectedProfile.ownerId);
+    if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
+      setMessage({ tone: "error", text: "The profile owner account is not active." });
       return;
     }
     const nextCard = transitionCard(card, "active", selectedProfile.id);
@@ -170,12 +189,22 @@ export function CardsManager() {
     }
     const token = cardTokenFromUrl(replacementUrl);
     if (!token) return;
+    const replacementProfile = getDemoProfileById(state, card.profileId);
+    const replacementOwner = state.customers.find(
+      (customer) => customer.id === replacementProfile?.ownerId,
+    );
+    if (!isActiveAccount(replacementOwner?.status, replacementOwner?.deletionStatus)) {
+      setMessage({ tone: "error", text: "The profile owner account is not active." });
+      return;
+    }
+    const profileName =
+      replacementProfile?.draft.name || replacementProfile?.draft.slug || "its existing profile";
     const replacement: DemoCard = {
       id: `card-${token}-replacement`,
       token,
       cardUrl: normalizedCardUrl(replacementUrl),
       status: "active",
-      profileId: selectedProfile?.id,
+      profileId: card.profileId,
     };
     const retired = transitionCard(card, "replaced", undefined, replacement.id);
     updateDemoState((current) => ({
@@ -191,7 +220,7 @@ export function CardsManager() {
           id: `audit-${Date.now()}-new`,
           actor: "admin@tapit.local",
           action: "card.assigned",
-          target: `${replacement.token} → ${selectedProfile?.draft.name || selectedProfile?.draft.slug}`,
+          target: `${replacement.token} → ${profileName}`,
           occurredAt: new Date().toISOString(),
           after: "active",
         },
@@ -377,7 +406,7 @@ export function CardsManager() {
 
       {confirmation?.type === "replace" ? (
         <Panel
-          description={`The old ${confirmation.card.token} path will become replaced and the new card will become active for ${selectedProfile?.draft.name || selectedProfile?.draft.slug}.`}
+          description={`The old ${confirmation.card.token} path will become replaced and the new card will remain assigned to its existing profile.`}
           title="Replacement card URL"
         >
           <div className="mt-5 flex max-w-3xl flex-wrap items-end gap-3">

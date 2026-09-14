@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { AppShell, type ShellNavItem } from "./AppShell";
 import { Button } from "../ui/Button";
-import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
+import { clearDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 
 const customerNav: ShellNavItem[] = [
   { href: "/app/profile", label: "Profile" },
@@ -22,6 +22,7 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const session = useDemoSession();
+  const state = useDemoState();
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
@@ -32,9 +33,31 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
     if (!hydrated) return;
     if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     else if (session.role !== "customer") router.replace("/admin/customers");
-  }, [hydrated, pathname, router, session]);
+    else {
+      const customer = state.customers.find((candidate) => candidate.email === session.email);
+      if (
+        customer === undefined ||
+        customer.status !== "active" ||
+        customer.deletionStatus !== "active"
+      ) {
+        clearDemoSession();
+        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+      }
+    }
+  }, [hydrated, pathname, router, session, state.customers]);
 
-  if (!hydrated || session === null || session.role !== "customer")
+  const customer =
+    session?.role === "customer"
+      ? state.customers.find((candidate) => candidate.email === session.email)
+      : undefined;
+  if (
+    !hydrated ||
+    session === null ||
+    session.role !== "customer" ||
+    customer === undefined ||
+    customer.status !== "active" ||
+    customer.deletionStatus !== "active"
+  )
     return <div className="min-h-[100dvh] bg-tapit-paper" />;
 
   return (

@@ -85,10 +85,41 @@ export interface DeletionTransition {
   cards: CardRecord[];
 }
 
+export interface ProfileSlugValidationOptions {
+  existingSlugs?: readonly string[];
+  immutableSlug?: string;
+}
+
+export type AccountStatus = "invited" | "active" | "deleted";
+
 const LINK_SCHEMES = new Set(["https:", "mailto:", "tel:"]);
 
 function nonblank(value: string): boolean {
   return value.trim().length > 0;
+}
+
+const PROFILE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/** Returns a contract-compatible error for an invalid, duplicate, or changed slug. */
+export function validateProfileSlug(
+  slug: string,
+  options: ProfileSlugValidationOptions = {},
+): string | null {
+  if (!PROFILE_SLUG_PATTERN.test(slug)) return "The profile slug is invalid.";
+  if (options.immutableSlug !== undefined && slug !== options.immutableSlug) {
+    return "The profile slug cannot change after first publication.";
+  }
+  if (options.existingSlugs?.some((existingSlug) => existingSlug === slug)) {
+    return "That profile slug is already in use.";
+  }
+  return null;
+}
+
+export function isActiveAccount(
+  accountStatus: AccountStatus | undefined,
+  deletionStatus: DeletionStatus | undefined,
+): boolean {
+  return accountStatus === "active" && deletionStatus === "active";
 }
 
 /** Returns true only for non-empty HTTPS, mailto, or tel destinations. */
@@ -116,31 +147,83 @@ export function validateLinkDestination(destination: string): string | null {
     : "Link destination must be a valid HTTPS, mailto, or tel address.";
 }
 
+export function validatePublicationAccess(
+  profileStatus: ProfileStatus,
+  accountStatus: AccountStatus | undefined,
+  deletionStatus: DeletionStatus | undefined,
+): string[] {
+  return [
+    ...(accountStatus !== "active" || deletionStatus !== "active"
+      ? [
+          "Your customer account is inactive or pending deletion. Contact support before publishing.",
+        ]
+      : []),
+    ...(profileStatus === "suspended"
+      ? ["This profile is suspended. Contact an administrator before publishing."]
+      : []),
+  ];
+}
+
 export function validEnabledLinks(links: readonly ProfileLink[]): ProfileLink[] {
   return links.filter(
     (link) => link.enabled && nonblank(link.label) && isAllowedLinkDestination(link.destination),
   );
 }
 
+function invalidEnabledLinks(links: readonly ProfileLink[]): boolean {
+  return links.some(
+    (link) =>
+      link.enabled && (!nonblank(link.label) || !isAllowedLinkDestination(link.destination)),
+  );
+}
+
+function duplicateEnabledLinkDestinations(links: readonly ProfileLink[]): boolean {
+  const destinations = new Set<string>();
+  for (const link of links) {
+    if (!link.enabled) continue;
+    const destination = link.destination.trim().toLowerCase();
+    if (destination.length === 0) continue;
+    if (destinations.has(destination)) return true;
+    destinations.add(destination);
+  }
+  return false;
+}
+
 export function validatePublication(
   draft: ProfileContent,
   previous: PublishedProfileSnapshot | null,
+  options: ProfileSlugValidationOptions = {},
 ): string[] {
   const errors: string[] = [];
   if (!nonblank(draft.name)) errors.push("A nonblank profile name is required.");
-  if (!nonblank(draft.slug)) errors.push("A profile slug is required.");
+  if (!nonblank(draft.slug)) {
+    errors.push("A profile slug is required.");
+  } else {
+    const slugError = validateProfileSlug(draft.slug, {
+      ...options,
+      immutableSlug: previous?.slug ?? options.immutableSlug,
+    });
+    if (slugError !== null) errors.push(slugError);
+  }
   if (validEnabledLinks(draft.links).length === 0) {
     errors.push("At least one valid enabled link is required.");
   }
-  if (previous !== null && draft.slug !== previous.slug) {
-    errors.push("The profile slug cannot change after first publication.");
+  if (invalidEnabledLinks(draft.links)) {
+    errors.push("Every enabled link needs a label and safe destination.");
+  }
+  if (duplicateEnabledLinkDestinations(draft.links)) {
+    errors.push("Duplicate enabled link destinations are not allowed.");
   }
   return errors;
 }
 
 /** Promotes a valid draft while retaining the previous snapshot until success. */
-export function publishProfile(profile: ProfileRecord, publishedAt: string): ProfileRecord {
-  const errors = validatePublication(profile.draft, profile.published);
+export function publishProfile(
+  profile: ProfileRecord,
+  publishedAt: string,
+  options: ProfileSlugValidationOptions = {},
+): ProfileRecord {
+  const errors = validatePublication(profile.draft, profile.published, options);
   if (errors.length > 0) throw new Error(errors.join(" "));
 
   const snapshot: PublishedProfileSnapshot = {

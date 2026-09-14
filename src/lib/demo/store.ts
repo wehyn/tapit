@@ -78,9 +78,38 @@ function loadSession() {
   }
 }
 
-function persist() {
-  if (typeof window !== "undefined")
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function persist(nextState: DemoState) {
+  if (typeof window === "undefined") return;
+  const previousRaw = window.localStorage.getItem(STORAGE_KEY);
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(nextState);
+  } catch (error) {
+    throw persistenceError(error);
+  }
+  try {
+    window.localStorage.setItem(STORAGE_KEY, serialized);
+  } catch (error) {
+    try {
+      if (previousRaw === null) window.localStorage.removeItem(STORAGE_KEY);
+      else window.localStorage.setItem(STORAGE_KEY, previousRaw);
+    } catch {
+      // The in-memory state is still unchanged. Report the original write failure.
+    }
+    throw persistenceError(error);
+  }
+}
+
+function persistenceError(error: unknown): Error {
+  const detail = error instanceof Error && error.message ? ` ${error.message}` : "";
+  return new Error(`Could not save Tapit data locally. Your changes were not saved.${detail}`);
+}
+
+function isPersistenceError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.startsWith("Could not save Tapit data locally. Your changes were not saved.")
+  );
 }
 
 export function subscribeDemoState(listener: () => void): () => void {
@@ -164,16 +193,28 @@ export function useDemoState(): DemoState {
   return useSyncExternalStore(subscribeDemoState, getStateSnapshot, () => serverSnapshot);
 }
 
+export function useHydratedDemoState(): { hydrated: boolean; state: DemoState } {
+  const state = useDemoState();
+  const hydrated = useSyncExternalStore(
+    subscribeDemoState,
+    () => loaded,
+    () => false,
+  );
+  return { hydrated, state };
+}
+
 export function updateDemoState(updater: (current: DemoState) => DemoState): void {
   loadFromStorage();
-  state = updater(state);
-  persist();
+  const nextState = updater(state);
+  persist(nextState);
+  state = nextState;
   notify();
 }
 
 export function resetDemoState(): void {
-  state = createDefaultDemoState();
-  persist();
+  const nextState = createDefaultDemoState();
+  persist(nextState);
+  state = nextState;
   notify();
 }
 
@@ -234,28 +275,36 @@ function updateBucket(
 }
 
 export function recordProfileView(profileId = "profile-mara"): void {
-  updateDemoState((current) => ({
-    ...current,
-    analytics: updateBucket(current.analytics, profileId, (bucket) => ({
-      ...bucket,
-      views: bucket.views + 1,
-      uniqueViews: bucket.uniqueViews + (bucket.views === 0 ? 1 : 0),
-    })),
-  }));
+  try {
+    updateDemoState((current) => ({
+      ...current,
+      analytics: updateBucket(current.analytics, profileId, (bucket) => ({
+        ...bucket,
+        views: bucket.views + 1,
+        uniqueViews: bucket.uniqueViews + (bucket.views === 0 ? 1 : 0),
+      })),
+    }));
+  } catch (error) {
+    if (!isPersistenceError(error)) throw error;
+  }
 }
 
 export function recordLinkClick(linkId: string, profileId = "profile-mara"): void {
-  updateDemoState((current) => ({
-    ...current,
-    analytics: updateBucket(current.analytics, profileId, (bucket) => ({
-      ...bucket,
-      clicks: bucket.clicks + 1,
-      linkClicks: {
-        ...bucket.linkClicks,
-        [linkId]: (bucket.linkClicks[linkId] ?? 0) + 1,
-      },
-    })),
-  }));
+  try {
+    updateDemoState((current) => ({
+      ...current,
+      analytics: updateBucket(current.analytics, profileId, (bucket) => ({
+        ...bucket,
+        clicks: bucket.clicks + 1,
+        linkClicks: {
+          ...bucket.linkClicks,
+          [linkId]: (bucket.linkClicks[linkId] ?? 0) + 1,
+        },
+      })),
+    }));
+  } catch (error) {
+    if (!isPersistenceError(error)) throw error;
+  }
 }
 
 export type AnalyticsRange = "lifetime" | "7d" | "30d" | "90d";

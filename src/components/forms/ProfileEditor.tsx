@@ -6,10 +6,12 @@ import {
   projectPublicProfile,
   publishProfile,
   validatePublication,
+  validatePublicationAccess,
   type ProfileContent,
 } from "@/lib/domain";
 import {
   getDemoProfileForSession,
+  getDemoProfiles,
   getDemoTheme,
   updateDemoProfile,
   updateDemoTheme,
@@ -48,10 +50,28 @@ export function ProfileEditor() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
-  const errors = useMemo(
-    () => validatePublication(draft, profile.published),
-    [draft, profile.published],
-  );
+  const errors = useMemo(() => {
+    const customer =
+      session?.role === "customer"
+        ? state.customers.find((candidate) => candidate.email === session.email)
+        : undefined;
+    const lifecycleErrors = validatePublicationAccess(
+      profile.status,
+      customer?.status,
+      customer?.deletionStatus,
+    );
+    return [
+      ...validatePublication(draft, profile.published, {
+        existingSlugs: getDemoProfiles(state)
+          .filter((candidate) => candidate.id !== profile.id)
+          .flatMap((candidate) => [
+            candidate.draft.slug,
+            ...(candidate.published === null ? [] : [candidate.published.slug]),
+          ]),
+      }),
+      ...lifecycleErrors,
+    ];
+  }, [draft, profile.id, profile.published, profile.status, session, state]);
   const preview = profileForPreview(draft);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
@@ -61,20 +81,49 @@ export function ProfileEditor() {
     setMessage(null);
   }
 
+  function chooseTheme(themeOption: "paper" | "moss" | "night") {
+    try {
+      updateDemoState((current) => updateDemoTheme(current, profile.id, themeOption));
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Theme could not be saved.",
+      });
+    }
+  }
+
   function saveDraft() {
-    updateDemoState((current) =>
-      updateDemoProfile(current, profile.id, (currentProfile) => ({ ...currentProfile, draft })),
-    );
-    setMessage({
-      tone: "success",
-      text: "Draft saved. Visitors still see the last published version.",
-    });
+    try {
+      updateDemoState((current) =>
+        updateDemoProfile(current, profile.id, (currentProfile) => ({ ...currentProfile, draft })),
+      );
+      setMessage({
+        tone: "success",
+        text: "Draft saved. Visitors still see the last published version.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Draft could not be saved.",
+      });
+    }
   }
 
   function publish() {
+    if (errors.length > 0) {
+      setMessage({ tone: "error", text: errors.join(" ") });
+      return;
+    }
     try {
       const nextProfile = {
-        ...publishProfile({ ...profile, draft }, new Date().toISOString()),
+        ...publishProfile({ ...profile, draft }, new Date().toISOString(), {
+          existingSlugs: getDemoProfiles(state)
+            .filter((candidate) => candidate.id !== profile.id)
+            .flatMap((candidate) => [
+              candidate.draft.slug,
+              ...(candidate.published === null ? [] : [candidate.published.slug]),
+            ]),
+        }),
         theme: profile.theme,
       };
       updateDemoState((current) => ({
@@ -104,28 +153,35 @@ export function ProfileEditor() {
   }
 
   function unpublish() {
-    updateDemoState((current) => ({
-      ...updateDemoProfile(current, profile.id, (currentProfile) => ({
-        ...currentProfile,
-        status: "unpublished",
-      })),
-      audits: [
-        {
-          id: `audit-${Date.now()}`,
-          actor: session?.email ?? profile.draft.name,
-          action: "profile.unpublished",
-          target: profile.draft.slug,
-          occurredAt: new Date().toISOString(),
-          before: "published",
-          after: "unpublished",
-        },
-        ...current.audits,
-      ],
-    }));
-    setMessage({
-      tone: "success",
-      text: "Profile unpublished. Visitors now see the unavailable page.",
-    });
+    try {
+      updateDemoState((current) => ({
+        ...updateDemoProfile(current, profile.id, (currentProfile) => ({
+          ...currentProfile,
+          status: "unpublished",
+        })),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: session?.email ?? profile.draft.name,
+            action: "profile.unpublished",
+            target: profile.draft.slug,
+            occurredAt: new Date().toISOString(),
+            before: "published",
+            after: "unpublished",
+          },
+          ...current.audits,
+        ],
+      }));
+      setMessage({
+        tone: "success",
+        text: "Profile unpublished. Visitors now see the unavailable page.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
+      });
+    }
   }
 
   function copyUrl() {
@@ -151,8 +207,32 @@ export function ProfileEditor() {
     }
     setImageError("");
     const reader = new FileReader();
-    reader.onload = () =>
-      updateField("imageUrl", typeof reader.result === "string" ? reader.result : undefined);
+    reader.onerror = () => setImageError("That image could not be read. Choose another file.");
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        setImageError("That image could not be converted. Choose another file.");
+        return;
+      }
+      const image = new Image();
+      image.onerror = () =>
+        setImageError("That image could not be converted. Choose another file.");
+      image.onload = () => {
+        try {
+          const maxSize = 1200;
+          const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Canvas unavailable");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          updateField("imageUrl", canvas.toDataURL("image/jpeg", 0.8));
+        } catch {
+          setImageError("That image could not be converted. Choose another file.");
+        }
+      };
+      image.src = reader.result;
+    };
     reader.readAsDataURL(file);
   }
 
@@ -257,9 +337,7 @@ export function ProfileEditor() {
                 aria-pressed={theme === themeOption}
                 className={`rounded-2xl border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
                 key={themeOption}
-                onClick={() =>
-                  updateDemoState((current) => updateDemoTheme(current, profile.id, themeOption))
-                }
+                onClick={() => chooseTheme(themeOption)}
                 type="button"
               >
                 <span

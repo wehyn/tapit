@@ -10,6 +10,27 @@ import { Notice } from "@/components/ui/Notice";
 import { setDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 import { verifyDemoPassword } from "@/lib/demo/password";
 
+/** Accept only an internal, same-origin path for post-login navigation. */
+export function sanitizeReturnPath(value: string | string[] | undefined): string | undefined {
+  if (typeof value !== "string" || value.length === 0 || !value.startsWith("/")) return undefined;
+  if (
+    value.startsWith("//") ||
+    value.includes("\\") ||
+    /[\u0000-\u001f\u007f]/.test(value) ||
+    /%(?![0-9a-fA-F]{2})/.test(value)
+  )
+    return undefined;
+  try {
+    const parsed = new URL(value, "https://tapit.invalid");
+    if (parsed.origin !== "https://tapit.invalid") {
+      return undefined;
+    }
+    return value;
+  } catch {
+    return undefined;
+  }
+}
+
 export function LoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const state = useDemoState();
@@ -18,11 +39,14 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const safeNextPath = sanitizeReturnPath(nextPath);
 
   useEffect(() => {
     if (session !== null)
-      router.replace(nextPath || (session.role === "admin" ? "/admin/customers" : "/app/profile"));
-  }, [nextPath, router, session]);
+      router.replace(
+        safeNextPath || (session.role === "admin" ? "/admin/customers" : "/app/profile"),
+      );
+  }, [router, safeNextPath, session]);
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,7 +62,10 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
     }
     setSubmitting(true);
     const account = state.customers.find(
-      (candidate) => candidate.email === normalizedEmail && candidate.status === "active",
+      (candidate) =>
+        candidate.email === normalizedEmail &&
+        candidate.status === "active" &&
+        candidate.deletionStatus === "active",
     );
     window.setTimeout(async () => {
       try {
@@ -51,7 +78,7 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
         }
         setDemoSession({ email: account.email, role: account.role });
         router.replace(
-          nextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
+          safeNextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
         );
       } catch {
         setError("The demo authentication service is unavailable. Try again.");

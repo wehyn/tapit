@@ -7,11 +7,13 @@ import {
   publishProfile,
   validateLinkDestination,
   validatePublication,
+  validatePublicationAccess,
   type LinkIcon,
   type ProfileLink,
 } from "@/lib/domain";
 import {
   getDemoProfileForSession,
+  getDemoProfiles,
   getDemoTheme,
   updateDemoProfile,
   useDemoSession,
@@ -69,6 +71,7 @@ export function LinksEditor() {
     const errors: Record<string, string> = {};
     const destinations = new Map<string, string>();
     for (const link of links) {
+      if (!link.enabled) continue;
       if (!link.label.trim()) {
         errors[link.id] = "Add a label so visitors know where this link goes.";
       } else {
@@ -87,7 +90,26 @@ export function LinksEditor() {
   }, [links]);
 
   const draft = { ...profile.draft, links };
-  const publicationErrors = validatePublication(draft, profile.published);
+  const customer =
+    session?.role === "customer"
+      ? state.customers.find((candidate) => candidate.email === session.email)
+      : undefined;
+  const lifecycleErrors = validatePublicationAccess(
+    profile.status,
+    customer?.status,
+    customer?.deletionStatus,
+  );
+  const publicationErrors = [
+    ...validatePublication(draft, profile.published, {
+      existingSlugs: getDemoProfiles(state)
+        .filter((candidate) => candidate.id !== profile.id)
+        .flatMap((candidate) => [
+          candidate.draft.slug,
+          ...(candidate.published === null ? [] : [candidate.published.slug]),
+        ]),
+    }),
+    ...lifecycleErrors,
+  ];
   const preview =
     Object.keys(validation).length === 0 && publicationErrors.length === 0
       ? previewForLinks(profile, links)
@@ -130,21 +152,34 @@ export function LinksEditor() {
       setMessage({ tone: "error", text: "Fix each highlighted link before saving the draft." });
       return;
     }
-    updateDemoState((current) =>
-      updateDemoProfile(current, profile.id, (currentProfile) => ({
-        ...currentProfile,
-        draft: { ...currentProfile.draft, links: copyLinks(links) },
-      })),
-    );
-    setMessage({
-      tone: "success",
-      text: "Links saved to draft. Visitors still see the last published order.",
-    });
+    try {
+      updateDemoState((current) =>
+        updateDemoProfile(current, profile.id, (currentProfile) => ({
+          ...currentProfile,
+          draft: { ...currentProfile.draft, links: copyLinks(links) },
+        })),
+      );
+      setMessage({
+        tone: "success",
+        text: "Links saved to draft. Visitors still see the last published order.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Links could not be saved.",
+      });
+    }
   }
 
   function publish() {
-    if (Object.keys(validation).length > 0) {
-      setMessage({ tone: "error", text: "Fix each highlighted link before publishing." });
+    if (publicationErrors.length > 0 || Object.keys(validation).length > 0) {
+      setMessage({
+        tone: "error",
+        text:
+          Object.keys(validation).length > 0
+            ? "Fix each highlighted link before publishing."
+            : publicationErrors.join(" "),
+      });
       return;
     }
     try {
@@ -152,6 +187,14 @@ export function LinksEditor() {
         ...publishProfile(
           { ...profile, draft: { ...profile.draft, links: copyLinks(links) } },
           new Date().toISOString(),
+          {
+            existingSlugs: getDemoProfiles(state)
+              .filter((candidate) => candidate.id !== profile.id)
+              .flatMap((candidate) => [
+                candidate.draft.slug,
+                ...(candidate.published === null ? [] : [candidate.published.slug]),
+              ]),
+          },
         ),
         theme: profile.theme,
       };

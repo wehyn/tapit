@@ -55,6 +55,10 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Card registry" })).toBeVisible();
 
+  await page.getByLabel("Pre-encoded card URL").fill("/c/malformed/path");
+  await page.getByRole("button", { name: "Register card" }).click();
+  await expect(page.getByText("Enter a card URL with a /c/<unique-token> path.")).toBeVisible();
+
   await page.getByLabel("Pre-encoded card URL").fill("/c/mara-card-7f2q");
   await page.getByRole("button", { name: "Register card" }).click();
   await expect(page.getByText("That card URL is already registered.")).toBeVisible();
@@ -116,10 +120,17 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   await page.getByRole("link", { name: "Account" }).click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
-  await expect(page.getByText("Your profile is now unavailable")).toBeVisible();
+  await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Faccount$/);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
   await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(
+    page.getByText(
+      "Your customer account is inactive or pending deletion. Contact support before publishing.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Customers" }).click();
   const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
   await customer.getByRole("button", { name: "Approve deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Approve account deletion?" })).toBeVisible();

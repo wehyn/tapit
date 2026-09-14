@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
+import { validateProfileSlug } from "@/lib/domain";
 import {
   getDemoProfiles,
   updateDemoProfile,
@@ -51,6 +52,16 @@ export function CustomersManager() {
         .split("@")[0]
         ?.replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") || "new-profile";
+    const slug = `${baseSlug}-${Date.now().toString(36)}`;
+    const existingSlugs = getDemoProfiles(state).flatMap((profile) => [
+      profile.draft.slug,
+      ...(profile.published === null ? [] : [profile.published.slug]),
+    ]);
+    const slugError = validateProfileSlug(slug, { existingSlugs });
+    if (slugError !== null) {
+      setMessage({ tone: "error", text: slugError });
+      return;
+    }
     const occurredAt = new Date().toISOString();
     updateDemoState((current) => ({
       ...current,
@@ -61,7 +72,7 @@ export function CustomersManager() {
           ownerId: customerId,
           status: "draft",
           theme: "paper",
-          draft: { name: "", slug: `${baseSlug}-${Date.now().toString(36)}`, links: [] },
+          draft: { name: "", slug, links: [] },
           published: null,
         } satisfies DemoProfile,
       ],
