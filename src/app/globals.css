@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --tapit-ink: #17211f;
-  --tapit-muted: #66736f;
-  --tapit-paper: #f7f8f5;
+  --tapit-ink: #151918;
+  --tapit-muted: #687571;
+  --tapit-paper: #f6f8f7;
   --tapit-surface: #ffffff;
-  --tapit-line: #dce4df;
-  --tapit-accent: #176b57;
-  --tapit-accent-strong: #0f4d3e;
-  --tapit-accent-soft: #e1f0eb;
-  --tapit-danger: #a43a35;
-  --tapit-focus: #d98925;
+  --tapit-soft-surface: #e9eeec;
+  --tapit-line: #d6deda;
+  --tapit-accent: #187461;
+  --tapit-accent-strong: #0f5a4a;
+  --tapit-accent-soft: #dcefe9;
+  --tapit-danger: #a33c38;
+  --tapit-focus: #b86500;
+  --tapit-radius: 12px;
 }
 
 @theme inline {
@@ -18,16 +20,29 @@
   --color-tapit-muted: var(--tapit-muted);
   --color-tapit-paper: var(--tapit-paper);
   --color-tapit-surface: var(--tapit-surface);
+  --color-tapit-soft-surface: var(--tapit-soft-surface);
   --color-tapit-line: var(--tapit-line);
   --color-tapit-accent: var(--tapit-accent);
   --color-tapit-accent-strong: var(--tapit-accent-strong);
   --color-tapit-accent-soft: var(--tapit-accent-soft);
   --color-tapit-danger: var(--tapit-danger);
   --color-tapit-focus: var(--tapit-focus);
+  --radius-tapit: var(--tapit-radius);
 }
 
-* {
-  box-sizing: border-box;
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    min-height: 44px;
+  }
 }
 
 html {
@@ -38,16 +53,26 @@ body {
   margin: 0;
   background: var(--tapit-paper);
   color: var(--tapit-ink);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
   text-rendering: optimizeLegibility;
 }
 
-button,
-a,
-input,
-textarea,
-select {
-  font: inherit;
+::selection {
+  background: var(--tapit-accent-soft);
+  color: var(--tapit-ink);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .tapit-glass {
+    background: var(--tapit-surface) !important;
+    backdrop-filter: none !important;
+  }
 }
 
 :focus-visible {

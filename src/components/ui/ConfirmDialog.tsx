@@ -57,12 +57,12 @@ export function ConfirmDialog({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-20 grid place-items-center bg-[#17211f]/45 px-5 py-8">
+    <div className="fixed inset-0 z-20 grid place-items-center bg-tapit-ink px-5 py-8 sm:bg-tapit-ink/70">
       <div
         aria-describedby="confirm-description"
         aria-labelledby="confirm-title"
         aria-modal="true"
-        className="w-full max-w-md rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_80px_rgba(23,33,31,0.24)]"
+        className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_80px_rgba(21,25,24,0.24)]"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}

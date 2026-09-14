@@ -13,7 +13,7 @@ export function Notice({
   return (
     <div
       aria-live="polite"
-      className={`rounded-xl border px-4 py-3 text-sm leading-6 ${classes}`}
+      className={`rounded-tapit border px-4 py-3 text-sm leading-6 ${classes}`}
       role={tone === "error" ? "alert" : "status"}
     >
       {children}
