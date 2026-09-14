@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ActivityIcon, CardsIcon, ChartLineUpIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -31,42 +32,52 @@ export function AdminAnalytics() {
   );
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
         description="Cross-customer totals are aggregate-only. No visitor identity or raw event history is available in this console."
         title="Operational analytics"
       >
-        <div className="mt-6 max-w-xs">
-          <SelectField
-            id="admin-analytics-range"
-            label="Time range"
-            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-            value={range}
-          >
-            {ranges.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
+        <div className="mt-6 flex max-w-xs items-end gap-3">
+          <ChartLineUpIcon
+            aria-hidden="true"
+            className="mb-3 hidden text-tapit-accent sm:block"
+            size={24}
+          />
+          <div className="flex-1">
+            <SelectField
+              id="admin-analytics-range"
+              label="Time range"
+              onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+              value={range}
+            >
+              {ranges.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </SelectField>
+          </div>
         </div>
       </Panel>
-      <dl className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-tapit-line bg-tapit-surface p-5">
+      <dl className="grid gap-2 sm:grid-cols-3">
+        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
+          <UsersThreeIcon aria-hidden="true" className="text-tapit-accent" size={22} />
           <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
           <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
             {totals.views.toLocaleString()}
           </dd>
           <p className="mt-2 text-xs text-tapit-muted">All active entry paths</p>
         </div>
-        <div className="rounded-2xl border border-tapit-line bg-tapit-surface p-5">
+        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
+          <ActivityIcon aria-hidden="true" className="text-tapit-accent" size={22} />
           <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
           <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
             {totals.uniqueViews.toLocaleString()}
           </dd>
           <p className="mt-2 text-xs text-tapit-muted">Privacy-preserving estimate</p>
         </div>
-        <div className="rounded-2xl border border-tapit-line bg-tapit-surface p-5">
+        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
+          <CardsIcon aria-hidden="true" className="text-tapit-accent" size={22} />
           <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
           <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
             {totals.clicks.toLocaleString()}
@@ -81,10 +92,10 @@ export function AdminAnalytics() {
         description="Operational status helps support identify a profile or card issue without exposing visitor details."
         title="Profile and card status"
       >
-        <div className="mt-6 grid gap-3">
+        <div className="mt-6 grid gap-2">
           {profiles.map((profile) => (
             <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-tapit-line bg-tapit-paper p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
               key={profile.id}
             >
               <div>
@@ -102,7 +113,7 @@ export function AdminAnalytics() {
           ))}
           {state.cards.map((card) => (
             <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-tapit-line bg-tapit-paper p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
               key={card.id}
             >
               <div>

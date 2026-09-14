@@ -43,7 +43,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppShell eyebrow="Administrator console" navItems={adminNav} title="Tapit operations">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pb-2 pt-5 sm:px-8">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-2 pt-5 sm:px-8">
         <p className="text-sm text-tapit-muted">
           Signed in as <strong className="text-tapit-ink">{session.email}</strong>
         </p>
