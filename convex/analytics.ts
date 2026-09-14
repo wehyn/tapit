@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
-import { requireAdministrator, requireUser } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
 
 const rangeValidator = v.union(
   v.literal("lifetime"),
@@ -25,7 +25,8 @@ export const recordView = mutation({
   args: { profileId: v.id("profiles"), unique: v.optional(v.boolean()) },
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
-    if (profile === null || profile.status !== "published") return;
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return;
     const start = bucketStart();
     const buckets = await ctx.db
       .query("analytics")
@@ -56,9 +57,11 @@ export const recordLinkClick = mutation({
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
     const link = await ctx.db.get(args.linkId);
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (
       profile === null ||
       link === null ||
+      !isActiveCustomer(owner) ||
       link.profileId !== profile._id ||
       profile.status !== "published" ||
       !link.enabled
@@ -119,7 +122,7 @@ export const mine = query({
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
-    if (account === null || account.profileId === undefined)
+    if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
       return { views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} };
     const rows = await ctx.db
       .query("analytics")

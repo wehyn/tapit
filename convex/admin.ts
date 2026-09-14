@@ -1,8 +1,13 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 
 import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 
 type AuthContext = QueryCtx | MutationCtx;
+
+export function isActiveCustomer(account: Doc<"customers"> | null | undefined): boolean {
+  return account?.status === "active" && account.deletionStatus === "active";
+}
 
 export async function requireUser(ctx: AuthContext) {
   const userId = await getAuthUserId(ctx);
@@ -19,7 +24,7 @@ export async function requireAdministrator(ctx: AuthContext) {
     .withIndex("by_userId", (query) => query.eq("userId", userId))
     .unique();
 
-  if (account === null || account.role !== "admin" || account.status === "deleted") {
+  if (account === null || account.role !== "admin" || !isActiveCustomer(account)) {
     throw new Error("Administrator permission required.");
   }
 
@@ -37,8 +42,9 @@ export const currentAccess = query({
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
 
+    const active = isActiveCustomer(account);
     return {
-      authenticated: true,
+      authenticated: active,
       role: account?.role ?? null,
       accountId: account?._id,
       profileId: account?.profileId,

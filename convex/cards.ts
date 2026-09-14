@@ -2,7 +2,18 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireAdministrator } from "./admin";
+import { isActiveCustomer, requireAdministrator } from "./admin";
+
+function tokenFromCardUrl(cardUrl: string): string | null {
+  try {
+    const parsed = new URL(cardUrl, "https://tapit.local");
+    const segments = parsed.pathname.split("/").filter(Boolean);
+    const token = segments.length === 2 && segments[0] === "c" ? segments[1] : undefined;
+    return token !== undefined && /^[A-Za-z0-9_-]+$/.test(token) ? token : null;
+  } catch {
+    return null;
+  }
+}
 
 function publicProjection(profile: {
   _id: Id<"profiles">;
@@ -49,7 +60,8 @@ export const resolve = query({
     if (card.status !== "active" || card.profileId === undefined)
       return { status: "inactive" as const };
     const profile = await ctx.db.get(card.profileId);
-    if (profile === null || publicProjection(profile) === null)
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (profile === null || !isActiveCustomer(owner) || publicProjection(profile) === null)
       return { status: "unavailable" as const };
     return { status: "active" as const, profile: publicProjection(profile) };
   },
@@ -67,6 +79,8 @@ export const register = mutation({
   args: { cardUrl: v.string(), token: v.string() },
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
+    if (tokenFromCardUrl(args.cardUrl) !== args.token)
+      throw new Error("Card URL must use the /c/<token> format and match its token.");
     const duplicateUrl = await ctx.db
       .query("cards")
       .withIndex("by_cardUrl", (query) => query.eq("cardUrl", args.cardUrl))
@@ -107,6 +121,8 @@ export const assign = mutation({
     if (card.status !== "registered") throw new Error("Only a registered card can be assigned.");
     if (profile.status !== "published")
       throw new Error("A card can only become active for a published profile.");
+    const owner = await ctx.db.get(profile.ownerId);
+    if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
@@ -158,6 +174,12 @@ export const replace = mutation({
     const oldCard = await ctx.db.get(args.oldCardId);
     if (oldCard === null || oldCard.status !== "active" || oldCard.profileId === undefined)
       throw new Error("Only an active assigned card can be replaced.");
+    if (tokenFromCardUrl(args.newCardUrl) !== args.newToken)
+      throw new Error("Card URL must use the /c/<token> format and match its token.");
+    const profile = await ctx.db.get(oldCard.profileId);
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (profile === null || !isActiveCustomer(owner))
+      throw new Error("The profile owner account is not active.");
     const duplicateUrl = await ctx.db
       .query("cards")
       .withIndex("by_cardUrl", (query) => query.eq("cardUrl", args.newCardUrl))

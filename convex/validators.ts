@@ -49,11 +49,13 @@ export function validateProfileContent(content: {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(content.slug)) errors.push("The profile slug is invalid.");
   const seen = new Set<string>();
   for (const link of content.links) {
+    if (!link.enabled) continue;
     if (!link.label.trim() || !isSafeDestination(link.destination))
-      errors.push("Every link needs a label and safe destination.");
-    if (seen.has(link.destination.trim().toLowerCase()))
+      errors.push("Every enabled link needs a label and safe destination.");
+    const normalizedDestination = link.destination.trim().toLowerCase();
+    if (normalizedDestination && seen.has(normalizedDestination))
       errors.push("Duplicate link destinations are not allowed.");
-    seen.add(link.destination.trim().toLowerCase());
+    if (normalizedDestination) seen.add(normalizedDestination);
   }
   if (
     content.links.filter(

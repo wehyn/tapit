@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { requireAdministrator, requireUser } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
 import {
   profileContentValidator,
   profileStatusValidator,
@@ -20,6 +20,7 @@ async function profileAccess(ctx: AuthContext, profileId: Id<"profiles">) {
   const profile = await ctx.db.get(profileId);
   if (
     account === null ||
+    !isActiveCustomer(account) ||
     profile === null ||
     (profile.ownerId !== account._id && account.role !== "admin")
   ) {
@@ -50,7 +51,9 @@ export const publicBySlug = query({
       .query("profiles")
       .withIndex("by_slug", (query) => query.eq("slug", args.slug))
       .unique();
-    return profile === null ? null : publicProjection(profile);
+    if (profile === null) return null;
+    const account = await ctx.db.get(profile.ownerId);
+    return isActiveCustomer(account) ? publicProjection(profile) : null;
   },
 });
 
@@ -62,7 +65,8 @@ export const mine = query({
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
-    if (customer === null || customer.profileId === undefined) return null;
+    if (customer === null || !isActiveCustomer(customer) || customer.profileId === undefined)
+      return null;
     return await ctx.db.get(customer.profileId);
   },
 });
@@ -98,6 +102,9 @@ export const publish = mutation({
   args: { profileId: v.id("profiles") },
   handler: async (ctx, args) => {
     const { profile, userId } = await profileAccess(ctx, args.profileId);
+    const owner = await ctx.db.get(profile.ownerId);
+    if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
+    if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");
     const errors = validateProfileContent(profile.draft);
     if (errors.length > 0) throw new Error(errors.join(" "));
     const duplicate = await ctx.db
@@ -133,6 +140,10 @@ export const setStatus = mutation({
   handler: async (ctx, args) => {
     const { userId, profile } = await profileAccess(ctx, args.profileId);
     const account = await requireAdministrator(ctx);
+    if (args.status === "published") {
+      const owner = await ctx.db.get(profile.ownerId);
+      if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
+    }
     const now = Date.now();
     await ctx.db.patch(profile._id, {
       status: args.status,

@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { requireAdministrator, requireUser } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
 import { isSafeDestination, linkValidator } from "./validators";
 
 type AuthContext = QueryCtx | MutationCtx;
@@ -16,6 +16,7 @@ async function accessibleProfile(ctx: AuthContext, profileId: Id<"profiles">) {
   const profile = await ctx.db.get(profileId);
   if (
     account === null ||
+    !isActiveCustomer(account) ||
     profile === null ||
     (account.role !== "admin" && profile.ownerId !== account._id)
   )
@@ -40,9 +41,10 @@ export const replaceDraft = mutation({
     const { profile, userId } = await accessibleProfile(ctx, args.profileId);
     const seen = new Set<string>();
     for (const link of args.links) {
+      if (!link.enabled) continue;
       const normalized = link.destination.trim().toLowerCase();
       if (!link.label.trim() || !isSafeDestination(link.destination))
-        throw new Error("Every link needs a label and safe destination.");
+        throw new Error("Every enabled link needs a label and safe destination.");
       if (seen.has(normalized)) throw new Error("Duplicate link destinations are not allowed.");
       seen.add(normalized);
     }
