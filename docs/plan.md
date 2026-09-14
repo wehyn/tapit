@@ -1,9 +1,9 @@
 # Plan: Tapit
 
-Status: draft  
-Source documents: `intent.md`, approved `spec.md`  
-Repository state: greenfield; no application code exists  
-Repository guidance: no `CLAUDE.md` was found
+Status: local MVP implementation complete; production gates remain; reviewed against `DESIGN.md` on 2026-09-14<br>
+Source documents: `intent.md`, approved `spec.md`, approved `DESIGN.md`<br>
+Repository state: local MVP implementation exists under `src/`, `convex/`, `tests/`, and `e2e/`<br>
+Repository guidance: `AGENTS.md` and `CLAUDE.md` are present and point to the Next.js agent rules
 
 ## Scope and traceability
 
@@ -22,6 +22,29 @@ This plan builds the first working Tapit MVP described by `spec.md`. It does not
 | Security, privacy, performance, reliability | Security and performance sections; AC-010, AC-014, AC-016, AC-019, AC-024, AC-030–AC-034 |
 
 Traceability must be maintained in pull requests and test names. Every FR and AC should be either implemented and tested, explicitly deferred, or listed as blocked by a named TBD decision.
+
+## Design audit
+
+`DESIGN.md` was reviewed against `intent.md`, `spec.md`, and this plan on 2026-09-14. No product-requirement or MVP-scope conflict was found, so `spec.md` does not need to be changed before this plan is revised. The design makes the specification more concrete by defining screen contracts, visual direction, interaction behavior, responsive layouts, accessibility checks, and proof expectations; those details are captured below.
+
+The scope guard remains unchanged: requests for rich content, custom domains, team profiles, payments, official identity verification, customer card claiming, native apps, or other `spec.md` non-goals require a specification change before they can enter the plan.
+
+| Design area | Plan coverage added or confirmed | `spec.md` traceability |
+|---|---|---|
+| Visitor, customer, and administrator information architecture | Route and screen contracts, navigation shells, and permission states | FR-002, FR-005, FR-021, FR-033, FR-041–FR-049; AC-001–AC-003, AC-017–AC-024, AC-027–AC-031 |
+| Main journeys and explicit state changes | Draft/publish semantics, card replacement, deletion, confirmation, and result feedback | FR-018–FR-020, FR-026–FR-028, FR-043–FR-050; AC-005–AC-009, AC-019–AC-021, AC-024, AC-029–AC-030 |
+| UI state matrix | Loading, empty, validation, service, success, and permission behavior for each surface | FR-010, FR-014, FR-018–FR-020, FR-024, FR-026–FR-027, FR-034–FR-046; AC-004, AC-010, AC-014, AC-016, AC-019, AC-024, AC-029, AC-033 |
+| Responsive and accessible behavior | Phone-first public layout, responsive dashboards, keyboard alternatives, focus, contrast, semantics, and reduced motion | FR-010–FR-020, FR-033–FR-035, FR-048–FR-049; AC-006, AC-021–AC-024, AC-031–AC-032 |
+| Visual system and component inventory | Tapit-owned tokens, brand assets, reusable primitives, page components, and theme constraints | FR-011–FR-017, FR-033–FR-035, FR-043–FR-049; AC-006, AC-011–AC-014, AC-022–AC-024 |
+| Screenshot and real-device proof | Seeded visual baselines, responsive review, accessibility evidence, and NFC/QR evidence | AC-006, AC-017–AC-024, AC-031–AC-034 |
+
+## Implementation decisions recorded on 2026-09-14
+
+- The local MVP foundation uses Node.js 22.12+, npm 11+, Next.js 16.3.5, React 19.3.0, TypeScript 5.9.3, Convex 1.45.0, `@convex-dev/auth` 0.0.95 with `@auth/core` 0.41.1, Tailwind CSS 4.3.3, Vitest 5.0.0, Playwright 1.63.0, `@axe-core/playwright` 4.13.0, Zod 4.6.5, and `qrcode` 1.5.4. The committed lockfile is authoritative for transitive versions.
+- Local development defaults to a deterministic `NEXT_PUBLIC_DEMO_MODE` adapter so the user-facing MVP can be run and browser-tested without production Convex data or sending invitations. Convex/Auth modules and deployment configuration remain the production integration path.
+- Convex Auth’s beta/experimental Next.js integration is accepted as a local-MVP risk and must be validated in an isolated authentication vertical slice before production deployment; password recovery and email verification remain launch gates.
+- The initial neutral Tapit tokens and text mark are provisional implementation assets. Final logo, typeface, palette, radius, shadow, and theme-catalog decisions remain explicit design/launch gates.
+- Governing Markdown documents are excluded from Prettier’s repository format check so their authored formatting and existing user changes are preserved; implementation code and configuration remain formatter-enforced.
 
 ## Recommended technical decisions
 
@@ -271,6 +294,58 @@ The provider is TBD. Build a small application-level invitation interface so the
 
 Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first, but do not hard-code that provider until deliverability, pricing, and launch-jurisdiction requirements are confirmed.
 
+## Design implementation requirements
+
+`DESIGN.md` is an implementation contract for the MVP screens and their behavior. It adds presentation and interaction detail without adding product scope. Build the following surfaces from shared primitives and keep the listed states testable.
+
+### Screen and route contracts
+
+| Surface | Required content and interactions | Required states and constraints | `spec.md` traceability |
+|---|---|---|---|
+| Public profile `/<slug>` | Phone-first identity header, optional image/logo, name, optional bio/role, ordered enabled links, Save contact, Tapit branding, generated metadata, and `noindex` | Lightweight loading, published success, missing/unavailable, and friendly service error; never show drafts, disabled links, analytics, card identifiers, or admin controls | FR-009–FR-021, FR-033–FR-035, FR-038, FR-050; AC-006–AC-009, AC-022–AC-024, AC-025–AC-026, AC-032–AC-033 |
+| Card resolver `/c/<card-token>` and inactive-card page | Check card status, resolve active cards to the stable profile, and provide optional support/contact on the fixed inactive page | Active, invalid/missing, and inactive/replaced states; inactive handling must not query or expose former profile content and must count a profile view only once | FR-022–FR-033, FR-038, FR-042, FR-050; AC-017–AC-020, AC-024–AC-026 |
+| Unavailable-profile page | Fixed accessible Tapit branding, “This profile is currently unavailable,” and optional configured support/contact | Unpublished and suspended states must reveal no identity, links, images, analytics, or former content | FR-018, FR-043, FR-050; AC-024, AC-029 |
+| Login `/login` | Email, password, sign-in action, specific validation, support route, and role-appropriate redirect | Initial, submitting, invalid credentials, rate-limited, auth-service failure, and authenticated redirect; no public signup, password reset, or email verification flow in the MVP | FR-002, FR-005–FR-006, FR-047; AC-002–AC-003 |
+| Customer setup `/setup/<token>` | Account email context, password and confirmation, password guidance, and success continuation to Profile | Valid, invalid/expired/used token, mismatch, under-8-character password, submitting, success, and service failure; token is single-use | FR-003–FR-006, FR-047; AC-001–AC-002 |
+| Customer shell and Profile `/app/profile` | Responsive customer navigation for Profile, Links, Analytics, and Account; identity editor, immutable-after-publication slug, copyable stable URL, theme controls, status, validation checklist, Save draft, Preview, Publish, and image crop/preview | Draft/published/unpublished status is visible; split editor/preview where space permits and vertical flow on narrow screens; no Cards navigation or card controls | FR-007–FR-021, FR-047–FR-049; AC-004–AC-009, AC-013–AC-014, AC-021 |
+| Customer Links `/app/links` | Ordered link rows, custom labels, preset service/icon selection, safe destination input, enable/disable, add/edit/delete, Save draft, Preview, Publish, and reorder controls | Empty, loading, invalid scheme/malformed/empty/duplicate/missing-label, success, and save failure states; pointer reordering may be offered but Move up/Move down must always work | FR-013–FR-020; AC-010–AC-012 |
+| Customer Analytics `/app/analytics` | Lifetime, 7-day, 30-day, and 90-day views, unique views, link clicks, link-level results where available, range selection, and privacy explanation | Loading skeleton, empty explanation, populated metrics, query failure, and own-profile-only permission state; never imply visitor identities | FR-036–FR-042; AC-025–AC-028 |
+| Customer Account `/app/account` | Account email, password-change form, support destination, deletion explanation, request/confirm deletion | Form progress, validation/service errors, success feedback, and deletion confirmation; no card assignment/status controls; account-email changes remain TBD | FR-047–FR-048; AC-030–AC-031 |
+| Administrator Customers `/admin/customers` | Search/list with email, profile/status summary, setup status, customer creation, invitation status, and links to profile/cards | Loading, no-customers creation prompt, invalid/duplicate email, service/permission failure, and account/setup success; surface account, card, assignment, and invitation results separately | FR-002–FR-004, FR-042–FR-046; AC-001, AC-029 |
+| Administrator Profiles `/admin/profiles` | Searchable profile status list, customer, slug, last update, edit, publication, suspension, restore where allowed, and audit access | Loading, empty, query failure, permission failure, and action confirmation/success; administrative edits are audited and never public until explicitly published | FR-007–FR-009, FR-018–FR-020, FR-043–FR-046; AC-007–AC-009, AC-024, AC-029 |
+| Administrator Cards `/admin/cards` | Card URL registration, duplicate validation, assignment, status, assignment/replacement history, QR preview, PNG/SVG downloads, and audit access | Loading, no-cards registration prompt, invalid/duplicate URL, assignment/deactivation/replacement progress, success, and permission failure; confirmations identify the exact card/profile and immediate inactive effect | FR-022–FR-031, FR-042–FR-046; AC-015–AC-021, AC-029 |
+| Administrator Analytics `/admin/analytics` | Authorized cross-customer aggregate views, unique views, link clicks, time ranges, and operational profile/card status | Metric loading, no-data explanation, query failure, and administrator-only permission state; no raw visitor-level history | FR-036–FR-042; AC-025–AC-029 |
+| Administrator Audit log `/admin/audit-log` | Searchable/filterable proportional history with actor, action, target, timestamp, and before/after state | Loading, no-actions explanation, query failure, new-entry success, and customer-blocked state | FR-043–FR-046; AC-029 |
+| Administrator Settings `/admin/settings` | Configurable generic support/contact destination and limited platform settings | Loading, validation/service failure, save success, and administrator-only permission state | FR-042–FR-047; AC-024, AC-029, AC-033 |
+| Global fallback and state pages | Friendly not-found and temporary-error experiences using the same accessible state-page treatment | Never show raw stack traces or private/profile content; provide support/contact where appropriate | FR-033, FR-050; AC-024, AC-033 |
+
+### Interaction and state contracts
+
+- Give every mutation idle, submitting, success, validation-failure, authorization-failure, and service-failure behavior. Keep feedback beside the affected object and announce it through an appropriate live region.
+- Keep the last known valid published profile public when draft save or publication fails. Disable or otherwise guard duplicate submissions while a request is in progress without unexpectedly removing controls.
+- Require confirmation for deactivation, replacement, suspension, and deletion. The confirmation identifies the exact target, explains the immediate public effect, and returns focus to the trigger after closing.
+- Make draft and published states explicit in editing contexts. Preview pending changes only; never automatically publish a saved draft.
+- Provide copy-to-clipboard feedback for the stable URL with a usable fallback when clipboard access is unavailable.
+- Open external destinations in a new tab where supported, preserve the profile in the original tab, and give external-link actions clear accessible names.
+- Provide an explicit keyboard-accessible Move up/Move down path for link ordering. No feature may depend on precise dragging, hover, color recognition, or pointer precision.
+- Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a failed upload and explain accepted formats and the 5 MB limit.
+
+### Visual system and asset plan
+
+- Establish a neutral application base, restrained accent, typography hierarchy, spacing scale, controlled theme tokens, status tokens, focus ring, reduced-motion utilities, and consistent border/radius/shadow rules. Exact logo, colors, typeface, radius, shadows, and theme catalog remain TBD until a design gate resolves them.
+- Create or select a small, approved Tapit brand asset set: logo/wordmark, state-page mark, favicon/app icon, and any metadata/preview image required by the final branding. Store repository-owned static assets under `public/brand/`; do not invent final brand decisions while those values are TBD.
+- Provide a small preset service/icon set for link rows and public buttons, plus external-link, Save contact, status, and feedback icons. Every icon must have an accessible name or be explicitly decorative; social destinations remain ordinary links with no social API integration.
+- Treat uploaded profile images/logos as user data: validate JPG/PNG/WebP and 5 MB server-side, offer crop/preview, store references in Convex, and generate optimized responsive variants. Define deletion/retention behavior with the account-deletion policy.
+- Generate QR PNG/SVG outputs at runtime or through the selected QR module; do not commit user-specific QR files. Keep the configured generic support/contact destination in environment/application settings rather than hard-coded content.
+
+### Responsive and accessibility implementation
+
+- Implement and review public profile phone-portrait layouts first, then tablet and desktop states. Keep identity before links, comfortable tap targets, a single-column public flow, and no required horizontal scrolling.
+- Implement customer editor/preview as a split layout at supported wide widths and a vertical flow on narrow screens. Collapse administrator tables into stacked, labeled records on mobile; keep forms, dialogs, QR previews, and downloads usable at narrow widths.
+- Use semantic landmarks, headings, lists/tables, labels, buttons, links, and form controls. Associate every error with its field, provide visible focus and logical tab order, preserve logical screen-reader order across layout changes, and use non-color-only state indicators.
+- Make dialogs keyboard-operable with focus containment/restoration, make all reorder and destructive actions keyboard-accessible, announce save/publish/deactivation/replacement/deletion outcomes, and respect `prefers-reduced-motion`.
+- Verify contrast for every theme, status, disabled state, error, and focus indicator; provide meaningful image alt text or an explicit decorative choice; label external-link and Save contact actions clearly.
+
 ## Order of work
 
 ### 0. Resolve plan gates before implementation
@@ -278,6 +353,8 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Confirm repository location and Git remote.
 - Confirm final Next.js/Tailwind/Convex Auth versions at project creation.
 - Confirm the production domain strategy, even if the exact domain remains TBD.
+- Confirm the design-token and brand-asset decisions that are required for implementation, or record logo, colors, typeface, radius, shadow, and theme-catalog values as explicit TBDs.
+- Turn the screen, state, responsive, accessibility, and proof contracts in `DESIGN.md` into implementation tickets linked to the relevant FR/AC references in this plan.
 - Define how development setup links are captured safely.
 - Record the email provider as TBD with an implementation adapter.
 - Record hosting capacity, budget, launch jurisdiction, data-retention period, analytics unique-view method, and password recovery as explicit gates.
@@ -285,7 +362,8 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 ### 1. Create the repository foundation
 
 - Initialize the Next.js App Router project with TypeScript and npm.
-- Add Tailwind CSS and establish the first Tapit design tokens without building product screens yet.
+- Add Tailwind CSS and establish the first Tapit design tokens, responsive breakpoints, status tokens, focus ring, and reduced-motion foundations without building product workflows yet.
+- Add the responsive app-shell/page-container primitives and the initial `public/brand/` asset contract; keep unresolved brand values explicit rather than inventing them.
 - Configure strict TypeScript, ESLint, Prettier, test scripts, and CI commands.
 - Add `.env.example`, README setup instructions, and safe secret-handling conventions.
 - Add GitHub Actions for formatting, lint, typecheck, unit tests, and build.
@@ -297,6 +375,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Configure Convex Auth email/password.
 - Add seeded/invited administrator access.
 - Add administrator-created customer accounts and one-time setup-token workflow.
+- Build the shared Login and customer Setup screens with their token, password, rate-limit, service-error, and authenticated-redirect states.
 - Add route guards and backend authorization tests.
 
 ### 3. Implement the core schema and domain rules
@@ -311,7 +390,8 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 
 - Build the stable public profile route.
 - Build the unique card resolver route.
-- Implement published, unpublished, suspended, inactive-card, and temporary-error experiences.
+- Implement the phone-first published profile, fixed unpublished/suspended unavailable page, fixed inactive/replaced-card page, missing-profile state, and friendly temporary-error experience.
+- Add the public identity header, image/logo frame, ordered enabled-link list, Save contact action, metadata, external-link behavior, and Tapit branding described by the design.
 - Ensure inactive/replaced card paths cannot expose former profile content.
 - Add generated metadata and `noindex` behavior.
 - Add lightweight loading and error boundaries.
@@ -319,9 +399,9 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 ### 5. Build the customer profile experience
 
 - Implement customer navigation: Profile, Links, Analytics, Account.
-- Build profile editor with name, optional image/logo, bio/role, email, phone, website, and public URL display.
+- Build the exact customer Profile screen with name, optional image/logo, bio/role, email, phone, website, immutable slug, copyable public URL, publication status, and validation checklist.
 - Add basic image crop/preview and optimized upload workflow.
-- Add draft save, responsive preview, validation, and explicit publish.
+- Add draft save, phone/desktop responsive preview, validation, explicit publish, and visible draft-versus-published behavior. Use a split editor/preview layout where space permits and a vertical flow on narrow screens.
 - Keep customer Cards navigation absent from the MVP.
 
 ### 6. Build link management and custom UI
@@ -329,17 +409,19 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Implement add/edit/delete/enable/disable/reorder link behavior.
 - Add custom labels and preset icons.
 - Validate HTTPS, `mailto:`, and `tel:` destinations server-side and client-side.
-- Build the custom Tapit profile theme system with colors, fonts, button styles, and restrained themes.
-- Implement accessible keyboard alternatives for link reordering.
+- Build the custom Tapit profile theme system with controlled colors, fonts, button styles, restrained themes, contrast-safe status tokens, and a theme selector/style-control interaction.
+- Implement accessible keyboard alternatives for link reordering, plus inline validation, empty-link guidance, save/publish feedback, and duplicate-submit protection.
 
 ### 7. Build administrator customer/profile/card management
 
 - Implement administrator navigation: Customers, Profiles, Cards, Analytics, Audit log, Settings.
-- Build customer creation/invitation workflow.
+- Build the exact responsive administrator screens: customer list/creation, profile status management, card registry, aggregate analytics, audit log, and support/contact settings.
+- Build customer creation/invitation workflow with separate account, card, assignment, and invitation results so partial failures are visible.
 - Build manual pre-encoded card URL registration and duplicate validation.
 - Build assignment to a profile.
-- Build deactivation and replacement workflow with immediate state changes.
-- Build profile edit, publish/unpublish, suspension, and support actions.
+- Build deactivation and replacement workflow with immediate state changes and confirmations identifying the exact card/profile and public effect.
+- Build profile edit, publish/unpublish, suspension, restore where allowed, and support actions with auditable success and failure states.
+- Make administrator tables collapse into labeled mobile records and keep QR previews, forms, dialogs, and filters usable at narrow widths.
 - Add audit records to every relevant state transition.
 
 ### 8. Build QR and vCard features
@@ -365,7 +447,8 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Implement administrator execution/approval.
 - Immediately unpublish profiles and deactivate assigned cards.
 - Retain only the minimal permitted audit record.
-- Implement administrator profile suspension and fixed branded unavailable page.
+- Implement administrator profile suspension and the fixed branded unavailable page, with no partial or former content leakage.
+- Add accessible confirmation dialogs for suspension, deactivation, replacement, and deletion, including focus containment/restoration and immediate-effect messaging.
 - Add configurable generic support/contact destination.
 
 ### 11. Verify UX, accessibility, and real-device behavior
@@ -377,6 +460,8 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Verify deactivated cards never show former content.
 - Measure public-page usability on a normal 4G connection.
 - Test loading, empty, validation, unavailable, inactive, and temporary-error states.
+- Review every designed screen at canonical phone, tablet, and desktop widths for hierarchy, spacing, contrast, overflow, tap targets, and layout transitions; capture screenshot evidence for representative success and state pages.
+- Verify keyboard-only operation, focus restoration, live-region feedback, semantic structure, alt/decorative image choices, non-color-only statuses, and reduced-motion behavior across public, customer, and administrator surfaces.
 
 ### 12. Deploy the working MVP
 
@@ -385,6 +470,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Configure production email only after provider selection.
 - Configure monitoring, error reporting, backups, and recovery ownership.
 - Run production smoke tests and the real-device acceptance suite.
+- Retain the reviewed visual/screenshot evidence with the release or CI artifacts and link it to the tested routes and viewport matrix.
 - Complete the pilot with independent professionals and recipients.
 
 ## Files and folders to create
@@ -404,6 +490,14 @@ The following is the expected implementation shape. Names may be adjusted slight
 - `.env.example`: documented environment variable names only.
 - `.gitignore`: local environment, build, test, and generated files.
 - `README.md`: setup, scripts, environments, test workflow, and deployment notes.
+
+### Static assets and design evidence
+
+- `public/brand/`: approved Tapit logo/wordmark, state-page mark, favicon/app icon, and final metadata/preview assets once branding decisions are resolved.
+- `public/icons/`: the small approved preset service/action/status icon set, with decorative versus meaningful-use guidance.
+- `docs/design-proof.md`: route, viewport, state, asset, and review checklist linking to visual evidence; do not store private customer data in examples.
+- `e2e/visual/`: deterministic seeded fixtures and any test-only assets used to make screenshot comparisons stable.
+- `e2e/visual-baselines/` or the Playwright snapshot location selected during setup: reviewed baselines for canonical screens and states; generated per-run screenshots remain CI artifacts unless intentionally accepted.
 
 ### Application routes
 
@@ -433,13 +527,16 @@ The following is the expected implementation shape. Names may be adjusted slight
 
 ### Components and domain modules
 
-- `src/components/ui/`: Tapit-owned buttons, inputs, dialogs, tabs, menus, badges, tables, alerts, loading states, and accessible primitives.
-- `src/components/profile/`: public profile header, link list, Save contact action, theme renderer, and responsive preview.
-- `src/components/forms/`: profile, link, account, customer, card, and deletion forms.
-- `src/components/admin/`: customer, profile, card, analytics, audit, and settings views.
+- `src/components/layout/`: application shells, responsive navigation, page containers, section layout, and logical landmark structure.
+- `src/components/ui/`: Tapit-owned buttons, inputs, dialogs, tabs, menus, badges, tables, alerts, toggles, status indicators, loading states, focus utilities, and accessible primitives.
+- `src/components/state/`: fixed inactive-card, unavailable-profile, missing-profile, and friendly service-error pages plus shared state-page treatment.
+- `src/components/profile/`: identity header, image/logo frame, ordered public link list, public link button, Save contact action, metadata, theme renderer, and responsive preview.
+- `src/components/forms/`: labeled inputs/textareas, password and confirmation fields, URL/action validation, image upload/crop/preview, theme controls, draft/publish action bar, and deletion/account/card forms.
+- `src/components/feedback/`: inline validation, live-region success messages, service/permission alerts, skeletons, progress indicators, and mutation result messaging.
+- `src/components/admin/`: customer, profile, card, analytics, audit, settings, table/stacked-record, assignment, and replacement views.
 - `src/components/analytics/`: metric cards, time-range controls, and empty states.
 - `src/components/qr/`: QR preview and download controls.
-- `src/components/auth/`: login, setup, session, and auth-state components.
+- `src/components/auth/`: login, setup, session, password guidance, rate-limit, and auth-state components.
 - `src/lib/validation/`: shared schemas and field/link/card validation.
 - `src/lib/vcard/`: vCard generation and safe field projection.
 - `src/lib/qr/`: QR generation abstraction and output handling.
@@ -537,12 +634,25 @@ Use Playwright to cover the main workflows from `spec.md`, including:
 - administrator suspends/unpublishes profile;
 - customer requests deletion and administrator completes it.
 
+### Visual and screenshot proof
+
+Use deterministic seeded content and a stable browser/OS configuration to capture representative screenshots for the design contract. Screenshot proof is appropriate for hierarchy, spacing, responsive transitions, asset use, and state-page treatment; it supplements rather than replaces functional and accessibility tests.
+
+- Capture the published public profile at phone portrait, tablet, and desktop widths, including image/logo, optional bio, ordered links, Save contact, external-link affordance, and Tapit branding.
+- Capture the inactive-card, unavailable-profile, missing-profile, and friendly service-error states, verifying that fixed messaging and support/contact treatment are consistent and no former/private content appears.
+- Capture Login and Setup validation/loading/error/success states, the customer Profile split editor/preview and narrow vertical flow, the Links empty/validation/reordered states, Analytics empty/populated states, and Account deletion confirmation.
+- Capture administrator Customers, Profiles, Cards, Analytics, Audit log, and Settings at desktop and mobile widths, including stacked mobile records, QR preview/download controls, confirmation dialogs, and empty/error/success states.
+- Review screenshots for readable hierarchy, spacing, typography, contrast, focus/disabled/status treatments, tap-target usability, no unintended horizontal scrolling, and correct logo/icon/alt-text decisions. Mask timestamps and other nondeterministic values.
+- Store reviewed baselines in the selected Playwright snapshot location and retain accepted run output in CI or release artifacts. Record route, viewport, state, browser, fixture, reviewer, and result in `docs/design-proof.md`.
+
 ### Accessibility proof
 
 - Run automated axe checks against public, customer, and administrator screens.
 - Run keyboard-only journeys for forms, dialogs, tabs, link reordering, publish, and deletion confirmation.
 - Verify focus restoration after dialogs and error announcements.
 - Verify image alternative text and form error associations.
+- Verify semantic landmarks, heading order, table-to-stacked-record semantics, live-region announcements, clear external-link/Save contact names, non-color-only statuses, and reduced-motion behavior.
+- Verify every designed screen and state at mobile and desktop widths; include the screenshot review as evidence but do not treat visual similarity as WCAG proof.
 - Perform a manual contrast and responsive review because automated checks do not prove all WCAG 2.2 AA basics.
 
 ### Real-device proof
@@ -559,7 +669,7 @@ Maintain a manual matrix containing at least:
 - unpublished/suspended profile;
 - vCard download and contact import behavior.
 
-Record device model, OS/browser version, card URL, result, and evidence. Do not call NFC acceptance complete from a desktop browser test alone.
+Record device model, OS/browser version, card URL, result, and evidence, including screenshots or redacted device captures where useful. Do not call NFC acceptance complete from a desktop browser test alone.
 
 ### Performance and availability proof
 
@@ -740,4 +850,47 @@ Mitigation: keep primitives small, test keyboard/focus/error behavior, use acces
 - Real current iPhone and Android NFC/QR tests pass, including active, inactive, replaced, unpublished, and suspended states.
 - Public profile usability meets the 2-second normal-4G target under a documented measurement method.
 - Production monitoring is in place and the service is ready to measure the 99.9% monthly public-profile availability target.
+- The approved `DESIGN.md` screen contracts, component inventory, visual direction, interaction rules, responsive layouts, and state matrix are implemented without adding scope beyond `spec.md`.
+- Representative screenshot baselines and reviewed visual evidence cover the public, customer, administrator, and fixed state-page surfaces at canonical responsive widths, with route/state/viewport records.
 - All significant TBD decisions are resolved or explicitly accepted as launch blockers, and the real pilot is completed with its final success threshold recorded.
+
+## Implementation status and deviations recorded on 2026-09-14
+
+The local MVP acceptance surface is implemented and verified through the following completed slices:
+
+- Project foundation, Tailwind tokens, responsive shells, local environment documentation, CI, strict
+  type-checking, linting, formatting, Vitest, Playwright, and axe checks.
+- Convex schema/auth bootstrap plus typed production-path modules for profiles, links, cards, analytics,
+  audit, settings, invitations, and storage.
+- Deterministic local demo adapter with separate customer profiles, one-time setup, customer Profile,
+  Links, Analytics, and Account surfaces, and administrator Customers, Profiles, Cards, Analytics, Audit
+  log, and Settings surfaces.
+- Public slug and card resolution, published-snapshot privacy, inactive/unavailable state pages, vCards,
+  QR PNG/SVG preview/download, moderation, deletion request and administrator approval, audit feedback,
+  and responsive/accessibility behavior.
+
+The following deviations are intentional local-MVP boundaries rather than silent omissions:
+
+1. `NEXT_PUBLIC_DEMO_MODE=true` is the verified real acceptance surface. It stores fixtures, sessions,
+   invitations, aggregate analytics, and image previews in browser localStorage so the MVP can run now
+   without a Convex deployment or transactional email. The Convex UI provider wiring and generated API
+   bindings remain a deployment gate; the checked-in `_generated` files are a documented bootstrap because
+   code generation returned `MissingAccessToken` without an authenticated deployment.
+2. Local image uploads validate JPG/PNG/WebP and 5 MB, resize accepted images to a bounded JPEG data URL,
+   and show a centered crop preview, but do not persist through Convex Storage. `convex/storage.ts` provides
+   the authorized upload URL path; server-side optimization and retention are production gates.
+3. Because the verified local demo stores profile data in browser localStorage, server-rendered public-route
+   metadata cannot safely read or verify the profile snapshot. Public metadata therefore uses a generic Tapit
+   title/description plus a route-derived canonical URL; profile-specific names, descriptions, and images remain
+   a Convex-backed production gate so unavailable profiles do not leak identity through metadata.
+4. Local unique-view counts are time-bucket approximations and the Convex ingestion contract accepts a
+   caller-provided first-view flag without retaining visitor history. The privacy-preserving unique-view
+   algorithm and disclosure/consent policy remain launch gates and must be selected before production
+   analytics are treated as authoritative.
+5. Setup links use the safe local display adapter; provider delivery, expiry/resend policy, password
+   recovery, email verification, real-device NFC/QR testing, normal-4G performance measurement, final
+   branding, monitoring, backups, and retention remain explicitly unverified launch gates. Evidence and
+   the manual matrix are in `docs/design-proof.md` and `e2e/real-device-checklist.md`.
+
+The implementation intentionally does not claim production readiness until those gates are resolved and
+the production Convex/Auth path is exercised in an isolated deployment.

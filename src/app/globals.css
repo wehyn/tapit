@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+:root {
+  --tapit-ink: #17211f;
+  --tapit-muted: #66736f;
+  --tapit-paper: #f7f8f5;
+  --tapit-surface: #ffffff;
+  --tapit-line: #dce4df;
+  --tapit-accent: #176b57;
+  --tapit-accent-strong: #0f4d3e;
+  --tapit-accent-soft: #e1f0eb;
+  --tapit-danger: #a43a35;
+  --tapit-focus: #d98925;
+}
+
+@theme inline {
+  --color-tapit-ink: var(--tapit-ink);
+  --color-tapit-muted: var(--tapit-muted);
+  --color-tapit-paper: var(--tapit-paper);
+  --color-tapit-surface: var(--tapit-surface);
+  --color-tapit-line: var(--tapit-line);
+  --color-tapit-accent: var(--tapit-accent);
+  --color-tapit-accent-strong: var(--tapit-accent-strong);
+  --color-tapit-accent-soft: var(--tapit-accent-soft);
+  --color-tapit-danger: var(--tapit-danger);
+  --color-tapit-focus: var(--tapit-focus);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--tapit-paper);
+}
+
+body {
+  margin: 0;
+  background: var(--tapit-paper);
+  color: var(--tapit-ink);
+  font-family: Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--tapit-focus);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
