@@ -61,11 +61,9 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
     return <div className="min-h-[100dvh] bg-tapit-paper" />;
 
   return (
-    <AppShell eyebrow="Customer workspace" navItems={customerNav} title="Your Tapit profile">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pb-2 pt-5 sm:px-8">
-        <p className="text-sm text-tapit-muted">
-          Signed in as <strong className="text-tapit-ink">{session.email}</strong>
-        </p>
+    <AppShell
+      eyebrow="Customer workspace"
+      headerActions={
         <Button
           onClick={() => {
             clearDemoSession();
@@ -76,7 +74,11 @@ export function CustomerShell({ children }: { children: React.ReactNode }) {
         >
           Sign out
         </Button>
-      </div>
+      }
+      navItems={customerNav}
+      showPageIntro={false}
+      title="Your Tapit profile"
+    >
       {children}
     </AppShell>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ChartLineIcon, ShieldCheckIcon, TrendUpIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -23,7 +24,7 @@ const ranges: Array<{ value: AnalyticsRange; label: string }> = [
 
 function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
-    <div className="rounded-2xl border border-tapit-line bg-tapit-surface p-5">
+    <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
       <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
         {value.toLocaleString()}
@@ -38,16 +39,25 @@ export function CustomerAnalytics() {
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
   const [range, setRange] = useState<AnalyticsRange>("lifetime");
+  const [now] = useState(() => Date.now());
   const totals = useMemo(
     () => aggregateAnalytics(state.analytics, range, profile.id),
     [profile.id, range, state.analytics],
   );
+  const trend = useMemo(() => {
+    const days = range === "lifetime" ? Number.POSITIVE_INFINITY : Number(range.slice(0, -1));
+    const cutoff = Number.isFinite(days) ? now - days * 24 * 60 * 60 * 1000 : 0;
+    return state.analytics
+      .filter((bucket) => bucket.profileId === profile.id && bucket.bucketStart >= cutoff)
+      .sort((left, right) => left.bucketStart - right.bucketStart);
+  }, [now, profile.id, range, state.analytics]);
+  const peak = Math.max(1, ...trend.map((bucket) => bucket.views + bucket.clicks));
   const linkResults = profile.draft.links
     .map((link) => ({ ...link, clicks: totals.linkClicks[link.id] ?? 0 }))
     .sort((left, right) => right.clicks - left.clicks);
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
       <Panel
         description="Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history."
         title="Profile analytics"
@@ -68,15 +78,68 @@ export function CustomerAnalytics() {
         </div>
       </Panel>
 
-      <dl className="grid gap-4 sm:grid-cols-3">
-        <Metric detail="All profile entry paths" label="Profile views" value={totals.views} />
-        <Metric
-          detail="Privacy-preserving estimate"
-          label="Unique views"
-          value={totals.uniqueViews}
-        />
-        <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
-      </dl>
+      <Panel
+        description="Each column is one aggregate time bucket. Views and clicks are shown together to make momentum easy to read."
+        title="Engagement trend"
+      >
+        <div className="mt-6 flex items-center gap-2 text-sm text-tapit-muted">
+          <ChartLineIcon aria-hidden="true" size={18} weight="bold" />
+          {trend.length > 0
+            ? `${trend.length} aggregate buckets in this range`
+            : "No aggregate activity in this range"}
+        </div>
+        <div
+          className="mt-5 flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
+          aria-label="Aggregate engagement trend"
+        >
+          {trend.length > 0 ? (
+            trend.map((bucket) => {
+              const total = bucket.views + bucket.clicks;
+              return (
+                <div
+                  className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                  key={bucket.bucketStart}
+                >
+                  <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                    {total.toLocaleString()}
+                  </span>
+                  <div
+                    className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                    style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
+                    title={`${bucket.views} views, ${bucket.clicks} clicks`}
+                  />
+                  <span className="text-[0.65rem] text-tapit-muted">
+                    {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              );
+            })
+          ) : (
+            <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+              Share your profile to start a trend.
+            </p>
+          )}
+        </div>
+      </Panel>
+
+      <Panel title="Engagement summary">
+        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+          <Metric detail="All profile entry paths" label="Profile views" value={totals.views} />
+          <Metric
+            detail="Privacy-preserving estimate"
+            label="Unique views"
+            value={totals.uniqueViews}
+          />
+          <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
+        </dl>
+        <p className="mt-5 flex items-center gap-2 text-sm text-tapit-muted">
+          <TrendUpIcon aria-hidden="true" size={17} weight="bold" />
+          Aggregate totals for the selected range
+        </p>
+      </Panel>
 
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>
@@ -89,7 +152,7 @@ export function CustomerAnalytics() {
         description="Clicks are grouped by the link label you chose. Disabled links remain visible here only when they have historical activity."
         title="Link results"
       >
-        <div className="mt-6 overflow-hidden rounded-2xl border border-tapit-line">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
           {linkResults.length === 0 ? (
             <div className="p-5 text-sm text-tapit-muted">
               Add links to see destination results.
@@ -118,7 +181,13 @@ export function CustomerAnalytics() {
         description="Views and clicks are stored as aggregate time buckets. There is no visitor-level history to inspect or export."
         title="Privacy note"
       >
-        <p className="mt-5 text-sm leading-6 text-tapit-muted">
+        <p className="mt-5 flex items-start gap-3 text-sm leading-6 text-tapit-muted">
+          <ShieldCheckIcon
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-tapit-accent"
+            size={21}
+            weight="bold"
+          />
           These metrics are designed to answer how a profile is performing without identifying the
           people who viewed it.
         </p>
