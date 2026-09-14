@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { ArrowLeft, Fingerprint, WarningCircle } from "@phosphor-icons/react";
 
 import { Brand } from "@/components/layout/Brand";
 
@@ -17,24 +20,33 @@ export function StatePage({
     <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5 py-10">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-md rounded-[2rem] border border-tapit-line bg-tapit-surface p-8 text-center shadow-[0_20px_60px_rgba(23,33,31,0.07)] sm:p-10"
+        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-7 shadow-[0_20px_60px_rgba(21,25,24,0.06)] sm:p-10"
       >
         <Brand />
-        <div
-          aria-hidden="true"
-          className="mx-auto mt-10 grid size-14 place-items-center rounded-full bg-tapit-accent-soft text-lg font-semibold text-tapit-accent"
-        >
-          T
+        <div className="mt-16 flex items-start gap-4">
+          <div
+            aria-hidden="true"
+            className="grid size-12 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent"
+          >
+            <WarningCircle size={24} weight="bold" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-tapit-ink" id="state-title">
+              {title}
+            </h1>
+            <p className="mt-3 text-left text-sm leading-6 text-tapit-muted">{message}</p>
+          </div>
         </div>
-        <h1 className="mt-6 text-2xl font-semibold tracking-tight text-tapit-ink" id="state-title">
-          {title}
-        </h1>
-        <p className="mt-3 text-sm leading-6 text-tapit-muted">{message}</p>
         {actionHref && actionLabel ? (
           <Link
-            className="mt-7 inline-flex rounded-full bg-tapit-accent px-5 py-3 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
+            className="mt-9 inline-flex min-h-12 items-center gap-2 rounded-full bg-tapit-accent px-5 py-3 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
             href={actionHref}
           >
+            {actionHref === "/" ? (
+              <ArrowLeft aria-hidden="true" size={17} />
+            ) : (
+              <Fingerprint aria-hidden="true" size={17} />
+            )}
             {actionLabel}
           </Link>
         ) : null}
@@ -53,7 +65,6 @@ export function InactiveCardPage({ supportUrl }: { supportUrl?: string }) {
     />
   );
 }
-
 export function UnavailableProfilePage({ supportUrl }: { supportUrl?: string }) {
   return (
     <StatePage
@@ -64,7 +75,6 @@ export function UnavailableProfilePage({ supportUrl }: { supportUrl?: string }) 
     />
   );
 }
-
 export function MissingProfilePage() {
   return (
     <StatePage
@@ -75,7 +85,6 @@ export function MissingProfilePage() {
     />
   );
 }
-
 export function ServiceErrorPage() {
   return (
     <StatePage

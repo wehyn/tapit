@@ -91,13 +91,6 @@ const publishedLinks = [
     enabled: true,
     icon: "mail" as const,
   },
-  {
-    id: "private-note",
-    label: "Private note",
-    destination: "https://example.test/private",
-    enabled: false,
-    icon: "link" as const,
-  },
 ];
 
 const profileContent = {
@@ -107,6 +100,7 @@ const profileContent = {
   email: "mara@example.test",
   phone: "+63 917 555 0184",
   website: "https://mara-velasquez.example",
+  imageUrl: "/images/tapit-demo-mara-avatar.png",
   links: publishedLinks,
 };
 
