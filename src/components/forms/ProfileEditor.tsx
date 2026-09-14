@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import NextImage from "next/image";
+import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
   projectPublicProfile,
@@ -20,12 +22,12 @@ import {
   updateDemoState,
 } from "@/lib/demo/store";
 
-import { PublicProfile } from "@/components/profile/PublicProfile";
 import { Button } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 
 function profileForPreview(draft: ProfileContent) {
   return projectPublicProfile({
@@ -237,46 +239,79 @@ export function ProfileEditor() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 pb-12 pt-6 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.8fr)]">
+    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
       <div className="grid gap-6">
-        <Panel
-          description="Keep the public identity clear and useful. Changes stay in draft until you publish."
-          title="Profile identity"
-        >
+        <div className="pb-1">
+          <div>
+            <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
+              Your profile
+            </h1>
+            <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
+              Edit your details and see how your profile looks to others.
+            </p>
+          </div>
+        </div>
+        <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-            <Field
-              id="profile-name"
-              label="Name"
-              onChange={(event) => updateField("name", event.target.value)}
-              value={draft.name}
-            />
-            <TextareaField
-              id="profile-bio"
-              label="Bio or role"
-              maxLength={140}
-              onChange={(event) => updateField("bio", event.target.value)}
-              value={draft.bio ?? ""}
-            />
-            <div>
-              <label className="block text-sm font-semibold text-tapit-ink" htmlFor="profile-image">
-                Profile photo or logo
-              </label>
-              <input
-                accept="image/jpeg,image/png,image/webp"
-                className="mt-2 block w-full rounded-xl border border-dashed border-tapit-line bg-tapit-paper px-3.5 py-3 text-sm text-tapit-muted"
-                id="profile-image"
-                onChange={chooseImage}
-                type="file"
-              />
-              <p className="mt-1.5 text-xs leading-5 text-tapit-muted">
-                JPG, PNG, or WebP up to 5 MB. The demo shows a centered crop preview.
-              </p>
+            <div className="border-t border-tapit-line/70 pt-5">
+              <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+                  {draft.imageUrl ? (
+                    <NextImage
+                      alt={`${draft.name} profile`}
+                      className="size-full object-cover"
+                      height={80}
+                      src={draft.imageUrl}
+                      unoptimized
+                      width={80}
+                    />
+                  ) : (
+                    draft.name.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <label
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+                    htmlFor="profile-image"
+                  >
+                    <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+                    Change photo
+                  </label>
+                  <input
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label="Profile photo or logo"
+                    className="sr-only"
+                    id="profile-image"
+                    onChange={chooseImage}
+                    type="file"
+                  />
+                  <p className="mt-2 text-xs leading-5 text-tapit-muted">
+                    JPG, PNG, or WebP. Max 5 MB.
+                  </p>
+                </div>
+              </div>
               {imageError ? (
                 <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
                   {imageError}
                 </p>
               ) : null}
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                id="profile-name"
+                label="Name"
+                onChange={(event) => updateField("name", event.target.value)}
+                value={draft.name}
+              />
+              <TextareaField
+                id="profile-bio"
+                label="Bio or role"
+                maxLength={140}
+                onChange={(event) => updateField("bio", event.target.value)}
+                value={draft.bio ?? ""}
+              />
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
@@ -313,7 +348,7 @@ export function ProfileEditor() {
                 value={draft.slug}
               />
             </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-xl bg-tapit-paper px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
               <span className="font-semibold text-tapit-ink">Public URL</span>
               <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
                 {typeof window === "undefined"
@@ -321,6 +356,7 @@ export function ProfileEditor() {
                   : `${window.location.origin}/${draft.slug}`}
               </code>
               <Button onClick={copyUrl} type="button" variant="secondary">
+                <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
                 {copyMessage || "Copy"}
               </Button>
             </div>
@@ -328,6 +364,7 @@ export function ProfileEditor() {
         </Panel>
 
         <Panel
+          className="shadow-none"
           description="These controls stay deliberately small so every theme remains readable."
           title="Profile style"
         >
@@ -335,13 +372,13 @@ export function ProfileEditor() {
             {(["paper", "moss", "night"] as const).map((themeOption) => (
               <button
                 aria-pressed={theme === themeOption}
-                className={`rounded-2xl border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
                 key={themeOption}
                 onClick={() => chooseTheme(themeOption)}
                 type="button"
               >
                 <span
-                  className={`block h-12 rounded-xl ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                  className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
                 />
                 <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
                   {themeOption}
@@ -351,7 +388,7 @@ export function ProfileEditor() {
           </div>
         </Panel>
 
-        <Panel title="Publication">
+        <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <StatusBadge status={profile.status} />
             {isDirty ? (
@@ -372,63 +409,61 @@ export function ProfileEditor() {
               ))}
             </ul>
           ) : (
-            <p className="mt-5 text-sm text-[#17352b]">
+            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
               Ready to publish. The required name and one valid enabled link are present.
             </p>
           )}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button disabled={!isDirty} onClick={saveDraft} type="button" variant="secondary">
-              Save draft
-            </Button>
-            <Button disabled={errors.length > 0} onClick={publish} type="button">
-              Publish
-            </Button>
-            {profile.status === "published" ? (
+          {profile.status === "published" ? (
+            <div className="mt-6">
               <Button onClick={unpublish} type="button" variant="quiet">
                 Unpublish
               </Button>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </Panel>
       </div>
 
-      <Panel
-        className="h-fit lg:sticky lg:top-6"
-        description="Preview pending changes without publishing them."
-        title="Live preview"
-      >
-        <div className="mt-5 flex gap-2" role="group" aria-label="Preview layout">
-          <Button
-            onClick={() => setPreviewMode("phone")}
-            type="button"
-            variant={previewMode === "phone" ? "primary" : "secondary"}
-          >
-            Phone
-          </Button>
-          <Button
-            onClick={() => setPreviewMode("desktop")}
-            type="button"
-            variant={previewMode === "desktop" ? "primary" : "secondary"}
-          >
-            Desktop
-          </Button>
-        </div>
+      <div className="h-fit lg:sticky lg:top-6">
         {preview ? (
-          <div
-            className={`mt-5 overflow-auto rounded-[1.5rem] border border-tapit-line ${previewMode === "phone" ? "max-w-[22rem]" : "w-full"}`}
-          >
-            <PublicProfile
-              preview
-              profile={preview}
-              profileUrl={`/${draft.slug}`}
-              theme={theme}
-              trackView={false}
-            />
-          </div>
+          <WorkspacePreview
+            mode={previewMode}
+            onModeChange={setPreviewMode}
+            preview={preview}
+            profileUrl={`/${draft.slug}`}
+            showProfileUrl
+            theme={theme}
+          />
         ) : (
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
         )}
-      </Panel>
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2 text-sm">
+            <CheckCircleIcon
+              aria-hidden="true"
+              className="shrink-0 text-tapit-accent"
+              size={21}
+              weight="fill"
+            />
+            <span className="font-semibold text-tapit-ink">
+              {isDirty ? "Draft changes" : "Draft saved"}
+            </span>
+            <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button disabled={!isDirty} onClick={saveDraft} type="button" variant="secondary">
+              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+              Save draft
+            </Button>
+            <Button disabled={errors.length > 0} onClick={publish} type="button">
+              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+              Publish
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -43,11 +43,15 @@ function CardResolverLoading() {
     <main
       aria-busy="true"
       aria-live="polite"
-      className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5 py-10"
+      className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-10"
     >
-      <p className="text-sm text-tapit-muted" role="status">
-        Loading card…
-      </p>
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-xl flex-col justify-center border-t border-b border-tapit-line py-12">
+        <div className="h-24 w-24 animate-pulse rounded-full bg-tapit-soft-surface" />
+        <div className="mt-8 h-10 w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
+        <p className="mt-5 text-sm text-tapit-muted" role="status">
+          Loading card...
+        </p>
+      </div>
     </main>
   );
 }

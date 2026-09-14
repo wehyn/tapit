@@ -1,22 +1,32 @@
 "use client";
 
 import Image from "next/image";
+import {
+  ArrowUpRight,
+  CalendarDots,
+  DownloadSimple,
+  EnvelopeSimple,
+  Globe,
+  InstagramLogo,
+  LinkedinLogo,
+  LinkSimple,
+  Phone,
+} from "@phosphor-icons/react";
 import { useEffect, useRef } from "react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import { buildVCard, resolveProfileUrl } from "@/lib/vcard";
-
 import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
-const iconGlyphs = {
-  link: "↗",
-  mail: "@",
-  phone: "⌕",
-  calendar: "▣",
-  linkedin: "in",
-  instagram: "◎",
-  globe: "◎",
+const linkIcons = {
+  link: LinkSimple,
+  mail: EnvelopeSimple,
+  phone: Phone,
+  calendar: CalendarDots,
+  linkedin: LinkedinLogo,
+  instagram: InstagramLogo,
+  globe: Globe,
 } as const;
 
 export function PublicProfile({
@@ -25,6 +35,7 @@ export function PublicProfile({
   profileId,
   preview = false,
   theme = "paper",
+  trackClicks = true,
   trackView = true,
 }: {
   profile: PublicProfileProjection;
@@ -32,19 +43,17 @@ export function PublicProfile({
   profileId?: string;
   preview?: boolean;
   theme?: ProfileTheme;
+  trackClicks?: boolean;
   trackView?: boolean;
 }) {
   const tracked = useRef(false);
-
   useEffect(() => {
     if (trackView && !tracked.current) {
       tracked.current = true;
       recordProfileView(profileId);
     }
   }, [profileId, trackView]);
-
   const canSaveContact = Boolean(profile.name && (profile.email || profile.website));
-
   const themeClasses = {
     paper: {
       page: "bg-tapit-paper text-tapit-ink",
@@ -65,7 +74,11 @@ export function PublicProfile({
       muted: "text-[#b7c9c0]",
     },
   }[theme];
-
+  const previewPageClasses = {
+    paper: "bg-transparent text-tapit-ink",
+    moss: "bg-transparent text-[#17352b]",
+    night: "bg-transparent text-[#f2f6f1]",
+  }[theme];
   function saveContact() {
     const vCard = buildVCard({
       name: profile.name,
@@ -81,24 +94,24 @@ export function PublicProfile({
     anchor.click();
     URL.revokeObjectURL(downloadUrl);
   }
-
   const Container = preview ? "div" : "main";
-
   return (
     <Container
-      className={`${preview ? "min-h-0" : "min-h-[100dvh]"} px-5 py-8 sm:py-12 ${themeClasses.page}`}
+      className={`${preview ? "min-h-0 px-3 py-3 sm:px-4 sm:py-5" : "min-h-[100dvh] px-5 py-8 sm:py-12"} ${preview ? previewPageClasses : themeClasses.page}`}
     >
       <div
-        className={`mx-auto flex w-full max-w-lg flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
+        className={`mx-auto flex w-full max-w-xl flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
       >
         <section
-          className={`rounded-[2rem] border px-5 py-8 shadow-[0_20px_60px_rgba(23,33,31,0.07)] sm:px-10 sm:py-10 ${themeClasses.panel}`}
+          className={`rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)] ${preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-10 sm:py-10"} ${themeClasses.panel}`}
         >
-          <div className="flex flex-col items-center text-center">
+          <div
+            className={`flex flex-col ${preview ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
+          >
             {profile.imageUrl ? (
               <Image
                 alt={`${profile.name} profile`}
-                className="size-24 rounded-full object-cover"
+                className={`${preview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
                 height={96}
                 src={profile.imageUrl}
                 unoptimized
@@ -107,66 +120,83 @@ export function PublicProfile({
             ) : (
               <div
                 aria-hidden="true"
-                className="grid size-24 place-items-center rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent"
+                className={`${preview ? "size-20" : "size-20 sm:size-24"} grid place-items-center rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent`}
               >
                 {profile.name.slice(0, 1).toUpperCase()}
               </div>
             )}
-            <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">
-              {profile.name}
-            </h1>
-            {profile.bio ? (
-              <p className={`mt-2 max-w-sm text-base leading-7 ${themeClasses.muted}`}>
-                {profile.bio}
-              </p>
-            ) : null}
-          </div>
-
-          <ul className="mt-9 grid gap-3" aria-label="Profile links">
-            {profile.links.map((link) => (
-              <li key={link.id}>
-                <a
-                  className={`group flex min-h-14 items-center justify-between rounded-2xl border px-5 py-4 text-sm font-semibold transition hover:-translate-y-px active:translate-y-px ${themeClasses.link}`}
-                  href={link.destination}
-                  onClick={() => recordLinkClick(link.id, profileId)}
-                  rel="noreferrer"
-                  target="_blank"
+            <div className={preview ? "mt-4" : "mt-5 sm:mt-0"}>
+              {preview ? (
+                <h2 className="text-2xl font-semibold tracking-tight">{profile.name}</h2>
+              ) : (
+                <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+                  {profile.name}
+                </h1>
+              )}
+              {profile.bio ? (
+                <p
+                  className={`${preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} ${themeClasses.muted}`}
                 >
-                  <span className="flex items-center gap-3">
-                    <span
-                      aria-hidden="true"
-                      className="grid size-7 place-items-center rounded-full border border-current/20 text-[0.7rem] font-bold uppercase"
-                    >
-                      {iconGlyphs[link.icon ?? "link"]}
-                    </span>
-                    <span>{link.label}</span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className={`text-lg font-normal transition group-hover:text-tapit-accent ${themeClasses.muted}`}
+                  {profile.bio}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <ul
+            className={`${preview ? "mt-6 gap-2" : "mt-9 gap-3"} grid`}
+            aria-label="Profile links"
+          >
+            {profile.links.map((link) => {
+              const LinkIcon = linkIcons[link.icon ?? "link"];
+              return (
+                <li key={link.id}>
+                  <a
+                    className={`group flex items-center justify-between rounded-tapit border font-semibold transition hover:-translate-y-px active:translate-y-px ${preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${themeClasses.link}`}
+                    href={link.destination}
+                    onClick={() => {
+                      if (trackClicks) recordLinkClick(link.id, profileId);
+                    }}
+                    rel="noreferrer"
+                    target="_blank"
                   >
-                    ↗
-                  </span>
-                </a>
-              </li>
-            ))}
+                    <span className="flex items-center gap-3">
+                      <LinkIcon aria-hidden="true" size={preview ? 18 : 20} />
+                      <span>{link.label}</span>
+                    </span>
+                    <ArrowUpRight
+                      aria-hidden="true"
+                      className={`transition group-hover:text-tapit-accent ${themeClasses.muted}`}
+                      size={preview ? 17 : 19}
+                    />
+                  </a>
+                </li>
+              );
+            })}
           </ul>
-
           {canSaveContact ? (
             <button
-              className="mt-5 min-h-14 w-full rounded-2xl bg-tapit-accent px-5 py-4 text-sm font-semibold text-white transition hover:bg-tapit-accent-strong active:translate-y-px"
+              className={`${preview ? "mt-4 min-h-12 px-4 py-3" : "mt-5 min-h-14 px-5 py-4"} inline-flex w-full items-center justify-center gap-2 rounded-full bg-tapit-accent text-sm font-semibold text-white transition hover:bg-tapit-accent-strong active:translate-y-px`}
               onClick={saveContact}
               type="button"
             >
-              Save contact
+              <DownloadSimple aria-hidden="true" size={19} /> Save contact
             </button>
           ) : null}
+          {preview ? (
+            <p
+              className={`mt-5 text-center text-xs font-semibold tracking-[0.16em] uppercase ${themeClasses.muted}`}
+            >
+              Powered by Tapit
+            </p>
+          ) : null}
         </section>
-        <footer
-          className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${themeClasses.muted}`}
-        >
-          Tapit
-        </footer>
+        {!preview ? (
+          <footer
+            className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${themeClasses.muted}`}
+          >
+            Tapit
+          </footer>
+        ) : null}
       </div>
     </Container>
   );

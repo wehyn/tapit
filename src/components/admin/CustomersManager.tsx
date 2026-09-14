@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowRightIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
 import { validateProfileSlug } from "@/lib/domain";
@@ -25,11 +26,14 @@ export function CustomersManager() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [setupLink, setSetupLink] = useState("");
   const [approvalCustomer, setApprovalCustomer] = useState<DemoCustomer | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const customers = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return state.customers.filter((customer) => !normalized || customer.email.includes(normalized));
   }, [query, state.customers]);
+  const selectedCustomer =
+    customers.find((customer) => customer.id === selectedCustomerId) ?? customers[0];
 
   function createCustomer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,13 +162,16 @@ export function CustomersManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
         description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
         title="Create customer"
       >
-        <form className="mt-6 flex max-w-2xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
-          <div className="min-w-64 flex-1">
+        <form
+          className="mt-6 grid max-w-3xl gap-3 sm:flex sm:flex-wrap sm:items-end"
+          onSubmit={createCustomer}
+        >
+          <div className="sm:min-w-64 sm:flex-1">
             <Field
               autoComplete="off"
               id="customer-email"
@@ -175,7 +182,10 @@ export function CustomersManager() {
               value={email}
             />
           </div>
-          <Button type="submit">Create and invite</Button>
+          <Button type="submit">
+            <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+            Create and invite
+          </Button>
         </form>
         {message ? (
           <div className="mt-5">
@@ -183,7 +193,7 @@ export function CustomersManager() {
           </div>
         ) : null}
         {setupLink ? (
-          <p className="mt-4 rounded-xl bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+          <p className="mt-4 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
             Local setup link:{" "}
             <a className="font-semibold text-tapit-accent hover:underline" href={setupLink}>
               {setupLink}
@@ -193,20 +203,28 @@ export function CustomersManager() {
       </Panel>
 
       <Panel
+        className="overflow-hidden"
         description="Search by email. New invitations remain separate from profile publication and card assignment."
         title="Customer accounts"
       >
-        <div className="mt-6 max-w-md">
-          <Field
-            id="customer-search"
-            label="Search customers"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search email"
-            type="search"
-            value={query}
+        <div className="mt-6 flex items-end gap-3">
+          <UsersThreeIcon
+            aria-hidden="true"
+            className="mb-3 hidden text-tapit-muted sm:block"
+            size={22}
           />
+          <div className="max-w-md flex-1">
+            <Field
+              id="customer-search"
+              label="Search customers"
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search email"
+              type="search"
+              value={query}
+            />
+          </div>
         </div>
-        <div className="mt-6 grid gap-3">
+        <div className="mt-6 grid gap-2">
           {customers.length === 0 ? (
             <Notice>No customers match this search. Create an invited account above.</Notice>
           ) : null}
@@ -221,21 +239,28 @@ export function CustomersManager() {
                 : state.cards.filter((card) => card.profileId === profile.id).length;
             return (
               <article
-                className="rounded-2xl border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+                className={`rounded-tapit border bg-tapit-paper p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent shadow-[0_8px_24px_rgba(24,116,97,0.10)]" : "border-tapit-line hover:border-tapit-accent/50"}`}
                 key={customer.id}
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
+                <button
+                  className="flex min-h-11 w-full items-start justify-between gap-4 text-left"
+                  onClick={() => setSelectedCustomerId(customer.id)}
+                  type="button"
+                >
+                  <div className="min-w-0">
                     <p className="font-semibold text-tapit-ink">{customer.email}</p>
-                    <p className="mt-1 text-sm text-tapit-muted">
+                    <p className="mt-1 truncate text-sm text-tapit-muted">
                       {isProfileOwner
                         ? `${profile.draft.name || "Unnamed profile"} · ${profile.draft.slug}`
                         : "Profile pending setup"}
                     </p>
                   </div>
-                  <StatusBadge status={customer.status} />
-                </div>
-                <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+                  <span className="flex shrink-0 items-center gap-2">
+                    <StatusBadge status={customer.status} />
+                    <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
+                  </span>
+                </button>
+                <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-tapit-line pt-4 text-sm">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
                       Setup
@@ -259,7 +284,7 @@ export function CustomersManager() {
                     <dd className="mt-1 text-tapit-ink">{cardCount}</dd>
                   </div>
                 </dl>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {isProfileOwner ? (
                     <ButtonLink href="/admin/profiles" variant="secondary">
                       View profile
@@ -290,6 +315,62 @@ export function CustomersManager() {
           })}
         </div>
       </Panel>
+      {selectedCustomer
+        ? (() => {
+            const profile = getDemoProfiles(state).find(
+              (candidate) => candidate.id === selectedCustomer.profileId,
+            );
+            return (
+              <Panel
+                className="border-tapit-accent/30"
+                description="A focused view keeps account operations separate from the registry."
+                title="Selected customer"
+              >
+                <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="font-semibold text-tapit-ink">{selectedCustomer.email}</p>
+                    <p className="mt-1 text-sm text-tapit-muted">
+                      {profile?.draft.name || "Profile pending setup"}
+                    </p>
+                  </div>
+                  <StatusBadge
+                    status={
+                      selectedCustomer.deletionStatus === "requested"
+                        ? "requested"
+                        : selectedCustomer.status
+                    }
+                  />
+                </div>
+                <dl className="mt-5 grid gap-4 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                      Account
+                    </dt>
+                    <dd className="mt-1 text-tapit-ink">{selectedCustomer.status}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                      Setup
+                    </dt>
+                    <dd className="mt-1 text-tapit-ink">
+                      {selectedCustomer.setupToken ? "Invitation pending" : "Complete"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                      Cards
+                    </dt>
+                    <dd className="mt-1 text-tapit-ink">
+                      {profile
+                        ? state.cards.filter((card) => card.profileId === profile.id).length
+                        : 0}
+                    </dd>
+                  </div>
+                </dl>
+              </Panel>
+            );
+          })()
+        : null}
       <ConfirmDialog
         confirmLabel="Approve deletion"
         description={

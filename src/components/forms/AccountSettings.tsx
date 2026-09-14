@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AtIcon, KeyIcon, LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
 
 import {
   getDemoProfileForSession,
@@ -115,19 +116,23 @@ export function AccountSettings() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
       <Panel
         description="Your email identifies the one profile attached to this account."
         title="Account"
       >
+        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
+          <AtIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
+          Account identity and access status
+        </div>
         <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-xl bg-tapit-paper p-4">
+          <div className="rounded-tapit bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Email
             </dt>
             <dd className="mt-2 font-semibold text-tapit-ink">{customer.email}</dd>
           </div>
-          <div className="rounded-xl bg-tapit-paper p-4">
+          <div className="rounded-tapit bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Deletion status
             </dt>
@@ -142,6 +147,10 @@ export function AccountSettings() {
         description="Password recovery and email verification are not part of the local MVP. Contact support if you lose access."
         title="Change password"
       >
+        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
+          <KeyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
+          Keep your workspace access secure.
+        </div>
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={savePassword}>
           {passwordMessage ? (
             <Notice tone={passwordMessage.tone}>{passwordMessage.text}</Notice>
@@ -185,6 +194,10 @@ export function AccountSettings() {
         description="Need help with a profile or card? The support route is intentionally generic in this local build."
         title="Support"
       >
+        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
+          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
+          Help is available for access, publication, or card issues.
+        </div>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a className="font-semibold text-tapit-accent hover:underline" href={state.supportUrl}>
             Contact support
@@ -196,9 +209,14 @@ export function AccountSettings() {
       </Panel>
 
       <Panel
+        className="border-tapit-danger/30"
         description="Deletion immediately hides your public profile and deactivates assigned cards. An administrator must review the request before account data is permanently removed."
         title="Delete account"
       >
+        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
+          <TrashIcon aria-hidden="true" size={20} weight="bold" />
+          This action is reviewed separately from everyday account settings.
+        </div>
         {deletionMessage ? (
           <div className="mt-5">
             <Notice tone="success">{deletionMessage}</Notice>

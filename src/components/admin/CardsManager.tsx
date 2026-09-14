@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ArrowRightIcon, ArrowsClockwiseIcon, PlusIcon, ProhibitIcon } from "@phosphor-icons/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import type { DemoCard } from "@/lib/demo/fixtures";
@@ -267,7 +268,7 @@ export function CardsManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
         title="Register card URL"
@@ -290,7 +291,7 @@ export function CardsManager() {
               Assignment profile
             </label>
             <select
-              className="mt-2 min-h-12 w-full rounded-xl border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+              className="mt-2 min-h-12 w-full rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
               id="card-assignment-profile"
               onChange={(event) => setSelectedProfileId(event.target.value)}
               value={selectedProfileId}
@@ -302,7 +303,10 @@ export function CardsManager() {
               ))}
             </select>
           </div>
-          <Button type="submit">Register card</Button>
+          <Button type="submit">
+            <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+            Register card
+          </Button>
         </form>
         {message ? (
           <div className="mt-5">
@@ -325,11 +329,11 @@ export function CardsManager() {
             value={query}
           />
         </div>
-        <div className="mt-6 grid gap-4">
+        <div className="mt-6 grid gap-2">
           {cards.length === 0 ? <Notice>No registered cards match this search.</Notice> : null}
           {cards.map((card) => (
             <article
-              className="rounded-2xl border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+              className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
               key={card.id}
             >
               <div className="flex flex-wrap items-start justify-between gap-4">
@@ -339,7 +343,7 @@ export function CardsManager() {
                 </div>
                 <StatusBadge status={card.status} />
               </div>
-              <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+              <dl className="mt-5 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
                     Profile
@@ -374,6 +378,7 @@ export function CardsManager() {
               <div className="mt-5 flex flex-wrap gap-2">
                 {card.status === "registered" ? (
                   <Button onClick={() => assignCard(card)} type="button">
+                    <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
                     Assign to profile
                   </Button>
                 ) : null}
@@ -383,6 +388,7 @@ export function CardsManager() {
                     type="button"
                     variant="danger"
                   >
+                    <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
                     Deactivate
                   </Button>
                 ) : null}
@@ -392,6 +398,7 @@ export function CardsManager() {
                     type="button"
                     variant="secondary"
                   >
+                    <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
                     Replace card
                   </Button>
                 ) : null}

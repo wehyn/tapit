@@ -1,8 +1,8 @@
 export function StatusBadge({ status }: { status: string }) {
   const classes =
     {
-      active: "bg-[#e8f1eb] text-[#17352b]",
-      published: "bg-[#e8f1eb] text-[#17352b]",
+      active: "bg-tapit-accent-soft text-tapit-accent-strong",
+      published: "bg-tapit-accent-soft text-tapit-accent-strong",
       draft: "bg-tapit-paper text-tapit-muted",
       invited: "bg-[#fff4df] text-[#784b13]",
       inactive: "bg-[#fff1f0] text-tapit-danger",
@@ -14,7 +14,7 @@ export function StatusBadge({ status }: { status: string }) {
     }[status] ?? "bg-tapit-paper text-tapit-muted";
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${classes}`}
+      className={`inline-flex rounded-tapit px-2.5 py-1 text-xs font-semibold capitalize ${classes}`}
     >
       {status}
     </span>

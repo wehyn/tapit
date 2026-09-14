@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCircleIcon, GearSixIcon, LifebuoyIcon } from "@phosphor-icons/react";
 
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
 
@@ -47,13 +48,17 @@ export function SettingsManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-6 px-5 pb-12 pt-6 sm:px-8">
+    <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
         description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
         title="Support contact"
       >
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+          <div className="flex items-center gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-sm text-tapit-muted">
+            <GearSixIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
+            <span>One destination is used for public support states and account help.</span>
+          </div>
           <Field
             id="support-url"
             label="Support destination"
@@ -61,7 +66,10 @@ export function SettingsManager() {
             value={supportUrl}
           />
           <div>
-            <Button type="submit">Save settings</Button>
+            <Button type="submit">
+              <CheckCircleIcon aria-hidden="true" className="mr-2" size={18} />
+              Save settings
+            </Button>
           </div>
         </form>
       </Panel>
@@ -69,6 +77,10 @@ export function SettingsManager() {
         description="Local demo mode keeps customer data and invitation links in this browser only. Production deployment must connect Convex, email delivery, storage, monitoring, and an approved domain before launch."
         title="Launch gates"
       >
+        <p className="mt-4 flex items-center gap-2 text-sm text-tapit-muted">
+          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} />
+          Operational readiness checklist
+        </p>
         <ul className="mt-5 grid gap-3 text-sm leading-6 text-tapit-muted">
           <li>Convex deployment and generated bindings</li>
           <li>Password recovery, email verification, and login rate limiting</li>
