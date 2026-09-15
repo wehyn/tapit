@@ -77,6 +77,8 @@ function FeatureSection({
 }
 
 export default function HomePage() {
+  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+
   return (
     <main className="overflow-hidden bg-tapit-paper text-tapit-ink">
       <section className="relative min-h-[100dvh] overflow-hidden">
@@ -119,10 +121,12 @@ export default function HomePage() {
               </Link>
               <Link
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-tapit-accent px-4 text-base font-semibold text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong sm:min-w-[12.25rem] sm:px-6"
-                href="/mara-velasquez"
+                href={isDemoMode ? "/mara-velasquez" : "/login"}
               >
-                <span className="hidden sm:inline">View demo profile</span>
-                <span className="sm:hidden">Demo profile</span>
+                <span className="hidden sm:inline">
+                  {isDemoMode ? "View demo profile" : "Sign in to your profile"}
+                </span>
+                <span className="sm:hidden">{isDemoMode ? "Demo profile" : "Sign in"}</span>
               </Link>
             </div>
           </header>
@@ -143,9 +147,9 @@ export default function HomePage() {
               </p>
               <Link
                 className="mt-9 inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
-                href="/mara-velasquez"
+                href={isDemoMode ? "/mara-velasquez" : "/login"}
               >
-                View demo profile
+                {isDemoMode ? "View demo profile" : "Sign in to your profile"}
                 <ArrowRight aria-hidden="true" size={22} weight="bold" />
               </Link>
             </div>

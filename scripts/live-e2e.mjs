@@ -90,6 +90,7 @@ async function provision() {
       adminEmail: process.env.TAPIT_LIVE_ADMIN_EMAIL,
       customerEmail: process.env.TAPIT_LIVE_CUSTOMER_EMAIL,
       customerSlug: process.env.TAPIT_LIVE_PROFILE_SLUG,
+      publishedBio: process.env.TAPIT_LIVE_PUBLISHED_BIO,
       cardUrl: `https://tapit.test/c/${cardToken}`,
       cardToken,
     }),
@@ -141,6 +142,11 @@ async function provision() {
 const missing = required.filter((name) => !process.env[name]);
 if (missing.length > 0)
   fail(`missing ${missing.join(", ")}. See docs/live-e2e.md for the complete contract.`);
+if (!/^(?:dev|preview)(?::|$)/i.test(process.env.TAPIT_LIVE_CONVEX_DEPLOYMENT)) {
+  fail(
+    "TAPIT_LIVE_CONVEX_DEPLOYMENT must reference a dev or preview deployment; production deployments are not permitted.",
+  );
+}
 if (
   process.env.TAPIT_LIVE_BASE_URL.startsWith("http://127.0.0.1") ||
   process.env.TAPIT_LIVE_BASE_URL.startsWith("http://localhost")
