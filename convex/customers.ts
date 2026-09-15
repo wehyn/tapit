@@ -1,6 +1,8 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
 
+import { components } from "./_generated/api";
 import { mutation, query } from "./_generated/server";
 import { requireAdministrator, requireUser } from "./admin";
 import schema from "./schema";
@@ -11,6 +13,10 @@ const emptyProfile = (slug: string) => ({
   name: "",
   slug,
   links: [],
+});
+
+const signupLimiter = new RateLimiter(components.rateLimiter, {
+  selfServiceSignup: { kind: "fixed window", rate: 3, period: HOUR },
 });
 
 export const createCustomer = mutation({
@@ -102,9 +108,14 @@ export const createSelfServiceAccount = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
+    if (user?.emailVerificationTime === undefined) throw new Error("Email verification required.");
     const email = user?.email?.trim().toLowerCase();
     if (email === undefined || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new Error("A valid authenticated email is required.");
+    const signupLimit = await signupLimiter.limit(ctx, "selfServiceSignup", {
+      key: email,
+    });
+    if (!signupLimit.ok) throw new Error("Too many account creation attempts. Try again later.");
     const linked = await ctx.db
       .query("customers")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -178,6 +189,8 @@ export const completeSetup = mutation({
   returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
+    const user = await ctx.db.get(userId);
+    if (user?.emailVerificationTime === undefined) throw new Error("Email verification required.");
     const invitation = await ctx.db
       .query("invitations")
       .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
@@ -196,7 +209,6 @@ export const completeSetup = mutation({
     const customer = await ctx.db.get(invitation.customerId);
     if (customer === null || customer.role !== "customer" || customer.status === "deleted")
       throw new Error("Customer account unavailable.");
-    const user = await ctx.db.get(userId);
     if (user?.email?.trim().toLowerCase() !== invitation.email.trim().toLowerCase())
       throw new Error("This authenticated account does not match the invitation email.");
     if (customer.userId !== undefined && customer.userId !== userId) {

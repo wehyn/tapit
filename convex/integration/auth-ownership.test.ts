@@ -1,11 +1,18 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+
+const testConvex = () => {
+  const t = convexTest(schema, modules);
+  rateLimiter.register(t);
+  return t;
+};
 
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
@@ -30,9 +37,18 @@ const draft = (slug: string, name: string) => ({
 
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
-    const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
-    const ownerUserId = await ctx.db.insert("users", { email: "owner@example.com" });
-    const otherUserId = await ctx.db.insert("users", { email: "other@example.com" });
+    const adminUserId = await ctx.db.insert("users", {
+      email: "admin@example.com",
+      emailVerificationTime: 1,
+    });
+    const ownerUserId = await ctx.db.insert("users", {
+      email: "owner@example.com",
+      emailVerificationTime: 1,
+    });
+    const otherUserId = await ctx.db.insert("users", {
+      email: "other@example.com",
+      emailVerificationTime: 1,
+    });
     const adminCustomerId = await ctx.db.insert("customers", {
       userId: adminUserId,
       email: "admin@example.com",
@@ -104,7 +120,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
 
 describe("Convex authentication and ownership", () => {
   it("rejects unauthenticated private reads and writes", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
 
     await expect(t.query(api.profiles.mine, {})).rejects.toThrow("Authentication required.");
@@ -121,9 +137,13 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("provisions an authenticated self-service customer and is idempotent", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const userId = await t.run(
-      async (ctx) => await ctx.db.insert("users", { email: " New@Example.COM " }),
+      async (ctx) =>
+        await ctx.db.insert("users", {
+          email: " New@Example.COM ",
+          emailVerificationTime: 1,
+        }),
     );
     const user = t.withIdentity(identity(userId));
 
@@ -157,8 +177,69 @@ describe("Convex authentication and ownership", () => {
     });
   });
 
+  it("rejects self-service setup for an unverified authenticated user", async () => {
+    const t = testConvex();
+    const userId = await t.run(
+      async (ctx) => await ctx.db.insert("users", { email: "unverified@example.test" }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    await expect(
+      user.mutation(api.customers.createSelfServiceAccount, {
+        name: "Unverified Customer",
+        slug: "unverified-customer",
+      }),
+    ).rejects.toThrow("Email verification required.");
+
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("customers")
+          .withIndex("by_email", (query) => query.eq("email", "unverified@example.test"))
+          .unique(),
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects the fourth same-identity self-service attempt while keeping one customer", async () => {
+    const t = testConvex();
+    const userId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("users", {
+          email: "quota@example.test",
+          emailVerificationTime: 1,
+        }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await user.mutation(api.customers.createSelfServiceAccount, {
+        name: "Quota Customer",
+        slug: "quota-customer",
+      });
+    }
+    await expect(
+      user.mutation(api.customers.createSelfServiceAccount, {
+        name: "Quota Customer",
+        slug: "quota-customer",
+      }),
+    ).rejects.toThrow("Too many account creation attempts. Try again later.");
+
+    await expect(
+      t.run(
+        async (ctx) =>
+          (
+            await ctx.db
+              .query("customers")
+              .withIndex("by_email", (query) => query.eq("email", "quota@example.test"))
+              .take(10)
+          ).length,
+      ),
+    ).resolves.toBe(1);
+  });
+
   it("rejects admin identities and duplicate emails or slugs", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const admin = t.withIdentity(identity(data.adminUserId));
     await expect(
@@ -166,7 +247,11 @@ describe("Convex authentication and ownership", () => {
     ).rejects.toThrow(/admin|administrator/i);
 
     const newUserId = await t.run(
-      async (ctx) => await ctx.db.insert("users", { email: "new@example.com" }),
+      async (ctx) =>
+        await ctx.db.insert("users", {
+          email: "new@example.com",
+          emailVerificationTime: 1,
+        }),
     );
     const newUser = t.withIdentity(identity(newUserId));
     await expect(
@@ -178,7 +263,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("allows the owner to read, save, and publish their profile", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
 
@@ -197,7 +282,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("keeps a saved draft theme private until publishing", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
     await t.run(async (ctx) => {
@@ -242,7 +327,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("denies cross-customer access and keeps drafts out of the public projection", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const other = t.withIdentity(identity(data.otherUserId));
 
@@ -266,7 +351,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("enforces setup-token validity, customer matching, and one-time use", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
@@ -303,8 +388,24 @@ describe("Convex authentication and ownership", () => {
     ).resolves.toEqual({ valid: false });
   });
 
+  it("rejects setup-link completion for an unverified invitation user", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const userId = await t.run(
+      async (ctx) => await ctx.db.insert("users", { email: "owner@example.com" }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    await expect(
+      user.mutation(api.customers.completeSetup, {
+        customerId: data.ownerCustomerId,
+        tokenHash: "owner-token",
+      }),
+    ).rejects.toThrow("Email verification required.");
+  });
+
   it("bootstraps the same accounts and profile idempotently", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const args = {
       adminUserId: data.adminUserId,
@@ -328,7 +429,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("seeds the configured published bio during bootstrap", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     const result = await t.mutation(internal.bootstrap.bootstrap, {
       adminUserId: data.adminUserId,
@@ -348,7 +449,7 @@ describe("Convex authentication and ownership", () => {
   });
 
   it("rejects bootstrap when an Auth user is already linked to another customer", async () => {
-    const t = convexTest(schema, modules);
+    const t = testConvex();
     const data = await seed(t);
     await expect(
       t.mutation(internal.bootstrap.bootstrap, {

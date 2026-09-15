@@ -3,9 +3,9 @@
 import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { ConvexReactClient, useQuery } from "convex/react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 
 import { api } from "../../../convex/_generated/api";
 
@@ -18,7 +18,9 @@ export function LiveProviders({ children }: { children: ReactNode }) {
   }
   return (
     <ConvexAuthNextjsProvider client={convex}>
-      <AuthBoundary>{children}</AuthBoundary>
+      <Suspense fallback={<div className="min-h-[100dvh] bg-tapit-paper" />}>
+        <AuthBoundary>{children}</AuthBoundary>
+      </Suspense>
     </ConvexAuthNextjsProvider>
   );
 }
@@ -26,9 +28,11 @@ export function LiveProviders({ children }: { children: ReactNode }) {
 function AuthBoundary({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess);
   const isProtectedPage = pathname.startsWith("/app") || pathname.startsWith("/admin");
+  const isPasswordResetPage = pathname === "/login" && searchParams.get("reset") === "1";
   const accessLoading = isAuthenticated && access === undefined;
   let redirectPath: string | null = null;
 
@@ -42,7 +46,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
       if (access?.role !== requiredRole) {
         redirectPath = access?.role === "admin" ? "/admin/customers" : "/app/profile";
       }
-    } else if (pathname === "/login" && access?.authenticated === true) {
+    } else if (pathname === "/login" && access?.authenticated === true && !isPasswordResetPage) {
       redirectPath = access.role === "admin" ? "/admin/customers" : "/app/profile";
     }
   }

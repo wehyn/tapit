@@ -1,4 +1,6 @@
-import { test, expect } from "./fixtures/live";
+import { readLiveVerificationCode, test, expect } from "./fixtures/live";
+
+let disposableCustomer: { email: string; password: string } | undefined;
 
 test.describe("live Convex vertical slice", () => {
   test.describe.configure({ mode: "serial" });
@@ -11,9 +13,10 @@ test.describe("live Convex vertical slice", () => {
     const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const name = "Live Self-Service Customer";
     const slug = `live-self-service-${suffix}`;
-    const email = `live-self-service-${suffix}@example.test`;
+    const email = `live-self-service-${suffix}@${liveEnv.emailDomain}`;
     const password = `Live-${suffix}-password`;
     const bio = `Live self-service bio ${suffix}`;
+    disposableCustomer = { email, password };
 
     await page.goto("/login?mode=signup");
     await expect(page.getByRole("heading", { name: /create your tapit profile/i })).toBeVisible();
@@ -38,6 +41,10 @@ test.describe("live Convex vertical slice", () => {
     await page.getByLabel("Confirm password", { exact: true }).fill(password);
     await page.getByRole("button", { name: "Create your profile", exact: true }).click();
 
+    await expect(page.getByLabel("Verification code")).toBeVisible();
+    const signupCode = await readLiveVerificationCode(liveEnv, email, "signup");
+    await page.getByLabel("Verification code").fill(signupCode);
+    await page.getByRole("button", { name: "Verify email", exact: true }).click();
     await expect(page).toHaveURL(/\/app\/profile$/);
     await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
     await expect(page.getByLabel("Display name")).toHaveValue(name);
@@ -223,6 +230,10 @@ test.describe("live Convex vertical slice", () => {
     await page.getByLabel("Password", { exact: true }).fill(setupPassword as string);
     await page.getByLabel("Confirm password", { exact: true }).fill(setupPassword as string);
     await page.getByRole("button", { name: "Set password" }).click();
+    await expect(page.getByLabel("Verification code")).toBeVisible();
+    const setupCode = await readLiveVerificationCode(liveEnv, setupEmail, "setup");
+    await page.getByLabel("Verification code").fill(setupCode);
+    await page.getByRole("button", { name: "Verify email", exact: true }).click();
     await expect(page).toHaveURL(/\/app\/profile$/);
     await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
 
@@ -293,5 +304,40 @@ test.describe("live Convex vertical slice", () => {
     } finally {
       await visitor.close();
     }
+  });
+
+  test("customer can reach and complete password reset from account settings", async ({
+    page,
+    liveEnv,
+  }) => {
+    const customer = disposableCustomer;
+    test.skip(customer === undefined, "The disposable signup account was not created.");
+
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(customer!.email);
+    await page.getByLabel("Password", { exact: true }).fill(customer!.password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/profile$/);
+
+    await page.goto("/app/account");
+    await page.getByRole("link", { name: "Reset password" }).click();
+    await expect(page).toHaveURL(/\/login\?reset=1&email=/);
+    await page.getByRole("button", { name: "Send reset instructions" }).click();
+    await expect(page.getByLabel("Verification code")).toBeVisible();
+
+    const resetCode = await readLiveVerificationCode(liveEnv, customer!.email, "reset");
+    const replacementPassword = `Reset-${Date.now()}-password`;
+    await page.getByLabel("Verification code").fill(resetCode);
+    await page.getByLabel("New password").fill(replacementPassword);
+    await page.getByLabel("Confirm new password").fill(replacementPassword);
+    await page.getByRole("button", { name: "Reset password", exact: true }).click();
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+
+    await page.getByLabel("Email").fill(customer!.email);
+    await page.getByLabel("Password", { exact: true }).fill(replacementPassword);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/app\/profile$/);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   });
 });
