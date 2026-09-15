@@ -1,20 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
-import { useQuery } from "convex/react";
-import { ArrowUpRight, Fingerprint } from "@phosphor-icons/react";
+import { useMutation, useQuery } from "convex/react";
 
-import { Brand } from "@/components/layout/Brand";
+import { AuthShell, type AuthMode } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { setDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
-import { verifyDemoPassword } from "@/lib/demo/password";
-
+import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
+import {
+  createDemoSelfServiceAccount,
+  setDemoSession,
+  useDemoSession,
+  useDemoState,
+} from "@/lib/demo/store";
+import { normalizeProfileSlug, validateProfileSlug } from "@/lib/domain";
+import { validateSignupInput, type SignupFormValues } from "@/lib/auth/signup";
 import { api } from "../../../convex/_generated/api";
-/** Accept only an internal, same-origin path for post-login navigation. */
+
 export function sanitizeReturnPath(value: string | string[] | undefined): string | undefined {
   if (typeof value !== "string" || value.length === 0 || !value.startsWith("/")) return undefined;
   if (
@@ -26,52 +31,70 @@ export function sanitizeReturnPath(value: string | string[] | undefined): string
     return undefined;
   try {
     const parsed = new URL(value, "https://tapit.invalid");
-    if (parsed.origin !== "https://tapit.invalid") {
-      return undefined;
-    }
-    return value;
+    return parsed.origin === "https://tapit.invalid" ? value : undefined;
   } catch {
     return undefined;
   }
 }
 
-export function LoginForm({ nextPath }: { nextPath?: string }) {
+export function LoginForm({
+  nextPath,
+  initialMode = "signin",
+}: {
+  nextPath?: string;
+  initialMode?: AuthMode;
+}) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
-    <DemoLoginForm nextPath={nextPath} />
+    <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
   ) : (
-    <LiveLoginForm nextPath={nextPath} />
+    <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
   );
 }
 
-function DemoLoginForm({ nextPath }: { nextPath?: string }) {
+function DemoLoginForm({
+  mode,
+  onModeChange,
+  nextPath,
+}: {
+  mode: AuthMode;
+  onModeChange: (mode: AuthMode) => void;
+  nextPath?: string;
+}) {
   const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [errors, setErrors] = useState<Partial<Record<keyof SignupFormValues, string>>>({});
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
-
   useEffect(() => {
-    if (session !== null)
+    if (mode === "signin" && session)
       router.replace(
         safeNextPath || (session.role === "admin" ? "/admin/customers" : "/app/profile"),
       );
-  }, [router, safeNextPath, session]);
-
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  }, [mode, router, safeNextPath, session]);
+  const availability = useMemo(() => {
+    if (!slug.trim()) return null;
+    const normalized = normalizeProfileSlug(slug);
+    const validation = validateProfileSlug(normalized);
+    if (validation) return validation;
+    return state.profiles.some((profile) => profile.draft.slug === normalized)
+      ? "That profile slug is already in use."
+      : "Available";
+  }, [slug, state.profiles]);
+  function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
+    if (!normalizedEmail || !normalizedEmail.includes("@"))
+      return setError("Enter a valid email address.");
+    if (password.length < 8) return setError("Password must be at least 8 characters.");
     setSubmitting(true);
     const account = state.customers.find(
       (candidate) =>
@@ -79,196 +102,307 @@ function DemoLoginForm({ nextPath }: { nextPath?: string }) {
         candidate.status === "active" &&
         candidate.deletionStatus === "active",
     );
-    window.setTimeout(async () => {
+    void (async () => {
       try {
-        const valid =
-          account !== undefined && (await verifyDemoPassword(password, account.passwordHash));
-        if (!valid) {
-          setError("The email or password is not correct.");
-          setSubmitting(false);
-          return;
-        }
+        if (!account || !(await verifyDemoPassword(password, account.passwordHash)))
+          throw new Error();
         setDemoSession({ email: account.email, role: account.role });
         router.replace(
           safeNextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
         );
       } catch {
-        setError("The demo authentication service is unavailable. Try again.");
+        setError("The email or password is not correct.");
         setSubmitting(false);
       }
-    }, 180);
+    })();
   }
-
+  function signUp(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const result = validateSignupInput({ email, password, confirmation, name, slug });
+    setErrors(result.errors);
+    if (!result.payload) return;
+    setSubmitting(true);
+    void (async () => {
+      try {
+        await createDemoSelfServiceAccount({
+          email: result.payload!.email,
+          name: result.payload!.name,
+          slug: result.payload!.slug,
+          passwordHash: await hashDemoPassword(result.payload!.password),
+        });
+        setDemoSession({ email: result.payload!.email, role: "customer" });
+        router.replace(safeNextPath || "/app/profile");
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "The signup service is unavailable. Try again.",
+        );
+        setSubmitting(false);
+      }
+    })();
+  }
   return (
-    <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-        <Brand />
-        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1fr_0.8fr] lg:gap-28">
-          <div className="max-w-lg">
-            <Fingerprint
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={48}
-              weight="light"
-            />
-            <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              Welcome back
-            </p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-tapit-ink sm:text-6xl">
-              Sign in to Tapit
-            </h1>
-            <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
-              Manage your profile, links, and publication state from one calm workspace.
-            </p>
-          </div>
-          <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
-            <form className="grid gap-5" onSubmit={submit}>
-              {error ? <Notice tone="error">{error}</Notice> : null}
+    <AuthShell demoHint mode={mode} onModeChange={onModeChange} supportUrl={state.supportUrl}>
+      {mode === "signup" ? (
+        <form className="grid gap-5" onSubmit={signUp}>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          <Field
+            id="signup-name"
+            label="Display name"
+            onChange={(e) => setName(e.target.value)}
+            value={name}
+            error={errors.name}
+          />
+          <Field
+            id="signup-slug"
+            label="Profile link"
+            onChange={(e) => setSlug(e.target.value)}
+            value={slug}
+            error={errors.slug}
+            help={
+              availability === "Available"
+                ? "Available"
+                : (availability ?? "Choose the link people will share.")
+            }
+          />
+          <Field
+            autoComplete="email"
+            id="signup-email"
+            label="Email"
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            value={email}
+            error={errors.email}
+          />
+          <Field
+            autoComplete="new-password"
+            id="signup-password"
+            label="Password"
+            minLength={8}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            value={password}
+            error={errors.password}
+          />
+          <Field
+            autoComplete="new-password"
+            id="signup-confirmation"
+            label="Confirm password"
+            onChange={(e) => setConfirmation(e.target.value)}
+            type="password"
+            value={confirmation}
+            error={errors.confirmation}
+          />
+          <Button disabled={submitting} type="submit">
+            {submitting ? "Creating profile" : "Create your profile"}
+          </Button>
+        </form>
+      ) : (
+        <form className="grid gap-5" onSubmit={signIn}>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          <Field
+            autoComplete="email"
+            id="email"
+            label="Email"
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            value={email}
+          />
+          <Field
+            autoComplete="current-password"
+            id="password"
+            label="Password"
+            minLength={8}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            value={password}
+          />
+          <Button disabled={submitting} type="submit">
+            {submitting ? "Signing in" : "Sign in"}
+          </Button>
+        </form>
+      )}
+    </AuthShell>
+  );
+}
+
+function LiveLoginForm({
+  mode,
+  onModeChange,
+  nextPath,
+}: {
+  mode: AuthMode;
+  onModeChange: (mode: AuthMode) => void;
+  nextPath?: string;
+}) {
+  const router = useRouter();
+  const { signIn } = useAuthActions();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const access = useQuery(api.admin.currentAccess);
+  const createAccount = useMutation(api.customers.createSelfServiceAccount);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [errors, setErrors] = useState<Partial<Record<keyof SignupFormValues, string>>>({});
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [awaitingAuth, setAwaitingAuth] = useState(false);
+  const safeNextPath = sanitizeReturnPath(nextPath);
+  useEffect(() => {
+    if (mode === "signin" && !authLoading && access?.authenticated)
+      router.replace(
+        safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"),
+      );
+  }, [access, authLoading, mode, router, safeNextPath]);
+  useEffect(() => {
+    if (!awaitingAuth || !isAuthenticated) return;
+    void createAccount({ name: name.trim(), slug: normalizeProfileSlug(slug) })
+      .then(() => router.replace(safeNextPath || "/app/profile"))
+      .catch((cause) => {
+        setError(
+          cause instanceof Error ? cause.message : "Your profile could not be created. Try again.",
+        );
+        setSubmitting(false);
+        setAwaitingAuth(false);
+      });
+  }, [awaitingAuth, createAccount, isAuthenticated, name, router, safeNextPath, slug]);
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    if (mode === "signin") {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!normalizedEmail || !normalizedEmail.includes("@"))
+        return setError("Enter a valid email address.");
+      if (password.length < 8) return setError("Password must be at least 8 characters.");
+      setSubmitting(true);
+      try {
+        await signIn("password", { flow: "signIn", email: normalizedEmail, password });
+      } catch {
+        setError("The email or password is not correct.");
+        setSubmitting(false);
+      }
+      return;
+    }
+    const result = validateSignupInput({ email, password, confirmation, name, slug });
+    setErrors(result.errors);
+    if (!result.payload) return;
+    setSubmitting(true);
+    try {
+      setName(result.payload.name);
+      setSlug(result.payload.slug);
+      if (isAuthenticated && !access?.authenticated) {
+        await createAccount({ name: result.payload.name, slug: result.payload.slug });
+        router.replace(safeNextPath || "/app/profile");
+      } else {
+        await signIn("password", {
+          flow: "signUp",
+          email: result.payload.email,
+          password: result.payload.password,
+        });
+        setAwaitingAuth(true);
+      }
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "The signup service is unavailable. Try again.",
+      );
+      setSubmitting(false);
+    }
+  }
+  const loading = authLoading || access === undefined;
+  const availability = useQuery(
+    api.profiles.checkSlugAvailability,
+    mode === "signup" && slug ? { slug } : "skip",
+  );
+  return (
+    <AuthShell mode={mode} onModeChange={onModeChange}>
+      {loading && mode === "signin" ? (
+        <p className="text-sm text-tapit-muted">Checking your session…</p>
+      ) : (
+        <form className="grid gap-5" onSubmit={submit}>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          {mode === "signup" ? (
+            <>
+              <Field
+                id="signup-name"
+                label="Display name"
+                onChange={(e) => setName(e.target.value)}
+                value={name}
+                error={errors.name}
+              />
+              <Field
+                id="signup-slug"
+                label="Profile link"
+                onChange={(e) => setSlug(e.target.value)}
+                value={slug}
+                error={errors.slug}
+                help={
+                  availability === undefined
+                    ? "Checking availability…"
+                    : availability.available
+                      ? "Available"
+                      : (availability.error ?? "That profile slug is already in use.")
+                }
+              />
               <Field
                 autoComplete="email"
-                id="email"
+                id="signup-email"
                 label="Email"
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                value={email}
+                error={errors.email}
+              />
+              <Field
+                autoComplete="new-password"
+                id="signup-password"
+                label="Password"
+                minLength={8}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                value={password}
+                error={errors.password}
+              />
+              <Field
+                autoComplete="new-password"
+                id="signup-confirmation"
+                label="Confirm password"
+                onChange={(e) => setConfirmation(e.target.value)}
+                type="password"
+                value={confirmation}
+                error={errors.confirmation}
+              />
+              <Button disabled={submitting} type="submit">
+                {submitting ? "Creating profile" : "Create your profile"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Field
+                autoComplete="email"
+                id="live-email"
+                label="Email"
+                onChange={(e) => setEmail(e.target.value)}
                 type="email"
                 value={email}
               />
               <Field
                 autoComplete="current-password"
-                help="Use at least 8 characters."
-                id="password"
+                id="live-password"
                 label="Password"
                 minLength={8}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(e) => setPassword(e.target.value)}
                 type="password"
                 value={password}
               />
               <Button disabled={submitting} type="submit">
                 {submitting ? "Signing in" : "Sign in"}
               </Button>
-            </form>
-            <p className="mt-6 text-center text-xs leading-5 text-tapit-muted">
-              Need help?{" "}
-              <a
-                className="font-semibold text-tapit-accent hover:underline"
-                href={state.supportUrl}
-              >
-                Contact support{" "}
-                <ArrowUpRight aria-hidden="true" className="ml-1 inline" size={14} />
-              </a>
-            </p>
-            {process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
-              <p className="mt-6 rounded-tapit bg-tapit-paper px-4 py-3 text-xs leading-5 text-tapit-muted">
-                Local demo: use <strong>mara@example.test</strong> or{" "}
-                <strong>admin@tapit.local</strong> with password <strong>tapit-demo</strong>.
-              </p>
-            ) : null}
-          </div>
-        </section>
-        <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
-          A focused workspace for a more memorable introduction.
-        </footer>
-      </div>
-    </main>
-  );
-}
-
-function LiveLoginForm({ nextPath }: { nextPath?: string }) {
-  const router = useRouter();
-  const { signIn } = useAuthActions();
-  const { isLoading: authLoading } = useConvexAuth();
-  const access = useQuery(api.admin.currentAccess);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const safeNextPath = sanitizeReturnPath(nextPath);
-
-  useEffect(() => {
-    if (authLoading || access === undefined || !access.authenticated) return;
-    router.replace(safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"));
-  }, [access, authLoading, router, safeNextPath]);
-
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !normalizedEmail.includes("@")) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await signIn("password", { flow: "signIn", email: normalizedEmail, password });
-    } catch {
-      setError("The email or password is not correct.");
-      setSubmitting(false);
-    }
-  }
-
-  const loading = authLoading || access === undefined;
-  return (
-    <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-        <Brand />
-        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1fr_0.8fr] lg:gap-28">
-          <div className="max-w-lg">
-            <Fingerprint
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={48}
-              weight="light"
-            />
-            <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              Welcome back
-            </p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-tapit-ink sm:text-6xl">
-              Sign in to Tapit
-            </h1>
-            <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
-              Manage your profile, links, and publication state from one calm workspace.
-            </p>
-          </div>
-          <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
-            {loading ? (
-              <p className="text-sm text-tapit-muted">Checking your session…</p>
-            ) : access?.authenticated ? (
-              <p className="text-sm text-tapit-muted">Taking you to your workspace…</p>
-            ) : (
-              <form className="grid gap-5" onSubmit={submit}>
-                {error ? <Notice tone="error">{error}</Notice> : null}
-                <Field
-                  autoComplete="email"
-                  id="live-email"
-                  label="Email"
-                  onChange={(event) => setEmail(event.target.value)}
-                  type="email"
-                  value={email}
-                />
-                <Field
-                  autoComplete="current-password"
-                  help="Use at least 8 characters."
-                  id="live-password"
-                  label="Password"
-                  minLength={8}
-                  onChange={(event) => setPassword(event.target.value)}
-                  type="password"
-                  value={password}
-                />
-                <Button disabled={submitting} type="submit">
-                  {submitting ? "Signing in" : "Sign in"}
-                </Button>
-              </form>
-            )}
-          </div>
-        </section>
-        <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
-          A focused workspace for a more memorable introduction.
-        </footer>
-      </div>
-    </main>
+            </>
+          )}
+        </form>
+      )}
+    </AuthShell>
   );
 }

@@ -16,9 +16,16 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await page.goto("/login");
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expectNoA11yViolations(page);
+});
+
+test("customer signup has no automated accessibility violations", async ({ page }) => {
+  await page.goto("/login?mode=signup");
+  await expect(page.getByRole("heading", { name: "Create your Tapit profile" })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toBeVisible();
   await expectNoA11yViolations(page);
 });
 
@@ -26,7 +33,7 @@ test("administrator workspace has no automated accessibility violations", async 
   await page.goto("/login");
   await page.getByLabel("Email").fill("admin@tapit.local");
   await page.getByLabel("Password").fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
   await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
   await expectNoA11yViolations(page);
