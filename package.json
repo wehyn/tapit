@@ -18,6 +18,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:demo": "NEXT_PUBLIC_DEMO_MODE=true playwright test --project chromium",
+    "test:e2e:live": "TAPIT_E2E_MODE=live node scripts/live-e2e.mjs",
     "test:e2e:ui": "playwright test --ui",
     "convex:dev": "convex dev",
     "convex:deploy": "convex deploy",
