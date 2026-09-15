@@ -3,6 +3,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import { requireAdministrator, requireUser } from "./admin";
+import schema from "./schema";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -17,6 +18,11 @@ export const createCustomer = mutation({
     tokenHash: v.string(),
     expiresAt: v.number(),
   },
+  returns: v.object({
+    customerId: v.id("customers"),
+    profileId: v.id("profiles"),
+    invitationId: v.id("invitations"),
+  }),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const email = args.email.trim().toLowerCase();
@@ -35,6 +41,13 @@ export const createCustomer = mutation({
       .withIndex("by_slug", (query) => query.eq("slug", slug))
       .unique();
     if (duplicateSlug !== null) throw new Error("That profile slug is already registered.");
+    if (args.expiresAt <= Date.now())
+      throw new Error("The invitation expiry must be in the future.");
+    const duplicateToken = await ctx.db
+      .query("invitations")
+      .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
+      .unique();
+    if (duplicateToken !== null) throw new Error("That invitation token is already registered.");
 
     const now = Date.now();
     const customerId = await ctx.db.insert("customers", {
@@ -78,9 +91,10 @@ export const createCustomer = mutation({
 
 export const completeSetup = mutation({
   args: {
-    customerId: v.id("customers"),
+    customerId: v.optional(v.id("customers")),
     tokenHash: v.string(),
   },
+  returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const invitation = await ctx.db
@@ -89,30 +103,57 @@ export const completeSetup = mutation({
       .unique();
     if (
       invitation === null ||
-      invitation.customerId !== args.customerId ||
       invitation.usedAt !== undefined ||
       invitation.invalidatedAt !== undefined ||
       invitation.expiresAt <= Date.now()
     ) {
       throw new Error("This setup link is invalid or has expired.");
     }
+    if (args.customerId !== undefined && invitation.customerId !== args.customerId)
+      throw new Error("This setup link does not belong to that customer.");
 
-    const customer = await ctx.db.get(args.customerId);
-    if (customer === null || customer.status === "deleted")
+    const customer = await ctx.db.get(invitation.customerId);
+    if (customer === null || customer.role !== "customer" || customer.status === "deleted")
       throw new Error("Customer account unavailable.");
+    const user = await ctx.db.get(userId);
+    if (user?.email?.trim().toLowerCase() !== invitation.email.trim().toLowerCase())
+      throw new Error("This authenticated account does not match the invitation email.");
     if (customer.userId !== undefined && customer.userId !== userId) {
       throw new Error("This setup link has already been used.");
+    }
+    const linkedAccount = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (query) => query.eq("userId", userId))
+      .unique();
+    if (linkedAccount !== null && linkedAccount._id !== customer._id) {
+      throw new Error("This authenticated account is already linked to another customer.");
     }
 
     const now = Date.now();
     await ctx.db.patch(invitation._id, { usedAt: now });
-    await ctx.db.patch(args.customerId, { userId, status: "active", updatedAt: now });
-    return { profileId: customer.profileId };
+    await ctx.db.patch(customer._id, { userId, status: "active", updatedAt: now });
+    return { profileId: customer.profileId ?? null };
   },
 });
 
 export const myAccount = query({
   args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      _id: v.id("customers"),
+      _creationTime: v.number(),
+      userId: v.optional(v.id("users")),
+      email: v.string(),
+      role: v.union(v.literal("customer"), v.literal("admin")),
+      status: v.union(v.literal("invited"), v.literal("active"), v.literal("deleted")),
+      profileId: v.optional(v.id("profiles")),
+      deletionStatus: v.union(v.literal("active"), v.literal("requested"), v.literal("deleted")),
+      deletionRequestedAt: v.optional(v.number()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+    }),
+  ),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) return null;
@@ -123,8 +164,25 @@ export const myAccount = query({
   },
 });
 
+export const list = query({
+  args: { search: v.optional(v.string()) },
+  returns: v.array(schema.doc("customers")),
+  handler: async (ctx, args) => {
+    await requireAdministrator(ctx);
+    const search = args.search?.trim().toLowerCase();
+    const customers = await ctx.db
+      .query("customers")
+      .withIndex("by_role", (query) => query.eq("role", "customer"))
+      .take(100);
+    return search === undefined || search.length === 0
+      ? customers
+      : customers.filter((customer) => customer.email.includes(search));
+  },
+});
+
 export const requestDeletion = mutation({
   args: {},
+  returns: v.object({ requestId: v.id("deletionRequests") }),
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
     const customer = await ctx.db
@@ -157,7 +215,8 @@ export const requestDeletion = mutation({
     const cards = await ctx.db
       .query("cards")
       .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
-      .collect();
+      .take(1001);
+    if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     await Promise.all(
       cards
         .filter((card) => card.status === "active" || card.status === "registered")
@@ -186,13 +245,46 @@ export const requestDeletion = mutation({
 
 export const listDeletionRequests = query({
   args: {},
+  returns: v.array(
+    v.object({
+      request: v.object({
+        _id: v.id("deletionRequests"),
+        _creationTime: v.number(),
+        customerId: v.id("customers"),
+        requestedAt: v.number(),
+        processedAt: v.optional(v.number()),
+        processedByUserId: v.optional(v.id("users")),
+        status: v.union(v.literal("requested"), v.literal("approved"), v.literal("rejected")),
+      }),
+      customer: v.union(
+        v.null(),
+        v.object({
+          _id: v.id("customers"),
+          _creationTime: v.number(),
+          userId: v.optional(v.id("users")),
+          email: v.string(),
+          role: v.union(v.literal("customer"), v.literal("admin")),
+          status: v.union(v.literal("invited"), v.literal("active"), v.literal("deleted")),
+          profileId: v.optional(v.id("profiles")),
+          deletionStatus: v.union(
+            v.literal("active"),
+            v.literal("requested"),
+            v.literal("deleted"),
+          ),
+          deletionRequestedAt: v.optional(v.number()),
+          createdAt: v.number(),
+          updatedAt: v.number(),
+        }),
+      ),
+    }),
+  ),
   handler: async (ctx) => {
     await requireAdministrator(ctx);
     const requests = await ctx.db
       .query("deletionRequests")
       .withIndex("by_customerId")
       .order("desc")
-      .collect();
+      .take(100);
     return await Promise.all(
       requests.map(async (request) => ({
         request,
@@ -204,6 +296,7 @@ export const listDeletionRequests = query({
 
 export const approveDeletion = mutation({
   args: { requestId: v.id("deletionRequests") },
+  returns: v.object({ status: v.literal("deleted") }),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const request = await ctx.db.get(args.requestId);
@@ -234,7 +327,8 @@ export const approveDeletion = mutation({
     const cards = await ctx.db
       .query("cards")
       .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
-      .collect();
+      .take(1001);
+    if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     await Promise.all(
       cards
         .filter((card) => card.status === "active" || card.status === "registered")

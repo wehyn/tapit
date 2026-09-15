@@ -10,6 +10,8 @@ const profileLink = v.object({
   icon: v.optional(v.string()),
 });
 
+const profileTheme = v.union(v.literal("paper"), v.literal("moss"), v.literal("night"));
+
 const profileContent = v.object({
   name: v.string(),
   slug: v.string(),
@@ -18,6 +20,7 @@ const profileContent = v.object({
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
+  theme: v.optional(profileTheme),
   links: v.array(profileLink),
 });
 
@@ -29,6 +32,7 @@ const publishedProfile = v.object({
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
+  theme: v.optional(profileTheme),
   links: v.array(profileLink),
   publishedAt: v.number(),
 });
@@ -103,13 +107,20 @@ export default defineSchema({
   analytics: defineTable({
     profileId: v.id("profiles"),
     linkId: v.optional(v.id("links")),
+    linkKey: v.optional(v.string()),
     eventType: v.union(v.literal("profile_view"), v.literal("link_click")),
     bucketStart: v.number(),
     total: v.number(),
     uniqueCount: v.number(),
   })
     .index("by_profile_bucket", ["profileId", "bucketStart"])
-    .index("by_profile_event_bucket", ["profileId", "eventType", "bucketStart"]),
+    .index("by_profile_event_bucket", ["profileId", "eventType", "bucketStart"])
+    .index("by_bucket", ["bucketStart"]),
+  analyticsSessions: defineTable({
+    profileId: v.id("profiles"),
+    sessionKey: v.string(),
+    firstSeenAt: v.number(),
+  }).index("by_profile_session", ["profileId", "sessionKey"]),
   auditLogs: defineTable({
     actorUserId: v.optional(v.id("users")),
     actorLabel: v.string(),
