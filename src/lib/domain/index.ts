@@ -1,5 +1,7 @@
 /** Shared, persistence-agnostic domain rules for profiles, links, cards, and access. */
 
+import type { Id } from "../../../convex/_generated/dataModel";
+
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
 export type CardStatus = "registered" | "active" | "inactive" | "replaced";
@@ -26,6 +28,7 @@ export interface ProfileContent {
   slug: string;
   bio?: string;
   imageUrl?: string;
+  imageStorageId?: Id<"_storage">;
   email?: string;
   phone?: string;
   website?: string;

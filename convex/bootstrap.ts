@@ -60,6 +60,7 @@ export const bootstrap = internalMutation({
     adminEmail: emailArg,
     customerEmail: emailArg,
     customerSlug: v.string(),
+    publishedBio: v.string(),
     cardUrl: v.string(),
     cardToken: v.string(),
   },
@@ -82,6 +83,9 @@ export const bootstrap = internalMutation({
     )
       throw new Error("Bootstrap users must exist in Convex Auth.");
     const slug = validateSlug(args.customerSlug);
+    const publishedBio = args.publishedBio.trim();
+    if (!publishedBio) throw new Error("The bootstrap published bio is required.");
+    if (publishedBio.length > 140) throw new Error("The bootstrap published bio is too long.");
     if (
       !/^[A-Za-z0-9_-]+$/.test(args.cardToken) ||
       !/^https?:\/\/[^\s]+\/c\/[A-Za-z0-9_-]+$/.test(args.cardUrl) ||
@@ -97,6 +101,18 @@ export const bootstrap = internalMutation({
         .unique();
 
     const adminExisting = await findCustomer(adminEmail);
+    const customerExisting = await findCustomer(customerEmail);
+    const findCustomerByUserId = async (userId: typeof args.adminUserId) =>
+      await ctx.db
+        .query("customers")
+        .withIndex("by_userId", (query) => query.eq("userId", userId))
+        .unique();
+    const adminUserCustomer = await findCustomerByUserId(args.adminUserId);
+    if (adminUserCustomer !== null && adminUserCustomer._id !== adminExisting?._id)
+      throw new Error("The bootstrap administrator user is already linked to another customer.");
+    const customerUserCustomer = await findCustomerByUserId(args.customerUserId);
+    if (customerUserCustomer !== null && customerUserCustomer._id !== customerExisting?._id)
+      throw new Error("The bootstrap customer user is already linked to another customer.");
     if (
       adminExisting !== null &&
       adminExisting.userId !== undefined &&
@@ -123,7 +139,6 @@ export const bootstrap = internalMutation({
         updatedAt: now,
       });
 
-    const customerExisting = await findCustomer(customerEmail);
     if (
       customerExisting !== null &&
       customerExisting.userId !== undefined &&
@@ -168,7 +183,7 @@ export const bootstrap = internalMutation({
     const draft = {
       name: "Tapit Test Customer",
       slug,
-      bio: "A Tapit test profile.",
+      bio: publishedBio,
       website: "https://example.com",
       links: [
         {

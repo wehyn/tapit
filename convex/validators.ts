@@ -38,6 +38,7 @@ export const profileContentValidator = v.object({
   slug: v.string(),
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
+  imageStorageId: v.optional(v.id("_storage")),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
@@ -87,6 +88,7 @@ export function validateDraftSafety(content: {
   slug: string;
   bio?: string;
   imageUrl?: string;
+  imageStorageId?: string;
   email?: string;
   phone?: string;
   website?: string;

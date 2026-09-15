@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdministrator, requireUser } from "./admin";
 import schema from "./schema";
+import { deleteProfileImages } from "./profileImages";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -336,6 +337,7 @@ export const approveDeletion = mutation({
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),
     );
+    await deleteProfileImages(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       actorUserId: userId,
       actorLabel: "Administrator",

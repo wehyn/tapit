@@ -871,14 +871,16 @@ The local MVP acceptance surface is implemented and verified through the followi
 
 The following deviations are intentional local-MVP boundaries rather than silent omissions:
 
-1. `NEXT_PUBLIC_DEMO_MODE=true` is the verified real acceptance surface. It stores fixtures, sessions,
-   invitations, aggregate analytics, and image previews in browser localStorage so the MVP can run now
-   without a Convex deployment or transactional email. The Convex UI provider wiring and generated API
-   bindings remain a deployment gate; the checked-in `_generated` files are a documented bootstrap because
-   code generation returned `MissingAccessToken` without an authenticated deployment.
-2. Local image uploads validate JPG/PNG/WebP and 5 MB, resize accepted images to a bounded JPEG data URL,
-   and show a centered crop preview, but do not persist through Convex Storage. `convex/storage.ts` provides
-   the authorized upload URL path; server-side optimization and retention are production gates.
+1. `NEXT_PUBLIC_DEMO_MODE=true` remains the deterministic local acceptance surface. It stores fixtures,
+   sessions, invitations, aggregate analytics, and demo image previews in browser localStorage so the MVP can
+   run without a live deployment or transactional email. The live Convex provider and generated bindings are
+   now code-generated and checked against the selected non-production deployment; they remain a separate
+   operational environment rather than a dependency of the demo suite.
+2. Demo-mode image uploads validate JPG/PNG/WebP and 5 MB, resize accepted images to a bounded JPEG data URL,
+   and show a centered crop preview. Live-mode uploads use an authenticated profile-scoped URL, server-side
+   signature/size validation, a `profileImages` ownership mapping, and signed URLs resolved at read time.
+   The current live path has one client-prepared display image; responsive variants, abandoned-upload cleanup,
+   and the final retention policy are production gates.
 3. Because the verified local demo stores profile data in browser localStorage, server-rendered public-route
    metadata cannot safely read or verify the profile snapshot. Public metadata therefore uses a generic Tapit
    title/description plus a route-derived canonical URL; profile-specific names, descriptions, and images remain

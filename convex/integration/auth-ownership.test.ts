@@ -252,6 +252,7 @@ describe("Convex authentication and ownership", () => {
       adminEmail: "admin@example.com",
       customerEmail: "owner@example.com",
       customerSlug: "owner",
+      publishedBio: "Owner bootstrap bio",
       cardUrl: "https://tapit.test/c/bootstrap-token",
       cardToken: "bootstrap-token",
     };
@@ -264,5 +265,42 @@ describe("Convex authentication and ownership", () => {
       cards: (await ctx.db.query("cards").collect()).length,
     }));
     expect(counts).toEqual({ customers: 3, profiles: 2, cards: 1 });
+  });
+
+  it("seeds the configured published bio during bootstrap", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const result = await t.mutation(internal.bootstrap.bootstrap, {
+      adminUserId: data.adminUserId,
+      customerUserId: data.ownerUserId,
+      adminEmail: "admin@example.com",
+      customerEmail: "owner@example.com",
+      customerSlug: "owner",
+      publishedBio: "Configured live bio",
+      cardUrl: "https://tapit.test/c/configured-bio-token",
+      cardToken: "configured-bio-token",
+    });
+    const profile = await t.run(async (ctx) => await ctx.db.get(result.profileId));
+    expect(profile).toMatchObject({
+      draft: { bio: "Configured live bio" },
+      published: { bio: "Configured live bio" },
+    });
+  });
+
+  it("rejects bootstrap when an Auth user is already linked to another customer", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    await expect(
+      t.mutation(internal.bootstrap.bootstrap, {
+        adminUserId: data.otherUserId,
+        customerUserId: data.ownerUserId,
+        adminEmail: "new-admin@example.com",
+        customerEmail: "owner@example.com",
+        customerSlug: "owner",
+        publishedBio: "Owner bootstrap bio",
+        cardUrl: "https://tapit.test/c/bootstrap-token",
+        cardToken: "bootstrap-token",
+      }),
+    ).rejects.toThrow("already linked to another customer");
   });
 });
