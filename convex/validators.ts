@@ -2,7 +2,8 @@ import { v } from "convex/values";
 
 export const MAX_PROFILE_LINKS = 100;
 const MAX_PROFILE_NAME_LENGTH = 120;
-const MAX_PROFILE_SLUG_LENGTH = 64;
+export const MAX_PROFILE_SLUG_LENGTH = 64;
+export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "login", "setup"]);
 const MAX_PROFILE_BIO_LENGTH = 140;
 const MAX_PROFILE_FIELD_LENGTH = 320;
 const MAX_LINK_ID_LENGTH = 160;
@@ -79,6 +80,29 @@ export function isSafeDestination(destination: string): boolean {
   }
 }
 
+export function normalizeProfileSlug(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function validateProfileSlugValue(
+  value: string,
+  options: { existingSlugs?: readonly string[]; immutableSlug?: string } = {},
+): string | null {
+  const slug = normalizeProfileSlug(value);
+  if (
+    slug.length === 0 ||
+    slug.length > MAX_PROFILE_SLUG_LENGTH ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
+  )
+    return "The profile slug is invalid.";
+  if (RESERVED_PROFILE_SLUGS.has(slug)) return "That profile slug is reserved.";
+  if (options.immutableSlug !== undefined && slug !== options.immutableSlug)
+    return "The profile slug cannot change after first publication.";
+  if (options.existingSlugs?.some((existingSlug) => existingSlug === slug))
+    return "That profile slug is already in use.";
+  return null;
+}
+
 function fieldTooLong(value: string, max: number): boolean {
   return value.length > max;
 }
@@ -149,9 +173,11 @@ export function validateProfileContent(content: {
     icon?: string;
   }>;
 }): string[] {
-  const errors = validateDraftSafety(content);
+  const errors: string[] = [];
+  const slugError = validateProfileSlugValue(content.slug);
+  if (slugError !== null) errors.push(slugError);
+  errors.push(...validateDraftSafety(content));
   if (!content.name.trim()) errors.push("A nonblank profile name is required.");
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(content.slug)) errors.push("The profile slug is invalid.");
   const seen = new Set<string>();
   for (const link of content.links) {
     if (!link.enabled) continue;

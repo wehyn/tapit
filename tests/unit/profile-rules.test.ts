@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_PROFILE_SLUG_LENGTH,
+  RESERVED_PROFILE_SLUGS,
+  normalizeProfileSlug,
   publishProfile,
   validateProfileSlug,
   type ProfileContent,
@@ -35,6 +38,14 @@ describe("profile slug rules", () => {
       expect(validateProfileSlug(slug)).toMatch(/invalid/);
     },
   );
+
+  it("normalizes slugs and rejects reserved or oversized routes", () => {
+    expect(normalizeProfileSlug(" Ada-Lovelace ")).toBe("ada-lovelace");
+    expect(validateProfileSlug("a".repeat(MAX_PROFILE_SLUG_LENGTH))).toBeNull();
+    expect(validateProfileSlug("a".repeat(MAX_PROFILE_SLUG_LENGTH + 1))).toMatch(/invalid/);
+    expect(RESERVED_PROFILE_SLUGS.has("login")).toBe(true);
+    expect(validateProfileSlug("login")).toMatch(/reserved/);
+  });
 
   it("rejects duplicate slugs during publication", () => {
     expect(() => publishProfile(profile(), "now", { existingSlugs: ["ada-lovelace"] })).toThrow(
