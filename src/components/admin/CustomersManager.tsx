@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -18,8 +19,11 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { hashSetupToken } from "@/lib/auth/setup-token";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
-export function CustomersManager() {
+function DemoCustomersManager() {
   const state = useDemoState();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
@@ -386,5 +390,185 @@ export function CustomersManager() {
         title="Approve account deletion?"
       />
     </div>
+  );
+}
+
+function LiveCustomersManager() {
+  const [query, setQuery] = useState("");
+  const [email, setEmail] = useState("");
+  const [setupLink, setSetupLink] = useState("");
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [pending, setPending] = useState(false);
+  const customers = useQuery(api.customers.list, { search: query.trim() || undefined });
+  const requests = useQuery(api.customers.listDeletionRequests);
+  const create = useMutation(api.customers.createCustomer);
+  const approve = useMutation(api.customers.approveDeletion);
+  if (customers === undefined || requests === undefined)
+    return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
+
+  async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    setSetupLink("");
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setMessage({ tone: "error", text: "Enter a valid customer email address." });
+      return;
+    }
+    const baseSlug =
+      normalizedEmail
+        .split("@")[0]
+        ?.replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "") || "profile";
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const token = crypto.randomUUID().replaceAll("-", "");
+    setPending(true);
+    try {
+      await create({
+        email: normalizedEmail,
+        slug: `${baseSlug}-${suffix}`,
+        tokenHash: await hashSetupToken(token),
+        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+      setEmail("");
+      setSetupLink(`/setup/${token}`);
+      setMessage({
+        tone: "success",
+        text: `Customer account created for ${normalizedEmail}. Share the one-time setup link through a controlled channel.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Customer could not be created.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function approveRequest(requestId: Id<"deletionRequests">) {
+    setMessage(null);
+    try {
+      await approve({ requestId });
+      setMessage({
+        tone: "success",
+        text: "Deletion approved. The account and its public data remain unavailable.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Deletion could not be approved.",
+      });
+    }
+  }
+  return (
+    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <Panel
+        description="Create invited customer accounts. The one-time setup link is shown once for controlled handoff."
+        title="Create customer"
+      >
+        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
+          <div className="min-w-72 flex-1">
+            <Field
+              autoComplete="off"
+              id="live-customer-email"
+              label="Customer email"
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="person@example.com"
+              type="email"
+              value={email}
+            />
+          </div>
+          <Button disabled={pending} loading={pending} type="submit">
+            <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+            Create and invite
+          </Button>
+        </form>
+        {message ? (
+          <div className="mt-5">
+            <Notice tone={message.tone}>{message.text}</Notice>
+          </div>
+        ) : null}
+        {setupLink ? (
+          <p className="mt-4 break-all rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+            One-time setup link: <strong className="text-tapit-accent">{setupLink}</strong>
+          </p>
+        ) : null}
+      </Panel>
+      <Panel
+        description="Search the first 100 customer accounts returned by the administrator query."
+        title="Customer accounts"
+      >
+        <div className="mt-6 max-w-md">
+          <Field
+            id="live-customer-search"
+            label="Search customers"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search email"
+            type="search"
+            value={query}
+          />
+        </div>
+        <div className="mt-6 grid gap-2">
+          {customers.length === 0 ? <Notice>No customer accounts match this search.</Notice> : null}
+          {customers.map((customer) => (
+            <article
+              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              key={customer._id}
+            >
+              <div>
+                <p className="font-semibold text-tapit-ink">{customer.email}</p>
+                <p className="mt-1 text-sm text-tapit-muted">
+                  {customer.role} · {customer.status} · {customer.deletionStatus}
+                </p>
+              </div>
+              <StatusBadge status={customer.status} />
+            </article>
+          ))}
+        </div>
+      </Panel>
+      <Panel title="Deletion requests">
+        <div className="mt-5 grid gap-2">
+          {requests.length === 0 ? (
+            <Notice>No pending deletion requests.</Notice>
+          ) : (
+            requests.map(({ request, customer }) => (
+              <article
+                className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+                key={request._id}
+              >
+                <div>
+                  <p className="font-semibold text-tapit-ink">
+                    {customer?.email ?? "Unknown customer"}
+                  </p>
+                  <p className="mt-1 text-sm text-tapit-muted">
+                    Requested {new Date(request.requestedAt).toLocaleString()}
+                  </p>
+                </div>
+                {request.status === "requested" ? (
+                  <Button
+                    onClick={() => approveRequest(request._id)}
+                    type="button"
+                    variant="danger"
+                  >
+                    Approve deletion
+                  </Button>
+                ) : (
+                  <StatusBadge status={request.status} />
+                )}
+              </article>
+            ))
+          )}
+        </div>
+      </Panel>
+    </div>
+  );
+}
+
+export function CustomersManager() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveCustomersManager />
+  ) : (
+    <DemoCustomersManager />
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { usePaginatedQuery, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { ChartLineIcon, ShieldCheckIcon, TrendUpIcon } from "@phosphor-icons/react";
 
 import {
@@ -34,7 +36,8 @@ function Metric({ label, value, detail }: { label: string; value: number; detail
   );
 }
 
-export function CustomerAnalytics() {
+function DemoCustomerAnalytics() {
+  // Retained only as an inert compatibility helper for the merged worktree.
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -193,5 +196,162 @@ export function CustomerAnalytics() {
         </p>
       </Panel>
     </div>
+  );
+}
+
+function LiveCustomerAnalytics() {
+  const [range, setRange] = useState<AnalyticsRange>("lifetime");
+  const [now] = useState(() => Date.now());
+  const profile = useQuery(api.profiles.mine);
+  const pages = usePaginatedQuery(api.analytics.minePage, { range, now }, { initialNumItems: 500 });
+  useEffect(() => {
+    if (pages.status === "CanLoadMore") pages.loadMore(500);
+  }, [pages]);
+  const buckets = pages.results;
+  const totals = useMemo(
+    () =>
+      buckets.reduce(
+        (summary, row) => {
+          if (row.eventType === "profile_view") {
+            summary.views += row.total;
+            summary.uniqueViews += row.uniqueCount;
+          } else {
+            summary.clicks += row.total;
+            if (row.linkKey !== undefined)
+              summary.linkClicks[row.linkKey] = (summary.linkClicks[row.linkKey] ?? 0) + row.total;
+          }
+          return summary;
+        },
+        { views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} as Record<string, number> },
+      ),
+    [buckets],
+  );
+  const loading = profile === undefined || pages.status === "LoadingFirstPage";
+  const peak = Math.max(1, ...buckets.map((bucket) => bucket.total));
+  const linkResults = (profile?.draft.links ?? [])
+    .map((link) => ({ ...link, clicks: totals?.linkClicks[link.id] ?? 0 }))
+    .sort((left, right) => right.clicks - left.clicks);
+
+  if (loading) return <div className="p-8 text-sm text-tapit-muted">Loading analytics…</div>;
+  if (profile === null)
+    return <Notice tone="error">Your profile analytics are unavailable.</Notice>;
+
+  return (
+    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+      <Panel
+        description="Aggregate activity for your profile only. Visitor identities are never exposed."
+        title="Profile analytics"
+      >
+        <div className="mt-6 max-w-xs">
+          <SelectField
+            id="analytics-range"
+            label="Time range"
+            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+            value={range}
+          >
+            {ranges.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </Panel>
+      <Panel description="Each column is one aggregate time bucket." title="Engagement trend">
+        {pages.status !== "Exhausted" ? (
+          <Notice>Loading the complete analytics range…</Notice>
+        ) : null}
+        <div
+          className="mt-5 flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
+          aria-label="Aggregate engagement trend"
+        >
+          {buckets.length > 0 ? (
+            buckets.map((bucket) => (
+              <div
+                className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                key={bucket._id}
+              >
+                <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                  {bucket.total.toLocaleString()}
+                </span>
+                <div
+                  className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                  style={{ height: `${Math.max(10, (bucket.total / peak) * 125)}px` }}
+                  title={`${bucket.eventType}: ${bucket.total}`}
+                />
+                <span className="text-[0.65rem] text-tapit-muted">
+                  {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+              Share your profile to start a trend.
+            </p>
+          )}
+        </div>
+      </Panel>
+      <Panel title="Engagement summary">
+        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+          <Metric detail="All profile entry paths" label="Profile views" value={totals.views} />
+          <Metric
+            detail="Privacy-preserving estimate"
+            label="Unique views"
+            value={totals.uniqueViews}
+          />
+          <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
+        </dl>
+      </Panel>
+      {totals.views === 0 && totals.clicks === 0 ? (
+        <Notice>No activity in this range yet.</Notice>
+      ) : null}
+      <Panel description="Clicks are grouped by the link label you chose." title="Link results">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
+          {linkResults.length === 0 ? (
+            <div className="p-5 text-sm text-tapit-muted">
+              Add links to see destination results.
+            </div>
+          ) : (
+            linkResults.map((link) => (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-4 last:border-b-0 sm:px-5"
+                key={link.id}
+              >
+                <div>
+                  <p className="font-semibold text-tapit-ink">{link.label || "Untitled link"}</p>
+                  <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
+                    {link.destination || "No destination yet"}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold text-tapit-accent">
+                  {link.clicks.toLocaleString()} clicks
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </Panel>
+      <Panel title="Privacy note">
+        <p className="mt-5 flex items-start gap-3 text-sm leading-6 text-tapit-muted">
+          <ShieldCheckIcon
+            aria-hidden="true"
+            className="mt-0.5 shrink-0 text-tapit-accent"
+            size={21}
+            weight="bold"
+          />
+          Aggregate metrics contain no visitor-level history.
+        </p>
+      </Panel>
+    </div>
+  );
+}
+export function CustomerAnalytics() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveCustomerAnalytics />
+  ) : (
+    <DemoCustomerAnalytics />
   );
 }

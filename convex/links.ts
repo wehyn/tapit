@@ -3,9 +3,50 @@ import { v } from "convex/values";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
-import { isSafeDestination, linkValidator } from "./validators";
+import schema from "./schema";
+import {
+  isSafeDestination,
+  linkValidator,
+  MAX_PROFILE_LINKS,
+  validateDraftSafety,
+} from "./validators";
 
 type AuthContext = QueryCtx | MutationCtx;
+
+export async function replaceProfileLinks(
+  ctx: MutationCtx,
+  profileId: Id<"profiles">,
+  links: Array<{
+    id: string;
+    label: string;
+    destination: string;
+    enabled: boolean;
+    icon?: string;
+  }>,
+  now: number,
+) {
+  const existing = await ctx.db
+    .query("links")
+    .withIndex("by_profile_position", (query) => query.eq("profileId", profileId))
+    .take(MAX_PROFILE_LINKS + 1);
+  if (existing.length > MAX_PROFILE_LINKS)
+    throw new Error("This profile has too many stored links to replace.");
+  await Promise.all(existing.map((link) => ctx.db.delete(link._id)));
+  await Promise.all(
+    links.map((link, position) =>
+      ctx.db.insert("links", {
+        profileId,
+        destination: link.destination,
+        label: link.label,
+        icon: link.icon,
+        enabled: link.enabled,
+        position,
+        createdAt: now,
+        updatedAt: now,
+      }),
+    ),
+  );
+}
 
 async function accessibleProfile(ctx: AuthContext, profileId: Id<"profiles">) {
   const userId = await requireUser(ctx);
@@ -26,19 +67,25 @@ async function accessibleProfile(ctx: AuthContext, profileId: Id<"profiles">) {
 
 export const listForProfile = query({
   args: { profileId: v.id("profiles") },
+  returns: v.array(schema.doc("links")),
   handler: async (ctx, args) => {
     await accessibleProfile(ctx, args.profileId);
     return await ctx.db
       .query("links")
       .withIndex("by_profile_position", (query) => query.eq("profileId", args.profileId))
-      .collect();
+      .take(100);
   },
 });
 
 export const replaceDraft = mutation({
   args: { profileId: v.id("profiles"), links: v.array(linkValidator) },
+  returns: v.object({ updatedAt: v.number() }),
   handler: async (ctx, args) => {
+    if (args.links.length > MAX_PROFILE_LINKS)
+      throw new Error("A profile cannot contain more than 100 links.");
     const { profile, userId } = await accessibleProfile(ctx, args.profileId);
+    const safetyErrors = validateDraftSafety({ ...profile.draft, links: args.links });
+    if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
     const seen = new Set<string>();
     for (const link of args.links) {
       if (!link.enabled) continue;
@@ -56,22 +103,8 @@ export const replaceDraft = mutation({
     const existing = await ctx.db
       .query("links")
       .withIndex("by_profile_position", (query) => query.eq("profileId", profile._id))
-      .collect();
-    await Promise.all(existing.map((link) => ctx.db.delete(link._id)));
-    await Promise.all(
-      args.links.map((link, position) =>
-        ctx.db.insert("links", {
-          profileId: profile._id,
-          destination: link.destination,
-          label: link.label,
-          icon: link.icon,
-          enabled: link.enabled,
-          position,
-          createdAt: now,
-          updatedAt: now,
-        }),
-      ),
-    );
+      .take(MAX_PROFILE_LINKS + 1);
+    await replaceProfileLinks(ctx, profile._id, args.links, now);
     await ctx.db.insert("auditLogs", {
       actorUserId: userId,
       actorLabel: "Profile editor",
@@ -88,11 +121,12 @@ export const replaceDraft = mutation({
 
 export const adminList = query({
   args: { profileId: v.id("profiles") },
+  returns: v.array(schema.doc("links")),
   handler: async (ctx, args) => {
     await requireAdministrator(ctx);
     return await ctx.db
       .query("links")
       .withIndex("by_profile_position", (query) => query.eq("profileId", args.profileId))
-      .collect();
+      .take(100);
   },
 });

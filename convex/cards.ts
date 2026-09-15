@@ -3,12 +3,30 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator } from "./admin";
+import schema from "./schema";
+import { publicProfileValidator } from "./validators";
+import { validateProfileContent } from "./validators";
+
+const resolveResultValidator = v.union(
+  v.object({ status: v.literal("missing") }),
+  v.object({ status: v.literal("inactive") }),
+  v.object({ status: v.literal("unavailable") }),
+  v.object({ status: v.literal("active"), profile: publicProfileValidator }),
+);
 
 function tokenFromCardUrl(cardUrl: string): string | null {
   try {
-    const parsed = new URL(cardUrl, "https://tapit.local");
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    const token = segments.length === 2 && segments[0] === "c" ? segments[1] : undefined;
+    const parsed = new URL(cardUrl);
+    if (
+      !/^https?:$/.test(parsed.protocol) ||
+      !parsed.hostname ||
+      parsed.username ||
+      parsed.password
+    )
+      return null;
+    if (parsed.search || parsed.hash) return null;
+    const match = parsed.pathname.match(/^\/c\/([A-Za-z0-9_-]{1,160})$/);
+    const token = match?.[1];
     return token !== undefined && /^[A-Za-z0-9_-]+$/.test(token) ? token : null;
   } catch {
     return null;
@@ -26,6 +44,7 @@ function publicProjection(profile: {
     email?: string;
     phone?: string;
     website?: string;
+    theme?: "paper" | "moss" | "night";
     links: Array<{
       id: string;
       label: string;
@@ -40,18 +59,21 @@ function publicProjection(profile: {
     id: profile._id,
     slug: profile.published.slug,
     name: profile.published.name,
-    bio: profile.published.bio,
-    imageUrl: profile.published.imageUrl,
-    email: profile.published.email,
-    phone: profile.published.phone,
-    website: profile.published.website,
+    ...(profile.published.bio === undefined ? {} : { bio: profile.published.bio }),
+    ...(profile.published.imageUrl === undefined ? {} : { imageUrl: profile.published.imageUrl }),
+    ...(profile.published.email === undefined ? {} : { email: profile.published.email }),
+    ...(profile.published.phone === undefined ? {} : { phone: profile.published.phone }),
+    ...(profile.published.website === undefined ? {} : { website: profile.published.website }),
+    theme: profile.published.theme ?? "paper",
     links: profile.published.links.filter((link) => link.enabled),
   };
 }
 
 export const resolve = query({
   args: { token: v.string() },
+  returns: resolveResultValidator,
   handler: async (ctx, args) => {
+    if (!/^[A-Za-z0-9_-]{1,160}$/.test(args.token)) return { status: "missing" as const };
     const card = await ctx.db
       .query("cards")
       .withIndex("by_token", (query) => query.eq("token", args.token))
@@ -61,22 +83,25 @@ export const resolve = query({
       return { status: "inactive" as const };
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    if (profile === null || !isActiveCustomer(owner) || publicProjection(profile) === null)
+    const projection = profile === null ? null : publicProjection(profile);
+    if (profile === null || !isActiveCustomer(owner) || projection === null)
       return { status: "unavailable" as const };
-    return { status: "active" as const, profile: publicProjection(profile) };
+    return { status: "active" as const, profile: projection };
   },
 });
 
 export const adminList = query({
   args: {},
+  returns: v.array(schema.doc("cards")),
   handler: async (ctx) => {
     await requireAdministrator(ctx);
-    return await ctx.db.query("cards").withIndex("by_status").collect();
+    return await ctx.db.query("cards").withIndex("by_status").take(100);
   },
 });
 
 export const register = mutation({
   args: { cardUrl: v.string(), token: v.string() },
+  returns: v.id("cards"),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     if (tokenFromCardUrl(args.cardUrl) !== args.token)
@@ -113,6 +138,7 @@ export const register = mutation({
 
 export const assign = mutation({
   args: { cardId: v.id("cards"), profileId: v.id("profiles") },
+  returns: v.object({ status: v.literal("active") }),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -121,6 +147,10 @@ export const assign = mutation({
     if (card.status !== "registered") throw new Error("Only a registered card can be assigned.");
     if (profile.status !== "published")
       throw new Error("A card can only become active for a published profile.");
+    if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+      throw new Error(
+        "A card can only become active for a published profile with valid published content.",
+      );
     const owner = await ctx.db.get(profile.ownerId);
     if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
     const now = Date.now();
@@ -147,6 +177,7 @@ export const assign = mutation({
 
 export const deactivate = mutation({
   args: { cardId: v.id("cards") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -164,11 +195,13 @@ export const deactivate = mutation({
       before: "active",
       after: "inactive",
     });
+    return null;
   },
 });
 
 export const replace = mutation({
   args: { oldCardId: v.id("cards"), newCardUrl: v.string(), newToken: v.string() },
+  returns: v.id("cards"),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const oldCard = await ctx.db.get(args.oldCardId);

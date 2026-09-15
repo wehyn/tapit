@@ -4,6 +4,7 @@ export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
 export type CardStatus = "registered" | "active" | "inactive" | "replaced";
 export type DeletionStatus = "active" | "requested" | "deleted";
+export type ProfileTheme = "paper" | "moss" | "night";
 
 export interface Actor {
   id: string;
@@ -28,6 +29,7 @@ export interface ProfileContent {
   email?: string;
   phone?: string;
   website?: string;
+  theme?: ProfileTheme;
   links: ProfileLink[];
 }
 
@@ -52,6 +54,7 @@ export interface PublicProfileProjection {
   email?: string;
   phone?: string;
   website?: string;
+  theme: ProfileTheme;
   links: ProfileLink[];
 }
 
@@ -247,6 +250,7 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(snapshot.email === undefined ? {} : { email: snapshot.email }),
     ...(snapshot.phone === undefined ? {} : { phone: snapshot.phone }),
     ...(snapshot.website === undefined ? {} : { website: snapshot.website }),
+    theme: snapshot.theme ?? "paper",
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, ArrowsClockwiseIcon, PlusIcon, ProhibitIcon } from "@phosphor-icons/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import type { DemoCard } from "@/lib/demo/fixtures";
+import type { Id } from "../../../convex/_generated/dataModel";
 import {
   getDemoProfileById,
   getDemoProfiles,
@@ -19,6 +21,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { QrControls } from "@/components/qr/QrControls";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { api } from "../../../convex/_generated/api";
 
 type Confirmation = { type: "deactivate" | "replace"; card: DemoCard } | null;
 
@@ -44,7 +47,7 @@ function cardUrlIdentity(value: string): string {
   return `${parsed.origin}${pathname}`;
 }
 
-export function CardsManager() {
+function DemoCardsManager() {
   const state = useDemoState();
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
@@ -453,6 +456,204 @@ export function CardsManager() {
         }
         title={confirmation?.type === "replace" ? "Replace this card?" : "Deactivate this card?"}
       />
+    </div>
+  );
+}
+
+export function CardsManager() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveCardsManager />
+  ) : (
+    <DemoCardsManager />
+  );
+}
+
+function LiveCardsManager() {
+  const cards = useQuery(api.cards.adminList);
+  const profiles = useQuery(api.profiles.adminList);
+  const register = useMutation(api.cards.register);
+  const assign = useMutation(api.cards.assign);
+  const deactivate = useMutation(api.cards.deactivate);
+  const replace = useMutation(api.cards.replace);
+  const [cardUrl, setCardUrl] = useState("");
+  const [replacementUrl, setReplacementUrl] = useState("");
+  const [profileId, setProfileId] = useState<Id<"profiles"> | undefined>();
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [pending, setPending] = useState(false);
+
+  if (cards === undefined || profiles === undefined)
+    return <div className="min-h-[60vh] bg-tapit-paper" />;
+  const assignableProfiles = profiles.filter((profile) => profile.status === "published");
+  const selectedProfileId = profileId || assignableProfiles[0]?._id;
+  async function run(operation: () => Promise<unknown>, success: string) {
+    setPending(true);
+    setMessage(null);
+    try {
+      await operation();
+      setMessage({ tone: "success", text: success });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Card operation failed.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+  function registerCard(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const token = cardTokenFromUrl(cardUrl);
+    if (!token)
+      return setMessage({ tone: "error", text: "Enter a card URL with a /c/<unique-token> path." });
+    void run(
+      () =>
+        register({ cardUrl: cardUrl.trim(), token }).then(() => {
+          setCardUrl("");
+        }),
+      `Card ${token} registered and ready for assignment.`,
+    );
+  }
+  return (
+    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <Panel
+        description="Register pre-encoded URLs and manage assignments. All operations are checked and audited server-side."
+        title="Register card URL"
+      >
+        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={registerCard}>
+          <div className="min-w-72 flex-1">
+            <Field
+              id="live-card-url"
+              label="Pre-encoded card URL"
+              onChange={(event) => setCardUrl(event.target.value)}
+              placeholder="/c/card-token"
+              value={cardUrl}
+            />
+          </div>
+          <Button disabled={pending} type="submit">
+            <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+            Register card
+          </Button>
+        </form>
+        {message ? (
+          <div className="mt-5">
+            <Notice tone={message.tone}>{message.text}</Notice>
+          </div>
+        ) : null}
+      </Panel>
+      <Panel description="Inactive and replaced cards cannot be reused." title="Card registry">
+        <div className="mt-6 grid gap-2">
+          {cards.length === 0 ? (
+            <Notice>No registered cards.</Notice>
+          ) : (
+            cards.map((card) => {
+              const profile = profiles.find((candidate) => candidate._id === card.profileId);
+              return (
+                <article
+                  className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+                  key={card._id}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="font-semibold text-tapit-ink">{card.token}</p>
+                      <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
+                    </div>
+                    <StatusBadge status={card.status} />
+                  </div>
+                  <p className="mt-4 text-sm text-tapit-muted">
+                    {profile
+                      ? `${profile.draft.name || "Unnamed profile"} · ${profile.draft.slug}`
+                      : "Unassigned"}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    {card.status === "registered" ? (
+                      <>
+                        <select
+                          aria-label={`Assign ${card.token}`}
+                          className="min-h-11 rounded-tapit border border-tapit-line bg-white px-3"
+                          onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
+                          value={selectedProfileId ?? ""}
+                        >
+                          {assignableProfiles.map((candidate) => (
+                            <option key={candidate._id} value={candidate._id}>
+                              {candidate.draft.name || candidate.draft.slug}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          disabled={pending || !selectedProfileId}
+                          onClick={() =>
+                            selectedProfileId &&
+                            void run(
+                              () => assign({ cardId: card._id, profileId: selectedProfileId }),
+                              `Card ${card.token} assigned.`,
+                            )
+                          }
+                          type="button"
+                        >
+                          <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
+                          Assign
+                        </Button>
+                      </>
+                    ) : null}
+                    {card.status === "active" ? (
+                      <Button
+                        disabled={pending}
+                        onClick={() =>
+                          void run(
+                            () => deactivate({ cardId: card._id }),
+                            `Card ${card.token} deactivated.`,
+                          )
+                        }
+                        type="button"
+                        variant="danger"
+                      >
+                        <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
+                        Deactivate
+                      </Button>
+                    ) : null}
+                    {card.status === "active" ? (
+                      <>
+                        <input
+                          aria-label={`Replacement URL for ${card.token}`}
+                          className="min-h-11 rounded-tapit border border-tapit-line px-3"
+                          onChange={(event) => setReplacementUrl(event.target.value)}
+                          placeholder="/c/replacement-token"
+                          value={replacementUrl}
+                        />
+                        <Button
+                          disabled={pending}
+                          onClick={() => {
+                            const token = cardTokenFromUrl(replacementUrl);
+                            if (!token)
+                              return setMessage({
+                                tone: "error",
+                                text: "Enter a valid replacement card URL.",
+                              });
+                            void run(
+                              () =>
+                                replace({
+                                  oldCardId: card._id,
+                                  newCardUrl: replacementUrl.trim(),
+                                  newToken: token,
+                                }).then(() => setReplacementUrl("")),
+                              `Card ${card.token} replaced.`,
+                            );
+                          }}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
+                          Replace
+                        </Button>
+                      </>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </Panel>
     </div>
   );
 }

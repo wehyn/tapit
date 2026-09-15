@@ -17,7 +17,6 @@ import { useEffect, useRef } from "react";
 import type { PublicProfileProjection } from "@/lib/domain";
 import { buildVCard, resolveProfileUrl } from "@/lib/vcard";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
-import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
 const linkIcons = {
   link: LinkSimple,
@@ -37,6 +36,8 @@ export function PublicProfile({
   theme = "paper",
   trackClicks = true,
   trackView = true,
+  onLinkClick,
+  onView,
 }: {
   profile: PublicProfileProjection;
   profileUrl: string;
@@ -45,14 +46,16 @@ export function PublicProfile({
   theme?: ProfileTheme;
   trackClicks?: boolean;
   trackView?: boolean;
+  onLinkClick?: (linkId: string, profileId?: string) => void;
+  onView?: (profileId?: string) => void;
 }) {
   const tracked = useRef(false);
   useEffect(() => {
     if (trackView && !tracked.current) {
       tracked.current = true;
-      recordProfileView(profileId);
+      onView?.(profileId);
     }
-  }, [profileId, trackView]);
+  }, [onView, profileId, trackView]);
   const canSaveContact = Boolean(profile.name && (profile.email || profile.website));
   const themeClasses = {
     paper: {
@@ -147,14 +150,14 @@ export function PublicProfile({
             aria-label="Profile links"
           >
             {profile.links.map((link) => {
-              const LinkIcon = linkIcons[link.icon ?? "link"];
+              const LinkIcon = linkIcons[link.icon as keyof typeof linkIcons] ?? LinkSimple;
               return (
                 <li key={link.id}>
                   <a
                     className={`group flex items-center justify-between rounded-tapit border font-semibold transition hover:-translate-y-px active:translate-y-px ${preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${themeClasses.link}`}
                     href={link.destination}
                     onClick={() => {
-                      if (trackClicks) recordLinkClick(link.id, profileId);
+                      if (trackClicks) onLinkClick?.(link.id, profileId);
                     }}
                     rel="noreferrer"
                     target="_blank"

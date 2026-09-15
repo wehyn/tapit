@@ -5,6 +5,7 @@ import { requireAdministrator } from "./admin";
 
 export const invalidate = mutation({
   args: { invitationId: v.id("invitations") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const invitation = await ctx.db.get(args.invitationId);
@@ -23,11 +24,13 @@ export const invalidate = mutation({
       }),
       after: JSON.stringify({ invalidatedAt: now }),
     });
+    return null;
   },
 });
 
 export const status = query({
-  args: { tokenHash: v.string() },
+  args: { tokenHash: v.string(), now: v.number() },
+  returns: v.object({ valid: v.boolean(), email: v.optional(v.string()) }),
   handler: async (ctx, args) => {
     const invitation = await ctx.db
       .query("invitations")
@@ -37,10 +40,10 @@ export const status = query({
       invitation === null ||
       invitation.usedAt !== undefined ||
       invitation.invalidatedAt !== undefined ||
-      invitation.expiresAt <= Date.now()
+      invitation.expiresAt <= args.now
     ) {
       return { valid: false };
     }
-    return { valid: true, email: invitation.email, customerId: invitation.customerId };
+    return { valid: true, email: invitation.email };
   },
 });

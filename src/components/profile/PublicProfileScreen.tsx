@@ -1,6 +1,17 @@
 "use client";
 
-import { getDemoProfiles, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
+import { useMutation, useQuery } from "convex/react";
+import { useCallback } from "react";
+
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  getDemoProfiles,
+  getDemoTheme,
+  recordLinkClick,
+  recordProfileView,
+  useHydratedDemoState,
+} from "@/lib/demo/store";
 import { isActiveAccount, projectPublicProfile } from "@/lib/domain";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
@@ -8,6 +19,11 @@ import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/S
 import { PublicProfile } from "./PublicProfile";
 
 export function PublicProfileScreen({ slug }: { slug: string }) {
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === "false") return <LivePublicProfileScreen slug={slug} />;
+  return <DemoPublicProfileScreen slug={slug} />;
+}
+
+function DemoPublicProfileScreen({ slug }: { slug: string }) {
   const { hydrated, state } = useHydratedDemoState();
   if (!hydrated) {
     return <PublicProfileLoading />;
@@ -28,6 +44,58 @@ export function PublicProfileScreen({ slug }: { slug: string }) {
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
+      onLinkClick={recordLinkClick}
+      onView={recordProfileView}
+    />
+  );
+}
+
+function LivePublicProfileScreen({ slug }: { slug: string }) {
+  const profile = useQuery(api.profiles.publicBySlug, { slug });
+  const recordView = useMutation(api.analytics.recordView);
+  const recordLinkClick = useMutation(api.analytics.recordLinkClick);
+  const onView = useCallback(
+    (profileId?: string) => {
+      if (profileId === undefined) return;
+      let sessionKey: string | undefined;
+      try {
+        const key = "tapit:analytics-session";
+        sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
+        window.sessionStorage.setItem(key, sessionKey);
+      } catch {
+        // Tracking remains best-effort when storage is unavailable.
+      }
+      void recordView({ profileId: profileId as Id<"profiles">, sessionKey });
+    },
+    [recordView],
+  );
+  const onLinkClick = useCallback(
+    (linkKey: string, profileId?: string) => {
+      if (profileId === undefined) return;
+      void recordLinkClick({
+        profileId: profileId as Id<"profiles">,
+        linkKey,
+      });
+    },
+    [recordLinkClick],
+  );
+  if (profile === undefined) return <PublicProfileLoading />;
+  if (profile === null) return <MissingProfilePage />;
+  const projection = {
+    ...profile,
+    links: profile.links.map((link) => ({
+      ...link,
+      icon: link.icon as import("@/lib/domain").ProfileLink["icon"],
+    })),
+  };
+  return (
+    <PublicProfile
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={projection}
+      profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
+      theme={projection.theme}
     />
   );
 }

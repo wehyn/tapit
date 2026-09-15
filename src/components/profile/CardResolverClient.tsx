@@ -1,5 +1,9 @@
 "use client";
 
+import { useMutation, useQuery } from "convex/react";
+import { useCallback } from "react";
+import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
 import { isActiveAccount, projectPublicProfile } from "@/lib/domain";
 
@@ -10,8 +14,9 @@ import {
 } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
-export function CardResolverClient({ cardToken }: { cardToken: string }) {
+function DemoCardResolver({ cardToken }: { cardToken: string }) {
   const { hydrated, state } = useHydratedDemoState();
   if (!hydrated) {
     return <CardResolverLoading />;
@@ -34,6 +39,68 @@ export function CardResolverClient({ cardToken }: { cardToken: string }) {
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
+      onLinkClick={recordLinkClick}
+      onView={recordProfileView}
+    />
+  );
+}
+
+export function CardResolverClient({ cardToken }: { cardToken: string }) {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveCardResolver cardToken={cardToken} />
+  ) : (
+    <DemoCardResolver cardToken={cardToken} />
+  );
+}
+
+function LiveCardResolver({ cardToken }: { cardToken: string }) {
+  const result = useQuery(api.cards.resolve, { token: cardToken });
+  const recordView = useMutation(api.analytics.recordView);
+  const recordLinkClick = useMutation(api.analytics.recordLinkClick);
+  const onView = useCallback(
+    (profileId?: string) => {
+      if (profileId === undefined) return;
+      let sessionKey: string | undefined;
+      try {
+        const key = "tapit:analytics-session";
+        sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
+        window.sessionStorage.setItem(key, sessionKey);
+      } catch {
+        // Tracking remains best-effort when storage is unavailable.
+      }
+      void recordView({ profileId: profileId as Id<"profiles">, sessionKey });
+    },
+    [recordView],
+  );
+  const onLinkClick = useCallback(
+    (linkKey: string, profileId?: string) => {
+      if (profileId === undefined) return;
+      void recordLinkClick({
+        profileId: profileId as Id<"profiles">,
+        linkKey,
+      });
+    },
+    [recordLinkClick],
+  );
+  if (result === undefined) return <CardResolverLoading />;
+  if (result.status === "missing") return <MissingProfilePage />;
+  if (result.status === "inactive") return <InactiveCardPage />;
+  if (result.status === "unavailable" || result.profile === null) return <UnavailableProfilePage />;
+  const profile = {
+    ...result.profile,
+    links: result.profile.links.map((link) => ({
+      ...link,
+      icon: link.icon as import("@/lib/domain").ProfileLink["icon"],
+    })),
+  };
+  return (
+    <PublicProfile
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={profile}
+      profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
+      theme={profile.theme}
     />
   );
 }

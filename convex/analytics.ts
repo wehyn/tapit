@@ -1,7 +1,9 @@
 import { v } from "convex/values";
+import { paginationResultValidator, paginationOptsValidator } from "convex/server";
 
 import { mutation, query } from "./_generated/server";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import { MAX_PROFILE_LINKS } from "./validators";
 
 const rangeValidator = v.union(
   v.literal("lifetime"),
@@ -16,84 +18,133 @@ function bucketStart(): number {
   return date.getTime();
 }
 
-function cutoffForRange(range: "lifetime" | "7d" | "30d" | "90d"): number {
+function cutoffForRange(range: "lifetime" | "7d" | "30d" | "90d", now: number): number {
   if (range === "lifetime") return 0;
-  return Date.now() - Number(range.slice(0, -1)) * 24 * 60 * 60 * 1000;
+  return now - Number(range.slice(0, -1)) * 24 * 60 * 60 * 1000;
 }
 
 export const recordView = mutation({
-  args: { profileId: v.id("profiles"), unique: v.optional(v.boolean()) },
+  args: {
+    profileId: v.id("profiles"),
+    sessionKey: v.optional(v.string()),
+  },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return;
+    if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return null;
     const start = bucketStart();
-    const buckets = await ctx.db
+    const sessionKey = args.sessionKey?.trim();
+    const hasSessionKey =
+      sessionKey !== undefined && sessionKey.length > 0 && sessionKey.length <= 128;
+    const session = hasSessionKey
+      ? await ctx.db
+          .query("analyticsSessions")
+          .withIndex("by_profile_session", (query) =>
+            query.eq("profileId", args.profileId).eq("sessionKey", sessionKey),
+          )
+          .unique()
+      : null;
+    const isUnique = hasSessionKey && session === null;
+    if (isUnique) {
+      await ctx.db.insert("analyticsSessions", {
+        profileId: args.profileId,
+        sessionKey,
+        firstSeenAt: start,
+      });
+    }
+    const existing = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_bucket", (query) =>
-        query.eq("profileId", args.profileId).eq("bucketStart", start),
+      .withIndex("by_profile_event_bucket", (query) =>
+        query
+          .eq("profileId", args.profileId)
+          .eq("eventType", "profile_view")
+          .eq("bucketStart", start),
       )
-      .collect();
-    const existing = buckets.find((bucket) => bucket.eventType === "profile_view");
-    if (existing === undefined) {
+      .unique();
+    if (existing === null) {
       await ctx.db.insert("analytics", {
         profileId: args.profileId,
         eventType: "profile_view",
         bucketStart: start,
         total: 1,
-        uniqueCount: args.unique === true ? 1 : 0,
+        uniqueCount: isUnique ? 1 : 0,
       });
     } else {
       await ctx.db.patch(existing._id, {
         total: existing.total + 1,
-        uniqueCount: existing.uniqueCount + (args.unique === true ? 1 : 0),
+        uniqueCount: existing.uniqueCount + (isUnique ? 1 : 0),
       });
     }
+    return null;
   },
 });
 
 export const recordLinkClick = mutation({
-  args: { profileId: v.id("profiles"), linkId: v.id("links") },
+  args: { profileId: v.id("profiles"), linkKey: v.string() },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
-    const link = await ctx.db.get(args.linkId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (
       profile === null ||
-      link === null ||
       !isActiveCustomer(owner) ||
-      link.profileId !== profile._id ||
       profile.status !== "published" ||
-      !link.enabled
+      profile.published === undefined ||
+      !profile.published.links.some((link) => link.id === args.linkKey && link.enabled)
     )
-      return;
+      return null;
     const start = bucketStart();
     const buckets = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_bucket", (query) =>
-        query.eq("profileId", args.profileId).eq("bucketStart", start),
+      .withIndex("by_profile_event_bucket", (query) =>
+        query
+          .eq("profileId", args.profileId)
+          .eq("eventType", "link_click")
+          .eq("bucketStart", start),
       )
-      .collect();
-    const existing = buckets.find(
-      (bucket) => bucket.eventType === "link_click" && bucket.linkId === args.linkId,
-    );
+      .take(MAX_PROFILE_LINKS + 1);
+    const existing = buckets.find((bucket) => bucket.linkKey === args.linkKey);
     if (existing === undefined)
       await ctx.db.insert("analytics", {
         profileId: args.profileId,
-        linkId: args.linkId,
+        linkKey: args.linkKey,
         eventType: "link_click",
         bucketStart: start,
         total: 1,
         uniqueCount: 0,
       });
     else await ctx.db.patch(existing._id, { total: existing.total + 1 });
+    return null;
   },
+});
+
+const analyticsRowValidator = v.object({
+  _id: v.id("analytics"),
+  _creationTime: v.number(),
+  profileId: v.id("profiles"),
+  linkId: v.optional(v.id("links")),
+  linkKey: v.optional(v.string()),
+  eventType: v.union(v.literal("profile_view"), v.literal("link_click")),
+  bucketStart: v.number(),
+  total: v.number(),
+  uniqueCount: v.number(),
+});
+
+const summaryPageValidator = v.object({
+  views: v.number(),
+  uniqueViews: v.number(),
+  clicks: v.number(),
+  linkClicks: v.record(v.string(), v.number()),
+  isComplete: v.boolean(),
+  continueCursor: v.union(v.string(), v.null()),
 });
 
 function summarize(
   rows: Array<{
     eventType: "profile_view" | "link_click";
     linkId?: string;
+    linkKey?: string;
     total: number;
     uniqueCount: number;
   }>,
@@ -105,8 +156,9 @@ function summarize(
         summary.uniqueViews += row.uniqueCount;
       } else {
         summary.clicks += row.total;
-        if (row.linkId !== undefined)
-          summary.linkClicks[row.linkId] = (summary.linkClicks[row.linkId] ?? 0) + row.total;
+        const linkKey = row.linkKey ?? row.linkId;
+        if (linkKey !== undefined)
+          summary.linkClicks[linkKey] = (summary.linkClicks[linkKey] ?? 0) + row.total;
       }
       return summary;
     },
@@ -115,7 +167,8 @@ function summarize(
 }
 
 export const mine = query({
-  args: { range: rangeValidator },
+  args: { range: rangeValidator, now: v.number() },
+  returns: summaryPageValidator,
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const account = await ctx.db
@@ -123,20 +176,83 @@ export const mine = query({
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
     if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
-      return { views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} };
-    const rows = await ctx.db
+      return {
+        views: 0,
+        uniqueViews: 0,
+        clicks: 0,
+        linkClicks: {},
+        isComplete: true,
+        continueCursor: null,
+      };
+    const cutoff = cutoffForRange(args.range, args.now);
+    const page = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_bucket", (query) => query.eq("profileId", account.profileId!))
-      .collect();
-    return summarize(rows.filter((row) => row.bucketStart >= cutoffForRange(args.range)));
+      .withIndex("by_profile_bucket", (query) =>
+        query.eq("profileId", account.profileId!).gte("bucketStart", cutoff),
+      )
+      .order("asc")
+      .paginate({ numItems: 500, cursor: null });
+    return {
+      ...summarize(page.page),
+      isComplete: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
   },
 });
 
 export const all = query({
-  args: { range: rangeValidator },
+  args: { range: rangeValidator, now: v.number() },
+  returns: summaryPageValidator,
   handler: async (ctx, args) => {
     await requireAdministrator(ctx);
-    const rows = await ctx.db.query("analytics").collect();
-    return summarize(rows.filter((row) => row.bucketStart >= cutoffForRange(args.range)));
+    const cutoff = cutoffForRange(args.range, args.now);
+    const page = await ctx.db
+      .query("analytics")
+      .withIndex("by_bucket", (query) => query.gte("bucketStart", cutoff))
+      .order("asc")
+      .paginate({ numItems: 500, cursor: null });
+    return {
+      ...summarize(page.page),
+      isComplete: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
+  },
+});
+
+export const minePage = query({
+  args: { range: rangeValidator, now: v.number(), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(analyticsRowValidator),
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const account = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (query) => query.eq("userId", userId))
+      .unique();
+    if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
+      return { page: [], isDone: true, continueCursor: "" };
+    return await ctx.db
+      .query("analytics")
+      .withIndex("by_profile_bucket", (query) =>
+        query
+          .eq("profileId", account.profileId!)
+          .gte("bucketStart", cutoffForRange(args.range, args.now)),
+      )
+      .order("asc")
+      .paginate(args.paginationOpts);
+  },
+});
+
+export const allPage = query({
+  args: { range: rangeValidator, now: v.number(), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(analyticsRowValidator),
+  handler: async (ctx, args) => {
+    await requireAdministrator(ctx);
+    return await ctx.db
+      .query("analytics")
+      .withIndex("by_bucket", (query) =>
+        query.gte("bucketStart", cutoffForRange(args.range, args.now)),
+      )
+      .order("asc")
+      .paginate(args.paginationOpts);
   },
 });
