@@ -142,13 +142,13 @@ Actions: optional support/contact action. Do not display unpublished identity, l
 
 ### Login page
 
-Purpose: authenticate existing customers and administrators.
+Purpose: authenticate existing customers and administrators, or let a new customer create a profile.
 
-Content: email field, password field, sign-in action, validation messages, and support route.
+Content: a sign-in mode with email and password, plus a customer-only signup mode with display name, profile slug, email, password, password confirmation, stable URL preview, validation messages, and support route.
 
-States: initial, submitting, invalid credentials, rate limited, unavailable auth service, and authenticated redirect.
+States: initial, submitting, invalid credentials, invalid/reserved/duplicate slug, rate limited, unavailable auth service, provisioning error, and authenticated redirect.
 
-Constraint: no public customer or administrator registration. Email verification and password reset remain deferred by specification and must be treated as a pre-production security gate.
+Constraint: public signup is customer-only; no administrator role selector or administrator signup path is exposed. Email verification and password reset remain deferred by specification and must be treated as pre-production security gates.
 
 ### Customer setup page
 

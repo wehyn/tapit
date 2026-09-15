@@ -10,7 +10,7 @@ Tapit is a mobile-first digital profile service for independent professionals, w
 
 Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. NFC card URLs are unique per physical card and resolve to a stable public profile URL, allowing administrators to deactivate or replace an individual card without changing the profile.
 
-The MVP is an administrator-provisioned web application. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
+The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
 
 ## Goals
 
@@ -63,7 +63,14 @@ Administrators provision customer accounts and physical card records, assign car
 
 ## Main user workflows
 
-### 1. Administrator creates and provisions a customer
+### 1. Customer self-signs up
+
+1. A visitor chooses customer signup on the public login page.
+2. The visitor enters a display name, desired profile slug, email, password, and password confirmation.
+3. Tapit authenticates the customer and creates one active customer account plus one draft profile without an invitation or published snapshot.
+4. The customer enters the existing workspace and is guided to add links before publishing.
+
+### 2. Administrator creates and provisions a customer
 
 1. An administrator signs in through the administrator interface.
 2. The administrator creates a customer account using the customer’s email address.
@@ -73,7 +80,7 @@ Administrators provision customer accounts and physical card records, assign car
 6. Tapit sends the customer a one-time setup link.
 7. The customer uses the link to set a password and access the profile editor.
 
-### 2. Customer creates and publishes a profile
+### 3. Customer creates and publishes a profile
 
 1. The customer signs in with email and password.
 2. The customer enters the required name and at least one link.
@@ -83,7 +90,7 @@ Administrators provision customer accounts and physical card records, assign car
 6. The customer explicitly publishes the profile.
 7. Tapit exposes the new published version at the stable profile URL.
 
-### 3. Customer updates a published profile
+### 4. Customer updates a published profile
 
 1. The customer signs in and edits profile fields, links, or theme settings.
 2. Changes remain in draft until explicitly published.
@@ -91,7 +98,7 @@ Administrators provision customer accounts and physical card records, assign car
 4. Tapit updates the content shown at the stable profile URL and through all active card URLs.
 5. The NFC card does not need to be re-encoded.
 
-### 4. Visitor uses a Tapit card
+### 5. Visitor uses a Tapit card
 
 1. The visitor taps the NFC card or scans its QR code.
 2. The card URL resolves through the card registry to the stable profile URL.
@@ -100,13 +107,13 @@ Administrators provision customer accounts and physical card records, assign car
 5. The visitor may select a link, save a vCard, or return to the profile.
 6. Selecting an external destination records an aggregate link click and opens the destination in a new tab where supported.
 
-### 5. Visitor opens a direct profile URL
+### 6. Visitor opens a direct profile URL
 
 1. The visitor opens the stable profile URL from a message, social bio, or other source.
 2. Tapit records an aggregate profile view.
 3. Tapit displays the same published profile as the NFC and QR paths.
 
-### 6. Administrator replaces a card
+### 7. Administrator replaces a card
 
 1. An administrator selects an assigned card.
 2. The administrator deactivates the old card immediately.
@@ -117,11 +124,11 @@ Administrators provision customer accounts and physical card records, assign car
 
 Deactivated cards are not reactivated or reassigned. A new card is assigned instead.
 
-### 7. Administrator manages a profile
+### 8. Administrator manages a profile
 
 An administrator can view and edit customer profile content, publish or unpublish a profile, suspend it for policy enforcement, deactivate assigned cards, and inspect related audit history. An unpublished or suspended profile shows a branded unavailable-profile page and does not expose unpublished content.
 
-### 8. Customer requests account deletion
+### 9. Customer requests account deletion
 
 1. The customer submits a deletion request from Account.
 2. The customer confirms the request.
@@ -182,6 +189,12 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-048:** Customers shall not have a Cards navigation screen or card reassignment controls in the MVP.
 - **FR-049:** Customers shall be able to copy and share their stable public profile URL from the Profile area.
 - **FR-050:** Deleted or unpublished profiles shall not expose unpublished profile information.
+- **FR-051:** A visitor shall be able to choose customer self-service signup from the login page using display name, profile slug, email, password, and password confirmation.
+- **FR-052:** Customer self-service signup shall create one active customer account and one draft profile owned by that account, with no invitation and no published snapshot.
+- **FR-053:** The system shall derive the signup email and account role from the authenticated server identity and shall never accept a caller-supplied user ID or role for provisioning.
+- **FR-054:** The system shall normalize, validate, reserve, and uniquely enforce customer profile slugs before creating or saving a profile.
+- **FR-055:** A self-service customer shall receive a stable platform-hosted profile URL immediately, but that URL shall remain unavailable to visitors until explicit publication requirements are met.
+- **FR-056:** Self-service customers shall be able to use the existing labeled-link editor for portfolio, TikTok, social, contact, booking, and other destinations allowed by FR-014.
 
 ## User experience
 
@@ -424,8 +437,10 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 
 ### Authentication lifecycle
 
-- Administrator-created or administrator-invited customer accounts are the only MVP onboarding path.
-- Customers use the setup link to set their password and then sign in normally.
+- Customer onboarding has two supported paths: customer self-service signup from the public login page, and administrator-created or administrator-invited customer setup through the existing one-time setup link.
+- The first administrator remains operator-provisioned. The public signup path never exposes an administrator role or creates an administrator account.
+- Self-service customers authenticate with Password sign-up, then receive one active customer record and one private draft profile through an authenticated server-side provisioning mutation.
+- Invited customers use the setup link to set their password and then sign in normally.
 - Customers do not need an account to visit a public profile.
 - Convex Auth is the selected authentication implementation.
 - Email verification and password reset are deferred and must be treated as a pre-production security decision rather than silently assumed.
@@ -466,7 +481,7 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 
 The MVP is complete in scope when it provides:
 
-- Administrator-seeded or administrator-invited customer accounts.
+- Customer self-service and administrator-invited customer accounts.
 - Customer email/password login through Convex Auth.
 - One profile per customer account.
 - Required name and one-link publication validation.
@@ -474,7 +489,7 @@ The MVP is complete in scope when it provides:
 - Editable, reorderable links with custom labels, preset icons, and safe URL validation.
 - Draft, preview, explicit publish, and unpublish behavior.
 - Basic restrained profile customization.
-- Stable platform profile slugs created by administrators and confirmed by customers before publication.
+- Stable platform profile slugs selected during self-service signup or created by administrators for invited customers and confirmed before publication.
 - Pre-encoded NFC card URL registration by manual entry.
 - One or more active cards assigned to a profile by administrators.
 - Unique card URL resolution to a stable profile URL.
@@ -496,7 +511,7 @@ The MVP is complete in scope when it provides:
 
 - **AC-001:** Given an administrator enters a new customer email, when the account is created, then Tapit creates the customer account and sends a one-time setup link.
 - **AC-002:** Given a customer opens a valid setup link, when they set a password, then they can sign in and access their profile editor.
-- **AC-003:** Given a customer has not been assigned an account, when they attempt public self-registration, then Tapit does not expose a public customer-signup workflow in the MVP.
+- **AC-003:** Given a visitor chooses Create your profile, when valid customer signup data is submitted, then Tapit authenticates the customer and provisions one active customer account with one private draft profile.
 
 ### Profile creation and publication
 
@@ -546,6 +561,12 @@ The MVP is complete in scope when it provides:
 - **AC-032:** Given a visitor uses a supported current iPhone or Android phone on a normal 4G connection, when they open an active card URL, then the profile becomes usable within 2 seconds under the agreed measurement method.
 - **AC-033:** Given the public profile service experiences a temporary failure, when a visitor requests a profile, then Tapit shows the friendly error page rather than an unhandled error.
 - **AC-034:** Given the service is measured over a calendar month after production monitoring is established, when planned maintenance is excluded, then public-profile availability meets the 99.9% target.
+- **AC-035:** Given signup creates a profile, when the customer opens the workspace, then the stable profile URL is shown and the customer is directed to add links before publication.
+- **AC-036:** Given a requested slug is invalid, reserved, or already in use, when signup is submitted, then Tapit rejects provisioning with an actionable error and does not create a second account or profile.
+- **AC-037:** Given a newly signed-up customer saves a bio or links without publishing, when a visitor opens the stable URL, then the visitor sees the existing missing/unavailable state and no draft content.
+- **AC-038:** Given a customer adds enabled Portfolio and TikTok HTTPS links and publishes a valid profile, when a signed-out visitor opens the stable URL, then the profile name, bio, and both labeled links are visible without authentication.
+- **AC-039:** Given a visitor attempts to create an administrator account through the public login page, when signup is submitted, then no administrator path or role selection is available.
+- **AC-040:** Given the existing invitation setup flow is used, when the invited customer completes setup, then the invitation remains one-time and the customer can still access the same profile workflow.
 
 ## Open questions and decisions
 

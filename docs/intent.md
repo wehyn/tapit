@@ -12,11 +12,13 @@ The primary people experiencing the problem are the professionals and businesses
 
 ## Proposed outcome
 
-An administrator creates a customer account and assigns one or more pre-encoded NFC cards to the customer’s profile. The customer creates and manages a public profile containing their name, profile photo or business logo, short bio or role, and selected contact or external links.
+Customers can create their own account from the public login page, or an administrator can create an invited customer account and assign one or more pre-encoded NFC cards. In either path, the customer creates and manages a public profile containing their name, profile photo or business logo, short bio or role, and selected contact or external links.
 
 Each NFC card has a unique card URL that resolves to the customer’s stable public profile URL. A recipient can tap the card, scan its QR-code fallback, or open the public profile URL directly and immediately see the published profile without an app or account.
 
 Customers can save drafts, preview changes, and explicitly publish updates without re-encoding the NFC card or changing the public URL. Visitors can download a vCard containing only the owner’s selected name, email, website, and public profile URL. Customers and administrators can view basic aggregate profile-view and link-click analytics.
+
+The public login page offers a clear customer-only mode toggle and a mobile-first signup form for display name, profile slug, email, password, and confirmation. After authentication, the customer sees a stable URL preview and enters the existing Profile and Links workspace, where Portfolio, TikTok, social, booking, contact, and other safe destinations are labeled and edited before the explicit publication boundary.
 
 Administrators can assign, deactivate, suspend, and replace cards, and can manage profile publication. A deactivated card shows a branded inactive-card page without revealing the former profile; an unpublished profile shows a branded unavailable-profile page while remaining assigned to its cards.
 
@@ -28,11 +30,11 @@ Administrators can assign, deactivate, suspend, and replace cards, and can manag
 
 ## Constraints
 
-- Owner access uses email-based accounts with passwords. Administrators create accounts by entering a customer email; the system sends a one-time setup link for the customer to create their password. Administrators must not know or store customer passwords. Email verification and password-reset flows are deferred for now.
+- Owner access uses email-based accounts with passwords. Customers may self-sign up from the public login page, while administrator-created accounts continue to use a one-time setup link for the customer to create their password. Administrators must not know or store customer passwords. Email verification and password-reset flows are deferred for now and remain launch gates.
 - The public experience must work on current iPhones and Android phones using their default mobile browsers, without a dedicated app. Cards use standard NFC Forum NDEF URI records. Every card also has a QR-code fallback.
 - NFC cards are assumed to be pre-encoded and already available to the platform team. Card manufacturing, inventory management, and shipping are out of scope. Administrators manually enter or scan each card’s unique ID/URL, validate that it is unused, and assign it to a customer profile. Bulk import is out of scope.
 - One customer account manages one profile. Multiple cards may point to that profile. Customers cannot claim arbitrary cards or transfer card ownership. Administrators can manage customer accounts, profiles, and cards; there is one administrator role in v1.
-- The public profile URL uses the platform URL. An administrator creates a unique slug during account setup, the customer may suggest or confirm it before publishing, and the slug cannot change after publication. NFC card URLs are unique per card and resolve to the stable public profile URL; QR and manual sharing can use the profile URL directly.
+- The public profile URL uses the platform URL. An administrator creates a unique slug during invited account setup, or a self-service customer selects one during signup; the slug cannot change after publication. NFC card URLs are unique per card and resolve to the stable public profile URL; QR and manual sharing can use the profile URL directly.
 - Owners control which fields and links are public. Supported destinations include valid HTTPS URLs plus safe `mailto:` and `tel:` actions; unsafe schemes such as `javascript:` and `data:` are rejected. Nothing appears publicly unless the owner adds and publishes it.
 - Profiles support basic customization only: profile photo or logo, colors, fonts, button styles, and a small set of themes. Custom CSS, advanced layouts, and custom domains are out of scope.
 - Public pages and dashboards should meet the agreed WCAG 2.2 AA basics, including mobile responsiveness, readable contrast, keyboard access, semantic controls, visible focus states, and alternative text for profile images or logos.
