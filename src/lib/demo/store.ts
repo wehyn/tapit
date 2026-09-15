@@ -2,6 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
+import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
+import { normalizeProfileSlug, validateProfileSlug } from "../domain";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
@@ -16,6 +18,13 @@ const SESSION_KEY = "tapit:demo-session:v1";
 export type DemoSession = {
   email: string;
   role: "customer" | "admin";
+};
+
+export type DemoSelfServiceAccountInput = {
+  email: string;
+  name: string;
+  slug: string;
+  passwordHash: string;
 };
 
 const serverSnapshot = createDefaultDemoState();
@@ -209,6 +218,72 @@ export function updateDemoState(updater: (current: DemoState) => DemoState): voi
   persist(nextState);
   state = nextState;
   notify();
+}
+
+export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput): {
+  customerId: string;
+  profileId: string;
+  slug: string;
+} {
+  const email = normalizeSignupEmail(input.email);
+  const name = input.name.trim();
+  const slug = normalizeProfileSlug(input.slug);
+  const emailError = validateSignupEmail(email);
+  if (emailError !== null) throw new Error(emailError);
+  if (name.length === 0) throw new Error("Enter your display name.");
+  if (name.length > 120) throw new Error("Your display name is too long.");
+
+  const customerId = crypto.randomUUID();
+  const profileId = crypto.randomUUID();
+  const auditId = crypto.randomUUID();
+
+  updateDemoState((current) => {
+    if (current.customers.some((customer) => customer.email === email)) {
+      throw new Error(
+        "That email already has a Tapit account or invitation. Sign in or use the setup link.",
+      );
+    }
+    const slugError = validateProfileSlug(slug, {
+      existingSlugs: getDemoProfiles(current).map((profile) => profile.draft.slug),
+    });
+    if (slugError !== null) throw new Error(slugError);
+
+    const profile: DemoProfile = {
+      id: profileId,
+      ownerId: customerId,
+      status: "draft",
+      theme: "paper",
+      draft: { name, slug, links: [] },
+      published: null,
+    };
+    const customer = {
+      id: customerId,
+      email,
+      role: "customer" as const,
+      profileId,
+      status: "active" as const,
+      deletionStatus: "active" as const,
+      passwordHash: input.passwordHash,
+    };
+    return {
+      ...current,
+      customers: [...current.customers, customer],
+      profiles: [...getDemoProfiles(current), profile],
+      themes: { ...current.themes, [profileId]: profile.theme },
+      audits: [
+        ...current.audits,
+        {
+          id: auditId,
+          actor: name,
+          action: "customer.self_service_created",
+          target: `${email} / ${slug}`,
+          occurredAt: new Date().toISOString(),
+        },
+      ],
+    };
+  });
+
+  return { customerId, profileId, slug };
 }
 
 export function resetDemoState(): void {
