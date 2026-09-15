@@ -2,8 +2,11 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 
 import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
+import { api } from "../../../convex/_generated/api";
 
 import { AppShell, type ShellNavItem } from "./AppShell";
 import { Button } from "../ui/Button";
@@ -21,7 +24,17 @@ const noHydrationSubscription = () => () => {};
 const clientHydratedSnapshot = () => true;
 const serverHydratedSnapshot = () => false;
 
+const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+
 export function AdminShell({ children }: { children: React.ReactNode }) {
+  return isDemoMode ? (
+    <DemoAdminShell>{children}</DemoAdminShell>
+  ) : (
+    <LiveAdminShell>{children}</LiveAdminShell>
+  );
+}
+
+function DemoAdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const session = useDemoSession();
@@ -51,6 +64,51 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           onClick={() => {
             clearDemoSession();
             router.replace("/login");
+          }}
+          type="button"
+          variant="quiet"
+        >
+          Sign out
+        </Button>
+      </div>
+      {children}
+    </AppShell>
+  );
+}
+
+function LiveAdminShell({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { signOut } = useAuthActions();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+
+  useEffect(() => {
+    if (authLoading || (isAuthenticated && access === undefined)) return;
+    if (!isAuthenticated || access?.authenticated !== true) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    } else if (access.role !== "admin") {
+      router.replace(access.role === "customer" ? "/app/profile" : "/login");
+    }
+  }, [access, authLoading, isAuthenticated, pathname, router]);
+
+  if (
+    authLoading ||
+    (isAuthenticated && access === undefined) ||
+    !isAuthenticated ||
+    access?.authenticated !== true ||
+    access.role !== "admin"
+  ) {
+    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+  }
+
+  return (
+    <AppShell eyebrow="Administrator console" navItems={adminNav} title="Tapit operations">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-2 pt-5 sm:px-8">
+        <p className="text-sm text-tapit-muted">Administrator workspace</p>
+        <Button
+          onClick={() => {
+            void signOut().finally(() => router.replace("/login"));
           }}
           type="button"
           variant="quiet"

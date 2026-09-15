@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import NextImage from "next/image";
 import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
@@ -10,6 +11,7 @@ import {
   validatePublication,
   validatePublicationAccess,
   type ProfileContent,
+  type ProfileTheme,
 } from "@/lib/domain";
 import {
   getDemoProfileForSession,
@@ -28,6 +30,8 @@ import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
+import { MissingProfilePage } from "@/components/state/StatePage";
+import { api } from "../../../convex/_generated/api";
 
 function profileForPreview(draft: ProfileContent) {
   return projectPublicProfile({
@@ -39,7 +43,7 @@ function profileForPreview(draft: ProfileContent) {
   });
 }
 
-export function ProfileEditor() {
+function DemoProfileEditor() {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -465,5 +469,268 @@ export function ProfileEditor() {
         </div>
       </div>
     </div>
+  );
+}
+
+export function ProfileEditor() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveProfileEditor />
+  ) : (
+    <DemoProfileEditor />
+  );
+}
+
+function LiveProfileEditor() {
+  const profile = useQuery(api.profiles.mine);
+  const saveDraftMutation = useMutation(api.profiles.saveDraft);
+  const publishMutation = useMutation(api.profiles.publish);
+  const [draft, setDraft] = useState<ProfileContent | null>(null);
+  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [pending, setPending] = useState<"save" | "publish" | null>(null);
+
+  if (profile === undefined) return <ProfileEditorLoading />;
+  if (profile === null) return <MissingProfilePage />;
+  const liveProfile = profile;
+  const currentDraft: ProfileContent = draft ?? {
+    ...liveProfile.draft,
+    links: liveProfile.draft.links.map((link) => ({
+      ...link,
+      icon: link.icon as ProfileContent["links"][number]["icon"],
+    })),
+  };
+  const theme: ProfileTheme = currentDraft.theme ?? "paper";
+  const publishedForValidation = liveProfile.published
+    ? {
+        ...liveProfile.published,
+        links: liveProfile.published.links.map((link) => ({
+          ...link,
+          icon: link.icon as ProfileContent["links"][number]["icon"],
+        })),
+        publishedAt: new Date(liveProfile.published.publishedAt).toISOString(),
+      }
+    : null;
+  const errors = validatePublication(currentDraft, publishedForValidation, {
+    immutableSlug: liveProfile.published?.slug,
+  });
+  const preview = profileForPreview(currentDraft);
+  const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
+  const slugLocked = liveProfile.published !== undefined;
+
+  function updateField<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
+    setDraft((value_) => ({ ...(value_ ?? currentDraft), [field]: value }));
+    setMessage(null);
+  }
+
+  async function saveDraft() {
+    setPending("save");
+    setMessage(null);
+    try {
+      await saveDraftMutation({ profileId: liveProfile._id, draft: currentDraft });
+      setDraft(null);
+      setMessage({
+        tone: "success",
+        text: "Draft saved. Visitors still see the last published version.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Draft could not be saved.",
+      });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  async function publish() {
+    if (errors.length > 0) {
+      setMessage({ tone: "error", text: errors.join(" ") });
+      return;
+    }
+    setPending("publish");
+    setMessage(null);
+    try {
+      if (isDirty) await saveDraftMutation({ profileId: liveProfile._id, draft: currentDraft });
+      await publishMutation({ profileId: liveProfile._id });
+      setDraft(null);
+      setMessage({
+        tone: "success",
+        text: "Profile published. Your active card paths now show this version.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be published.",
+      });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  return (
+    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
+      <div className="grid gap-6">
+        <div className="pb-1">
+          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
+            Your profile
+          </h1>
+          <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
+            Edit your details and see how your profile looks to others.
+          </p>
+        </div>
+        <Panel className="shadow-none" title="Profile identity">
+          <div className="mt-6 grid gap-5">
+            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field
+                id="profile-name"
+                label="Name"
+                onChange={(event) => updateField("name", event.target.value)}
+                value={currentDraft.name}
+              />
+              <TextareaField
+                id="profile-bio"
+                label="Bio or role"
+                maxLength={140}
+                onChange={(event) => updateField("bio", event.target.value || undefined)}
+                value={currentDraft.bio ?? ""}
+              />
+              <Field
+                id="profile-email"
+                label="Email"
+                onChange={(event) => updateField("email", event.target.value || undefined)}
+                type="email"
+                value={currentDraft.email ?? ""}
+              />
+              <Field
+                id="profile-phone"
+                label="Phone"
+                onChange={(event) => updateField("phone", event.target.value || undefined)}
+                type="tel"
+                value={currentDraft.phone ?? ""}
+              />
+              <Field
+                id="profile-website"
+                label="Website"
+                onChange={(event) => updateField("website", event.target.value || undefined)}
+                type="url"
+                value={currentDraft.website ?? ""}
+              />
+              <Field
+                disabled={slugLocked}
+                help={
+                  slugLocked
+                    ? "The slug is immutable after first publication."
+                    : "Use lowercase letters, numbers, and hyphens."
+                }
+                id="profile-slug"
+                label="Stable profile slug"
+                onChange={(event) => updateField("slug", event.target.value)}
+                value={currentDraft.slug}
+              />
+            </div>
+          </div>
+        </Panel>
+        <Panel className="shadow-none" title="Profile style">
+          <div className="mt-6 grid gap-5 sm:grid-cols-3">
+            {(["paper", "moss", "night"] as const).map((option) => (
+              <button
+                aria-pressed={theme === option}
+                className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                key={option}
+                onClick={() => updateField("theme", option)}
+                type="button"
+              >
+                <span
+                  className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                />
+                <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
+                  {option}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Panel>
+        <Panel className="shadow-none" title="Publication">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <StatusBadge status={profile.status} />{" "}
+            <span className="text-sm text-tapit-muted">
+              {isDirty ? "Unsaved draft changes" : "Draft is saved"}
+            </span>
+          </div>
+          {errors.length > 0 ? (
+            <ul className="mt-5 grid gap-2 text-sm text-tapit-muted">
+              {errors.map((error) => (
+                <li key={error} className="flex gap-2">
+                  <span aria-hidden="true" className="text-tapit-danger">
+                    !
+                  </span>
+                  {error}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
+              Ready to publish. The required name and one valid enabled link are present.
+            </p>
+          )}
+        </Panel>
+      </div>
+      <div className="h-fit lg:sticky lg:top-6">
+        {preview ? (
+          <WorkspacePreview
+            mode={previewMode}
+            onModeChange={setPreviewMode}
+            preview={preview}
+            profileUrl={`/${currentDraft.slug}`}
+            showProfileUrl
+            theme={theme}
+          />
+        ) : (
+          <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
+        )}
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-tapit-ink">
+            {isDirty ? "Draft changes" : "Draft saved"}
+          </span>
+          <div className="flex flex-wrap gap-3">
+            <Button
+              disabled={!isDirty}
+              loading={pending === "save"}
+              onClick={saveDraft}
+              type="button"
+              variant="secondary"
+            >
+              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+              Save draft
+            </Button>
+            <Button
+              disabled={errors.length > 0}
+              loading={pending === "publish"}
+              onClick={publish}
+              type="button"
+            >
+              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+              Publish
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfileEditorLoading() {
+  return (
+    <main
+      aria-busy="true"
+      className="grid min-h-[60dvh] place-items-center bg-tapit-paper px-5"
+      role="status"
+    >
+      <p className="text-sm text-tapit-muted">Loading your profile...</p>
+    </main>
   );
 }

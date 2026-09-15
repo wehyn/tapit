@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -42,6 +43,7 @@ import {
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { api } from "../../../convex/_generated/api";
 
 const iconOptions: Array<{ value: LinkIcon; label: string }> = [
   { value: "link", label: "Generic link" },
@@ -83,7 +85,7 @@ function previewForLinks(
   });
 }
 
-export function LinksEditor() {
+function DemoLinksEditor() {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -483,6 +485,146 @@ export function LinksEditor() {
               Publish
             </Button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function LinksEditor() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? <LiveLinksEditor /> : <DemoLinksEditor />;
+}
+
+function LiveLinksEditor() {
+  const profile = useQuery(api.profiles.mine);
+  const saveLinks = useMutation(api.links.replaceDraft);
+  const [links, setLinks] = useState<ProfileLink[] | null>(null);
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [pending, setPending] = useState(false);
+
+  const current = useMemo(
+    () =>
+      links ?? profile?.draft.links.map((link) => ({ ...link, icon: link.icon as LinkIcon })) ?? [],
+    [links, profile],
+  );
+  const errors = useMemo(() => {
+    const seen = new Set<string>();
+    return current.reduce<Record<string, string>>((result, link) => {
+      if (!link.enabled) return result;
+      const key = link.destination.trim().toLowerCase();
+      if (!link.label.trim()) result[link.id] = "Add a label.";
+      else if (validateLinkDestination(link.destination))
+        result[link.id] = validateLinkDestination(link.destination)!;
+      if (key && seen.has(key)) result[link.id] = "This destination is already used.";
+      if (key) seen.add(key);
+      return result;
+    }, {});
+  }, [current]);
+
+  if (profile === undefined) return <div className="min-h-[60vh] bg-tapit-paper" />;
+  if (profile === null) return <Notice tone="error">Your profile could not be found.</Notice>;
+  const liveProfile = profile;
+
+  function update(id: string, patch: Partial<ProfileLink>) {
+    setLinks(current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
+    setMessage(null);
+  }
+  function add() {
+    if (current.length >= 100)
+      return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    setLinks([
+      ...current,
+      { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
+    ]);
+  }
+  async function save() {
+    if (Object.keys(errors).length > 0)
+      return setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
+    setPending(true);
+    try {
+      await saveLinks({ profileId: liveProfile._id, links: current });
+      setLinks(null);
+      setMessage({
+        tone: "success",
+        text: "Links saved to draft. Visitors still see the last published order.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Links could not be saved.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className="mx-auto w-full max-w-[960px] px-4 pb-28 pt-8 sm:px-8 lg:px-10">
+      <div className="flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
+            Your links
+          </h1>
+          <p className="mt-2 text-base leading-7 text-tapit-muted">
+            Add and organize the destinations on your public profile.
+          </p>
+        </div>
+        <Button onClick={add} type="button">
+          <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+          Add link
+        </Button>
+      </div>
+      {message ? (
+        <div className="mt-6">
+          <Notice tone={message.tone}>{message.text}</Notice>
+        </div>
+      ) : null}
+      <div className="mt-8 grid gap-3">
+        {current.map((link, index) => (
+          <div
+            className="grid gap-3 rounded-tapit border border-tapit-line bg-white p-4 sm:grid-cols-[1fr_1.5fr_auto]"
+            key={link.id}
+          >
+            <input
+              aria-label={`Label for link ${index + 1}`}
+              className="min-h-11 rounded-tapit border border-tapit-line px-3"
+              onChange={(event) => update(link.id, { label: event.target.value })}
+              value={link.label}
+              placeholder="Label"
+            />
+            <input
+              aria-label={`Destination for link ${index + 1}`}
+              className="min-h-11 rounded-tapit border border-tapit-line px-3"
+              onChange={(event) => update(link.id, { destination: event.target.value })}
+              value={link.destination}
+              placeholder="https://example.com"
+            />
+            <div className="flex items-center gap-2">
+              <input
+                aria-label={`Enable link ${index + 1}`}
+                checked={link.enabled}
+                onChange={(event) => update(link.id, { enabled: event.target.checked })}
+                type="checkbox"
+              />
+              <button
+                className="text-sm text-tapit-danger"
+                onClick={() => setLinks(current.filter((candidate) => candidate.id !== link.id))}
+                type="button"
+              >
+                Remove
+              </button>
+            </div>
+            {errors[link.id] ? (
+              <p className="text-sm text-tapit-danger sm:col-span-3">{errors[link.id]}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-[960px] justify-end">
+          <Button disabled={pending} onClick={save} type="button">
+            <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+            {pending ? "Saving..." : "Save draft"}
+          </Button>
         </div>
       </div>
     </div>

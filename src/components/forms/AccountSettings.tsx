@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { AtIcon, KeyIcon, LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
 
 import {
@@ -18,8 +19,9 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { api } from "../../../convex/_generated/api";
 
-export function AccountSettings() {
+function DemoAccountSettings() {
   const state = useDemoState();
   const session = useDemoSession();
   const account =
@@ -248,5 +250,110 @@ export function AccountSettings() {
         title="Request account deletion?"
       />
     </div>
+  );
+}
+
+function LiveAccountSettings() {
+  const account = useQuery(api.customers.myAccount);
+  const supportUrl = useQuery(api.settings.support);
+  const requestDeletion = useMutation(api.customers.requestDeletion);
+  const [deletionOpen, setDeletionOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  if (account === undefined || supportUrl === undefined)
+    return <div className="p-8 text-sm text-tapit-muted">Loading account settings…</div>;
+  if (account === null) return <Notice tone="error">Your account could not be loaded.</Notice>;
+  async function confirmDeletion() {
+    try {
+      await requestDeletion({});
+      setMessage(
+        "Deletion requested. Your profile is now unavailable while an administrator reviews the request.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Deletion request failed.");
+    } finally {
+      setDeletionOpen(false);
+    }
+  }
+  return (
+    <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+      <Panel
+        description="Your email identifies the one profile attached to this account."
+        title="Account"
+      >
+        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-tapit bg-tapit-paper p-4">
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+              Email
+            </dt>
+            <dd className="mt-2 font-semibold text-tapit-ink">{account.email}</dd>
+          </div>
+          <div className="rounded-tapit bg-tapit-paper p-4">
+            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+              Deletion status
+            </dt>
+            <dd className="mt-2">
+              <StatusBadge status={account.deletionStatus} />
+            </dd>
+          </div>
+        </dl>
+      </Panel>
+      <Panel
+        description="Password changes use the configured Convex Auth provider."
+        title="Change password"
+      >
+        <p className="mt-5 text-sm leading-6 text-tapit-muted">
+          Password recovery and password changes are managed by the live authentication flow.
+        </p>
+      </Panel>
+      <Panel title="Support">
+        <div className="mt-5 flex flex-wrap items-center gap-3">
+          <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
+            Contact support
+          </a>
+          <span className="text-sm text-tapit-muted">
+            We will help with access, publication, or card issues.
+          </span>
+        </div>
+      </Panel>
+      <Panel
+        className="border-tapit-danger/30"
+        description="Deletion hides your profile and deactivates assigned cards immediately."
+        title="Delete account"
+      >
+        {message ? (
+          <div className="mt-5">
+            <Notice tone={message.startsWith("Deletion requested") ? "success" : "error"}>
+              {message}
+            </Notice>
+          </div>
+        ) : null}
+        <div className="mt-5">
+          <Button
+            disabled={account.deletionStatus !== "active"}
+            onClick={() => setDeletionOpen(true)}
+            type="button"
+            variant="danger"
+          >
+            Request deletion
+          </Button>
+        </div>
+      </Panel>
+      <ConfirmDialog
+        confirmLabel="Request deletion"
+        description="Your public profile will become unavailable and assigned cards will be deactivated immediately. Continue?"
+        onCancel={() => setDeletionOpen(false)}
+        onConfirm={confirmDeletion}
+        open={deletionOpen}
+        title="Request account deletion?"
+      />
+    </div>
+  );
+}
+
+export function AccountSettings() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveAccountSettings />
+  ) : (
+    <DemoAccountSettings />
   );
 }

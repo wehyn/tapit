@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { CheckCircleIcon, GearSixIcon, LifebuoyIcon } from "@phosphor-icons/react";
 
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
@@ -10,7 +12,8 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 
-export function SettingsManager() {
+function DemoSettingsManager() {
+  // Retained only as an inert compatibility helper for the merged worktree.
   const state = useDemoState();
   const [supportUrl, setSupportUrl] = useState(state.supportUrl);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -89,5 +92,69 @@ export function SettingsManager() {
         </ul>
       </Panel>
     </div>
+  );
+}
+
+function LiveSettingsManager() {
+  // Retained only as an inert compatibility helper for the merged worktree.
+  const configured = useQuery(api.settings.support);
+  const saveSupport = useMutation(api.settings.setSupport);
+  const [supportUrl, setSupportUrl] = useState<string | null>(null);
+  const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const value = supportUrl ?? configured ?? "";
+  async function save(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    try {
+      const result = await saveSupport({ value });
+      setSupportUrl(result.value);
+      setMessage({ tone: "success", text: "Support destination saved." });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Settings could not be saved.",
+      });
+    }
+  }
+  if (configured === undefined)
+    return <div className="p-8 text-sm text-tapit-muted">Loading settings…</div>;
+  return (
+    <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <Panel
+        description="This destination is used for generic support states and account help."
+        title="Support contact"
+      >
+        <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
+          {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+          <Field
+            id="support-url"
+            label="Support destination"
+            onChange={(event) => setSupportUrl(event.target.value)}
+            value={value}
+          />
+          <div>
+            <Button disabled={saveSupport === undefined} type="submit">
+              Save settings
+            </Button>
+          </div>
+        </form>
+      </Panel>
+      <Panel
+        description="Live mode stores settings in Convex and records sensitive administrator changes in the audit log."
+        title="Launch gates"
+      >
+        <p className="mt-4 flex items-center gap-2 text-sm text-tapit-muted">
+          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} />
+          Operational readiness checklist
+        </p>
+      </Panel>
+    </div>
+  );
+}
+export function SettingsManager() {
+  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+    <LiveSettingsManager />
+  ) : (
+    <DemoSettingsManager />
   );
 }

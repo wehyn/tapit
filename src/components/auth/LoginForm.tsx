@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { ArrowUpRight, Fingerprint } from "@phosphor-icons/react";
 
 import { Brand } from "@/components/layout/Brand";
@@ -11,6 +13,7 @@ import { Notice } from "@/components/ui/Notice";
 import { setDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 import { verifyDemoPassword } from "@/lib/demo/password";
 
+import { api } from "../../../convex/_generated/api";
 /** Accept only an internal, same-origin path for post-login navigation. */
 export function sanitizeReturnPath(value: string | string[] | undefined): string | undefined {
   if (typeof value !== "string" || value.length === 0 || !value.startsWith("/")) return undefined;
@@ -33,6 +36,14 @@ export function sanitizeReturnPath(value: string | string[] | undefined): string
 }
 
 export function LoginForm({ nextPath }: { nextPath?: string }) {
+  return process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
+    <DemoLoginForm nextPath={nextPath} />
+  ) : (
+    <LiveLoginForm nextPath={nextPath} />
+  );
+}
+
+function DemoLoginForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
@@ -151,6 +162,107 @@ export function LoginForm({ nextPath }: { nextPath?: string }) {
                 <strong>admin@tapit.local</strong> with password <strong>tapit-demo</strong>.
               </p>
             ) : null}
+          </div>
+        </section>
+        <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
+          A focused workspace for a more memorable introduction.
+        </footer>
+      </div>
+    </main>
+  );
+}
+
+function LiveLoginForm({ nextPath }: { nextPath?: string }) {
+  const router = useRouter();
+  const { signIn } = useAuthActions();
+  const { isLoading: authLoading } = useConvexAuth();
+  const access = useQuery(api.admin.currentAccess);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const safeNextPath = sanitizeReturnPath(nextPath);
+
+  useEffect(() => {
+    if (authLoading || access === undefined || !access.authenticated) return;
+    router.replace(safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"));
+  }, [access, authLoading, router, safeNextPath]);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await signIn("password", { flow: "signIn", email: normalizedEmail, password });
+    } catch {
+      setError("The email or password is not correct.");
+      setSubmitting(false);
+    }
+  }
+
+  const loading = authLoading || access === undefined;
+  return (
+    <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
+        <Brand />
+        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1fr_0.8fr] lg:gap-28">
+          <div className="max-w-lg">
+            <Fingerprint
+              aria-hidden="true"
+              className="text-tapit-accent"
+              size={48}
+              weight="light"
+            />
+            <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
+              Welcome back
+            </p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-tapit-ink sm:text-6xl">
+              Sign in to Tapit
+            </h1>
+            <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
+              Manage your profile, links, and publication state from one calm workspace.
+            </p>
+          </div>
+          <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
+            {loading ? (
+              <p className="text-sm text-tapit-muted">Checking your session…</p>
+            ) : access?.authenticated ? (
+              <p className="text-sm text-tapit-muted">Taking you to your workspace…</p>
+            ) : (
+              <form className="grid gap-5" onSubmit={submit}>
+                {error ? <Notice tone="error">{error}</Notice> : null}
+                <Field
+                  autoComplete="email"
+                  id="live-email"
+                  label="Email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  value={email}
+                />
+                <Field
+                  autoComplete="current-password"
+                  help="Use at least 8 characters."
+                  id="live-password"
+                  label="Password"
+                  minLength={8}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  value={password}
+                />
+                <Button disabled={submitting} type="submit">
+                  {submitting ? "Signing in" : "Sign in"}
+                </Button>
+              </form>
+            )}
           </div>
         </section>
         <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
