@@ -6,3 +6,5 @@ test-results
 convex/_generated
 package-lock.json
 docs/*.md
+.agents
+.claude
