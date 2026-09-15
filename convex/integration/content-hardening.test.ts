@@ -92,6 +92,11 @@ describe("content hardening", () => {
       normalizedSlug: "login",
       error: "That profile slug is reserved.",
     });
+    await expect(t.query(api.profiles.checkSlugAvailability, { slug: "c" })).resolves.toEqual({
+      available: false,
+      normalizedSlug: "c",
+      error: "That profile slug is reserved.",
+    });
     await expect(
       t.query(api.profiles.checkSlugAvailability, { slug: "bad_slug" }),
     ).resolves.toEqual({

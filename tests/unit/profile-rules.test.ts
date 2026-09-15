@@ -45,6 +45,8 @@ describe("profile slug rules", () => {
     expect(validateProfileSlug("a".repeat(MAX_PROFILE_SLUG_LENGTH + 1))).toMatch(/invalid/);
     expect(RESERVED_PROFILE_SLUGS.has("login")).toBe(true);
     expect(validateProfileSlug("login")).toMatch(/reserved/);
+    expect(RESERVED_PROFILE_SLUGS.has("c")).toBe(true);
+    expect(validateProfileSlug("c")).toMatch(/reserved/);
   });
 
   it("rejects duplicate slugs during publication", () => {

@@ -97,7 +97,7 @@ export interface ProfileSlugValidationOptions {
 }
 
 export const MAX_PROFILE_SLUG_LENGTH = 64;
-export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "login", "setup"]);
+export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);
 
 export type AccountStatus = "invited" | "active" | "deleted";
 

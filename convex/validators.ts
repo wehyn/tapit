@@ -3,7 +3,7 @@ import { v } from "convex/values";
 export const MAX_PROFILE_LINKS = 100;
 const MAX_PROFILE_NAME_LENGTH = 120;
 export const MAX_PROFILE_SLUG_LENGTH = 64;
-export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "login", "setup"]);
+export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);
 const MAX_PROFILE_BIO_LENGTH = 140;
 const MAX_PROFILE_FIELD_LENGTH = 320;
 const MAX_LINK_ID_LENGTH = 160;
