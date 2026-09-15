@@ -8,6 +8,10 @@ test.describe("live Convex vertical slice", () => {
     browser,
     liveEnv,
   }) => {
+    await page.goto("/");
+    await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: /demo profile/i })).toHaveCount(0);
+
     await page.goto("/app/profile");
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 
@@ -20,6 +24,9 @@ test.describe("live Convex vertical slice", () => {
     await page.getByRole("button", { name: "night", exact: true }).click();
     const draftBio = `Live E2E draft ${Date.now()}`;
     await page.getByLabel("Bio or role").fill(draftBio);
+    await page.locator("#profile-image").setInputFiles("public/images/tapit-demo-mara-avatar.png");
+    const profileIdentity = page.getByRole("heading", { name: "Profile identity" }).locator("..");
+    await expect(profileIdentity.getByRole("img", { name: /profile$/ })).toBeVisible();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
 
@@ -29,6 +36,7 @@ test.describe("live Convex vertical slice", () => {
       await visitor.goto(`/${liveEnv.profileSlug}`);
       await expect(visitor.getByText(liveEnv.publishedBio)).toBeVisible();
       await expect(visitor.getByText(draftBio)).toHaveCount(0);
+      await expect(visitor.locator('img[alt$="profile"]')).toHaveCount(0);
       await expect(visitor.locator("main")).toHaveClass(/bg-tapit-paper/);
 
       await page.getByRole("button", { name: "Publish" }).click();
@@ -36,6 +44,7 @@ test.describe("live Convex vertical slice", () => {
 
       await visitor.reload();
       await expect(visitor.getByText(draftBio)).toBeVisible();
+      await expect(visitor.locator('img[alt$="profile"]')).toBeVisible();
       await expect(visitor.locator("main")).toHaveClass(/bg-\[#17211f\]/);
     } finally {
       await visitorContext.close();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import NextImage from "next/image";
 import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
@@ -23,6 +23,7 @@ import {
   useDemoState,
   updateDemoState,
 } from "@/lib/demo/store";
+import { prepareProfileImage, validateProfileImageFile } from "@/lib/profile-image";
 
 import { Button } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
@@ -32,6 +33,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 
 function profileForPreview(draft: ProfileContent) {
   return projectPublicProfile({
@@ -484,10 +486,15 @@ function LiveProfileEditor() {
   const profile = useQuery(api.profiles.mine);
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
+  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
+  const attachImage = useAction(api.storage.attachImage);
+  const removeImage = useMutation(api.storage.removeImage);
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState<"save" | "publish" | null>(null);
+  const [imagePending, setImagePending] = useState(false);
+  const [imageError, setImageError] = useState("");
 
   if (profile === undefined) return <ProfileEditorLoading />;
   if (profile === null) return <MissingProfilePage />;
@@ -522,11 +529,76 @@ function LiveProfileEditor() {
     setMessage(null);
   }
 
+  async function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const validationError = validateProfileImageFile(file);
+    if (validationError) {
+      setImageError(validationError);
+      return;
+    }
+    setImagePending(true);
+    setImageError("");
+    try {
+      const prepared = await prepareProfileImage(file);
+      const uploadUrl = await generateUploadUrl({ profileId: liveProfile._id });
+      const response = await fetch(uploadUrl, {
+        method: "POST",
+        body: prepared,
+        headers: { "Content-Type": "image/jpeg" },
+      });
+      if (!response.ok) throw new Error("The image upload failed. Choose another file.");
+      const responseData: unknown = await response.json();
+      const storageId = extractStorageId(responseData);
+      if (!storageId) throw new Error("The image upload response was invalid. Try again.");
+      const attached = await attachImage({ profileId: liveProfile._id, storageId });
+      setDraft((current) => ({
+        ...(current ?? currentDraft),
+        imageStorageId: attached.storageId,
+        imageUrl: attached.imageUrl,
+      }));
+    } catch (error) {
+      setImageError(error instanceof Error ? error.message : "The image upload failed. Try again.");
+    } finally {
+      setImagePending(false);
+    }
+  }
+
+  async function clearImage() {
+    setImagePending(true);
+    setImageError("");
+    try {
+      await removeImage({ profileId: liveProfile._id });
+      setDraft((current) => {
+        const next = { ...(current ?? currentDraft) };
+        delete next.imageStorageId;
+        delete next.imageUrl;
+        return next;
+      });
+    } catch (error) {
+      setImageError(
+        error instanceof Error ? error.message : "The image could not be removed. Try again.",
+      );
+    } finally {
+      setImagePending(false);
+    }
+  }
+
+  function draftForPersistence(content: ProfileContent) {
+    const persistedDraft = { ...content };
+    delete persistedDraft.imageUrl;
+    return persistedDraft;
+  }
+
   async function saveDraft() {
     setPending("save");
     setMessage(null);
     try {
-      await saveDraftMutation({ profileId: liveProfile._id, draft: currentDraft });
+      await saveDraftMutation({
+        profileId: liveProfile._id,
+        draft: draftForPersistence(currentDraft),
+      });
       setDraft(null);
       setMessage({
         tone: "success",
@@ -550,7 +622,11 @@ function LiveProfileEditor() {
     setPending("publish");
     setMessage(null);
     try {
-      if (isDirty) await saveDraftMutation({ profileId: liveProfile._id, draft: currentDraft });
+      if (isDirty)
+        await saveDraftMutation({
+          profileId: liveProfile._id,
+          draft: draftForPersistence(currentDraft),
+        });
       await publishMutation({ profileId: liveProfile._id });
       setDraft(null);
       setMessage({
@@ -581,6 +657,61 @@ function LiveProfileEditor() {
         <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            <div className="border-t border-tapit-line/70 pt-5">
+              <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+                  {currentDraft.imageUrl ? (
+                    <NextImage
+                      alt={`${currentDraft.name} profile`}
+                      className="size-full object-cover"
+                      height={80}
+                      src={currentDraft.imageUrl}
+                      unoptimized
+                      width={80}
+                    />
+                  ) : (
+                    currentDraft.name.slice(0, 1).toUpperCase()
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+                    htmlFor="profile-image"
+                  >
+                    <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+                    {imagePending ? "Uploading..." : "Change photo"}
+                  </label>
+                  {currentDraft.imageUrl ? (
+                    <Button
+                      disabled={imagePending}
+                      onClick={clearImage}
+                      type="button"
+                      variant="quiet"
+                    >
+                      Remove photo
+                    </Button>
+                  ) : null}
+                  <input
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label="Profile photo or logo"
+                    className="sr-only"
+                    disabled={imagePending}
+                    id="profile-image"
+                    onChange={chooseImage}
+                    type="file"
+                  />
+                  <p className="basis-full text-xs leading-5 text-tapit-muted">
+                    JPG, PNG, or WebP. Max 5 MB.
+                  </p>
+                </div>
+              </div>
+              {imageError ? (
+                <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+                  {imageError}
+                </p>
+              ) : null}
+            </div>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 id="profile-name"
@@ -721,6 +852,14 @@ function LiveProfileEditor() {
       </div>
     </div>
   );
+}
+
+function extractStorageId(value: unknown): Id<"_storage"> | null {
+  if (typeof value !== "object" || value === null || !("storageId" in value)) return null;
+  const storageId = (value as { storageId?: unknown }).storageId;
+  return typeof storageId === "string" && storageId.length > 0
+    ? (storageId as Id<"_storage">)
+    : null;
 }
 
 function ProfileEditorLoading() {

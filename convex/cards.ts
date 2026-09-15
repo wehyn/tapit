@@ -1,11 +1,11 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator } from "./admin";
 import schema from "./schema";
 import { publicProfileValidator } from "./validators";
 import { validateProfileContent } from "./validators";
+import { projectPublicProfile } from "./profileProjection";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
@@ -33,42 +33,6 @@ function tokenFromCardUrl(cardUrl: string): string | null {
   }
 }
 
-function publicProjection(profile: {
-  _id: Id<"profiles">;
-  status: string;
-  published?: {
-    slug: string;
-    name: string;
-    bio?: string;
-    imageUrl?: string;
-    email?: string;
-    phone?: string;
-    website?: string;
-    theme?: "paper" | "moss" | "night";
-    links: Array<{
-      id: string;
-      label: string;
-      destination: string;
-      enabled: boolean;
-      icon?: string;
-    }>;
-  };
-}) {
-  if (profile.status !== "published" || profile.published === undefined) return null;
-  return {
-    id: profile._id,
-    slug: profile.published.slug,
-    name: profile.published.name,
-    ...(profile.published.bio === undefined ? {} : { bio: profile.published.bio }),
-    ...(profile.published.imageUrl === undefined ? {} : { imageUrl: profile.published.imageUrl }),
-    ...(profile.published.email === undefined ? {} : { email: profile.published.email }),
-    ...(profile.published.phone === undefined ? {} : { phone: profile.published.phone }),
-    ...(profile.published.website === undefined ? {} : { website: profile.published.website }),
-    theme: profile.published.theme ?? "paper",
-    links: profile.published.links.filter((link) => link.enabled),
-  };
-}
-
 export const resolve = query({
   args: { token: v.string() },
   returns: resolveResultValidator,
@@ -83,7 +47,7 @@ export const resolve = query({
       return { status: "inactive" as const };
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    const projection = profile === null ? null : publicProjection(profile);
+    const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
     if (profile === null || !isActiveCustomer(owner) || projection === null)
       return { status: "unavailable" as const };
     return { status: "active" as const, profile: projection };

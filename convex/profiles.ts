@@ -1,9 +1,11 @@
 import { v } from "convex/values";
 
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
 import schema from "./schema";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import { profileAccess } from "./profileAccess";
+import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
+import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
 import {
   profileContentValidator,
   profileStatusValidator,
@@ -13,42 +15,6 @@ import {
   validateProfileContent,
 } from "./validators";
 import { replaceProfileLinks } from "./links";
-
-type AuthContext = QueryCtx | MutationCtx;
-
-async function profileAccess(ctx: AuthContext, profileId: Id<"profiles">) {
-  const userId = await requireUser(ctx);
-  const account = await ctx.db
-    .query("customers")
-    .withIndex("by_userId", (query) => query.eq("userId", userId))
-    .unique();
-  const profile = await ctx.db.get(profileId);
-  if (
-    account === null ||
-    !isActiveCustomer(account) ||
-    profile === null ||
-    (profile.ownerId !== account._id && account.role !== "admin")
-  ) {
-    throw new Error("Profile access denied.");
-  }
-  return { account, profile, userId };
-}
-
-function publicProjection(profile: Doc<"profiles">) {
-  if (profile.status !== "published" || profile.published === undefined) return null;
-  return {
-    id: profile._id,
-    slug: profile.published.slug,
-    name: profile.published.name,
-    ...(profile.published.bio === undefined ? {} : { bio: profile.published.bio }),
-    ...(profile.published.imageUrl === undefined ? {} : { imageUrl: profile.published.imageUrl }),
-    ...(profile.published.email === undefined ? {} : { email: profile.published.email }),
-    ...(profile.published.phone === undefined ? {} : { phone: profile.published.phone }),
-    ...(profile.published.website === undefined ? {} : { website: profile.published.website }),
-    theme: profile.published.theme ?? "paper",
-    links: profile.published.links.filter((link) => link.enabled),
-  };
-}
 
 export const publicBySlug = query({
   args: { slug: v.string() },
@@ -61,7 +27,7 @@ export const publicBySlug = query({
       .unique();
     if (profile === null) return null;
     const account = await ctx.db.get(profile.ownerId);
-    return isActiveCustomer(account) ? publicProjection(profile) : null;
+    return isActiveCustomer(account) ? await projectPublicProfile(ctx, profile) : null;
   },
 });
 
@@ -76,7 +42,8 @@ export const mine = query({
       .unique();
     if (customer === null || !isActiveCustomer(customer) || customer.profileId === undefined)
       return null;
-    return await ctx.db.get(customer.profileId);
+    const profile = await ctx.db.get(customer.profileId);
+    return profile === null ? null : await projectOwnedProfile(ctx, profile);
   },
 });
 
@@ -98,7 +65,7 @@ export const current = query({
     if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
       return null;
     const profile = await ctx.db.get(account.profileId);
-    return profile === null ? null : { account, profile };
+    return profile === null ? null : { account, profile: await projectOwnedProfile(ctx, profile) };
   },
 });
 
@@ -130,7 +97,11 @@ export const saveDraft = mutation({
     if (duplicate !== null && duplicate._id !== profile._id)
       throw new Error("That profile slug is already in use.");
     const now = Date.now();
-    await ctx.db.patch(profile._id, { slug: args.draft.slug, draft: args.draft, updatedAt: now });
+    const draft = { ...args.draft };
+    delete draft.imageUrl;
+    if (draft.imageStorageId !== undefined)
+      await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, draft.imageStorageId);
+    await ctx.db.patch(profile._id, { slug: args.draft.slug, draft, updatedAt: now });
     await replaceProfileLinks(ctx, profile._id, args.draft.links, now);
     return { updatedAt: now };
   },
@@ -143,6 +114,7 @@ export const publish = mutation({
     slug: v.string(),
     bio: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
+    imageStorageId: v.optional(v.id("_storage")),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
     website: v.optional(v.string()),
@@ -173,8 +145,18 @@ export const publish = mutation({
       .unique();
     if (duplicate !== null && duplicate._id !== profile._id)
       throw new Error("That profile slug is already in use.");
+    if (profile.draft.imageStorageId !== undefined)
+      await assertOwnedProfileImage(
+        ctx,
+        profile._id,
+        profile.ownerId,
+        profile.draft.imageStorageId,
+      );
     const now = Date.now();
-    const published = { ...profile.draft, publishedAt: now };
+    const publishedContent = { ...profile.draft };
+    delete publishedContent.imageUrl;
+    const published = { ...publishedContent, publishedAt: now };
+    const oldPublishedStorageId = profile.published?.imageStorageId;
     await ctx.db.patch(profile._id, {
       slug: profile.draft.slug,
       status: "published",
@@ -182,6 +164,8 @@ export const publish = mutation({
       publishedAt: now,
       updatedAt: now,
     });
+    if (oldPublishedStorageId !== undefined && oldPublishedStorageId !== published.imageStorageId)
+      await removeIfUnreferenced(ctx, oldPublishedStorageId, profile._id);
     await ctx.db.insert("auditLogs", {
       actorUserId: userId,
       actorLabel: "Profile publisher",
@@ -211,6 +195,13 @@ export const setStatus = mutation({
       const errors = validateProfileContent(profile.published);
       if (errors.length > 0)
         throw new Error(`A valid published snapshot is required. ${errors.join(" ")}`);
+      if (profile.published.imageStorageId !== undefined)
+        await assertOwnedProfileImage(
+          ctx,
+          profile._id,
+          profile.ownerId,
+          profile.published.imageStorageId,
+        );
     }
     const now = Date.now();
     await ctx.db.patch(profile._id, {

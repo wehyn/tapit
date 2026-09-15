@@ -17,6 +17,7 @@ const profileContent = v.object({
   slug: v.string(),
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
+  imageStorageId: v.optional(v.id("_storage")),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
@@ -29,6 +30,7 @@ const publishedProfile = v.object({
   slug: v.string(),
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
+  imageStorageId: v.optional(v.id("_storage")),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
@@ -73,6 +75,16 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_ownerId", ["ownerId"])
     .index("by_status", ["status"]),
+  profileImages: defineTable({
+    storageId: v.id("_storage"),
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+    contentType: v.union(v.literal("image/jpeg"), v.literal("image/png"), v.literal("image/webp")),
+    size: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_storageId", ["storageId"])
+    .index("by_profileId", ["profileId"]),
   links: defineTable({
     profileId: v.id("profiles"),
     destination: v.string(),
