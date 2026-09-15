@@ -48,6 +48,9 @@ TAPIT_LIVE_CONVEX_DEPLOYMENT=dev npm run test:e2e:live
 Here `dev` resolves the development deployment selected by `CONVEX_DEPLOYMENT`; keep that value and
 `NEXT_PUBLIC_CONVEX_URL` aligned, and never substitute `prod` for this workflow.
 
+See the [launch-readiness contract](docs/launch-readiness.md) for preview/production release targets,
+go/no-go gates, and evidence requirements.
+
 ## Commands
 
 - `npm run dev` starts the Next.js development server.
@@ -73,12 +76,14 @@ The customer shell intentionally exposes Profile, Links, Analytics, and Account 
 remain administrator-only.
 
 Never point the live workflow at production. Keep live credentials, deployment identifiers, and user IDs in
-ignored environment storage; do not add them to `.env.example` or this repository. The live signup test needs
-no additional environment variable because it generates a unique email and slug at runtime.
+ignored environment storage; do not add them to `.env.example` or this repository. The live signup test generates
+a unique email and slug at runtime, but the complete live contract also requires an authenticated non-production
+mail adapter so verification remains a real browser flow.
 
-The MVP intentionally leaves email provider, setup-link expiry/resend policy, password recovery and
-verification, signup/public rate limits and abuse controls, unique-view method, deleted-data retention, launch
-jurisdiction, monitoring ownership, production domain, and final brand assets as documented launch gates. See
+The provider-neutral email adapter, verification, password recovery, and server-side signup/email rate limits are
+implemented for isolated environments. Transactional-provider selection and sender verification, setup-link
+policy, edge abuse rules, unique-view method, deleted-data retention, launch jurisdiction, monitoring ownership,
+production domain, and final brand assets remain documented launch gates. See `docs/launch-readiness.md` and
 `docs/plan.md` before a real pilot or production deployment.
 
 ## Acceptance and device proof

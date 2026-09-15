@@ -142,9 +142,17 @@ function LiveSetupForm({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [complete, setComplete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [setupFailed, setSetupFailed] = useState(false);
   const [awaitingAuthentication, setAwaitingAuthentication] = useState(false);
-  const [now] = useState(() => Date.now());
+  const [awaitingVerification, setAwaitingVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash, now } : "skip");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +171,7 @@ function LiveSetupForm({ token }: { token: string }) {
       .then(() => {
         if (cancelled) return;
         setComplete(true);
+        setSetupFailed(false);
         setAwaitingAuthentication(false);
         window.setTimeout(() => router.replace("/app/profile"), 250);
       })
@@ -173,6 +182,7 @@ function LiveSetupForm({ token }: { token: string }) {
         );
         setAwaitingAuthentication(false);
         setSubmitting(false);
+        setSetupFailed(true);
       });
     return () => {
       cancelled = true;
@@ -202,14 +212,90 @@ function LiveSetupForm({ token }: { token: string }) {
     setSubmitting(true);
     try {
       const result = await signIn("password", { flow: "signUp", email, password });
-      if (!result.signingIn)
-        throw new Error("The setup service could not authenticate this account.");
-      setAwaitingAuthentication(true);
+      setPassword("");
+      setConfirmation("");
+      setSetupFailed(false);
+      if (result.signingIn) {
+        setAwaitingAuthentication(true);
+      } else {
+        setAwaitingVerification(true);
+        setSubmitting(false);
+      }
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",
       );
       setSubmitting(false);
+    }
+  }
+
+  async function verifySetup(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !verificationCode.trim() ||
+      tokenHash === undefined ||
+      invitation?.valid !== true ||
+      !("email" in invitation) ||
+      invitation.email === undefined
+    ) {
+      setError("Enter the verification code from your email.");
+      return;
+    }
+    const email = invitation.email;
+    setSubmitting(true);
+    setError("");
+    try {
+      const result = await signIn("password", {
+        flow: "email-verification",
+        email,
+        code: verificationCode.trim(),
+      });
+      if (!result.signingIn) throw new Error("Email verification did not complete.");
+      setVerificationCode("");
+      setAwaitingVerification(false);
+      setAwaitingAuthentication(true);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "That code is invalid or expired. Try again.",
+      );
+      setSubmitting(false);
+    }
+  }
+
+  async function resendVerification() {
+    if (invitation?.valid !== true || !("email" in invitation) || invitation.email === undefined) {
+      setError("This setup link is invalid, expired, or already used.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await signIn("password", { flow: "email-verification", email: invitation.email });
+    } catch {
+      setError("The email service is unavailable. Try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function retrySetup() {
+    if (tokenHash === undefined) {
+      setError("This setup link is invalid, expired, or already used.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await completeSetup({ tokenHash });
+      setComplete(true);
+      setSetupFailed(false);
+      setTimeout(() => router.replace("/app/profile"), 250);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",
+      );
+      setSubmitting(false);
+      setSetupFailed(true);
     }
   }
 
@@ -241,6 +327,41 @@ function LiveSetupForm({ token }: { token: string }) {
               <p className="text-sm text-tapit-muted">Checking your setup link…</p>
             ) : invitation?.valid !== true ? (
               <Notice tone="error">This setup link is invalid, expired, or already used.</Notice>
+            ) : awaitingVerification ? (
+              <form className="mt-6 grid gap-5" onSubmit={verifySetup}>
+                {error ? <Notice tone="error">{error}</Notice> : null}
+                <Notice tone="success">Check your email for a verification code.</Notice>
+                <Field
+                  autoComplete="one-time-code"
+                  id="live-setup-verification-code"
+                  autoFocus
+                  inputMode="text"
+                  label="Verification code"
+                  onChange={(event) => setVerificationCode(event.target.value)}
+                  value={verificationCode}
+                />
+                <Button disabled={submitting} type="submit">
+                  {submitting ? "Verifying code" : "Verify email"}
+                </Button>
+                <Button
+                  disabled={submitting}
+                  onClick={resendVerification}
+                  type="button"
+                  variant="quiet"
+                >
+                  {submitting ? "Sending code" : "Resend code"}
+                </Button>
+              </form>
+            ) : setupFailed ? (
+              <div className="mt-6 grid gap-5">
+                {error ? <Notice tone="error">{error}</Notice> : null}
+                <p className="text-sm leading-6 text-tapit-muted">
+                  Your email is verified, but setup could not finish yet.
+                </p>
+                <Button disabled={submitting} onClick={retrySetup} type="button">
+                  {submitting ? "Saving account" : "Retry setup"}
+                </Button>
+              </div>
             ) : (
               <form className="mt-6 grid gap-5" onSubmit={submit}>
                 <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
@@ -40,15 +40,17 @@ export function sanitizeReturnPath(value: string | string[] | undefined): string
 export function LoginForm({
   nextPath,
   initialMode = "signin",
+  resetEmail,
 }: {
   nextPath?: string;
   initialMode?: AuthMode;
+  resetEmail?: string;
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   return process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
     <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
   ) : (
-    <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
+    <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
   );
 }
 
@@ -142,7 +144,13 @@ function DemoLoginForm({
     })();
   }
   return (
-    <AuthShell demoHint mode={mode} onModeChange={onModeChange} supportUrl={state.supportUrl}>
+    <AuthShell
+      demoHint
+      mode={mode}
+      modeChangeDisabled={submitting}
+      onModeChange={onModeChange}
+      supportUrl={state.supportUrl}
+    >
       {mode === "signup" ? (
         <form className="grid gap-5" onSubmit={signUp}>
           {error ? <Notice tone="error">{error}</Notice> : null}
@@ -230,17 +238,19 @@ function LiveLoginForm({
   mode,
   onModeChange,
   nextPath,
+  resetEmail,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   nextPath?: string;
+  resetEmail?: string;
 }) {
   const router = useRouter();
-  const { signIn } = useAuthActions();
+  const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess);
   const createAccount = useMutation(api.customers.createSelfServiceAccount);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(resetEmail ?? "");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -249,28 +259,170 @@ function LiveLoginForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [awaitingAuth, setAwaitingAuth] = useState(false);
+  const [pendingAuth, setPendingAuth] = useState<
+    | { kind: "signup"; email: string; name: string; slug: string }
+    | { kind: "signin"; email: string }
+    | { kind: "reset"; email: string }
+    | null
+  >(resetEmail ? { kind: "reset", email: resetEmail } : null);
+  const [authStep, setAuthStep] = useState<
+    "form" | "reset-request" | "signup-verification" | "signin-verification" | "reset-verification"
+  >(resetEmail ? "reset-request" : "form");
+  const [code, setCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [resetConfirmation, setResetConfirmation] = useState("");
+  const [creationFailed, setCreationFailed] = useState(false);
+  const createStarted = useRef(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
   useEffect(() => {
-    if (mode === "signin" && !authLoading && access?.authenticated)
+    if (
+      mode === "signin" &&
+      authStep === "form" &&
+      !resetEmail &&
+      !authLoading &&
+      access?.authenticated
+    )
       router.replace(
         safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"),
       );
-  }, [access, authLoading, mode, router, safeNextPath]);
+  }, [access, authLoading, authStep, mode, resetEmail, router, safeNextPath]);
   useEffect(() => {
     if (!awaitingAuth || !isAuthenticated) return;
-    void createAccount({ name: name.trim(), slug: normalizeProfileSlug(slug) })
+    const pending = pendingAuth?.kind === "signup" ? pendingAuth : undefined;
+    if (!pending) return;
+    if (createStarted.current) return;
+    createStarted.current = true;
+    void createAccount({ name: pending.name, slug: pending.slug })
       .then(() => router.replace(safeNextPath || "/app/profile"))
       .catch((cause) => {
+        createStarted.current = false;
         setError(
           cause instanceof Error ? cause.message : "Your profile could not be created. Try again.",
         );
         setSubmitting(false);
         setAwaitingAuth(false);
+        setCreationFailed(true);
       });
-  }, [awaitingAuth, createAccount, isAuthenticated, name, router, safeNextPath, slug]);
+  }, [awaitingAuth, createAccount, isAuthenticated, pendingAuth, router, safeNextPath]);
+  function backToSignIn() {
+    setSubmitting(false);
+    setAuthStep("form");
+    setPendingAuth(null);
+    setEmail("");
+    setPassword("");
+    setCode("");
+    setNewPassword("");
+    setResetConfirmation("");
+    setCreationFailed(false);
+    setError("");
+    onModeChange("signin");
+  }
+  function changeMode(nextMode: AuthMode) {
+    setSubmitting(false);
+    setAwaitingAuth(false);
+    setPendingAuth(null);
+    setAuthStep("form");
+    setEmail("");
+    setPassword("");
+    setName("");
+    setSlug("");
+    setConfirmation("");
+    setCode("");
+    setNewPassword("");
+    setResetConfirmation("");
+    setErrors({});
+    setCreationFailed(false);
+    setError("");
+    createStarted.current = false;
+    onModeChange(nextMode);
+  }
+  async function requestReset() {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      await signIn("password", { flow: "reset", email: normalizedEmail });
+    } catch {
+      // Keep reset requests generic even when the provider declines the request.
+    }
+    setPendingAuth({ kind: "reset", email: normalizedEmail });
+    setAuthStep("reset-verification");
+    setSubmitting(false);
+  }
+  async function verifyCode() {
+    if (!pendingAuth || !code.trim()) {
+      setError("Enter the verification code from your email.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      if (pendingAuth.kind === "signup" || pendingAuth.kind === "signin") {
+        const authResult = await signIn("password", {
+          flow: "email-verification",
+          email: pendingAuth.email,
+          code: code.trim(),
+        });
+        if (!authResult.signingIn) throw new Error("Email verification did not complete.");
+        if (pendingAuth.kind === "signup") {
+          setAwaitingAuth(true);
+        } else {
+          setPassword("");
+          setCode("");
+          setPendingAuth(null);
+          setAuthStep("form");
+          setSubmitting(false);
+        }
+      } else {
+        const authResult = await signIn("password", {
+          flow: "reset-verification",
+          email: pendingAuth.email,
+          code: code.trim(),
+          newPassword,
+        });
+        if (!authResult.signingIn) throw new Error("Password reset did not complete.");
+        await signOut();
+        backToSignIn();
+        router.replace("/login");
+      }
+    } catch (cause) {
+      setError(
+        pendingAuth.kind === "reset" || pendingAuth.kind === "signin"
+          ? "That code is invalid or expired. Try again."
+          : cause instanceof Error
+            ? cause.message
+            : "That code is invalid or expired. Try again.",
+      );
+      setSubmitting(false);
+    }
+  }
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    if (authStep === "reset-request") {
+      await requestReset();
+      return;
+    }
+    if (
+      authStep === "signup-verification" ||
+      authStep === "signin-verification" ||
+      authStep === "reset-verification"
+    ) {
+      if (authStep === "reset-verification" && newPassword !== resetConfirmation) {
+        setError("New passwords do not match.");
+        return;
+      }
+      if (authStep === "reset-verification" && newPassword.length < 8) {
+        setError("New password must be at least 8 characters.");
+        return;
+      }
+      await verifyCode();
+      return;
+    }
     if (mode === "signin") {
       const normalizedEmail = email.trim().toLowerCase();
       if (!normalizedEmail || !normalizedEmail.includes("@"))
@@ -278,7 +430,17 @@ function LiveLoginForm({
       if (password.length < 8) return setError("Password must be at least 8 characters.");
       setSubmitting(true);
       try {
-        await signIn("password", { flow: "signIn", email: normalizedEmail, password });
+        const authResult = await signIn("password", {
+          flow: "signIn",
+          email: normalizedEmail,
+          password,
+        });
+        if (!authResult.signingIn) {
+          setPendingAuth({ kind: "signin", email: normalizedEmail });
+          setAuthStep("signin-verification");
+          setPassword("");
+          setSubmitting(false);
+        }
       } catch {
         setError("The email or password is not correct.");
         setSubmitting(false);
@@ -292,16 +454,29 @@ function LiveLoginForm({
     try {
       setName(result.payload.name);
       setSlug(result.payload.slug);
+      setPendingAuth({
+        kind: "signup",
+        email: result.payload.email,
+        name: result.payload.name,
+        slug: result.payload.slug,
+      });
+      setCreationFailed(false);
       if (isAuthenticated && !access?.authenticated) {
         await createAccount({ name: result.payload.name, slug: result.payload.slug });
         router.replace(safeNextPath || "/app/profile");
       } else {
-        await signIn("password", {
+        const authResult = await signIn("password", {
           flow: "signUp",
           email: result.payload.email,
           password: result.payload.password,
         });
-        setAwaitingAuth(true);
+        setPassword("");
+        setConfirmation("");
+        if (authResult.signingIn) setAwaitingAuth(true);
+        else {
+          setAuthStep("signup-verification");
+          setSubmitting(false);
+        }
       }
     } catch (cause) {
       setError(
@@ -310,15 +485,141 @@ function LiveLoginForm({
       setSubmitting(false);
     }
   }
+  function retryProfileCreation() {
+    const pending = pendingAuth?.kind === "signup" ? pendingAuth : undefined;
+    if (!pending || createStarted.current) return;
+    createStarted.current = true;
+    setCreationFailed(false);
+    setSubmitting(true);
+    setError("");
+    void createAccount({ name: pending.name, slug: pending.slug })
+      .then(() => router.replace(safeNextPath || "/app/profile"))
+      .catch((cause) => {
+        createStarted.current = false;
+        setError(
+          cause instanceof Error ? cause.message : "Your profile could not be created. Try again.",
+        );
+        setSubmitting(false);
+        setCreationFailed(true);
+      });
+  }
   const loading = authLoading || access === undefined;
   const availability = useQuery(
     api.profiles.checkSlugAvailability,
     mode === "signup" && slug ? { slug } : "skip",
   );
   return (
-    <AuthShell mode={mode} onModeChange={onModeChange}>
-      {loading && mode === "signin" ? (
+    <AuthShell mode={mode} modeChangeDisabled={submitting} onModeChange={changeMode}>
+      {loading && mode === "signin" && authStep === "form" ? (
         <p className="text-sm text-tapit-muted">Checking your session…</p>
+      ) : authStep === "reset-request" ? (
+        <form className="grid gap-5" onSubmit={submit}>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          <p className="text-sm leading-6 text-tapit-muted">
+            Enter your email and we’ll send reset instructions if an account matches.
+          </p>
+          <Field
+            autoComplete="email"
+            id="reset-email"
+            label="Email"
+            onChange={(e) => setEmail(e.target.value)}
+            type="email"
+            value={email}
+          />
+          <Button disabled={submitting} type="submit">
+            {submitting ? "Sending reset instructions" : "Send reset instructions"}
+          </Button>
+          <Button onClick={backToSignIn} type="button" variant="quiet">
+            Back to sign in
+          </Button>
+        </form>
+      ) : authStep === "signup-verification" ||
+        authStep === "signin-verification" ||
+        authStep === "reset-verification" ? (
+        <form className="grid gap-5" onSubmit={submit}>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          {pendingAuth?.kind === "reset" ? (
+            <div
+              aria-live="polite"
+              className="rounded-tapit border border-[#b9d1c0] bg-[#e8f1eb] px-4 py-3 text-sm leading-6 text-[#17352b]"
+              role="status"
+            >
+              If an account matches that email, reset instructions are on the way.
+            </div>
+          ) : null}
+          {creationFailed && pendingAuth?.kind === "signup" ? (
+            <>
+              <p className="text-sm leading-6 text-tapit-muted">
+                Your email is verified, but the profile could not be created yet.
+              </p>
+              <Button disabled={submitting} onClick={retryProfileCreation} type="button">
+                {submitting ? "Creating profile" : "Retry profile creation"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm leading-6 text-tapit-muted">
+                Check your email for a verification code.
+              </p>
+              <Field
+                autoComplete="one-time-code"
+                autoFocus
+                id="verification-code"
+                inputMode="text"
+                label="Verification code"
+                onChange={(e) => setCode(e.target.value)}
+                value={code}
+              />
+              {authStep === "reset-verification" ? (
+                <>
+                  <Field
+                    autoComplete="new-password"
+                    id="new-password"
+                    label="New password"
+                    minLength={8}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    type="password"
+                    value={newPassword}
+                  />
+                  <Field
+                    autoComplete="new-password"
+                    id="reset-confirmation"
+                    label="Confirm new password"
+                    minLength={8}
+                    onChange={(e) => setResetConfirmation(e.target.value)}
+                    type="password"
+                    value={resetConfirmation}
+                  />
+                </>
+              ) : null}
+              <Button disabled={submitting} type="submit">
+                {submitting
+                  ? "Verifying code"
+                  : authStep === "reset-verification"
+                    ? "Reset password"
+                    : "Verify email"}
+              </Button>
+              <Button
+                disabled={submitting}
+                onClick={() => {
+                  if (pendingAuth) {
+                    setSubmitting(true);
+                    void signIn("password", {
+                      flow: pendingAuth.kind === "reset" ? "reset" : "email-verification",
+                      email: pendingAuth.email,
+                    })
+                      .catch(() => setError("The email service is unavailable. Try again."))
+                      .finally(() => setSubmitting(false));
+                  }
+                }}
+                type="button"
+                variant="quiet"
+              >
+                {submitting ? "Sending code" : "Resend code"}
+              </Button>
+            </>
+          )}
+        </form>
       ) : (
         <form className="grid gap-5" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
@@ -398,6 +699,16 @@ function LiveLoginForm({
               />
               <Button disabled={submitting} type="submit">
                 {submitting ? "Signing in" : "Sign in"}
+              </Button>
+              <Button
+                onClick={() => {
+                  setError("");
+                  setAuthStep("reset-request");
+                }}
+                type="button"
+                variant="quiet"
+              >
+                Forgot password?
               </Button>
             </>
           )}

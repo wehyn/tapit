@@ -11,12 +11,14 @@ export function AuthShell({
   children,
   supportUrl,
   demoHint,
+  modeChangeDisabled = false,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   children: ReactNode;
   supportUrl?: string;
   demoHint?: boolean;
+  modeChangeDisabled?: boolean;
 }): ReactNode {
   return (
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
@@ -46,6 +48,7 @@ export function AuthShell({
             <div className="mb-6 grid gap-2 sm:grid-cols-2">
               <button
                 className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signup" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                disabled={modeChangeDisabled}
                 onClick={() => onModeChange("signup")}
                 type="button"
               >
@@ -53,6 +56,7 @@ export function AuthShell({
               </button>
               <button
                 className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signin" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                disabled={modeChangeDisabled}
                 onClick={() => onModeChange("signin")}
                 type="button"
               >

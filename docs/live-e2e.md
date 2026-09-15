@@ -3,10 +3,14 @@
 `npm run test:e2e:demo` runs the deterministic local demo project. It starts the local Next.js server and
 does not exercise Convex. `npm run test:e2e:live` is the fail-fast live command. It provisions a fresh test
 card/customer state through the existing internal bootstrap and admin UI, then runs the serialized live
-Playwright project.
+Playwright project. See the [launch-readiness contract](launch-readiness.md) for the preview release target,
+go/no-go gates, and evidence requirements.
 
 This workflow is for an explicitly named non-production Convex deployment only. Do not use production URLs,
 deployments, credentials, or data.
+
+The live suite currently contains 6 serialized browser tests. Preview runs are allowed with the complete
+non-production contract below; production provisioning and live E2E are prohibited.
 
 ## 1. Configure live-mode development (optional)
 
@@ -16,8 +20,12 @@ deployment:
 
 ```text
 NEXT_PUBLIC_DEMO_MODE=false
+TAPIT_APP_ENV=development
 CONVEX_DEPLOYMENT=dev:your-deployment
 NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
+TAPIT_LIVE_EMAIL_DOMAIN=example.test
+TAPIT_LIVE_EMAIL_CODE_URL=http://127.0.0.1:8025/code
+TAPIT_LIVE_EMAIL_CODE_TOKEN=...
 ```
 
 Then use the existing combined local command:
@@ -37,12 +45,17 @@ provisioning.
 
 ```text
 TAPIT_LIVE_BASE_URL=https://non-production-app.example
+TAPIT_LIVE_APP_ENV=preview
+TAPIT_LIVE_CONVEX_URL=https://your-preview-deployment.convex.cloud
 TAPIT_LIVE_ADMIN_EMAIL=admin@example.test
 TAPIT_LIVE_ADMIN_PASSWORD=...
 TAPIT_LIVE_CUSTOMER_EMAIL=customer@example.test
 TAPIT_LIVE_CUSTOMER_PASSWORD=...
 TAPIT_LIVE_PROFILE_SLUG=tapit-test-customer
 TAPIT_LIVE_PUBLISHED_BIO=A Tapit test profile.
+TAPIT_LIVE_EMAIL_DOMAIN=example.test
+TAPIT_LIVE_EMAIL_CODE_URL=https://preview-mailbox.example/internal/code
+TAPIT_LIVE_EMAIL_CODE_TOKEN=...
 TAPIT_LIVE_CONVEX_DEPLOYMENT=dev
 TAPIT_LIVE_ADMIN_USER_ID=...
 TAPIT_LIVE_CUSTOMER_USER_ID=...
@@ -50,10 +63,17 @@ TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION
 ```
 
 The two Convex user IDs must already exist and correspond to the Password-provider accounts above. The
-existing seeded customer variables (`TAPIT_LIVE_CUSTOMER_*`, `TAPIT_LIVE_PROFILE_SLUG`, and
+email domain must be an isolated disposable domain routed to the selected non-production mail adapter. The
+authenticated code endpoint must be an operator-owned HTTPS adapter (or a localhost HTTP adapter for local
+live development) that accepts the recipient and flow kind as query parameters and returns only the newest
+verification token as `{ "code": "..." }`. It must require the configured bearer token, never expose mailbox
+contents, and never be pointed at production mail. The adapter extracts the opaque token from the Convex Auth
+email URL; it does not weaken email verification.
+
+The existing seeded customer variables (`TAPIT_LIVE_CUSTOMER_*`, `TAPIT_LIVE_PROFILE_SLUG`, and
 `TAPIT_LIVE_PUBLISHED_BIO`) remain required only for the legacy seeded customer draft/public-profile and
-invitation/setup coverage. The self-service journey generates its own email, slug, password, and bio at runtime;
-it needs no additional environment variable and does not reuse the seeded customer.
+invitation/setup coverage. The self-service journey generates its own email at the configured disposable
+domain, slug, password, and bio at runtime; it does not reuse the seeded customer.
 Use the CLI-supported `preview` or `preview/<branch>` reference instead when the live app is connected to
 an isolated preview deployment. The `TAPIT_LIVE_CONVEX_DEPLOYMENT` value is passed to `npx convex run
 --deployment`; it is separate from `CONVEX_DEPLOYMENT=dev:<deployment>` in the Next.js environment file.
@@ -69,11 +89,15 @@ bootstrap to link that user ID to the admin customer record. After that, the adm
 
 After the administrator identity exists, run the existing internal `bootstrap:bootstrap` mutation through
 `npm run test:e2e:live`; the helper supplies the admin ID and a fresh card token. The live signup test then
-generates a unique disposable customer email and slug at runtime, signs up through `/login?mode=signup`, and
-provisions the profile through the authenticated app mutation. It must assert that no administrator account or
-invitation is created for that customer. The existing invitation test continues to exercise the administrator UI
-and one-time setup-token path. The browser assertions cover the customer-only signup surface and absence of admin
-controls; there is no direct undocumented table inspection. No production deployment is permitted.
+generates a unique disposable customer email and slug at runtime, signs up through `/login?mode=signup`, reads
+the resulting verification token through the authenticated mail adapter, and verifies the email in the browser
+before provisioning the profile through the authenticated app mutation. It must assert that no administrator
+account or invitation is created for that customer. The existing invitation test continues to exercise the
+administrator UI and one-time setup-token path; it also reads and submits its own verification token through the
+same adapter. The browser assertions cover the customer-only signup surface and absence of admin controls; there
+is no direct undocumented table inspection. The final reset journey starts from the disposable customer’s
+authenticated Account Settings page, uses the same adapter, and proves the replacement password works. No
+production deployment is permitted.
 
 This is intentionally limited: `npx convex run` cannot create Convex Auth Password identities, and the
 internal bootstrap mutation requires existing user IDs. If those identities are absent, the helper
@@ -89,8 +113,9 @@ npm run test:e2e:live
 
 The command requires `TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION`. It fails before
 provisioning when required variables are missing, when the Convex deployment reference is not `dev`/`preview`,
-when local-server mode is inconsistent, or when the confirmation is absent. The base URL, Convex deployment,
-and credentials must all describe the same non-production environment.
+when the mail adapter is not protected/HTTPS, when local-server mode is inconsistent, or when the confirmation
+is absent. The base URL, Convex deployment, credentials, disposable email domain, and code adapter must all
+describe the same non-production environment.
 
 The first customer journey also uploads `public/images/tapit-demo-mara-avatar.png` through the owned
 profile-image path. The browser receives a profile-scoped upload URL, posts the client-prepared JPEG, and
@@ -116,18 +141,14 @@ For a remote live base URL, leave `TAPIT_LIVE_LOCAL_SERVER` unset or set it to a
 The harness never starts a local Next.js server in that mode. Do not run both local-server workflows on the
 same port at once.
 
-## Direct Playwright usage
+## Live project guard
 
-Direct `npx playwright test --project live-chromium` keeps the fixture's useful skip message, but it
-requires the complete runtime contract, including the one-time setup values:
+The live Playwright project is intentionally runnable only through `npm run test:e2e:live`. The wrapper
+performs the non-production preflight, verifies that the selected app reports live mode with the exact
+configured Convex URL, provisions a fresh setup token, and then invokes Playwright. A direct
+`npx playwright test --project live-chromium` run is rejected or skipped before any mutating test.
 
-```text
-TAPIT_LIVE_SETUP_EMAIL=...
-TAPIT_LIVE_SETUP_PASSWORD=...
-TAPIT_LIVE_SETUP_TOKEN=...
-```
-
-Use the npm live command for repeatable provisioning and fresh setup tokens. Live tests are serialized
+Live tests are serialized
 because they mutate the same seeded profile; the suite covers customer draft privacy/publication plus
 admin profile draft save, publish, unpublish, suspension, and restoration, as well as cards and analytics.
 

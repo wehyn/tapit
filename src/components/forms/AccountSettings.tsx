@@ -304,6 +304,12 @@ function LiveAccountSettings() {
         <p className="mt-5 text-sm leading-6 text-tapit-muted">
           Password recovery and password changes are managed by the live authentication flow.
         </p>
+        <a
+          className="mt-5 inline-flex min-h-12 items-center rounded-tapit bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
+          href={`/login?reset=1&email=${encodeURIComponent(account.email)}`}
+        >
+          Reset password
+        </a>
       </Panel>
       <Panel title="Support">
         <div className="mt-5 flex flex-wrap items-center gap-3">

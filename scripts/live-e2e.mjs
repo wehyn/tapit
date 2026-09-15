@@ -2,19 +2,11 @@ import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 
 import { chromium } from "@playwright/test";
-
-const required = [
-  "TAPIT_LIVE_BASE_URL",
-  "TAPIT_LIVE_ADMIN_EMAIL",
-  "TAPIT_LIVE_ADMIN_PASSWORD",
-  "TAPIT_LIVE_CUSTOMER_EMAIL",
-  "TAPIT_LIVE_CUSTOMER_PASSWORD",
-  "TAPIT_LIVE_PROFILE_SLUG",
-  "TAPIT_LIVE_PUBLISHED_BIO",
-  "TAPIT_LIVE_CONVEX_DEPLOYMENT",
-  "TAPIT_LIVE_ADMIN_USER_ID",
-  "TAPIT_LIVE_CUSTOMER_USER_ID",
-];
+import {
+  missingLiveContract,
+  readLiveAppContract,
+  validateLiveContract,
+} from "./live-e2e-contract.mjs";
 
 function fail(message) {
   console.error(`Live E2E preflight failed: ${message}`);
@@ -107,7 +99,7 @@ async function provision() {
     );
   }
 
-  const setupEmail = `live-e2e-${Date.now()}@example.test`;
+  const setupEmail = `live-e2e-${Date.now()}@${process.env.TAPIT_LIVE_EMAIL_DOMAIN}`;
   const setupPassword = randomBytes(18).toString("base64url");
   const browser = await chromium.launch();
   const context = await browser.newContext({ baseURL: process.env.TAPIT_LIVE_BASE_URL });
@@ -139,31 +131,15 @@ async function provision() {
   }
 }
 
-const missing = required.filter((name) => !process.env[name]);
+const missing = missingLiveContract(process.env);
 if (missing.length > 0)
   fail(`missing ${missing.join(", ")}. See docs/live-e2e.md for the complete contract.`);
-if (!/^(?:dev|preview)(?::|$)/i.test(process.env.TAPIT_LIVE_CONVEX_DEPLOYMENT)) {
-  fail(
-    "TAPIT_LIVE_CONVEX_DEPLOYMENT must reference a dev or preview deployment; production deployments are not permitted.",
-  );
-}
-if (
-  process.env.TAPIT_LIVE_BASE_URL.startsWith("http://127.0.0.1") ||
-  process.env.TAPIT_LIVE_BASE_URL.startsWith("http://localhost")
-) {
-  if (process.env.TAPIT_LIVE_LOCAL_SERVER !== "true") {
-    fail(
-      "a local base URL requires TAPIT_LIVE_LOCAL_SERVER=true (remote live runs never start Next locally).",
-    );
-  }
-}
-if (process.env.TAPIT_LIVE_PROVISION_CONFIRM !== "I_UNDERSTAND_NON_PRODUCTION") {
-  fail(
-    "set TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION to permit non-production provisioning.",
-  );
-}
+const preflightError = validateLiveContract(process.env);
+if (preflightError) fail(preflightError);
 
 await startLocalServer();
+const appContractError = await readLiveAppContract(process.env);
+if (appContractError) fail(appContractError);
 let exitCode = 0;
 try {
   const setup = await provision();
