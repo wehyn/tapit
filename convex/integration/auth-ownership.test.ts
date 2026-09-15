@@ -115,6 +115,66 @@ describe("Convex authentication and ownership", () => {
         draft: draft("owner", "Nope"),
       }),
     ).rejects.toThrow("Authentication required.");
+    await expect(
+      t.mutation(api.customers.createSelfServiceAccount, { name: "New User", slug: "new-user" }),
+    ).rejects.toThrow("Authentication required.");
+  });
+
+  it("provisions an authenticated self-service customer and is idempotent", async () => {
+    const t = convexTest(schema, modules);
+    const userId = await t.run(
+      async (ctx) => await ctx.db.insert("users", { email: " New@Example.COM " }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    const first = await user.mutation(api.customers.createSelfServiceAccount, {
+      name: " Ada Lovelace ",
+      slug: " Ada-Lovelace ",
+    });
+    const second = await user.mutation(api.customers.createSelfServiceAccount, {
+      name: "Changed Name",
+      slug: "changed-name",
+    });
+    expect(second).toEqual(first);
+    await t.run(async (ctx) => {
+      const customer = await ctx.db.get(first.customerId);
+      const profile = await ctx.db.get(first.profileId);
+      expect(customer).toMatchObject({
+        email: "new@example.com",
+        userId,
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        profileId: first.profileId,
+      });
+      expect(profile).toMatchObject({
+        ownerId: first.customerId,
+        slug: "ada-lovelace",
+        status: "draft",
+        draft: { name: "Ada Lovelace", slug: "ada-lovelace", links: [] },
+      });
+      expect(profile?.published).toBeUndefined();
+    });
+  });
+
+  it("rejects admin identities and duplicate emails or slugs", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    await expect(
+      admin.mutation(api.customers.createSelfServiceAccount, { name: "Admin", slug: "admin-new" }),
+    ).rejects.toThrow(/admin|administrator/i);
+
+    const newUserId = await t.run(
+      async (ctx) => await ctx.db.insert("users", { email: "new@example.com" }),
+    );
+    const newUser = t.withIdentity(identity(newUserId));
+    await expect(
+      newUser.mutation(api.customers.createSelfServiceAccount, { name: "New", slug: "owner" }),
+    ).rejects.toThrow("already in use");
+    await expect(
+      newUser.mutation(api.customers.createSelfServiceAccount, { name: "New", slug: "login" }),
+    ).rejects.toThrow("reserved");
   });
 
   it("allows the owner to read, save, and publish their profile", async () => {

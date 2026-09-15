@@ -72,6 +72,41 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("content hardening", () => {
+  it("reports only availability for valid, duplicate, reserved, and malformed slugs", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    await expect(
+      t.query(api.profiles.checkSlugAvailability, { slug: " Fresh-Profile " }),
+    ).resolves.toEqual({
+      available: true,
+      normalizedSlug: "fresh-profile",
+      error: null,
+    });
+    await expect(t.query(api.profiles.checkSlugAvailability, { slug: "owner" })).resolves.toEqual({
+      available: false,
+      normalizedSlug: "owner",
+      error: "That profile slug is already in use.",
+    });
+    await expect(t.query(api.profiles.checkSlugAvailability, { slug: "login" })).resolves.toEqual({
+      available: false,
+      normalizedSlug: "login",
+      error: "That profile slug is reserved.",
+    });
+    await expect(t.query(api.profiles.checkSlugAvailability, { slug: "c" })).resolves.toEqual({
+      available: false,
+      normalizedSlug: "c",
+      error: "That profile slug is reserved.",
+    });
+    await expect(
+      t.query(api.profiles.checkSlugAvailability, { slug: "bad_slug" }),
+    ).resolves.toEqual({
+      available: false,
+      normalizedSlug: "bad_slug",
+      error: "The profile slug is invalid.",
+    });
+    expect(data.profileId).toBeDefined();
+  });
+
   it("rejects oversized and duplicate-id link drafts", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

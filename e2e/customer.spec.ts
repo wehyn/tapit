@@ -4,7 +4,7 @@ async function signInAsCustomer(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
 
@@ -23,7 +23,7 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("new-demo-password");
-  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
 });
 

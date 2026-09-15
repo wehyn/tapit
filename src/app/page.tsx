@@ -121,12 +121,14 @@ export default function HomePage() {
               </Link>
               <Link
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-tapit-accent px-4 text-base font-semibold text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong sm:min-w-[12.25rem] sm:px-6"
-                href={isDemoMode ? "/mara-velasquez" : "/login"}
+                href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
               >
                 <span className="hidden sm:inline">
-                  {isDemoMode ? "View demo profile" : "Sign in to your profile"}
+                  {isDemoMode ? "View demo profile" : "Create your profile"}
                 </span>
-                <span className="sm:hidden">{isDemoMode ? "Demo profile" : "Sign in"}</span>
+                <span className="sm:hidden">
+                  {isDemoMode ? "Demo profile" : "Create your profile"}
+                </span>
               </Link>
             </div>
           </header>
@@ -147,9 +149,9 @@ export default function HomePage() {
               </p>
               <Link
                 className="mt-9 inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
-                href={isDemoMode ? "/mara-velasquez" : "/login"}
+                href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
               >
-                {isDemoMode ? "View demo profile" : "Sign in to your profile"}
+                {isDemoMode ? "View demo profile" : "Create your profile"}
                 <ArrowRight aria-hidden="true" size={22} weight="bold" />
               </Link>
             </div>

@@ -14,8 +14,9 @@ npm run dev
 ```
 
 Open `http://localhost:3000`. With `NEXT_PUBLIC_DEMO_MODE=true` (the safe default in `.env.example`),
-the application uses deterministic local fixtures so the public and dashboard acceptance surfaces can be
-checked without production data, email, or a Convex deployment. Copy `.env.example` to `.env.local` and
+the application uses deterministic local fixtures and a persistence-equivalent local self-service signup path
+so the public and dashboard acceptance surfaces can be checked without production data, email, or a Convex
+deployment. Copy `.env.example` to `.env.local` and
 replace values only when configuring an isolated Convex development deployment.
 
 When opening the dev server from another device, use the machine's LAN or Tailscale URL and set
@@ -30,9 +31,9 @@ For the non-production live Convex workflow, use the explicitly opted-in command
 NEXT_PUBLIC_DEMO_MODE=false npx convex dev --start "npm run dev -- --hostname 127.0.0.1"
 ```
 
-This command is not a production workflow. Live E2E also requires two already-provisioned Convex Auth
-Password identities and their user IDs; it does not create accounts through the Convex CLI. See the complete
-[live E2E runbook](docs/live-e2e.md) before opting in.
+This command is not a production workflow. Live E2E requires an operator-provisioned first administrator and
+uses the public customer signup mode to generate a unique disposable customer at runtime; it does not create
+accounts through the Convex CLI. See the complete [live E2E runbook](docs/live-e2e.md) before opting in.
 
 After filling an ignored `.env.live.local` with the complete live contract, load it into the shell and run the
 browser gate with an explicit development target:
@@ -65,18 +66,20 @@ Local demo mode never sends invitations and does not point at production data. U
 development, preview, and production deployments. Real secrets, setup tokens, customer data, production
 domains, and email credentials belong in the environment manager, never in the repository.
 
-Demo credentials are `mara@example.test` and `admin@tapit.local`, both using `tapit-demo`. The admin can
-create a browser-local invitation; the generated setup link is shown only in the admin success state.
+Demo credentials are `mara@example.test` and `admin@tapit.local`, both using `tapit-demo`. A visitor can create
+a browser-local customer through `/login?mode=signup`; the admin can still create a browser-local invitation,
+and the generated setup link is shown only in the admin success state.
 The customer shell intentionally exposes Profile, Links, Analytics, and Account only; card operations
 remain administrator-only.
 
 Never point the live workflow at production. Keep live credentials, deployment identifiers, and user IDs in
-ignored environment storage; do not add them to `.env.example` or this repository.
+ignored environment storage; do not add them to `.env.example` or this repository. The live signup test needs
+no additional environment variable because it generates a unique email and slug at runtime.
 
 The MVP intentionally leaves email provider, setup-link expiry/resend policy, password recovery and
-verification, unique-view method, deleted-data retention, launch jurisdiction, monitoring ownership,
-production domain, and final brand assets as documented launch gates. See `docs/plan.md` before a real
-pilot or production deployment.
+verification, signup/public rate limits and abuse controls, unique-view method, deleted-data retention, launch
+jurisdiction, monitoring ownership, production domain, and final brand assets as documented launch gates. See
+`docs/plan.md` before a real pilot or production deployment.
 
 ## Acceptance and device proof
 

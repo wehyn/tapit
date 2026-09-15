@@ -264,7 +264,8 @@ function DemoLinksEditor() {
                 Your links
               </h1>
               <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-                Add and organize the destinations on your public profile.
+                Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links;
+                email and phone actions can use mailto: or tel:.
               </p>
             </div>
             <Button onClick={addLink} type="button">
@@ -292,8 +293,8 @@ function DemoLinksEditor() {
             {links.length === 0 ? (
               <div className="p-6">
                 <Notice>
-                  Add your first link. A published profile needs at least one valid enabled
-                  destination.
+                  Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
+                  email and phone actions support mailto: and tel:.
                 </Notice>
               </div>
             ) : null}
@@ -565,7 +566,8 @@ function LiveLinksEditor() {
             Your links
           </h1>
           <p className="mt-2 text-base leading-7 text-tapit-muted">
-            Add and organize the destinations on your public profile.
+            Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links; email
+            and phone actions can use mailto: or tel:.
           </p>
         </div>
         <Button onClick={add} type="button">

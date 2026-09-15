@@ -5,6 +5,7 @@ import { mutation, query } from "./_generated/server";
 import { requireAdministrator, requireUser } from "./admin";
 import schema from "./schema";
 import { deleteProfileImages } from "./profileImages";
+import { normalizeProfileSlug, validateProfileSlugValue } from "./validators";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -27,9 +28,10 @@ export const createCustomer = mutation({
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const email = args.email.trim().toLowerCase();
-    const slug = args.slug.trim().toLowerCase();
+    const slug = normalizeProfileSlug(args.slug);
     if (!email || !email.includes("@")) throw new Error("A valid customer email is required.");
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) throw new Error("The profile slug is invalid.");
+    const slugError = validateProfileSlugValue(slug);
+    if (slugError !== null) throw new Error(slugError);
 
     const duplicateEmail = await ctx.db
       .query("customers")
@@ -87,6 +89,84 @@ export const createCustomer = mutation({
     });
 
     return { customerId, profileId, invitationId };
+  },
+});
+
+export const createSelfServiceAccount = mutation({
+  args: { name: v.string(), slug: v.string() },
+  returns: v.object({
+    customerId: v.id("customers"),
+    profileId: v.id("profiles"),
+    slug: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const user = await ctx.db.get(userId);
+    const email = user?.email?.trim().toLowerCase();
+    if (email === undefined || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      throw new Error("A valid authenticated email is required.");
+    const linked = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (linked !== null) {
+      if (linked.role !== "customer")
+        throw new Error("Administrator accounts cannot self-register.");
+      if (linked.status !== "active" || linked.deletionStatus !== "active")
+        throw new Error("This customer account is inactive.");
+      if (linked.profileId === undefined) throw new Error("Customer profile not found.");
+      const profile = await ctx.db.get(linked.profileId);
+      if (profile === null) throw new Error("Customer profile not found.");
+      return { customerId: linked._id, profileId: profile._id, slug: profile.slug };
+    }
+    const name = args.name.trim();
+    if (name.length === 0) throw new Error("A nonblank profile name is required.");
+    if (name.length > 120) throw new Error("The profile name is too long.");
+    const slug = normalizeProfileSlug(args.slug);
+    const slugError = validateProfileSlugValue(slug);
+    if (slugError !== null) throw new Error(slugError);
+    const duplicateEmail = await ctx.db
+      .query("customers")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    if (duplicateEmail !== null)
+      throw new Error(
+        "That email already has a Tapit account or invitation. Sign in or use the setup link.",
+      );
+    const duplicateSlug = await ctx.db
+      .query("profiles")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .unique();
+    if (duplicateSlug !== null) throw new Error("That profile slug is already in use.");
+    const now = Date.now();
+    const customerId = await ctx.db.insert("customers", {
+      userId,
+      email,
+      role: "customer",
+      status: "active",
+      deletionStatus: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const profileId = await ctx.db.insert("profiles", {
+      ownerId: customerId,
+      slug,
+      status: "draft",
+      draft: { name, slug, links: [] },
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(customerId, { profileId, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      actorLabel: email,
+      action: "customer.self_service_created",
+      accountId: customerId,
+      profileId,
+      occurredAt: now,
+      after: JSON.stringify({ email, slug }),
+    });
+    return { customerId, profileId, slug };
   },
 });
 

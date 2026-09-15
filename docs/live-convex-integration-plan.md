@@ -140,7 +140,7 @@ The live harness intentionally requires existing Convex Auth Password identities
 - [x] Implement invitation-gated customer setup: validate the setup token, create/sign in the Convex Auth Password account, atomically consume the invitation, and link the Auth user to the intended customer.
 - [x] Ensure invalid, expired, reused, and mismatched setup tokens fail without activating the customer.
 - [x] Ensure a customer cannot attach an existing Auth identity to another customer's record.
-- [x] Decide and document how the seeded administrator first signs in without exposing an open administrator signup path.
+- [x] Decide and document how the seeded administrator first signs in without exposing an open administrator signup path; customer self-service signup is a separate public flow.
 - [x] Remove demo password/session calls from the live path while retaining them only behind the explicit demo mode boundary.
 
 **Exit gate:** the live auth flows and negative authorization behavior are covered locally, and seeded live-account login, setup, sign-out, and protected-route behavior pass in a real browser.

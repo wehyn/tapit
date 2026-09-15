@@ -277,7 +277,8 @@ The schema must support:
 - Configure Convex Auth for email/password.
 - Integrate the Convex Auth Next.js provider in the application root.
 - Protect `/app` and `/admin` routes with server and backend authorization checks.
-- Seed or invite administrator accounts; there is no public administrator signup.
+- Keep the first administrator operator-provisioned; the public login page offers customer self-service signup without an administrator role selector.
+- Retain administrator-created customer accounts and one-time setup tokens for the invited onboarding path.
 - Create administrator-managed customer accounts and one-time setup tokens.
 - Consume setup tokens once and invalidate them after successful password setup.
 - Keep setup-token lifetime, resend, and invalidation policy as TBD until confirmed.
@@ -305,7 +306,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 | Public profile `/<slug>` | Phone-first identity header, optional image/logo, name, optional bio/role, ordered enabled links, Save contact, Tapit branding, generated metadata, and `noindex` | Lightweight loading, published success, missing/unavailable, and friendly service error; never show drafts, disabled links, analytics, card identifiers, or admin controls | FR-009–FR-021, FR-033–FR-035, FR-038, FR-050; AC-006–AC-009, AC-022–AC-024, AC-025–AC-026, AC-032–AC-033 |
 | Card resolver `/c/<card-token>` and inactive-card page | Check card status, resolve active cards to the stable profile, and provide optional support/contact on the fixed inactive page | Active, invalid/missing, and inactive/replaced states; inactive handling must not query or expose former profile content and must count a profile view only once | FR-022–FR-033, FR-038, FR-042, FR-050; AC-017–AC-020, AC-024–AC-026 |
 | Unavailable-profile page | Fixed accessible Tapit branding, “This profile is currently unavailable,” and optional configured support/contact | Unpublished and suspended states must reveal no identity, links, images, analytics, or former content | FR-018, FR-043, FR-050; AC-024, AC-029 |
-| Login `/login` | Email, password, sign-in action, specific validation, support route, and role-appropriate redirect | Initial, submitting, invalid credentials, rate-limited, auth-service failure, and authenticated redirect; no public signup, password reset, or email verification flow in the MVP | FR-002, FR-005–FR-006, FR-047; AC-002–AC-003 |
+| Login `/login` | Sign-in mode plus customer-only signup mode with display name, profile slug, email, password, confirmation, stable URL preview, specific validation, support route, and role-appropriate redirect | Initial, submitting, invalid credentials, invalid/reserved/duplicate slug, rate-limited, auth-service failure, provisioning failure, and authenticated redirect; no administrator signup, password reset, or email verification flow in the MVP | FR-002, FR-005–FR-006, FR-047, FR-051–FR-056; AC-002–AC-003, AC-035–AC-039 |
 | Customer setup `/setup/<token>` | Account email context, password and confirmation, password guidance, and success continuation to Profile | Valid, invalid/expired/used token, mismatch, under-8-character password, submitting, success, and service failure; token is single-use | FR-003–FR-006, FR-047; AC-001–AC-002 |
 | Customer shell and Profile `/app/profile` | Responsive customer navigation for Profile, Links, Analytics, and Account; identity editor, immutable-after-publication slug, copyable stable URL, theme controls, status, validation checklist, Save draft, Preview, Publish, and image crop/preview | Draft/published/unpublished status is visible; split editor/preview where space permits and vertical flow on narrow screens; no Cards navigation or card controls | FR-007–FR-021, FR-047–FR-049; AC-004–AC-009, AC-013–AC-014, AC-021 |
 | Customer Links `/app/links` | Ordered link rows, custom labels, preset service/icon selection, safe destination input, enable/disable, add/edit/delete, Save draft, Preview, Publish, and reorder controls | Empty, loading, invalid scheme/malformed/empty/duplicate/missing-label, success, and save failure states; pointer reordering may be offered but Move up/Move down must always work | FR-013–FR-020; AC-010–AC-012 |
@@ -833,7 +834,7 @@ Mitigation: keep primitives small, test keyboard/focus/error behavior, use acces
 - A clean greenfield repository is initialized with TypeScript, npm, current stable Next.js App Router, Tailwind CSS, Convex, Convex Auth, and the selected test tooling.
 - Local, preview, and production environment setup is documented and separated.
 - CI runs formatting verification, lint, strict typecheck, unit tests, build, and agreed browser tests.
-- Administrator onboarding creates customer accounts, registers manually entered unique card URLs, assigns cards, and sends a safe setup link.
+- Customer onboarding supports public customer self-service signup and administrator-created invited accounts; the first administrator remains operator-provisioned. Administrator onboarding still registers manually entered unique card URLs, assigns cards, and sends a safe setup link.
 - Customers can authenticate, complete a profile, manage links, customize the profile, save drafts, preview responsive layouts, and explicitly publish.
 - Published profiles are available through stable URLs and active NFC/QR card paths without a visitor account or native app.
 - Profile updates do not require NFC re-encoding or URL changes.

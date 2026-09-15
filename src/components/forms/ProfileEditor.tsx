@@ -8,6 +8,7 @@ import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@ph
 import {
   projectPublicProfile,
   publishProfile,
+  validateLinkDestination,
   validatePublication,
   validatePublicationAccess,
   type ProfileContent,
@@ -25,7 +26,7 @@ import {
 } from "@/lib/demo/store";
 import { prepareProfileImage, validateProfileImageFile } from "@/lib/profile-image";
 
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
@@ -43,6 +44,16 @@ function profileForPreview(draft: ProfileContent) {
     draft,
     published: { ...draft, publishedAt: new Date().toISOString() },
   });
+}
+
+function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
+  return (
+    published == null &&
+    !draft.links.some(
+      (link) =>
+        link.enabled && link.label.trim().length > 0 && !validateLinkDestination(link.destination),
+    )
+  );
 }
 
 function DemoProfileEditor() {
@@ -260,6 +271,15 @@ function DemoProfileEditor() {
         <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            {needsLinkOnboarding(draft, profile.published) ? (
+              <Notice>
+                Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
+                it.
+                <span className="mt-3 block">
+                  <ButtonLink href="/app/links">Add your first link</ButtonLink>
+                </span>
+              </Notice>
+            ) : null}
             <div className="border-t border-tapit-line/70 pt-5">
               <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
               <div className="mt-3 flex flex-wrap items-center gap-4">
@@ -657,6 +677,15 @@ function LiveProfileEditor() {
         <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            {needsLinkOnboarding(currentDraft, publishedForValidation) ? (
+              <Notice>
+                Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
+                it.
+                <span className="mt-3 block">
+                  <ButtonLink href="/app/links">Add your first link</ButtonLink>
+                </span>
+              </Notice>
+            ) : null}
             <div className="border-t border-tapit-line/70 pt-5">
               <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
               <div className="mt-3 flex flex-wrap items-center gap-4">

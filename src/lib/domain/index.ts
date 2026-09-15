@@ -96,6 +96,9 @@ export interface ProfileSlugValidationOptions {
   immutableSlug?: string;
 }
 
+export const MAX_PROFILE_SLUG_LENGTH = 64;
+export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);
+
 export type AccountStatus = "invited" | "active" | "deleted";
 
 const LINK_SCHEMES = new Set(["https:", "mailto:", "tel:"]);
@@ -106,12 +109,22 @@ function nonblank(value: string): boolean {
 
 const PROFILE_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+export function normalizeProfileSlug(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 /** Returns a contract-compatible error for an invalid, duplicate, or changed slug. */
 export function validateProfileSlug(
   slug: string,
   options: ProfileSlugValidationOptions = {},
 ): string | null {
-  if (!PROFILE_SLUG_PATTERN.test(slug)) return "The profile slug is invalid.";
+  if (
+    slug.length === 0 ||
+    slug.length > MAX_PROFILE_SLUG_LENGTH ||
+    !PROFILE_SLUG_PATTERN.test(slug)
+  )
+    return "The profile slug is invalid.";
+  if (RESERVED_PROFILE_SLUGS.has(slug)) return "That profile slug is reserved.";
   if (options.immutableSlug !== undefined && slug !== options.immutableSlug) {
     return "The profile slug cannot change after first publication.";
   }

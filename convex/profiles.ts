@@ -13,6 +13,8 @@ import {
   profileThemeValidator,
   validateDraftSafety,
   validateProfileContent,
+  normalizeProfileSlug,
+  validateProfileSlugValue,
 } from "./validators";
 import { replaceProfileLinks } from "./links";
 
@@ -28,6 +30,28 @@ export const publicBySlug = query({
     if (profile === null) return null;
     const account = await ctx.db.get(profile.ownerId);
     return isActiveCustomer(account) ? await projectPublicProfile(ctx, profile) : null;
+  },
+});
+
+export const checkSlugAvailability = query({
+  args: { slug: v.string() },
+  returns: v.object({
+    available: v.boolean(),
+    normalizedSlug: v.string(),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const normalizedSlug = normalizeProfileSlug(args.slug);
+    const validationError = validateProfileSlugValue(normalizedSlug);
+    if (validationError !== null)
+      return { available: false, normalizedSlug, error: validationError };
+    const profile = await ctx.db
+      .query("profiles")
+      .withIndex("by_slug", (q) => q.eq("slug", normalizedSlug))
+      .unique();
+    return profile === null
+      ? { available: true, normalizedSlug, error: null }
+      : { available: false, normalizedSlug, error: "That profile slug is already in use." };
   },
 });
 
@@ -83,26 +107,29 @@ export const saveDraft = mutation({
   returns: v.object({ updatedAt: v.number() }),
   handler: async (ctx, args) => {
     const { profile } = await profileAccess(ctx, args.profileId);
-    const safetyErrors = validateDraftSafety(args.draft);
-    if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
-    if (profile.published !== undefined && profile.published.slug !== args.draft.slug) {
+    const normalizedSlug = normalizeProfileSlug(args.draft.slug);
+    const draft = { ...args.draft, slug: normalizedSlug };
+    if (profile.published !== undefined && profile.published.slug !== normalizedSlug) {
       throw new Error("The profile slug cannot change after first publication.");
     }
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(args.draft.slug))
-      throw new Error("The profile slug is invalid.");
+    const slugError = validateProfileSlugValue(args.draft.slug, {
+      immutableSlug: profile.published?.slug,
+    });
+    if (slugError !== null) throw new Error(slugError);
+    const safetyErrors = validateDraftSafety(draft);
+    if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
     const duplicate = await ctx.db
       .query("profiles")
-      .withIndex("by_slug", (query) => query.eq("slug", args.draft.slug))
+      .withIndex("by_slug", (query) => query.eq("slug", normalizedSlug))
       .unique();
     if (duplicate !== null && duplicate._id !== profile._id)
       throw new Error("That profile slug is already in use.");
     const now = Date.now();
-    const draft = { ...args.draft };
     delete draft.imageUrl;
     if (draft.imageStorageId !== undefined)
       await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, draft.imageStorageId);
-    await ctx.db.patch(profile._id, { slug: args.draft.slug, draft, updatedAt: now });
-    await replaceProfileLinks(ctx, profile._id, args.draft.links, now);
+    await ctx.db.patch(profile._id, { slug: normalizedSlug, draft, updatedAt: now });
+    await replaceProfileLinks(ctx, profile._id, draft.links, now);
     return { updatedAt: now };
   },
 });
