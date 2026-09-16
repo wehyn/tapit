@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useMutation, useQuery } from "convex/react";
 import { useCallback } from "react";
 import { api } from "../../../convex/_generated/api";
@@ -55,7 +57,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
 }
 
 export function CardResolverClient({ cardToken, source }: { cardToken: string; source?: string }) {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+  return !isLocalDemoMode() ? (
     <LiveCardResolver cardToken={cardToken} source={source} />
   ) : (
     <DemoCardResolver cardToken={cardToken} source={source} />

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ArrowRight, ArrowUpRight, LinkSimple, UserPlus } from "@phosphor-icons/react";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 
 const navItems = [
   { href: "#product", label: "Product" },
@@ -77,7 +78,7 @@ function FeatureSection({
 }
 
 export default function HomePage() {
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+  const isDemoMode = isLocalDemoMode();
 
   return (
     <main className="overflow-hidden bg-tapit-paper text-tapit-ink">

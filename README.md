@@ -19,6 +19,10 @@ so the public and dashboard acceptance surfaces can be checked without productio
 deployment. Copy `.env.example` to `.env.local` and
 replace values only when configuring an isolated Convex development deployment.
 
+For a hosted demo backed by shared, non-production Convex data, set
+`NEXT_PUBLIC_DEMO_STORAGE=convex` and configure the matching non-production
+`NEXT_PUBLIC_CONVEX_URL`. Hosted demo data is shared across users; never point it at production.
+
 When opening the dev server from another device, use the machine's LAN or Tailscale URL and set
 `NEXT_ALLOWED_DEV_ORIGINS` in `.env.local` to the host/IP values you will use, separated by commas. Restart
 `npm run dev` after changing it; this keeps Next.js dev resources and the demo sign-in handler available to

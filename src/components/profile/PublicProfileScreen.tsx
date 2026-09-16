@@ -13,14 +13,18 @@ import {
   useHydratedDemoState,
 } from "@/lib/demo/store";
 import { isActiveAccount, projectPublicProfile } from "@/lib/domain";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
 
 export function PublicProfileScreen({ slug }: { slug: string }) {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "false") return <LivePublicProfileScreen slug={slug} />;
-  return <DemoPublicProfileScreen slug={slug} />;
+  return isLocalDemoMode() ? (
+    <DemoPublicProfileScreen slug={slug} />
+  ) : (
+    <LivePublicProfileScreen slug={slug} />
+  );
 }
 
 function DemoPublicProfileScreen({ slug }: { slug: string }) {

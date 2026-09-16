@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -193,5 +195,5 @@ function LiveAuditLog() {
   );
 }
 export function AuditLog() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? <LiveAuditLog /> : <DemoAuditLog />;
+  return !isLocalDemoMode() ? <LiveAuditLog /> : <DemoAuditLog />;
 }

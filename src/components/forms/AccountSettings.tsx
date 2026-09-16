@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { AtIcon, KeyIcon, LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
@@ -357,9 +359,5 @@ function LiveAccountSettings() {
 }
 
 export function AccountSettings() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveAccountSettings />
-  ) : (
-    <DemoAccountSettings />
-  );
+  return !isLocalDemoMode() ? <LiveAccountSettings /> : <DemoAccountSettings />;
 }

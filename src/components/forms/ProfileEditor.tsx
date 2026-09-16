@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import NextImage from "next/image";
@@ -510,11 +512,7 @@ function DemoProfileEditor() {
 }
 
 export function ProfileEditor() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveProfileEditor />
-  ) : (
-    <DemoProfileEditor />
-  );
+  return !isLocalDemoMode() ? <LiveProfileEditor /> : <DemoProfileEditor />;
 }
 
 function LiveProfileEditor() {

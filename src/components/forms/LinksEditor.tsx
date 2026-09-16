@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
@@ -493,7 +495,7 @@ function DemoLinksEditor() {
 }
 
 export function LinksEditor() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? <LiveLinksEditor /> : <DemoLinksEditor />;
+  return !isLocalDemoMode() ? <LiveLinksEditor /> : <DemoLinksEditor />;
 }
 
 function LiveLinksEditor() {

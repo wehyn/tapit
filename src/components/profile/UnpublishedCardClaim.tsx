@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
@@ -15,7 +17,7 @@ import { api } from "../../../convex/_generated/api";
 const RETURN_PATH = (token: string) => `/c/${encodeURIComponent(token)}`;
 
 export function UnpublishedCardClaim({ cardToken }: { cardToken: string }) {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
+  return !isLocalDemoMode() ? (
     <LiveUnpublishedCardClaim cardToken={cardToken} />
   ) : (
     <DemoUnpublishedCardClaim cardToken={cardToken} />

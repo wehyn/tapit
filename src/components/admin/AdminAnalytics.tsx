@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useEffect, useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -307,9 +309,5 @@ function LiveAdminAnalytics() {
   );
 }
 export function AdminAnalytics() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveAdminAnalytics />
-  ) : (
-    <DemoAdminAnalytics />
-  );
+  return !isLocalDemoMode() ? <LiveAdminAnalytics /> : <DemoAdminAnalytics />;
 }

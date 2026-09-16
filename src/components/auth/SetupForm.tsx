@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 import { setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
@@ -32,9 +33,11 @@ export function SetupForm({ token }: { token: string }) {
     typeof window === "undefined"
       ? undefined
       : setupReturnPath(new URLSearchParams(window.location.search).get("next"));
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "false")
-    return <LiveSetupForm token={token} nextPath={nextPath} />;
-  return <DemoSetupForm token={token} nextPath={nextPath} />;
+  return isLocalDemoMode() ? (
+    <DemoSetupForm token={token} nextPath={nextPath} />
+  ) : (
+    <LiveSetupForm token={token} nextPath={nextPath} />
+  );
 }
 
 function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {

@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useEffect, useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -430,9 +432,5 @@ function LiveCustomerAnalytics() {
   );
 }
 export function CustomerAnalytics() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveCustomerAnalytics />
-  ) : (
-    <DemoCustomerAnalytics />
-  );
+  return !isLocalDemoMode() ? <LiveCustomerAnalytics /> : <DemoCustomerAnalytics />;
 }

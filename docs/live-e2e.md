@@ -9,6 +9,11 @@ go/no-go gates, and evidence requirements.
 This workflow is for an explicitly named non-production Convex deployment only. Do not use production URLs,
 deployments, credentials, or data.
 
+Hosted demo mode is separate from local live mode: set `NEXT_PUBLIC_DEMO_MODE=true` and
+`NEXT_PUBLIC_DEMO_STORAGE=convex` to use Convex-backed demo paths. It requires a shared, non-production
+Convex deployment, and its data is visible to all hosted-demo users. Never configure hosted demo with
+production Convex data. When `NEXT_PUBLIC_DEMO_STORAGE` is absent, local demo remains the default.
+
 The live suite currently contains 6 serialized browser tests. Preview runs are allowed with the complete
 non-production contract below; production provisioning and live E2E are prohibited.
 

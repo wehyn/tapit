@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
   setDemoSession,
@@ -47,7 +48,7 @@ export function LoginForm({
   resetEmail?: string;
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  return process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
+  return isLocalDemoMode() ? (
     <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
   ) : (
     <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
