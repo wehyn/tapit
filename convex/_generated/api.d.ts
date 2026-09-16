@@ -18,6 +18,7 @@ import type * as cardClaims from "../cardClaims.js";
 import type * as cards from "../cards.js";
 import type * as components_ from "../components.js";
 import type * as customers from "../customers.js";
+import type * as demo from "../demo.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
 import type * as links from "../links.js";
@@ -46,6 +47,7 @@ declare const fullApi: ApiFromModules<{
   cards: typeof cards;
   components: typeof components_;
   customers: typeof customers;
+  demo: typeof demo;
   http: typeof http;
   invitations: typeof invitations;
   links: typeof links;

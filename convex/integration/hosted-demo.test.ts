@@ -1,7 +1,7 @@
 import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import { describe, expect, it } from "vitest";
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -13,6 +13,84 @@ const identity = (userId: Id<"users">) => ({
 });
 
 describe("hosted-demo scope boundaries", () => {
+  it("initializes idempotently without returning or storing a plaintext claim code", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const operatorUserId = await t.run(async (ctx) =>
+        ctx.db.insert("users", { email: "operator@example.test", emailVerificationTime: 1 }),
+      );
+      const first = await t.mutation(internal.demo.initialize, { operatorUserId });
+      const second = await t.mutation(internal.demo.initialize, { operatorUserId });
+      expect(second).toEqual(first);
+      expect(JSON.stringify(first)).not.toContain("MARA2Q8K");
+      await t.run(async (ctx) => {
+        const card = await ctx.db.get(first.claimableCardId);
+        expect(card?.claimCodeHash).toBeDefined();
+        expect(card).not.toHaveProperty("claimCode");
+      });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
+  it("resets only demo records and is repeatable", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const ids = await t.run(async (ctx) => {
+        const operatorUserId = await ctx.db.insert("users", { email: "operator@example.test" });
+        const customerId = await ctx.db.insert("customers", {
+          email: "sentinel@example.test",
+          role: "customer",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        const profileId = await ctx.db.insert("profiles", {
+          ownerId: customerId,
+          slug: "sentinel",
+          status: "draft",
+          draft: { name: "Sentinel", slug: "sentinel", links: [] },
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        const cardId = await ctx.db.insert("cards", {
+          cardUrl: "https://tapit.test/c/sentinel",
+          token: "sentinel",
+          status: "registered",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        return { operatorUserId, customerId, profileId, cardId };
+      });
+      const first = await t.mutation(internal.demo.initialize, {
+        operatorUserId: ids.operatorUserId,
+      });
+      const reset = await t.mutation(internal.demo.reset, { operatorUserId: ids.operatorUserId });
+      const resetAgain = await t.mutation(internal.demo.reset, {
+        operatorUserId: ids.operatorUserId,
+      });
+      expect(reset.status).toBe("initialized");
+      expect(resetAgain.status).toBe("initialized");
+      await t.run(async (ctx) => {
+        expect(await ctx.db.get(ids.customerId)).not.toBeNull();
+        expect(await ctx.db.get(ids.profileId)).not.toBeNull();
+        expect(await ctx.db.get(ids.cardId)).not.toBeNull();
+        expect(await ctx.db.get(first.claimableCardId)).toBeNull();
+      });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
   it("keeps scoped and legacy administrator lists separate", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
