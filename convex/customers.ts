@@ -2,12 +2,16 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
 
-import { components } from "./_generated/api";
-import { mutation, query } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { requireAdministrator, requireUser } from "./admin";
 import schema from "./schema";
 import { deleteProfileImages } from "./profileImages";
-import { normalizeProfileSlug, validateProfileSlugValue } from "./validators";
+import {
+  normalizeProfileSlug,
+  profileThemeValidator,
+  validateProfileSlugValue,
+} from "./validators";
+import { components } from "./components";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -25,6 +29,9 @@ export const createCustomer = mutation({
     slug: v.string(),
     tokenHash: v.string(),
     expiresAt: v.number(),
+    name: v.optional(v.string()),
+    bio: v.optional(v.string()),
+    theme: v.optional(profileThemeValidator),
   },
   returns: v.object({
     customerId: v.id("customers"),
@@ -71,7 +78,12 @@ export const createCustomer = mutation({
       ownerId: customerId,
       slug,
       status: "draft",
-      draft: emptyProfile(slug),
+      draft: {
+        ...emptyProfile(slug),
+        ...(args.name !== undefined ? { name: args.name.trim() } : {}),
+        ...(args.bio !== undefined ? { bio: args.bio } : {}),
+        ...(args.theme !== undefined ? { theme: args.theme } : {}),
+      },
       createdAt: now,
       updatedAt: now,
     });
@@ -225,6 +237,15 @@ export const completeSetup = mutation({
     const now = Date.now();
     await ctx.db.patch(invitation._id, { usedAt: now });
     await ctx.db.patch(customer._id, { userId, status: "active", updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      actorLabel: customer.email,
+      action: "customer.setup_completed",
+      accountId: customer._id,
+      profileId: customer.profileId,
+      occurredAt: now,
+      after: "active",
+    });
     return { profileId: customer.profileId ?? null };
   },
 });
@@ -255,6 +276,12 @@ export const myAccount = query({
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
   },
+});
+
+export const byIdForAdmin = internalQuery({
+  args: { customerId: v.id("customers") },
+  returns: v.union(v.null(), schema.doc("customers")),
+  handler: async (ctx, args) => await ctx.db.get(args.customerId),
 });
 
 export const list = query({
@@ -312,7 +339,10 @@ export const requestDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     await Promise.all(
       cards
-        .filter((card) => card.status === "active" || card.status === "registered")
+        .filter(
+          (card) =>
+            card.status === "active" || card.status === "claimable" || card.status === "registered",
+        )
         .map((card) =>
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),
@@ -424,7 +454,10 @@ export const approveDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     await Promise.all(
       cards
-        .filter((card) => card.status === "active" || card.status === "registered")
+        .filter(
+          (card) =>
+            card.status === "active" || card.status === "claimable" || card.status === "registered",
+        )
         .map((card) =>
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),

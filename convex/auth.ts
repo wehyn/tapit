@@ -1,14 +1,16 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { Email } from "@convex-dev/auth/providers/Email";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { action } from "./_generated/server";
-import { internalAction } from "./_generated/server";
+import { internalAction, internalMutation } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { v } from "convex/values";
 
-import { components, internal } from "./_generated/api";
+import { internal } from "./_generated/api";
 import { normalizeAuthEmail, sendAuthEmail } from "./authEmail";
+import { components } from "./components";
 
 const resetRequestLimiter = new RateLimiter(components.rateLimiter, {
   authResetRequest: { kind: "fixed window", rate: 3, period: HOUR },
@@ -91,6 +93,27 @@ export const processPasswordReset = internalAction({
   },
 });
 
+export const recordPasswordResetRequested = internalMutation({
+  args: { customerId: v.id("customers"), actorUserId: v.id("users") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.customerId);
+    if (customer === null || customer.role !== "customer" || customer.deletionStatus !== "active") {
+      throw new Error("Customer account unavailable.");
+    }
+    await ctx.db.insert("auditLogs", {
+      actorUserId: args.actorUserId,
+      actorLabel: "Administrator",
+      action: "customer.password_reset_requested",
+      accountId: customer._id,
+      profileId: customer.profileId,
+      occurredAt: Date.now(),
+      after: "accepted",
+    });
+    return null;
+  },
+});
+
 export const signIn = action({
   args: authSignInArgs,
   handler: async (ctx, args) => {
@@ -116,5 +139,36 @@ export const signIn = action({
       return {};
     }
     return await runAuthSignIn(ctx, args);
+  },
+});
+
+export const adminRequestPasswordReset = action({
+  args: { customerId: v.id("customers") },
+  returns: v.object({ accepted: v.boolean() }),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Administrator permission required.");
+    const admin = await ctx.runQuery(internal.admin.currentAccessInternal, {});
+    if (!admin.authenticated || admin.role !== "admin")
+      throw new Error("Administrator permission required.");
+    const customer = await ctx.runQuery(internal.customers.byIdForAdmin, {
+      customerId: args.customerId,
+    });
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.status === "deleted" ||
+      customer.deletionStatus !== "active"
+    )
+      throw new Error("Customer account unavailable.");
+    await ctx.runMutation(internal.auth.recordPasswordResetRequested, {
+      customerId: customer._id,
+      actorUserId: userId,
+    });
+    await ctx.scheduler.runAfter(0, internal.auth.processPasswordReset, {
+      provider: "password",
+      params: { flow: "reset", email: customer.email },
+    });
+    return { accepted: true };
   },
 });

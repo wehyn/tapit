@@ -2,7 +2,7 @@ import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 
 import { env } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
-import { components } from "./_generated/api";
+import { components } from "./components";
 
 export type AuthEmailRequest = {
   identifier: string;
@@ -100,14 +100,26 @@ export async function sendAuthEmail(request: AuthEmailRequest, ctx?: ActionCtx):
       throw new Error("Authentication email service unavailable.");
     }
   }
-  const message = buildAuthEmailMessage(request, env.TAPIT_SUPPORT_URL);
+  const supportUrl = env.TAPIT_SUPPORT_URL;
+  const from = env.TAPIT_AUTH_EMAIL_FROM;
+  const apiKey = env.TAPIT_AUTH_EMAIL_API_KEY;
+  const endpoint = env.TAPIT_AUTH_EMAIL_API_URL;
+  if (
+    supportUrl === undefined ||
+    from === undefined ||
+    apiKey === undefined ||
+    endpoint === undefined
+  ) {
+    throw new Error("Authentication email service is not configured.");
+  }
+  const message = buildAuthEmailMessage(request, supportUrl);
   let response: Response;
   try {
     response = await sendThroughSelectedProvider({
       to: request.identifier,
-      from: env.TAPIT_AUTH_EMAIL_FROM,
-      apiKey: env.TAPIT_AUTH_EMAIL_API_KEY,
-      endpoint: env.TAPIT_AUTH_EMAIL_API_URL,
+      from,
+      apiKey,
+      endpoint,
       ...message,
     });
   } catch {

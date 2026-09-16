@@ -89,6 +89,14 @@ function DemoProfileEditor() {
           ]),
       }),
       ...lifecycleErrors,
+      ...(state.cards.some(
+        (card) =>
+          card.profileId === profile.id &&
+          card.status === "claimable" &&
+          card.claimedAt === undefined,
+      )
+        ? ["Claim the attached card before publishing this profile."]
+        : []),
     ];
   }, [draft, profile.id, profile.published, profile.status, session, state]);
   const preview = profileForPreview(draft);
@@ -147,6 +155,13 @@ function DemoProfileEditor() {
       };
       updateDemoState((current) => ({
         ...updateDemoProfile(current, profile.id, () => nextProfile),
+        cards: current.cards.map((card) =>
+          card.profileId === profile.id &&
+          card.status === "claimable" &&
+          card.claimedAt !== undefined
+            ? { ...card, status: "active" }
+            : card,
+        ),
         audits: [
           {
             id: `audit-${Date.now()}`,

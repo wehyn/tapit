@@ -4,7 +4,8 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
-export type CardStatus = "registered" | "active" | "inactive" | "replaced";
+export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "replaced";
+export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
 export type DeletionStatus = "active" | "requested" | "deleted";
 export type ProfileTheme = "paper" | "moss" | "night";
 
@@ -294,7 +295,8 @@ export function canManageCard(actor: Actor): boolean {
 }
 
 const CARD_TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
-  registered: ["active"],
+  registered: ["claimable", "active"],
+  claimable: ["active"],
   active: ["inactive", "replaced"],
   inactive: [],
   replaced: [],

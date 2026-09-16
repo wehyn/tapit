@@ -101,6 +101,7 @@ export default defineSchema({
     profileId: v.optional(v.id("profiles")),
     status: v.union(
       v.literal("registered"),
+      v.literal("claimable"),
       v.literal("active"),
       v.literal("inactive"),
       v.literal("replaced"),
@@ -111,10 +112,16 @@ export default defineSchema({
     updatedAt: v.number(),
     assignedAt: v.optional(v.number()),
     deactivatedAt: v.optional(v.number()),
+    claimCodeHash: v.optional(v.string()),
+    claimCodeGeneratedAt: v.optional(v.number()),
+    claimCodeExpiresAt: v.optional(v.number()),
+    claimCodeInvalidatedAt: v.optional(v.number()),
+    claimCodeClaimedAt: v.optional(v.number()),
   })
     .index("by_cardUrl", ["cardUrl"])
     .index("by_token", ["token"])
     .index("by_profileId", ["profileId"])
+    .index("by_profileId_and_status", ["profileId", "status"])
     .index("by_status", ["status"]),
   analytics: defineTable({
     profileId: v.id("profiles"),
@@ -124,15 +131,36 @@ export default defineSchema({
     bucketStart: v.number(),
     total: v.number(),
     uniqueCount: v.number(),
+    source: v.optional(
+      v.union(v.literal("nfc"), v.literal("qr"), v.literal("direct"), v.literal("unknown")),
+    ),
   })
     .index("by_profile_bucket", ["profileId", "bucketStart"])
     .index("by_profile_event_bucket", ["profileId", "eventType", "bucketStart"])
+    .index("by_profile_event_bucket_source", ["profileId", "eventType", "bucketStart", "source"])
+    .index("by_profile_event_bucket_link_source", [
+      "profileId",
+      "eventType",
+      "bucketStart",
+      "linkKey",
+      "source",
+    ])
     .index("by_bucket", ["bucketStart"]),
   analyticsSessions: defineTable({
     profileId: v.id("profiles"),
     sessionKey: v.string(),
     firstSeenAt: v.number(),
   }).index("by_profile_session", ["profileId", "sessionKey"]),
+  cardClaimChallenges: defineTable({
+    cardId: v.id("cards"),
+    claimCodeHash: v.string(),
+    challengeHash: v.string(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_challengeHash", ["challengeHash"])
+    .index("by_cardId", ["cardId"]),
   auditLogs: defineTable({
     actorUserId: v.optional(v.id("users")),
     actorLabel: v.string(),

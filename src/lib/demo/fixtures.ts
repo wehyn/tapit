@@ -10,6 +10,12 @@ export type DemoProfile = ProfileRecord & {
 
 export type DemoCard = CardRecord & {
   token: string;
+  claimCode?: string;
+  claimCodeExpiresAt?: number;
+  claimCodeInvalidatedAt?: number;
+  claimChallenge?: string;
+  claimChallengeExpiresAt?: number;
+  claimedAt?: number;
 };
 
 export type DemoCustomer = {
@@ -21,11 +27,13 @@ export type DemoCustomer = {
   deletionStatus: "active" | "requested" | "deleted";
   setupToken?: string;
   passwordHash?: string;
+  claimedCardIds?: string[];
 };
 
 export type AnalyticsBucket = {
   profileId?: string;
   bucketStart: number;
+  source?: "nfc" | "qr" | "direct" | "unknown";
   views: number;
   uniqueViews: number;
   clicks: number;
@@ -121,6 +129,25 @@ export function createDefaultDemoState(): DemoState {
       publishedAt,
     },
   };
+  const claimProfile: DemoProfile = {
+    id: "profile-claimable",
+    ownerId: "customer-claimable",
+    status: "unpublished",
+    theme: "paper",
+    draft: {
+      name: "Claimed profile",
+      slug: "claimed-profile",
+      links: [
+        {
+          id: "site",
+          label: "Website",
+          destination: "https://example.com",
+          enabled: true,
+        },
+      ],
+    },
+    published: null,
+  };
   return {
     customers: [
       {
@@ -134,6 +161,15 @@ export function createDefaultDemoState(): DemoState {
         passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
       },
       {
+        id: "customer-claimable",
+        email: "owner@example.test",
+        role: "customer",
+        profileId: "profile-claimable",
+        status: "active",
+        deletionStatus: "active",
+        passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
+      },
+      {
         id: "admin-demo",
         email: "admin@tapit.local",
         role: "admin",
@@ -142,7 +178,7 @@ export function createDefaultDemoState(): DemoState {
         passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
       },
     ],
-    profiles: [primaryProfile],
+    profiles: [primaryProfile, claimProfile],
     profile: primaryProfile,
     themes: { [primaryProfile.id]: primaryProfile.theme },
     theme: "paper",
@@ -153,6 +189,15 @@ export function createDefaultDemoState(): DemoState {
         cardUrl: "/c/mara-card-7f2q",
         status: "active",
         profileId: "profile-mara",
+      },
+      {
+        id: "card-claimable-demo",
+        token: "claimable-card-demo",
+        cardUrl: "/c/claimable-card-demo",
+        status: "claimable",
+        profileId: "profile-claimable",
+        claimCode: "MARA2Q8K",
+        claimCodeExpiresAt: Date.now() + DAY,
       },
       {
         id: "card-mara-inactive",

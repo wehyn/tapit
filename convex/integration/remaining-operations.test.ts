@@ -210,10 +210,30 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       status: "active",
       profile: { slug: "owner" },
     });
-    await admin.mutation(api.cards.deactivate, { cardId: replacementId });
-    await expect(t.query(api.cards.resolve, { token: "replacement-card" })).resolves.toEqual({
+    const secondReplacementId = await admin.mutation(api.cards.replace, {
+      oldCardId: replacementId,
+      newCardUrl: "https://tapit.test/c/replacement-card-two",
+      newToken: "replacement-card-two",
+    });
+    const thirdReplacementId = await admin.mutation(api.cards.replace, {
+      oldCardId: secondReplacementId,
+      newCardUrl: "https://tapit.test/c/replacement-card-three",
+      newToken: "replacement-card-three",
+    });
+    await admin.mutation(api.cards.deactivate, { cardId: thirdReplacementId });
+    await expect(t.query(api.cards.resolve, { token: "replacement-card-three" })).resolves.toEqual({
       status: "inactive",
     });
+    const reusableCardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/reusable-card",
+      token: "reusable-card",
+    });
+    await expect(
+      admin.mutation(api.cards.assign, {
+        cardId: reusableCardId,
+        profileId: data.ownerProfileId,
+      }),
+    ).resolves.toEqual({ status: "active" });
   });
 
   it("scopes analytics and protects admin settings, audits, and deletion workflows", async () => {

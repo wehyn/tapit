@@ -3,7 +3,7 @@ import { paginationResultValidator, paginationOptsValidator } from "convex/serve
 
 import { mutation, query } from "./_generated/server";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
-import { MAX_PROFILE_LINKS } from "./validators";
+import { analyticsSourceValidator, MAX_PROFILE_LINKS } from "./validators";
 
 const rangeValidator = v.union(
   v.literal("lifetime"),
@@ -27,6 +27,7 @@ export const recordView = mutation({
   args: {
     profileId: v.id("profiles"),
     sessionKey: v.optional(v.string()),
+    source: v.optional(analyticsSourceValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -34,6 +35,7 @@ export const recordView = mutation({
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return null;
     const start = bucketStart();
+    const source = args.source ?? "unknown";
     const sessionKey = args.sessionKey?.trim();
     const hasSessionKey =
       sessionKey !== undefined && sessionKey.length > 0 && sessionKey.length <= 128;
@@ -53,15 +55,28 @@ export const recordView = mutation({
         firstSeenAt: start,
       });
     }
-    const existing = await ctx.db
+    let existing = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_event_bucket", (query) =>
+      .withIndex("by_profile_event_bucket_source", (query) =>
         query
           .eq("profileId", args.profileId)
           .eq("eventType", "profile_view")
-          .eq("bucketStart", start),
+          .eq("bucketStart", start)
+          .eq("source", source),
       )
       .unique();
+    if (existing === null && source === "unknown") {
+      const legacyRows = await ctx.db
+        .query("analytics")
+        .withIndex("by_profile_event_bucket", (query) =>
+          query
+            .eq("profileId", args.profileId)
+            .eq("eventType", "profile_view")
+            .eq("bucketStart", start),
+        )
+        .take(5);
+      existing = legacyRows.find((row) => row.source === undefined) ?? null;
+    }
     if (existing === null) {
       await ctx.db.insert("analytics", {
         profileId: args.profileId,
@@ -69,11 +84,13 @@ export const recordView = mutation({
         bucketStart: start,
         total: 1,
         uniqueCount: isUnique ? 1 : 0,
+        source,
       });
     } else {
       await ctx.db.patch(existing._id, {
         total: existing.total + 1,
         uniqueCount: existing.uniqueCount + (isUnique ? 1 : 0),
+        source,
       });
     }
     return null;
@@ -81,7 +98,11 @@ export const recordView = mutation({
 });
 
 export const recordLinkClick = mutation({
-  args: { profileId: v.id("profiles"), linkKey: v.string() },
+  args: {
+    profileId: v.id("profiles"),
+    linkKey: v.string(),
+    source: v.optional(analyticsSourceValidator),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
@@ -95,17 +116,32 @@ export const recordLinkClick = mutation({
     )
       return null;
     const start = bucketStart();
-    const buckets = await ctx.db
+    const source = args.source ?? "unknown";
+    let existing = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_event_bucket", (query) =>
+      .withIndex("by_profile_event_bucket_link_source", (query) =>
         query
           .eq("profileId", args.profileId)
           .eq("eventType", "link_click")
-          .eq("bucketStart", start),
+          .eq("bucketStart", start)
+          .eq("linkKey", args.linkKey)
+          .eq("source", source),
       )
-      .take(MAX_PROFILE_LINKS + 1);
-    const existing = buckets.find((bucket) => bucket.linkKey === args.linkKey);
-    if (existing === undefined)
+      .unique();
+    if (existing === null && source === "unknown") {
+      const legacyRows = await ctx.db
+        .query("analytics")
+        .withIndex("by_profile_event_bucket", (query) =>
+          query
+            .eq("profileId", args.profileId)
+            .eq("eventType", "link_click")
+            .eq("bucketStart", start),
+        )
+        .take(MAX_PROFILE_LINKS + 1);
+      existing =
+        legacyRows.find((row) => row.linkKey === args.linkKey && row.source === undefined) ?? null;
+    }
+    if (existing === null)
       await ctx.db.insert("analytics", {
         profileId: args.profileId,
         linkKey: args.linkKey,
@@ -113,8 +149,9 @@ export const recordLinkClick = mutation({
         bucketStart: start,
         total: 1,
         uniqueCount: 0,
+        source,
       });
-    else await ctx.db.patch(existing._id, { total: existing.total + 1 });
+    else await ctx.db.patch(existing._id, { total: existing.total + 1, source });
     return null;
   },
 });
@@ -129,6 +166,7 @@ const analyticsRowValidator = v.object({
   bucketStart: v.number(),
   total: v.number(),
   uniqueCount: v.number(),
+  source: v.optional(analyticsSourceValidator),
 });
 
 const summaryPageValidator = v.object({
@@ -147,6 +185,7 @@ function summarize(
     linkKey?: string;
     total: number;
     uniqueCount: number;
+    source?: "nfc" | "qr" | "direct" | "unknown";
   }>,
 ) {
   return rows.reduce(
@@ -162,7 +201,12 @@ function summarize(
       }
       return summary;
     },
-    { views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} as Record<string, number> },
+    {
+      views: 0,
+      uniqueViews: 0,
+      clicks: 0,
+      linkClicks: {} as Record<string, number>,
+    },
   );
 }
 

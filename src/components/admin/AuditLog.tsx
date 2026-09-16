@@ -11,6 +11,26 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 
+const readableActions: Record<string, string> = {
+  "customer.created": "Customer account created",
+  "customer.setup_resent": "Customer setup link resent",
+  "customer.password_reset_requested": "Password reset requested",
+  "card.registered": "Card registered",
+  "card.assigned": "Card attached to profile",
+  "card.claim_code_generated": "Card claim code generated",
+  "card.claim_code_invalidated": "Card claim code invalidated",
+  "card.claimed": "Card claimed by customer",
+  "card.deactivated": "Card deactivated",
+  "card.replaced": "Card replaced",
+  "profile.published": "Profile published",
+  "profile.unpublished": "Profile unpublished",
+  "profile.suspended": "Profile suspended",
+};
+
+export function readableAuditAction(action: string): string {
+  return readableActions[action] ?? action.replaceAll(".", " · ").replaceAll("_", " ");
+}
+
 function DemoAuditLog() {
   // Retained only as an inert compatibility helper for the merged worktree.
   const state = useDemoState();
@@ -62,7 +82,9 @@ function DemoAuditLog() {
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-tapit-ink">{audit.action}</p>
+                  <p className="font-semibold text-tapit-ink">
+                    {readableAuditAction(audit.action)}
+                  </p>
                   <p className="mt-1 text-sm text-tapit-muted">
                     {audit.actor} · {audit.target}
                   </p>
@@ -132,7 +154,9 @@ function LiveAuditLog() {
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="font-semibold text-tapit-ink">{audit.action}</p>
+                    <p className="font-semibold text-tapit-ink">
+                      {readableAuditAction(audit.action)}
+                    </p>
                     <p className="mt-1 text-sm text-tapit-muted">{audit.actorLabel}</p>
                   </div>
                   <time

@@ -44,8 +44,8 @@ function DemoPublicProfileScreen({ slug }: { slug: string }) {
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
-      onLinkClick={recordLinkClick}
-      onView={recordProfileView}
+      onLinkClick={(key, id) => recordLinkClick(key, id, "direct")}
+      onView={(id) => recordProfileView(id, "direct")}
     />
   );
 }
@@ -65,7 +65,11 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
       } catch {
         // Tracking remains best-effort when storage is unavailable.
       }
-      void recordView({ profileId: profileId as Id<"profiles">, sessionKey });
+      void recordView({
+        profileId: profileId as Id<"profiles">,
+        sessionKey,
+        source: "direct",
+      });
     },
     [recordView],
   );
@@ -75,6 +79,7 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
       void recordLinkClick({
         profileId: profileId as Id<"profiles">,
         linkKey,
+        source: "direct",
       });
     },
     [recordLinkClick],

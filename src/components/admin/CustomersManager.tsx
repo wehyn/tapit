@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -27,6 +27,9 @@ function DemoCustomersManager() {
   const state = useDemoState();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileSlug, setProfileSlug] = useState("");
+  const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [setupLink, setSetupLink] = useState("");
   const [approvalCustomer, setApprovalCustomer] = useState<DemoCustomer | null>(null);
@@ -56,7 +59,7 @@ function DemoCustomersManager() {
     const customerId = `customer-${Date.now()}`;
     const profileId = `profile-${Date.now()}`;
     const baseSlug =
-      normalizedEmail
+      (profileSlug.trim() || normalizedEmail)
         .split("@")[0]
         ?.replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") || "new-profile";
@@ -80,7 +83,7 @@ function DemoCustomersManager() {
           ownerId: customerId,
           status: "draft",
           theme: "paper",
-          draft: { name: "", slug, links: [] },
+          draft: { name: profileName.trim(), slug, links: [], theme },
           published: null,
         } satisfies DemoProfile,
       ],
@@ -140,7 +143,7 @@ function DemoCustomersManager() {
         ),
         cards: withProfile.cards.map((card) =>
           card.profileId === customer.profileId &&
-          (card.status === "active" || card.status === "registered")
+          (card.status === "active" || card.status === "claimable" || card.status === "registered")
             ? { ...card, status: "inactive" }
             : card,
         ),
@@ -185,6 +188,42 @@ function DemoCustomersManager() {
               type="email"
               value={email}
             />
+          </div>
+          <div className="sm:min-w-52">
+            <Field
+              id="customer-profile-name"
+              label="Initial profile name"
+              onChange={(event) => setProfileName(event.target.value)}
+              placeholder="Optional display name"
+              value={profileName}
+            />
+          </div>
+          <div className="sm:min-w-52">
+            <Field
+              id="customer-profile-slug"
+              label="Profile slug"
+              onChange={(event) => setProfileSlug(event.target.value)}
+              placeholder="Optional stable slug"
+              value={profileSlug}
+            />
+          </div>
+          <div>
+            <label
+              className="block text-sm font-semibold text-tapit-ink"
+              htmlFor="customer-profile-theme"
+            >
+              Initial theme
+            </label>
+            <select
+              className="mt-2 min-h-12 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm text-tapit-ink"
+              id="customer-profile-theme"
+              onChange={(event) => setTheme(event.target.value as typeof theme)}
+              value={theme}
+            >
+              <option value="paper">Paper</option>
+              <option value="moss">Moss</option>
+              <option value="night">Night</option>
+            </select>
           </div>
           <Button type="submit">
             <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
@@ -396,6 +435,9 @@ function DemoCustomersManager() {
 function LiveCustomersManager() {
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileSlug, setProfileSlug] = useState("");
+  const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [setupLink, setSetupLink] = useState("");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -403,6 +445,7 @@ function LiveCustomersManager() {
   const requests = useQuery(api.customers.listDeletionRequests);
   const create = useMutation(api.customers.createCustomer);
   const approve = useMutation(api.customers.approveDeletion);
+  const requestPasswordReset = useAction(api.auth.adminRequestPasswordReset);
   if (customers === undefined || requests === undefined)
     return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
 
@@ -416,17 +459,20 @@ function LiveCustomersManager() {
       return;
     }
     const baseSlug =
-      normalizedEmail
+      (profileSlug.trim() || normalizedEmail)
         .split("@")[0]
         ?.replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") || "profile";
     const suffix = crypto.randomUUID().slice(0, 8);
+    const requestedSlug = profileSlug.trim() ? baseSlug : `${baseSlug}-${suffix}`;
     const token = crypto.randomUUID().replaceAll("-", "");
     setPending(true);
     try {
-      await create({
+      await (create as unknown as (args: Record<string, unknown>) => Promise<unknown>)({
         email: normalizedEmail,
-        slug: `${baseSlug}-${suffix}`,
+        slug: requestedSlug,
+        name: profileName.trim(),
+        theme,
         tokenHash: await hashSetupToken(token),
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
@@ -461,6 +507,22 @@ function LiveCustomersManager() {
       });
     }
   }
+
+  async function resetPassword(customerId: Id<"customers">, email: string) {
+    setMessage(null);
+    try {
+      await requestPasswordReset({ customerId });
+      setMessage({
+        tone: "success",
+        text: `A secure password setup/reset email was queued for ${email}.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The password reset could not be queued.",
+      });
+    }
+  }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
@@ -478,6 +540,42 @@ function LiveCustomersManager() {
               type="email"
               value={email}
             />
+          </div>
+          <div className="min-w-52">
+            <Field
+              id="live-customer-profile-name"
+              label="Initial profile name"
+              onChange={(event) => setProfileName(event.target.value)}
+              placeholder="Optional display name"
+              value={profileName}
+            />
+          </div>
+          <div className="min-w-52">
+            <Field
+              id="live-customer-profile-slug"
+              label="Profile slug"
+              onChange={(event) => setProfileSlug(event.target.value)}
+              placeholder="Optional stable slug"
+              value={profileSlug}
+            />
+          </div>
+          <div>
+            <label
+              className="block text-sm font-semibold text-tapit-ink"
+              htmlFor="live-customer-profile-theme"
+            >
+              Initial theme
+            </label>
+            <select
+              className="mt-2 min-h-12 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm text-tapit-ink"
+              id="live-customer-profile-theme"
+              onChange={(event) => setTheme(event.target.value as typeof theme)}
+              value={theme}
+            >
+              <option value="paper">Paper</option>
+              <option value="moss">Moss</option>
+              <option value="night">Night</option>
+            </select>
           </div>
           <Button disabled={pending} loading={pending} type="submit">
             <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
@@ -523,6 +621,15 @@ function LiveCustomersManager() {
                 </p>
               </div>
               <StatusBadge status={customer.status} />
+              {customer.status !== "deleted" ? (
+                <Button
+                  onClick={() => void resetPassword(customer._id, customer.email)}
+                  type="button"
+                  variant="quiet"
+                >
+                  Send password setup/reset
+                </Button>
+              ) : null}
             </article>
           ))}
         </div>

@@ -13,8 +13,16 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
   const [svg, setSvg] = useState("");
   const [png, setPng] = useState("");
   const [error, setError] = useState("");
-  const absoluteUrl =
-    typeof window === "undefined" ? cardUrl : new URL(cardUrl, window.location.origin).toString();
+  const absoluteUrl = (() => {
+    const url = new URL(
+      cardUrl,
+      typeof window === "undefined" ? "http://localhost:3000" : window.location.origin,
+    );
+    url.searchParams.set("source", "qr");
+    return typeof window === "undefined" && url.origin === "http://localhost:3000"
+      ? cardUrl.replace(/([?#].*)?$/, "?source=qr")
+      : url.toString();
+  })();
 
   useEffect(() => {
     let cancelled = false;

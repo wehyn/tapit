@@ -1,16 +1,18 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
+import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { isActiveCustomer, requireAdministrator } from "./admin";
-import schema from "./schema";
-import { publicProfileValidator } from "./validators";
+import { cardStatusValidator, publicProfileValidator } from "./validators";
 import { validateProfileContent } from "./validators";
 import { projectPublicProfile } from "./profileProjection";
+import { components } from "./components";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
   v.object({ status: v.literal("inactive") }),
   v.object({ status: v.literal("unavailable") }),
+  v.object({ status: v.literal("onboarding") }),
   v.object({ status: v.literal("active"), profile: publicProfileValidator }),
 );
 
@@ -43,8 +45,17 @@ export const resolve = query({
       .withIndex("by_token", (query) => query.eq("token", args.token))
       .unique();
     if (card === null) return { status: "missing" as const };
-    if (card.status !== "active" || card.profileId === undefined)
-      return { status: "inactive" as const };
+    if (card.profileId === undefined)
+      return {
+        status: card.status === "active" ? ("unavailable" as const) : ("inactive" as const),
+      };
+    if (card.status === "claimable") {
+      const profile = await ctx.db.get(card.profileId);
+      return profile !== null && profile.status !== "published"
+        ? { status: "onboarding" as const }
+        : { status: "unavailable" as const };
+    }
+    if (card.status !== "active") return { status: "inactive" as const };
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
@@ -56,12 +67,247 @@ export const resolve = query({
 
 export const adminList = query({
   args: {},
-  returns: v.array(schema.doc("cards")),
+  returns: v.array(
+    v.object({
+      _id: v.id("cards"),
+      _creationTime: v.number(),
+      cardUrl: v.string(),
+      token: v.string(),
+      profileId: v.optional(v.id("profiles")),
+      status: cardStatusValidator,
+      replacedByCardId: v.optional(v.id("cards")),
+      assignmentReason: v.optional(v.string()),
+      createdAt: v.number(),
+      updatedAt: v.number(),
+      assignedAt: v.optional(v.number()),
+      deactivatedAt: v.optional(v.number()),
+      claimCodeGeneratedAt: v.optional(v.number()),
+      claimCodeExpiresAt: v.optional(v.number()),
+      claimCodeInvalidatedAt: v.optional(v.number()),
+      claimCodeClaimedAt: v.optional(v.number()),
+    }),
+  ),
   handler: async (ctx) => {
     await requireAdministrator(ctx);
-    return await ctx.db.query("cards").withIndex("by_status").take(100);
+    const cards = await ctx.db.query("cards").withIndex("by_status").take(100);
+    return cards.map((card) => {
+      const safeCard = { ...card };
+      delete safeCard.claimCodeHash;
+      return safeCard;
+    });
   },
 });
+
+const CLAIM_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const CARD_TOKEN_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
+const claimCodeLimiter = new RateLimiter(components.rateLimiter, {
+  claimCodeGeneration: { kind: "fixed window", rate: 10, period: HOUR },
+});
+
+function randomCardToken(): string {
+  const token: string[] = [];
+  const bucketSize = 256 - (256 % CARD_TOKEN_ALPHABET.length);
+  while (token.length < 8) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= bucketSize) continue;
+      token.push(CARD_TOKEN_ALPHABET[byte % CARD_TOKEN_ALPHABET.length]!);
+      if (token.length === 8) break;
+    }
+  }
+  return `card-${token.join("")}`;
+}
+
+function randomCode(): string {
+  const code: string[] = [];
+  const bucketSize = 256 - (256 % CLAIM_ALPHABET.length);
+  while (code.length < 8) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= bucketSize) continue;
+      code.push(CLAIM_ALPHABET[byte % CLAIM_ALPHABET.length]!);
+      if (code.length === 8) break;
+    }
+  }
+  return code.join("");
+}
+async function digest(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const result = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(result), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+export const generateCardToken = mutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    await requireAdministrator(ctx);
+
+    // This only creates a candidate for the registration form. The register
+    // mutation performs the authoritative uniqueness check before insertion.
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const token = randomCardToken();
+      const existing = await ctx.db
+        .query("cards")
+        .withIndex("by_token", (query) => query.eq("token", token))
+        .unique();
+      if (existing === null) return token;
+    }
+
+    throw new Error("Unable to generate an available card token. Try again.");
+  },
+});
+
+export const attach = mutation({
+  args: { cardId: v.id("cards"), profileId: v.id("profiles") },
+  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    const profile = await ctx.db.get(args.profileId);
+    if (card === null || profile === null) throw new Error("Card or profile not found.");
+    if (card.status !== "registered") throw new Error("Only a registered card can be attached.");
+    const owner = await ctx.db.get(profile.ownerId);
+    if (
+      owner === null ||
+      owner.role !== "customer" ||
+      owner.status === "deleted" ||
+      owner.deletionStatus !== "active"
+    )
+      throw new Error("The profile owner account is not available.");
+    const [activeCards, claimableCards] = await Promise.all([
+      ctx.db
+        .query("cards")
+        .withIndex("by_profileId_and_status", (q) =>
+          q.eq("profileId", profile._id).eq("status", "active"),
+        )
+        .take(1),
+      ctx.db
+        .query("cards")
+        .withIndex("by_profileId_and_status", (q) =>
+          q.eq("profileId", profile._id).eq("status", "claimable"),
+        )
+        .take(1),
+    ]);
+    if (activeCards.length > 0 || claimableCards.length > 0)
+      throw new Error("That profile already has an attached card.");
+    const status: "active" | "claimable" = profile.status === "published" ? "active" : "claimable";
+    if (status === "active" && !isActiveCustomer(owner))
+      throw new Error("The profile owner account is not active.");
+    if (
+      status === "active" &&
+      (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+    )
+      throw new Error("A valid published profile is required.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, {
+      profileId: profile._id,
+      status,
+      assignedAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.attached",
+      cardId: card._id,
+      profileId: profile._id,
+      accountId: profile.ownerId,
+      occurredAt: now,
+      before: "registered",
+      after: status,
+    });
+    return { status };
+  },
+});
+
+export const generateClaimCode = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.object({ code: v.string(), expiresAt: v.number() }),
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (
+      card === null ||
+      card.profileId === undefined ||
+      card.status !== "claimable" ||
+      card.claimCodeClaimedAt !== undefined
+    )
+      throw new Error("Claim code unavailable.");
+    const limit = await claimCodeLimiter.limit(ctx, "claimCodeGeneration", { key: args.cardId });
+    if (!limit.ok) throw new Error("Too many claim code attempts. Try again later.");
+    const code = randomCode();
+    const now = Date.now();
+    const expiresAt = now + 24 * 60 * 60 * 1000;
+    await ctx.db.patch(card._id, {
+      claimCodeHash: await digest(code),
+      claimCodeGeneratedAt: now,
+      claimCodeExpiresAt: expiresAt,
+      claimCodeInvalidatedAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.claim_code_generated",
+      cardId: card._id,
+      profileId: card.profileId,
+      occurredAt: now,
+      after: "generated",
+    });
+    return { code, expiresAt };
+  },
+});
+
+export const invalidateClaimCode = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (card === null) throw new Error("Card not found.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, { claimCodeInvalidatedAt: now, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.claim_code_invalidated",
+      cardId: card._id,
+      profileId: card.profileId,
+      occurredAt: now,
+      after: "invalidated",
+    });
+    return null;
+  },
+});
+
+export const claimStatus = query({
+  args: { cardId: v.id("cards") },
+  returns: v.object({
+    status: cardStatusValidator,
+    hasClaimCode: v.boolean(),
+    expiresAt: v.union(v.number(), v.null()),
+    claimedAt: v.union(v.number(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (card === null) throw new Error("Card not found.");
+    return {
+      status: card.status,
+      hasClaimCode:
+        card.claimCodeHash !== undefined &&
+        card.claimCodeInvalidatedAt === undefined &&
+        card.claimCodeClaimedAt === undefined,
+      expiresAt: card.claimCodeExpiresAt ?? null,
+      claimedAt: card.claimCodeClaimedAt ?? null,
+    };
+  },
+});
+
+export { digest };
 
 export const register = mutation({
   args: { cardUrl: v.string(), token: v.string() },
@@ -115,6 +361,22 @@ export const assign = mutation({
       throw new Error(
         "A card can only become active for a published profile with valid published content.",
       );
+    const [activeCards, claimableCards] = await Promise.all([
+      ctx.db
+        .query("cards")
+        .withIndex("by_profileId_and_status", (query) =>
+          query.eq("profileId", profile._id).eq("status", "active"),
+        )
+        .take(1),
+      ctx.db
+        .query("cards")
+        .withIndex("by_profileId_and_status", (query) =>
+          query.eq("profileId", profile._id).eq("status", "claimable"),
+        )
+        .take(1),
+    ]);
+    if (activeCards.length > 0 || claimableCards.length > 0)
+      throw new Error("That profile already has an attached card.");
     const owner = await ctx.db.get(profile.ownerId);
     if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
     const now = Date.now();

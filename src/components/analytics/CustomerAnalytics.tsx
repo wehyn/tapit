@@ -24,6 +24,50 @@ const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "90d", label: "Last 90 days" },
 ];
 
+export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
+export type SourceTotals = Record<AnalyticsSource, number>;
+
+/** Aggregate-only source totals; rows from before attribution was added remain unknown. */
+export function aggregateSourceTotals(
+  rows: ReadonlyArray<{ total: number; source?: string }>,
+): SourceTotals {
+  return rows.reduce<SourceTotals>(
+    (totals, row) => {
+      const source =
+        row.source === "nfc" || row.source === "qr" || row.source === "direct"
+          ? row.source
+          : "unknown";
+      totals[source] += row.total;
+      return totals;
+    },
+    { nfc: 0, qr: 0, direct: 0, unknown: 0 },
+  );
+}
+
+function SourceBreakdown({ totals }: { totals: SourceTotals }) {
+  const labels: Array<[AnalyticsSource, string]> = [
+    ["nfc", "NFC"],
+    ["qr", "QR code"],
+    ["direct", "Direct profile"],
+    ["unknown", "Unknown / legacy"],
+  ];
+  return (
+    <div className="mt-6 grid gap-2 sm:grid-cols-4" aria-label="Traffic source breakdown">
+      {labels.map(([source, label]) => (
+        <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4" key={source}>
+          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+            {label}
+          </dt>
+          <dd className="mt-2 text-xl font-semibold text-tapit-ink">
+            {totals[source].toLocaleString()}
+          </dd>
+          <p className="mt-1 text-xs text-tapit-muted">Aggregate events</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
   return (
     <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
@@ -47,6 +91,14 @@ function DemoCustomerAnalytics() {
     () => aggregateAnalytics(state.analytics, range, profile.id),
     [profile.id, range, state.analytics],
   );
+  const sourceTotals = useMemo(() => {
+    const cutoff = range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * 86400000;
+    return aggregateSourceTotals(
+      state.analytics
+        .filter((bucket) => bucket.profileId === profile.id && bucket.bucketStart >= cutoff)
+        .map((bucket) => ({ total: bucket.views + bucket.clicks, source: bucket.source })),
+    );
+  }, [now, profile.id, range, state.analytics]);
   const trend = useMemo(() => {
     const days = range === "lifetime" ? Number.POSITIVE_INFINITY : Number(range.slice(0, -1));
     const cutoff = Number.isFinite(days) ? now - days * 24 * 60 * 60 * 1000 : 0;
@@ -144,6 +196,12 @@ function DemoCustomerAnalytics() {
         </p>
       </Panel>
 
+      <Panel
+        description="Aggregate events by entry path. Historical rows without attribution appear as unknown."
+        title="Traffic sources"
+      >
+        <SourceBreakdown totals={sourceTotals} />
+      </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>
           No activity in this range yet. Share your profile or active card to begin collecting
@@ -226,6 +284,23 @@ function LiveCustomerAnalytics() {
       ),
     [buckets],
   );
+  const sourceTotals = useMemo(
+    () =>
+      buckets.reduce<SourceTotals>(
+        (summary, row) => {
+          const source =
+            (row as { source?: string }).source === "nfc" ||
+            (row as { source?: string }).source === "qr" ||
+            (row as { source?: string }).source === "direct"
+              ? (row as { source: AnalyticsSource }).source
+              : "unknown";
+          summary[source] += row.total;
+          return summary;
+        },
+        { nfc: 0, qr: 0, direct: 0, unknown: 0 },
+      ),
+    [buckets],
+  );
   const loading = profile === undefined || pages.status === "LoadingFirstPage";
   const peak = Math.max(1, ...buckets.map((bucket) => bucket.total));
   const linkResults = (profile?.draft.links ?? [])
@@ -304,6 +379,12 @@ function LiveCustomerAnalytics() {
           />
           <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
         </dl>
+      </Panel>
+      <Panel
+        description="Aggregate events by entry path. Historical rows without attribution appear as unknown."
+        title="Traffic sources"
+      >
+        <SourceBreakdown totals={sourceTotals} />
       </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No activity in this range yet.</Notice>

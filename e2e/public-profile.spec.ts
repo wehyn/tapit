@@ -30,3 +30,25 @@ test("inactive cards never reveal their former profile and vCard contains the ap
   const vCard = await readFile(downloadPath as string, "utf8");
   expect(vCard).toContain("URL:http://127.0.0.1:3000/mara-velasquez");
 });
+
+test("demo card claim, publish, and resolver activation complete as one flow", async ({ page }) => {
+  await page.goto("/c/claimable-card-demo");
+  await expect(
+    page.getByRole("heading", { name: "Are you the owner of this card?" }),
+  ).toBeVisible();
+  await page.getByLabel("Claim code").fill("MARA2Q8K");
+  await page.getByRole("button", { name: "Claim this card" }).click();
+  await expect(page).toHaveURL(/\/login\?next=%2Fc%2Fclaimable-card-demo$/);
+
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/c/claimable-card-demo");
+  await expect(page.getByRole("heading", { name: "Claimed profile" })).toBeVisible();
+});

@@ -2,7 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { ArrowRightIcon, ArrowsClockwiseIcon, PlusIcon, ProhibitIcon } from "@phosphor-icons/react";
+import {
+  ArrowRightIcon,
+  ArrowsClockwiseIcon,
+  CopyIcon,
+  PlusIcon,
+  ProhibitIcon,
+} from "@phosphor-icons/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import type { DemoCard } from "@/lib/demo/fixtures";
@@ -23,7 +29,7 @@ import { QrControls } from "@/components/qr/QrControls";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "../../../convex/_generated/api";
 
-type Confirmation = { type: "deactivate" | "replace"; card: DemoCard } | null;
+type Confirmation = { type: "deactivate" | "replace" | "attach"; card: DemoCard } | null;
 
 function cardTokenFromUrl(value: string): string | null {
   try {
@@ -39,6 +45,30 @@ function cardTokenFromUrl(value: string): string | null {
 
 function normalizedCardUrl(value: string): string {
   return value.trim();
+}
+
+function cardUrlFromToken(token: string): string {
+  return new URL(`/c/${token}`, window.location.origin).toString();
+}
+
+function randomDemoCardToken(existingTokens: Set<string>): string {
+  const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+  const bucketSize = 256 - (256 % alphabet.length);
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    const suffixCharacters: string[] = [];
+    for (const byte of bytes) {
+      if (byte >= bucketSize) continue;
+      suffixCharacters.push(alphabet[byte % alphabet.length]!);
+      if (suffixCharacters.length === 8) break;
+    }
+    if (suffixCharacters.length !== 8) continue;
+    const suffix = suffixCharacters.join("");
+    const token = `card-${suffix}`;
+    if (!existingTokens.has(token)) return token;
+  }
+  throw new Error("Unable to generate an available card token. Try again.");
 }
 
 function cardUrlIdentity(value: string): string {
@@ -57,6 +87,11 @@ function DemoCardsManager() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [replacementReview, setReplacementReview] = useState(false);
+  const [claimCode, setClaimCode] = useState<{
+    cardId: string;
+    code: string;
+    expiresAt: number;
+  } | null>(null);
   const selectedProfile = getDemoProfileById(state, selectedProfileId) ?? profiles[0];
 
   const cards = useMemo(() => {
@@ -112,8 +147,25 @@ function DemoCardsManager() {
     setMessage({ tone: "success", text: `Card ${token} registered and ready for assignment.` });
   }
 
+  function generateCardUrl() {
+    try {
+      const token = randomDemoCardToken(new Set(state.cards.map((card) => card.token)));
+      setCardUrl(cardUrlFromToken(token));
+      setMessage({
+        tone: "success",
+        text: `Generated ${token}. Review it, then register the card.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Unable to generate a card token.",
+      });
+    }
+  }
+
   function assignCard(card: DemoCard) {
-    if (!canTransitionCard(card.status, "active")) {
+    const targetStatus = selectedProfile?.status === "published" ? "active" : "claimable";
+    if (!canTransitionCard(card.status, targetStatus)) {
       setMessage({
         tone: "error",
         text: "Only a registered card can be assigned. Inactive and replaced cards cannot be reused.",
@@ -124,16 +176,21 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: "Create a profile before assigning a card." });
       return;
     }
-    if (selectedProfile.status !== "published") {
-      setMessage({ tone: "error", text: "Publish the selected profile before assigning a card." });
+    const owner = state.customers.find((customer) => customer.id === selectedProfile.ownerId);
+    if (
+      owner === undefined ||
+      owner.role !== "customer" ||
+      owner.status === "deleted" ||
+      owner.deletionStatus !== "active"
+    ) {
+      setMessage({ tone: "error", text: "The profile owner account is not available." });
       return;
     }
-    const owner = state.customers.find((customer) => customer.id === selectedProfile.ownerId);
-    if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
+    if (targetStatus === "active" && !isActiveAccount(owner.status, owner.deletionStatus)) {
       setMessage({ tone: "error", text: "The profile owner account is not active." });
       return;
     }
-    const nextCard = transitionCard(card, "active", selectedProfile.id);
+    const nextCard = transitionCard(card, targetStatus, selectedProfile.id);
     updateDemoState((current) => ({
       ...current,
       cards: current.cards.map((candidate) =>
@@ -147,14 +204,14 @@ function DemoCardsManager() {
           target: `${card.token} → ${selectedProfile.draft.name || selectedProfile.draft.slug}`,
           occurredAt: new Date().toISOString(),
           before: "registered",
-          after: "active",
+          after: targetStatus,
         },
         ...current.audits,
       ],
     }));
     setMessage({
       tone: "success",
-      text: `Card ${card.token} is active and assigned to ${selectedProfile.draft.name || selectedProfile.draft.slug}.`,
+      text: `Card ${card.token} is ${targetStatus} and assigned to ${selectedProfile.draft.name || selectedProfile.draft.slug}.`,
     });
   }
 
@@ -252,7 +309,8 @@ function DemoCardsManager() {
   function confirmAction() {
     if (confirmation === null) return;
     if (confirmation.type === "deactivate") deactivateCard(confirmation.card);
-    else replaceCard(confirmation.card);
+    else if (confirmation.type === "replace") replaceCard(confirmation.card);
+    else assignCard(confirmation.card);
   }
 
   function reviewReplacement() {
@@ -286,6 +344,9 @@ function DemoCardsManager() {
               value={cardUrl}
             />
           </div>
+          <Button onClick={generateCardUrl} type="button" variant="secondary">
+            Generate secure URL
+          </Button>
           <div className="min-w-64">
             <label
               className="block text-sm font-semibold text-tapit-ink"
@@ -380,10 +441,108 @@ function DemoCardsManager() {
               </dl>
               <div className="mt-5 flex flex-wrap gap-2">
                 {card.status === "registered" ? (
-                  <Button onClick={() => assignCard(card)} type="button">
+                  <Button onClick={() => setConfirmation({ type: "attach", card })} type="button">
                     <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
                     Assign to profile
                   </Button>
+                ) : null}
+                {card.status === "claimable" ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      onClick={() => {
+                        const generatedCode = `DEMO${Date.now().toString(36).slice(-4).toUpperCase()}`;
+                        setClaimCode({
+                          cardId: card.id,
+                          code: generatedCode,
+                          expiresAt: Date.now() + 86400000,
+                        });
+                        updateDemoState((current) => ({
+                          ...current,
+                          cards: current.cards.map((candidate) =>
+                            candidate.id === card.id
+                              ? {
+                                  ...candidate,
+                                  claimCode: generatedCode,
+                                  claimCodeExpiresAt: Date.now() + 86400000,
+                                  claimCodeInvalidatedAt: undefined,
+                                  claimChallenge: undefined,
+                                  claimChallengeExpiresAt: undefined,
+                                  claimedAt: undefined,
+                                }
+                              : candidate,
+                          ),
+                          audits: [
+                            {
+                              id: `audit-${Date.now()}`,
+                              actor: "admin@tapit.local",
+                              action: "card.claim_code_generated",
+                              target: card.token,
+                              occurredAt: new Date().toISOString(),
+                              after: "generated",
+                            },
+                            ...current.audits,
+                          ],
+                        }));
+                      }}
+                      type="button"
+                    >
+                      Generate claim code
+                    </Button>
+                    {claimCode?.cardId === card.id ? (
+                      <span
+                        className="inline-flex min-h-11 items-center gap-2 rounded-tapit bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
+                        aria-label={`Claim code for ${card.token}`}
+                      >
+                        {claimCode.code}
+                        <button
+                          aria-label="Copy claim code"
+                          className="rounded p-1 hover:bg-white"
+                          onClick={() => void navigator.clipboard?.writeText(claimCode.code)}
+                          type="button"
+                        >
+                          <CopyIcon aria-hidden="true" size={18} />
+                        </button>
+                        <Button
+                          onClick={() => {
+                            setClaimCode(null);
+                            updateDemoState((current) => ({
+                              ...current,
+                              cards: current.cards.map((candidate) =>
+                                candidate.id === card.id
+                                  ? {
+                                      ...candidate,
+                                      claimCode: undefined,
+                                      claimCodeInvalidatedAt: Date.now(),
+                                      claimChallenge: undefined,
+                                      claimChallengeExpiresAt: undefined,
+                                    }
+                                  : candidate,
+                              ),
+                              audits: [
+                                {
+                                  id: `audit-${Date.now()}`,
+                                  actor: "admin@tapit.local",
+                                  action: "card.claim_code_invalidated",
+                                  target: card.token,
+                                  occurredAt: new Date().toISOString(),
+                                  after: "invalidated",
+                                },
+                                ...current.audits,
+                              ],
+                            }));
+                            setMessage({
+                              tone: "success",
+                              text: `Claim code for ${card.token} invalidated.`,
+                            });
+                          }}
+                          type="button"
+                          variant="quiet"
+                        >
+                          Invalidate
+                        </Button>
+                      </span>
+                    ) : null}
+                  </div>
                 ) : null}
                 {card.status === "active" ? (
                   <Button
@@ -440,13 +599,21 @@ function DemoCardsManager() {
       ) : null}
 
       <ConfirmDialog
-        confirmLabel={confirmation?.type === "replace" ? "Replace card" : "Deactivate card"}
+        confirmLabel={
+          confirmation?.type === "replace"
+            ? "Replace card"
+            : confirmation?.type === "attach"
+              ? "Attach card"
+              : "Deactivate card"
+        }
         description={
           confirmation?.type === "replace"
             ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
-            : confirmation?.type === "deactivate"
-              ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
-              : ""
+            : confirmation?.type === "attach"
+              ? `Attach ${confirmation.card.token} to ${selectedProfile?.draft.name || selectedProfile?.draft.slug || "the selected profile"}? Its current profile status determines whether the card is claimable or active.`
+              : confirmation?.type === "deactivate"
+                ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
+                : ""
         }
         onCancel={cancelConfirmation}
         onConfirm={confirmAction}
@@ -454,7 +621,13 @@ function DemoCardsManager() {
           confirmation?.type === "deactivate" ||
           (confirmation?.type === "replace" && replacementReview)
         }
-        title={confirmation?.type === "replace" ? "Replace this card?" : "Deactivate this card?"}
+        title={
+          confirmation?.type === "replace"
+            ? "Replace this card?"
+            : confirmation?.type === "attach"
+              ? "Confirm card attachment"
+              : "Deactivate this card?"
+        }
       />
     </div>
   );
@@ -471,19 +644,34 @@ export function CardsManager() {
 function LiveCardsManager() {
   const cards = useQuery(api.cards.adminList);
   const profiles = useQuery(api.profiles.adminList);
+  const customers = useQuery(api.customers.list, {});
   const register = useMutation(api.cards.register);
-  const assign = useMutation(api.cards.assign);
+  const generateCardToken = useMutation(api.cards.generateCardToken);
+  const attach = useMutation(api.cards.attach);
+  const generateClaimCode = useMutation(api.cards.generateClaimCode);
+  const invalidateClaimCode = useMutation(api.cards.invalidateClaimCode);
   const deactivate = useMutation(api.cards.deactivate);
   const replace = useMutation(api.cards.replace);
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
   const [profileId, setProfileId] = useState<Id<"profiles"> | undefined>();
+  const [attachment, setAttachment] = useState<{
+    cardId: Id<"cards">;
+    token: string;
+    profile: string;
+    customer: string;
+    profileStatus: string;
+    cardStatus: string;
+  } | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const [claimCodes, setClaimCodes] = useState<Record<string, { code: string; expiresAt: number }>>(
+    {},
+  );
 
-  if (cards === undefined || profiles === undefined)
+  if (cards === undefined || profiles === undefined || customers === undefined)
     return <div className="min-h-[60vh] bg-tapit-paper" />;
-  const assignableProfiles = profiles.filter((profile) => profile.status === "published");
+  const assignableProfiles = profiles;
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
   async function run(operation: () => Promise<unknown>, success: string) {
     setPending(true);
@@ -513,6 +701,13 @@ function LiveCardsManager() {
       `Card ${token} registered and ready for assignment.`,
     );
   }
+
+  function generateCardUrl() {
+    void run(async () => {
+      const token = await generateCardToken({});
+      setCardUrl(cardUrlFromToken(token));
+    }, "Generated a secure card URL. Review it, then register the card.");
+  }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
@@ -529,6 +724,9 @@ function LiveCardsManager() {
               value={cardUrl}
             />
           </div>
+          <Button disabled={pending} onClick={generateCardUrl} type="button" variant="secondary">
+            Generate secure URL
+          </Button>
           <Button disabled={pending} type="submit">
             <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
             Register card
@@ -575,7 +773,9 @@ function LiveCardsManager() {
                         >
                           {assignableProfiles.map((candidate) => (
                             <option key={candidate._id} value={candidate._id}>
-                              {candidate.draft.name || candidate.draft.slug}
+                              {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
+                              {customers.find((customer) => customer._id === candidate.ownerId)
+                                ?.email ?? "unassigned"}
                             </option>
                           ))}
                         </select>
@@ -583,10 +783,28 @@ function LiveCardsManager() {
                           disabled={pending || !selectedProfileId}
                           onClick={() =>
                             selectedProfileId &&
-                            void run(
-                              () => assign({ cardId: card._id, profileId: selectedProfileId }),
-                              `Card ${card.token} assigned.`,
-                            )
+                            setAttachment({
+                              cardId: card._id,
+                              token: card.token,
+                              profile:
+                                profiles.find((candidate) => candidate._id === selectedProfileId)
+                                  ?.draft.name ||
+                                profiles.find((candidate) => candidate._id === selectedProfileId)
+                                  ?.draft.slug ||
+                                "selected profile",
+                              customer:
+                                customers.find(
+                                  (candidate) =>
+                                    candidate._id ===
+                                    profiles.find(
+                                      (candidate) => candidate._id === selectedProfileId,
+                                    )?.ownerId,
+                                )?.email || "selected customer",
+                              profileStatus:
+                                profiles.find((candidate) => candidate._id === selectedProfileId)
+                                  ?.status || "unknown",
+                              cardStatus: card.status,
+                            })
                           }
                           type="button"
                         >
@@ -594,6 +812,56 @@ function LiveCardsManager() {
                           Assign
                         </Button>
                       </>
+                    ) : null}
+                    {card.status === "claimable" ? (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          disabled={pending}
+                          onClick={() =>
+                            void run(async () => {
+                              const result = await generateClaimCode({ cardId: card._id });
+                              setClaimCodes((current) => ({ ...current, [card._id]: result }));
+                            }, `A new claim code for ${card.token} is ready to share.`)
+                          }
+                          type="button"
+                        >
+                          {claimCodes[card._id] ? "Regenerate claim code" : "Generate claim code"}
+                        </Button>
+                        {claimCodes[card._id]
+                          ? (() => {
+                              const generated = claimCodes[card._id]!;
+                              return (
+                                <>
+                                  <code className="inline-flex min-h-11 items-center rounded-tapit bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
+                                    {generated.code}
+                                  </code>
+                                  <Button
+                                    aria-label={`Copy claim code for ${card.token}`}
+                                    onClick={() =>
+                                      void navigator.clipboard?.writeText(generated.code)
+                                    }
+                                    type="button"
+                                    variant="secondary"
+                                  >
+                                    <CopyIcon aria-hidden="true" size={18} /> Copy
+                                  </Button>
+                                  <Button
+                                    onClick={() =>
+                                      void run(
+                                        () => invalidateClaimCode({ cardId: card._id }),
+                                        `Claim code for ${card.token} invalidated.`,
+                                      )
+                                    }
+                                    type="button"
+                                    variant="quiet"
+                                  >
+                                    Invalidate
+                                  </Button>
+                                </>
+                              );
+                            })()
+                          : null}
+                      </div>
                     ) : null}
                     {card.status === "active" ? (
                       <Button
@@ -654,6 +922,26 @@ function LiveCardsManager() {
           )}
         </div>
       </Panel>
+      <ConfirmDialog
+        confirmLabel="Confirm attachment"
+        description={
+          attachment
+            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
+            : ""
+        }
+        onCancel={() => setAttachment(null)}
+        onConfirm={() => {
+          if (attachment === null || selectedProfileId === undefined) return;
+          const pendingAttachment = attachment;
+          setAttachment(null);
+          void run(
+            () => attach({ cardId: pendingAttachment.cardId, profileId: selectedProfileId }),
+            `Card ${pendingAttachment.token} attached to ${pendingAttachment.profile}.`,
+          );
+        }}
+        open={attachment !== null}
+        title="Confirm card attachment"
+      />
     </div>
   );
 }

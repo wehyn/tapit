@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-import { query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalQuery, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 
@@ -32,6 +32,17 @@ export async function requireAdministrator(ctx: AuthContext) {
   return { userId, account };
 }
 
+/** Resolves the authenticated account for claim completion; callers must still check its role/status. */
+export async function customerForAuthUser(
+  ctx: AuthContext,
+  userId: Doc<"users">["_id"],
+): Promise<Doc<"customers"> | null> {
+  return await ctx.db
+    .query("customers")
+    .withIndex("by_userId", (query) => query.eq("userId", userId))
+    .unique();
+}
+
 export const currentAccess = query({
   args: {},
   returns: v.object({
@@ -56,6 +67,23 @@ export const currentAccess = query({
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
       profileId: active ? (account?.profileId ?? null) : null,
+    };
+  },
+});
+
+export const currentAccessInternal = internalQuery({
+  args: {},
+  returns: v.object({
+    authenticated: v.boolean(),
+    role: v.union(v.literal("admin"), v.literal("customer"), v.null()),
+  }),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) return { authenticated: false, role: null };
+    const account = await customerForAuthUser(ctx, userId);
+    return {
+      authenticated: isActiveCustomer(account),
+      role: isActiveCustomer(account) ? (account?.role ?? null) : null,
     };
   },
 });
