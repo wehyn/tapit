@@ -42,7 +42,7 @@ function ClaimScreen({ challenge, code, error, onChange, onSubmit, submitting }:
           Are you the owner of this card?
         </h1>
         <p className="mt-4 text-sm leading-6 text-tapit-muted">
-          This profile is not published yet. Enter the private claim code to continue.
+          This card is not activated yet. Enter the private claim code to continue.
         </p>
         <form className="mt-8 grid gap-5" onSubmit={onSubmit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
@@ -206,8 +206,8 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
             Are you the owner of this card?
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-tapit-muted">
-            Sign in to your Tapit account first. Then enter the private code supplied with your card
-            to confirm ownership.
+            Sign in to your Tapit account first. Then enter the private claim code supplied with
+            your card to activate it and confirm ownership.
           </p>
           <div className="mt-8">
             <ButtonLink href={`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}>

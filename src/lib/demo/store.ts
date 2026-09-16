@@ -50,6 +50,11 @@ function loadFromStorage() {
           Array.isArray(parsed.profiles) && parsed.profiles.length > 0
             ? parsed.profiles
             : [{ ...parsed.profile, theme: parsed.theme ?? fallback.theme }];
+        const cards = parsed.cards.map((card, index) => ({
+          ...card,
+          // Older demo records were appended in creation order and had no timestamp.
+          createdAt: card.createdAt ?? index,
+        }));
         const themes =
           parsed.themes ??
           Object.fromEntries(
@@ -58,6 +63,7 @@ function loadFromStorage() {
         state = {
           ...fallback,
           ...parsed,
+          cards,
           profiles,
           themes,
           profile: parsed.profile,
@@ -450,6 +456,7 @@ export function completeDemoCardClaim(cardToken: string, challenge: string, emai
             claimChallenge: undefined,
             claimChallengeExpiresAt: undefined,
             claimedAt,
+            status: profile?.status === "published" ? "active" : "claimable",
           }
         : candidate,
     ),

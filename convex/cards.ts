@@ -51,9 +51,9 @@ export const resolve = query({
       };
     if (card.status === "claimable") {
       const profile = await ctx.db.get(card.profileId);
-      return profile !== null && profile.status !== "published"
-        ? { status: "onboarding" as const }
-        : { status: "unavailable" as const };
+      return profile === null
+        ? { status: "unavailable" as const }
+        : { status: "onboarding" as const };
     }
     if (card.status !== "active") return { status: "inactive" as const };
     const profile = await ctx.db.get(card.profileId);
@@ -162,7 +162,7 @@ export const generateCardToken = mutation({
 
 export const attach = mutation({
   args: { cardId: v.id("cards"), profileId: v.id("profiles") },
-  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
+  returns: v.object({ status: v.literal("claimable") }),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -193,14 +193,12 @@ export const attach = mutation({
     ]);
     if (activeCards.length > 0 || claimableCards.length > 0)
       throw new Error("That profile already has an attached card.");
-    const status: "active" | "claimable" = profile.status === "published" ? "active" : "claimable";
-    if (status === "active" && !isActiveCustomer(owner))
-      throw new Error("The profile owner account is not active.");
-    if (
-      status === "active" &&
-      (profile.published === undefined || validateProfileContent(profile.published).length > 0)
-    )
-      throw new Error("A valid published profile is required.");
+    if (profile.status === "published") {
+      if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
+      if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+        throw new Error("A valid published profile is required.");
+    }
+    const status = "claimable" as const;
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
@@ -348,7 +346,7 @@ export const register = mutation({
 
 export const assign = mutation({
   args: { cardId: v.id("cards"), profileId: v.id("profiles") },
-  returns: v.object({ status: v.literal("active") }),
+  returns: v.object({ status: v.literal("claimable") }),
   handler: async (ctx, args) => {
     const { userId } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -382,7 +380,7 @@ export const assign = mutation({
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
-      status: "active",
+      status: "claimable",
       assignedAt: now,
       updatedAt: now,
     });
@@ -395,9 +393,9 @@ export const assign = mutation({
       accountId: profile.ownerId,
       occurredAt: now,
       before: "registered",
-      after: "active",
+      after: "claimable",
     });
-    return { status: "active" as const };
+    return { status: "claimable" as const };
   },
 });
 

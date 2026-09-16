@@ -118,7 +118,11 @@ export const complete = mutation({
     }
     const now = Date.now();
     await ctx.db.patch(challenge._id, { usedAt: now });
-    await ctx.db.patch(card._id, { claimCodeClaimedAt: now, updatedAt: now });
+    await ctx.db.patch(card._id, {
+      claimCodeClaimedAt: now,
+      status: profile.status === "published" ? "active" : "claimable",
+      updatedAt: now,
+    });
     await ctx.db.insert("auditLogs", {
       actorUserId: userId,
       actorLabel: customer.email,

@@ -1,5 +1,6 @@
 import { convexTest } from "convex-test";
 import { describe, expect, it } from "vitest";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -100,6 +101,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
 describe("Convex links, cards, analytics, and admin operations", () => {
   it("validates owned link drafts and enforces the card lifecycle", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
@@ -192,7 +194,16 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         cardId,
         profileId: data.ownerProfileId,
       }),
-    ).resolves.toEqual({ status: "active" });
+    ).resolves.toEqual({ status: "claimable" });
+    await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toEqual({
+      status: "onboarding",
+    });
+    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId });
+    const { challenge } = await owner.mutation(api.cardClaims.verifyCode, {
+      token: "owned-card",
+      code,
+    });
+    await owner.mutation(api.cardClaims.complete, { challenge });
     await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner", links: [{ id: "owner-link" }] },
@@ -233,7 +244,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         cardId: reusableCardId,
         profileId: data.ownerProfileId,
       }),
-    ).resolves.toEqual({ status: "active" });
+    ).resolves.toEqual({ status: "claimable" });
   });
 
   it("scopes analytics and protects admin settings, audits, and deletion workflows", async () => {

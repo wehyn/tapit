@@ -295,7 +295,7 @@ export function canManageCard(actor: Actor): boolean {
 }
 
 const CARD_TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
-  registered: ["claimable", "active"],
+  registered: ["claimable"],
   claimable: ["active"],
   active: ["inactive", "replaced"],
   inactive: [],

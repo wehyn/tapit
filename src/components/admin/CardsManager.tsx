@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import {
   ArrowRightIcon,
   ArrowsClockwiseIcon,
+  CaretDownIcon,
   CopyIcon,
   PlusIcon,
   ProhibitIcon,
@@ -29,7 +30,10 @@ import { QrControls } from "@/components/qr/QrControls";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "../../../convex/_generated/api";
 
-type Confirmation = { type: "deactivate" | "replace" | "attach"; card: DemoCard } | null;
+type Confirmation =
+  | { type: "deactivate" | "replace"; card: DemoCard }
+  | { type: "attach"; card: DemoCard; profileId: string }
+  | null;
 
 function cardTokenFromUrl(value: string): string | null {
   try {
@@ -96,11 +100,15 @@ function DemoCardsManager() {
 
   const cards = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    return state.cards.filter(
-      (card) =>
-        !normalized ||
-        `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized),
-    );
+    return state.cards
+      .map((card, index) => ({ card, createdAt: card.createdAt ?? index }))
+      .filter(
+        ({ card }) =>
+          !normalized ||
+          `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized),
+      )
+      .sort((first, second) => second.createdAt - first.createdAt)
+      .map(({ card }) => card);
   }, [query, state.cards]);
 
   function validateCardUrl(value: string): string | null {
@@ -122,11 +130,13 @@ function DemoCardsManager() {
     }
     const token = cardTokenFromUrl(cardUrl);
     if (!token) return;
+    const createdAt = Math.max(0, ...state.cards.map((card) => card.createdAt ?? 0)) + 1;
     const nextCard: DemoCard = {
       id: `card-${token}`,
       token,
       cardUrl: normalizedCardUrl(cardUrl),
       status: "registered",
+      createdAt,
     };
     updateDemoState((current) => ({
       ...current,
@@ -145,6 +155,8 @@ function DemoCardsManager() {
     }));
     setCardUrl("");
     setMessage({ tone: "success", text: `Card ${token} registered and ready for assignment.` });
+    if (selectedProfile !== undefined)
+      setConfirmation({ type: "attach", card: nextCard, profileId: selectedProfile.id });
   }
 
   function generateCardUrl() {
@@ -163,8 +175,8 @@ function DemoCardsManager() {
     }
   }
 
-  function assignCard(card: DemoCard) {
-    const targetStatus = selectedProfile?.status === "published" ? "active" : "claimable";
+  function assignCard(card: DemoCard, profileId: string) {
+    const targetStatus = "claimable" as const;
     if (!canTransitionCard(card.status, targetStatus)) {
       setMessage({
         tone: "error",
@@ -172,11 +184,12 @@ function DemoCardsManager() {
       });
       return;
     }
-    if (selectedProfile === undefined) {
+    const profile = getDemoProfileById(state, profileId);
+    if (profile === undefined) {
       setMessage({ tone: "error", text: "Create a profile before assigning a card." });
       return;
     }
-    const owner = state.customers.find((customer) => customer.id === selectedProfile.ownerId);
+    const owner = state.customers.find((customer) => customer.id === profile.ownerId);
     if (
       owner === undefined ||
       owner.role !== "customer" ||
@@ -186,22 +199,18 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: "The profile owner account is not available." });
       return;
     }
-    if (targetStatus === "active" && !isActiveAccount(owner.status, owner.deletionStatus)) {
-      setMessage({ tone: "error", text: "The profile owner account is not active." });
-      return;
-    }
-    const nextCard = transitionCard(card, targetStatus, selectedProfile.id);
+    const nextCard = transitionCard(card, targetStatus, profile.id);
     updateDemoState((current) => ({
       ...current,
       cards: current.cards.map((candidate) =>
-        candidate.id === card.id ? { ...candidate, ...nextCard } : candidate,
+        candidate.id === card.id ? { ...candidate, ...nextCard, profileId: profile.id } : candidate,
       ),
       audits: [
         {
           id: `audit-${Date.now()}`,
           actor: "admin@tapit.local",
           action: "card.assigned",
-          target: `${card.token} → ${selectedProfile.draft.name || selectedProfile.draft.slug}`,
+          target: `${card.token} → ${profile.draft.name || profile.draft.slug}`,
           occurredAt: new Date().toISOString(),
           before: "registered",
           after: targetStatus,
@@ -209,9 +218,10 @@ function DemoCardsManager() {
         ...current.audits,
       ],
     }));
+    setConfirmation(null);
     setMessage({
       tone: "success",
-      text: `Card ${card.token} is ${targetStatus} and assigned to ${selectedProfile.draft.name || selectedProfile.draft.slug}.`,
+      text: `Card ${card.token} is claimable and assigned to ${profile.draft.name || profile.draft.slug}. It must be activated with a claim code.`,
     });
   }
 
@@ -310,7 +320,7 @@ function DemoCardsManager() {
     if (confirmation === null) return;
     if (confirmation.type === "deactivate") deactivateCard(confirmation.card);
     else if (confirmation.type === "replace") replaceCard(confirmation.card);
-    else assignCard(confirmation.card);
+    else if (confirmation.type === "attach") assignCard(confirmation.card, confirmation.profileId);
   }
 
   function reviewReplacement() {
@@ -395,181 +405,207 @@ function DemoCardsManager() {
         </div>
         <div className="mt-6 grid gap-2">
           {cards.length === 0 ? <Notice>No registered cards match this search.</Notice> : null}
-          {cards.map((card) => (
-            <article
-              className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
-              key={card.id}
-            >
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-semibold text-tapit-ink">{card.token}</p>
-                  <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
-                </div>
-                <StatusBadge status={card.status} />
-              </div>
-              <dl className="mt-5 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                    Profile
-                  </dt>
-                  <dd className="mt-1 text-tapit-ink">
-                    {getDemoProfileById(state, card.profileId)?.draft.name ||
-                      (card.profileId
-                        ? getDemoProfileById(state, card.profileId)?.draft.slug
-                        : "Unassigned")}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                    Public effect
-                  </dt>
-                  <dd className="mt-1 text-tapit-ink">
-                    {card.status === "active"
-                      ? "Resolves to published state"
-                      : "No profile content"}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                    History
-                  </dt>
-                  <dd className="mt-1 text-tapit-ink">
-                    {state.audits.filter((audit) => audit.target.includes(card.token)).length} audit
-                    events
-                  </dd>
-                </div>
-              </dl>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {card.status === "registered" ? (
-                  <Button onClick={() => setConfirmation({ type: "attach", card })} type="button">
-                    <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
-                    Assign to profile
-                  </Button>
-                ) : null}
-                {card.status === "claimable" ? (
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      onClick={() => {
-                        const generatedCode = `DEMO${Date.now().toString(36).slice(-4).toUpperCase()}`;
-                        setClaimCode({
-                          cardId: card.id,
-                          code: generatedCode,
-                          expiresAt: Date.now() + 86400000,
-                        });
-                        updateDemoState((current) => ({
-                          ...current,
-                          cards: current.cards.map((candidate) =>
-                            candidate.id === card.id
-                              ? {
-                                  ...candidate,
-                                  claimCode: generatedCode,
-                                  claimCodeExpiresAt: Date.now() + 86400000,
-                                  claimCodeInvalidatedAt: undefined,
-                                  claimChallenge: undefined,
-                                  claimChallengeExpiresAt: undefined,
-                                  claimedAt: undefined,
-                                }
-                              : candidate,
-                          ),
-                          audits: [
-                            {
-                              id: `audit-${Date.now()}`,
-                              actor: "admin@tapit.local",
-                              action: "card.claim_code_generated",
-                              target: card.token,
-                              occurredAt: new Date().toISOString(),
-                              after: "generated",
-                            },
-                            ...current.audits,
-                          ],
-                        }));
-                      }}
-                      type="button"
-                    >
-                      Generate claim code
-                    </Button>
-                    {claimCode?.cardId === card.id ? (
-                      <span
-                        className="inline-flex min-h-11 items-center gap-2 rounded-tapit bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
-                        aria-label={`Claim code for ${card.token}`}
-                      >
-                        {claimCode.code}
-                        <button
-                          aria-label="Copy claim code"
-                          className="rounded p-1 hover:bg-white"
-                          onClick={() => void navigator.clipboard?.writeText(claimCode.code)}
-                          type="button"
-                        >
-                          <CopyIcon aria-hidden="true" size={18} />
-                        </button>
+          {cards.map((card) => {
+            const profile = getDemoProfileById(state, card.profileId);
+            const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
+            return (
+              <article
+                className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                key={card.id}
+              >
+                <details className="group">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus">
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-tapit-ink">
+                        {profileLabel}{" "}
+                        <span className="font-mono text-sm font-normal text-tapit-muted">
+                          ({card.token})
+                        </span>
+                      </p>
+                      <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <StatusBadge status={card.status} />
+                      <CaretDownIcon
+                        aria-hidden="true"
+                        className="text-tapit-muted transition-transform group-open:rotate-180"
+                        size={18}
+                        weight="bold"
+                      />
+                    </div>
+                  </summary>
+                  <div>
+                    <dl className="mt-5 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                          Profile
+                        </dt>
+                        <dd className="mt-1 text-tapit-ink">{profileLabel}</dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                          Public effect
+                        </dt>
+                        <dd className="mt-1 text-tapit-ink">
+                          {card.status === "active"
+                            ? "Resolves to published state"
+                            : "No profile content"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+                          History
+                        </dt>
+                        <dd className="mt-1 text-tapit-ink">
+                          {state.audits.filter((audit) => audit.target.includes(card.token)).length}{" "}
+                          audit events
+                        </dd>
+                      </div>
+                    </dl>
+                    <div className="mt-5 flex flex-wrap gap-2">
+                      {card.status === "registered" ? (
                         <Button
-                          onClick={() => {
-                            setClaimCode(null);
-                            updateDemoState((current) => ({
-                              ...current,
-                              cards: current.cards.map((candidate) =>
-                                candidate.id === card.id
-                                  ? {
-                                      ...candidate,
-                                      claimCode: undefined,
-                                      claimCodeInvalidatedAt: Date.now(),
-                                      claimChallenge: undefined,
-                                      claimChallengeExpiresAt: undefined,
-                                    }
-                                  : candidate,
-                              ),
-                              audits: [
-                                {
-                                  id: `audit-${Date.now()}`,
-                                  actor: "admin@tapit.local",
-                                  action: "card.claim_code_invalidated",
-                                  target: card.token,
-                                  occurredAt: new Date().toISOString(),
-                                  after: "invalidated",
-                                },
-                                ...current.audits,
-                              ],
-                            }));
-                            setMessage({
-                              tone: "success",
-                              text: `Claim code for ${card.token} invalidated.`,
-                            });
-                          }}
+                          onClick={() =>
+                            selectedProfile &&
+                            setConfirmation({
+                              type: "attach",
+                              card,
+                              profileId: selectedProfile.id,
+                            })
+                          }
                           type="button"
-                          variant="quiet"
                         >
-                          Invalidate
+                          <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
+                          Assign to profile
                         </Button>
-                      </span>
+                      ) : null}
+                      {card.status === "claimable" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            onClick={() => {
+                              const generatedCode = `DEMO${Date.now().toString(36).slice(-4).toUpperCase()}`;
+                              setClaimCode({
+                                cardId: card.id,
+                                code: generatedCode,
+                                expiresAt: Date.now() + 86400000,
+                              });
+                              updateDemoState((current) => ({
+                                ...current,
+                                cards: current.cards.map((candidate) =>
+                                  candidate.id === card.id
+                                    ? {
+                                        ...candidate,
+                                        claimCode: generatedCode,
+                                        claimCodeExpiresAt: Date.now() + 86400000,
+                                        claimCodeInvalidatedAt: undefined,
+                                        claimChallenge: undefined,
+                                        claimChallengeExpiresAt: undefined,
+                                        claimedAt: undefined,
+                                      }
+                                    : candidate,
+                                ),
+                                audits: [
+                                  {
+                                    id: `audit-${Date.now()}`,
+                                    actor: "admin@tapit.local",
+                                    action: "card.claim_code_generated",
+                                    target: card.token,
+                                    occurredAt: new Date().toISOString(),
+                                    after: "generated",
+                                  },
+                                  ...current.audits,
+                                ],
+                              }));
+                            }}
+                            type="button"
+                          >
+                            Generate claim code
+                          </Button>
+                          {claimCode?.cardId === card.id ? (
+                            <span
+                              className="inline-flex min-h-11 items-center gap-2 rounded-tapit bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
+                              aria-label={`Claim code for ${card.token}`}
+                            >
+                              {claimCode.code}
+                              <button
+                                aria-label="Copy claim code"
+                                className="rounded p-1 hover:bg-white"
+                                onClick={() => void navigator.clipboard?.writeText(claimCode.code)}
+                                type="button"
+                              >
+                                <CopyIcon aria-hidden="true" size={18} />
+                              </button>
+                              <Button
+                                onClick={() => {
+                                  setClaimCode(null);
+                                  updateDemoState((current) => ({
+                                    ...current,
+                                    cards: current.cards.map((candidate) =>
+                                      candidate.id === card.id
+                                        ? {
+                                            ...candidate,
+                                            claimCode: undefined,
+                                            claimCodeInvalidatedAt: Date.now(),
+                                            claimChallenge: undefined,
+                                            claimChallengeExpiresAt: undefined,
+                                          }
+                                        : candidate,
+                                    ),
+                                    audits: [
+                                      {
+                                        id: `audit-${Date.now()}`,
+                                        actor: "admin@tapit.local",
+                                        action: "card.claim_code_invalidated",
+                                        target: card.token,
+                                        occurredAt: new Date().toISOString(),
+                                        after: "invalidated",
+                                      },
+                                      ...current.audits,
+                                    ],
+                                  }));
+                                  setMessage({
+                                    tone: "success",
+                                    text: `Claim code for ${card.token} invalidated.`,
+                                  });
+                                }}
+                                type="button"
+                                variant="quiet"
+                              >
+                                Invalidate
+                              </Button>
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {card.status === "active" ? (
+                        <Button
+                          onClick={() => setConfirmation({ type: "deactivate", card })}
+                          type="button"
+                          variant="danger"
+                        >
+                          <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
+                          Deactivate
+                        </Button>
+                      ) : null}
+                      {card.status === "active" ? (
+                        <Button
+                          onClick={() => setConfirmation({ type: "replace", card })}
+                          type="button"
+                          variant="secondary"
+                        >
+                          <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
+                          Replace card
+                        </Button>
+                      ) : null}
+                    </div>
+                    {card.status === "active" ? (
+                      <QrControls cardUrl={card.cardUrl} label={card.token} />
                     ) : null}
                   </div>
-                ) : null}
-                {card.status === "active" ? (
-                  <Button
-                    onClick={() => setConfirmation({ type: "deactivate", card })}
-                    type="button"
-                    variant="danger"
-                  >
-                    <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
-                    Deactivate
-                  </Button>
-                ) : null}
-                {card.status === "active" ? (
-                  <Button
-                    onClick={() => setConfirmation({ type: "replace", card })}
-                    type="button"
-                    variant="secondary"
-                  >
-                    <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
-                    Replace card
-                  </Button>
-                ) : null}
-              </div>
-              {card.status === "active" ? (
-                <QrControls cardUrl={card.cardUrl} label={card.token} />
-              ) : null}
-            </article>
-          ))}
+                </details>
+              </article>
+            );
+          })}
         </div>
       </Panel>
 
@@ -610,7 +646,7 @@ function DemoCardsManager() {
           confirmation?.type === "replace"
             ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
             : confirmation?.type === "attach"
-              ? `Attach ${confirmation.card.token} to ${selectedProfile?.draft.name || selectedProfile?.draft.slug || "the selected profile"}? Its current profile status determines whether the card is claimable or active.`
+              ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? The card will be claimable and must be activated with a claim code before it can serve profile content.`
               : confirmation?.type === "deactivate"
                 ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
                 : ""
@@ -619,6 +655,7 @@ function DemoCardsManager() {
         onConfirm={confirmAction}
         open={
           confirmation?.type === "deactivate" ||
+          confirmation?.type === "attach" ||
           (confirmation?.type === "replace" && replacementReview)
         }
         title={
@@ -658,6 +695,7 @@ function LiveCardsManager() {
   const [attachment, setAttachment] = useState<{
     cardId: Id<"cards">;
     token: string;
+    profileId: Id<"profiles">;
     profile: string;
     customer: string;
     profileStatus: string;
@@ -669,10 +707,16 @@ function LiveCardsManager() {
     {},
   );
 
+  const orderedCards = useMemo(
+    () => [...(cards ?? [])].sort((first, second) => second.createdAt - first.createdAt),
+    [cards],
+  );
+  const assignableProfiles = profiles ?? [];
+  const availableCustomers = customers ?? [];
+  const selectedProfileId = profileId || assignableProfiles[0]?._id;
+
   if (cards === undefined || profiles === undefined || customers === undefined)
     return <div className="min-h-[60vh] bg-tapit-paper" />;
-  const assignableProfiles = profiles;
-  const selectedProfileId = profileId || assignableProfiles[0]?._id;
   async function run(operation: () => Promise<unknown>, success: string) {
     setPending(true);
     setMessage(null);
@@ -693,13 +737,23 @@ function LiveCardsManager() {
     const token = cardTokenFromUrl(cardUrl);
     if (!token)
       return setMessage({ tone: "error", text: "Enter a card URL with a /c/<unique-token> path." });
-    void run(
-      () =>
-        register({ cardUrl: cardUrl.trim(), token }).then(() => {
-          setCardUrl("");
-        }),
-      `Card ${token} registered and ready for assignment.`,
-    );
+    void run(async () => {
+      const cardId = await register({ cardUrl: cardUrl.trim(), token });
+      setCardUrl("");
+      const profile = assignableProfiles.find((candidate) => candidate._id === selectedProfileId);
+      if (profile === undefined || selectedProfileId === undefined) return;
+      setAttachment({
+        cardId,
+        token,
+        profileId: profile._id,
+        profile: profile.draft.name || profile.draft.slug || "selected profile",
+        customer:
+          availableCustomers.find((candidate) => candidate._id === profile.ownerId)?.email ||
+          "selected customer",
+        profileStatus: profile.status,
+        cardStatus: "registered",
+      });
+    }, `Card ${token} registered and ready for assignment.`);
   }
 
   function generateCardUrl() {
@@ -714,7 +768,7 @@ function LiveCardsManager() {
         description="Register pre-encoded URLs and manage assignments. All operations are checked and audited server-side."
         title="Register card URL"
       >
-        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={registerCard}>
+        <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
           <div className="min-w-72 flex-1">
             <Field
               id="live-card-url"
@@ -723,6 +777,28 @@ function LiveCardsManager() {
               placeholder="/c/card-token"
               value={cardUrl}
             />
+          </div>
+          <div className="min-w-64">
+            <label
+              className="block text-sm font-semibold text-tapit-ink"
+              htmlFor="live-card-assignment-profile"
+            >
+              Assignment profile
+            </label>
+            <select
+              className="mt-2 min-h-12 w-full rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+              id="live-card-assignment-profile"
+              onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
+              value={selectedProfileId ?? ""}
+            >
+              {assignableProfiles.map((candidate) => (
+                <option key={candidate._id} value={candidate._id}>
+                  {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
+                  {customers.find((customer) => customer._id === candidate.ownerId)?.email ??
+                    "unassigned"}
+                </option>
+              ))}
+            </select>
           </div>
           <Button disabled={pending} onClick={generateCardUrl} type="button" variant="secondary">
             Generate secure URL
@@ -740,182 +816,205 @@ function LiveCardsManager() {
       </Panel>
       <Panel description="Inactive and replaced cards cannot be reused." title="Card registry">
         <div className="mt-6 grid gap-2">
-          {cards.length === 0 ? (
+          {orderedCards.length === 0 ? (
             <Notice>No registered cards.</Notice>
           ) : (
-            cards.map((card) => {
+            orderedCards.map((card) => {
               const profile = profiles.find((candidate) => candidate._id === card.profileId);
+              const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
               return (
                 <article
                   className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
                   key={card._id}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-tapit-ink">
+                          {profileLabel}{" "}
+                          <span className="font-mono text-sm font-normal text-tapit-muted">
+                            ({card.token})
+                          </span>
+                        </p>
+                        <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <StatusBadge status={card.status} />
+                        <CaretDownIcon
+                          aria-hidden="true"
+                          className="text-tapit-muted transition-transform group-open:rotate-180"
+                          size={18}
+                          weight="bold"
+                        />
+                      </div>
+                    </summary>
                     <div>
-                      <p className="font-semibold text-tapit-ink">{card.token}</p>
-                      <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
-                    </div>
-                    <StatusBadge status={card.status} />
-                  </div>
-                  <p className="mt-4 text-sm text-tapit-muted">
-                    {profile
-                      ? `${profile.draft.name || "Unnamed profile"} · ${profile.draft.slug}`
-                      : "Unassigned"}
-                  </p>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    {card.status === "registered" ? (
-                      <>
-                        <select
-                          aria-label={`Assign ${card.token}`}
-                          className="min-h-11 rounded-tapit border border-tapit-line bg-white px-3"
-                          onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
-                          value={selectedProfileId ?? ""}
-                        >
-                          {assignableProfiles.map((candidate) => (
-                            <option key={candidate._id} value={candidate._id}>
-                              {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
-                              {customers.find((customer) => customer._id === candidate.ownerId)
-                                ?.email ?? "unassigned"}
-                            </option>
-                          ))}
-                        </select>
-                        <Button
-                          disabled={pending || !selectedProfileId}
-                          onClick={() =>
-                            selectedProfileId &&
-                            setAttachment({
-                              cardId: card._id,
-                              token: card.token,
-                              profile:
-                                profiles.find((candidate) => candidate._id === selectedProfileId)
-                                  ?.draft.name ||
-                                profiles.find((candidate) => candidate._id === selectedProfileId)
-                                  ?.draft.slug ||
-                                "selected profile",
-                              customer:
-                                customers.find(
-                                  (candidate) =>
-                                    candidate._id ===
+                      <p className="mt-4 text-sm text-tapit-muted">{profileLabel}</p>
+                      <div className="mt-5 flex flex-wrap gap-2">
+                        {card.status === "registered" ? (
+                          <>
+                            <select
+                              aria-label={`Assign ${card.token}`}
+                              className="min-h-11 rounded-tapit border border-tapit-line bg-white px-3"
+                              onChange={(event) =>
+                                setProfileId(event.target.value as Id<"profiles">)
+                              }
+                              value={selectedProfileId ?? ""}
+                            >
+                              {assignableProfiles.map((candidate) => (
+                                <option key={candidate._id} value={candidate._id}>
+                                  {candidate.draft.name || candidate.draft.slug} · {candidate.slug}{" "}
+                                  ·{" "}
+                                  {customers.find((customer) => customer._id === candidate.ownerId)
+                                    ?.email ?? "unassigned"}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              disabled={pending || !selectedProfileId}
+                              onClick={() =>
+                                selectedProfileId &&
+                                setAttachment({
+                                  cardId: card._id,
+                                  token: card.token,
+                                  profileId: selectedProfileId,
+                                  profile:
                                     profiles.find(
                                       (candidate) => candidate._id === selectedProfileId,
-                                    )?.ownerId,
-                                )?.email || "selected customer",
-                              profileStatus:
-                                profiles.find((candidate) => candidate._id === selectedProfileId)
-                                  ?.status || "unknown",
-                              cardStatus: card.status,
-                            })
-                          }
-                          type="button"
-                        >
-                          <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
-                          Assign
-                        </Button>
-                      </>
-                    ) : null}
-                    {card.status === "claimable" ? (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                          disabled={pending}
-                          onClick={() =>
-                            void run(async () => {
-                              const result = await generateClaimCode({ cardId: card._id });
-                              setClaimCodes((current) => ({ ...current, [card._id]: result }));
-                            }, `A new claim code for ${card.token} is ready to share.`)
-                          }
-                          type="button"
-                        >
-                          {claimCodes[card._id] ? "Regenerate claim code" : "Generate claim code"}
-                        </Button>
-                        {claimCodes[card._id]
-                          ? (() => {
-                              const generated = claimCodes[card._id]!;
-                              return (
-                                <>
-                                  <code className="inline-flex min-h-11 items-center rounded-tapit bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
-                                    {generated.code}
-                                  </code>
-                                  <Button
-                                    aria-label={`Copy claim code for ${card.token}`}
-                                    onClick={() =>
-                                      void navigator.clipboard?.writeText(generated.code)
-                                    }
-                                    type="button"
-                                    variant="secondary"
-                                  >
-                                    <CopyIcon aria-hidden="true" size={18} /> Copy
-                                  </Button>
-                                  <Button
-                                    onClick={() =>
-                                      void run(
-                                        () => invalidateClaimCode({ cardId: card._id }),
-                                        `Claim code for ${card.token} invalidated.`,
-                                      )
-                                    }
-                                    type="button"
-                                    variant="quiet"
-                                  >
-                                    Invalidate
-                                  </Button>
-                                </>
-                              );
-                            })()
-                          : null}
+                                    )?.draft.name ||
+                                    profiles.find(
+                                      (candidate) => candidate._id === selectedProfileId,
+                                    )?.draft.slug ||
+                                    "selected profile",
+                                  customer:
+                                    customers.find(
+                                      (candidate) =>
+                                        candidate._id ===
+                                        profiles.find(
+                                          (candidate) => candidate._id === selectedProfileId,
+                                        )?.ownerId,
+                                    )?.email || "selected customer",
+                                  profileStatus:
+                                    profiles.find(
+                                      (candidate) => candidate._id === selectedProfileId,
+                                    )?.status || "unknown",
+                                  cardStatus: card.status,
+                                })
+                              }
+                              type="button"
+                            >
+                              <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
+                              Assign
+                            </Button>
+                          </>
+                        ) : null}
+                        {card.status === "claimable" ? (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Button
+                              disabled={pending}
+                              onClick={() =>
+                                void run(async () => {
+                                  const result = await generateClaimCode({ cardId: card._id });
+                                  setClaimCodes((current) => ({ ...current, [card._id]: result }));
+                                }, `A new claim code for ${card.token} is ready to share.`)
+                              }
+                              type="button"
+                            >
+                              {claimCodes[card._id]
+                                ? "Regenerate claim code"
+                                : "Generate claim code"}
+                            </Button>
+                            {claimCodes[card._id]
+                              ? (() => {
+                                  const generated = claimCodes[card._id]!;
+                                  return (
+                                    <>
+                                      <code className="inline-flex min-h-11 items-center rounded-tapit bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
+                                        {generated.code}
+                                      </code>
+                                      <Button
+                                        aria-label={`Copy claim code for ${card.token}`}
+                                        onClick={() =>
+                                          void navigator.clipboard?.writeText(generated.code)
+                                        }
+                                        type="button"
+                                        variant="secondary"
+                                      >
+                                        <CopyIcon aria-hidden="true" size={18} /> Copy
+                                      </Button>
+                                      <Button
+                                        onClick={() =>
+                                          void run(
+                                            () => invalidateClaimCode({ cardId: card._id }),
+                                            `Claim code for ${card.token} invalidated.`,
+                                          )
+                                        }
+                                        type="button"
+                                        variant="quiet"
+                                      >
+                                        Invalidate
+                                      </Button>
+                                    </>
+                                  );
+                                })()
+                              : null}
+                          </div>
+                        ) : null}
+                        {card.status === "active" ? (
+                          <Button
+                            disabled={pending}
+                            onClick={() =>
+                              void run(
+                                () => deactivate({ cardId: card._id }),
+                                `Card ${card.token} deactivated.`,
+                              )
+                            }
+                            type="button"
+                            variant="danger"
+                          >
+                            <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
+                            Deactivate
+                          </Button>
+                        ) : null}
+                        {card.status === "active" ? (
+                          <>
+                            <input
+                              aria-label={`Replacement URL for ${card.token}`}
+                              className="min-h-11 rounded-tapit border border-tapit-line px-3"
+                              onChange={(event) => setReplacementUrl(event.target.value)}
+                              placeholder="/c/replacement-token"
+                              value={replacementUrl}
+                            />
+                            <Button
+                              disabled={pending}
+                              onClick={() => {
+                                const token = cardTokenFromUrl(replacementUrl);
+                                if (!token)
+                                  return setMessage({
+                                    tone: "error",
+                                    text: "Enter a valid replacement card URL.",
+                                  });
+                                void run(
+                                  () =>
+                                    replace({
+                                      oldCardId: card._id,
+                                      newCardUrl: replacementUrl.trim(),
+                                      newToken: token,
+                                    }).then(() => setReplacementUrl("")),
+                                  `Card ${card.token} replaced.`,
+                                );
+                              }}
+                              type="button"
+                              variant="secondary"
+                            >
+                              <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
+                              Replace
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
-                    ) : null}
-                    {card.status === "active" ? (
-                      <Button
-                        disabled={pending}
-                        onClick={() =>
-                          void run(
-                            () => deactivate({ cardId: card._id }),
-                            `Card ${card.token} deactivated.`,
-                          )
-                        }
-                        type="button"
-                        variant="danger"
-                      >
-                        <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
-                        Deactivate
-                      </Button>
-                    ) : null}
-                    {card.status === "active" ? (
-                      <>
-                        <input
-                          aria-label={`Replacement URL for ${card.token}`}
-                          className="min-h-11 rounded-tapit border border-tapit-line px-3"
-                          onChange={(event) => setReplacementUrl(event.target.value)}
-                          placeholder="/c/replacement-token"
-                          value={replacementUrl}
-                        />
-                        <Button
-                          disabled={pending}
-                          onClick={() => {
-                            const token = cardTokenFromUrl(replacementUrl);
-                            if (!token)
-                              return setMessage({
-                                tone: "error",
-                                text: "Enter a valid replacement card URL.",
-                              });
-                            void run(
-                              () =>
-                                replace({
-                                  oldCardId: card._id,
-                                  newCardUrl: replacementUrl.trim(),
-                                  newToken: token,
-                                }).then(() => setReplacementUrl("")),
-                              `Card ${card.token} replaced.`,
-                            );
-                          }}
-                          type="button"
-                          variant="secondary"
-                        >
-                          <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
-                          Replace
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
+                    </div>
+                  </details>
                 </article>
               );
             })
@@ -926,17 +1025,18 @@ function LiveCardsManager() {
         confirmLabel="Confirm attachment"
         description={
           attachment
-            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
+            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? The card must be activated with a claim code before it can serve profile content. Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
             : ""
         }
         onCancel={() => setAttachment(null)}
         onConfirm={() => {
-          if (attachment === null || selectedProfileId === undefined) return;
+          if (attachment === null) return;
           const pendingAttachment = attachment;
           setAttachment(null);
           void run(
-            () => attach({ cardId: pendingAttachment.cardId, profileId: selectedProfileId }),
-            `Card ${pendingAttachment.token} attached to ${pendingAttachment.profile}.`,
+            () =>
+              attach({ cardId: pendingAttachment.cardId, profileId: pendingAttachment.profileId }),
+            `Card ${pendingAttachment.token} is claimable and attached to ${pendingAttachment.profile}. It must be activated with a claim code.`,
           );
         }}
         open={attachment !== null}

@@ -226,7 +226,18 @@ describe("card claiming contracts", () => {
     });
     await expect(
       admin.mutation(api.cards.attach, { cardId: immediateCardId, profileId: publishedProfileId }),
-    ).resolves.toEqual({ status: "active" });
+    ).resolves.toEqual({ status: "claimable" });
+    await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toEqual({
+      status: "onboarding",
+    });
+    const { code: publishedCode } = await admin.mutation(api.cards.generateClaimCode, {
+      cardId: immediateCardId,
+    });
+    const { challenge: publishedChallenge } = await owner.mutation(api.cardClaims.verifyCode, {
+      token: "card-2",
+      code: publishedCode,
+    });
+    await owner.mutation(api.cardClaims.complete, { challenge: publishedChallenge });
     await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner-two" },

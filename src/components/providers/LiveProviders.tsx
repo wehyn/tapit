@@ -4,13 +4,16 @@ import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { ConvexReactClient, useQuery } from "convex/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Suspense, type ReactNode } from "react";
 
 import { api } from "../../../convex/_generated/api";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
+const subscribeToHydration = () => () => {};
+const getClientHydrationSnapshot = () => true;
+const getServerHydrationSnapshot = () => false;
 
 export function LiveProviders({ children }: { children: ReactNode }) {
   if (convex === null) {
@@ -31,6 +34,11 @@ function AuthBoundary({ children }: { children: ReactNode }) {
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess);
+  const hydrated = useSyncExternalStore(
+    subscribeToHydration,
+    getClientHydrationSnapshot,
+    getServerHydrationSnapshot,
+  );
   const isProtectedPage = pathname.startsWith("/app") || pathname.startsWith("/admin");
   const isPasswordResetPage = pathname === "/login" && searchParams.get("reset") === "1";
   const accessLoading = isAuthenticated && access === undefined;
@@ -55,7 +63,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     if (redirectPath !== null) router.replace(redirectPath);
   }, [redirectPath, router]);
 
-  if (authLoading || accessLoading) {
+  if (!hydrated || authLoading || accessLoading) {
     return <div className="min-h-[100dvh] bg-tapit-paper" />;
   }
 

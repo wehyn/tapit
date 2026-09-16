@@ -10,6 +10,7 @@ export type DemoProfile = ProfileRecord & {
 
 export type DemoCard = CardRecord & {
   token: string;
+  createdAt?: number;
   claimCode?: string;
   claimCodeExpiresAt?: number;
   claimCodeInvalidatedAt?: number;

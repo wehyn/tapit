@@ -84,17 +84,19 @@ describe("link safety", () => {
 });
 
 describe("card state machine", () => {
-  it("allows registration to active to inactive/replaced only", () => {
-    expect(canTransitionCard("registered", "active")).toBe(true);
+  it("requires claiming before a card can become active", () => {
+    expect(canTransitionCard("registered", "claimable")).toBe(true);
+    expect(canTransitionCard("registered", "active")).toBe(false);
     expect(canTransitionCard("active", "inactive")).toBe(true);
     expect(canTransitionCard("active", "replaced")).toBe(true);
     expect(canTransitionCard("inactive", "active")).toBe(false);
     expect(canTransitionCard("replaced", "active")).toBe(false);
-    const active = transitionCard(
+    const claimable = transitionCard(
       { id: "card-1", cardUrl: "https://tapit.test/c/1", status: "registered" },
-      "active",
+      "claimable",
       "profile-1",
     );
+    const active = transitionCard(claimable, "active", "profile-1");
     expect(transitionCard(active, "replaced", undefined, "card-2").replacedByCardId).toBe("card-2");
   });
 });
