@@ -3,7 +3,7 @@ import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
 
 import { mutation } from "./_generated/server";
-import { customerForAuthUser, isActiveCustomer } from "./admin";
+import { customerForAuthUser, isActiveCustomer, sameScope } from "./admin";
 import { digest } from "./cards";
 import { components } from "./components";
 const CLAIM_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
@@ -64,6 +64,7 @@ export const verifyCode = mutation({
     const challenge = challengeValue();
     const expiresAt = now + 10 * 60 * 1000;
     await ctx.db.insert("cardClaimChallenges", {
+      scope: card.scope,
       cardId: card._id,
       claimCodeHash,
       challengeHash: await digest(challenge),
@@ -105,6 +106,7 @@ export const complete = mutation({
     ) {
       throw new Error("The claim code is invalid or unavailable.");
     }
+    if (!sameScope(customer, card)) failure();
     const profileId = card.profileId;
     if (profileId === undefined) {
       throw new Error("The claim code is invalid or unavailable.");
@@ -113,6 +115,7 @@ export const complete = mutation({
     if (profile === null) {
       throw new Error("The claim code is invalid or unavailable.");
     }
+    if (profile.ownerId !== customer._id || !sameScope(customer, profile)) failure();
     if (profile.ownerId !== customer._id) {
       throw new Error("The claim code is invalid or unavailable.");
     }
@@ -124,6 +127,7 @@ export const complete = mutation({
       updatedAt: now,
     });
     await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
       actorUserId: userId,
       actorLabel: customer.email,
       action: "card.claimed",

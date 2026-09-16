@@ -1,6 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 
-import { internalQuery, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { env, internalQuery, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 
@@ -8,6 +8,18 @@ type AuthContext = QueryCtx | MutationCtx;
 
 export function isActiveCustomer(account: Doc<"customers"> | null | undefined): boolean {
   return account?.status === "active" && account.deletionStatus === "active";
+}
+
+export function isHostedDemo(): boolean {
+  return env.TAPIT_DEMO_AUTH_MODE === "hosted-demo";
+}
+
+/** A live account owns legacy unscoped data; a hosted-demo account owns demo data. */
+export function sameScope(
+  account: Pick<Doc<"customers">, "scope">,
+  record: Pick<Doc<"customers">, "scope">,
+): boolean {
+  return account.scope === record.scope;
 }
 
 export async function requireUser(ctx: AuthContext) {

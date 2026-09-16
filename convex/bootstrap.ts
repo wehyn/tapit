@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { internalMutation } from "./_generated/server";
+import { env, internalMutation } from "./_generated/server";
 
 const emailArg = v.string();
 
@@ -25,6 +25,7 @@ export const promoteUser = internalMutation({
     if ((await ctx.db.get(args.userId)) === null)
       throw new Error("The administrator user does not exist.");
     const now = Date.now();
+    const scope = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo" ? ("demo" as const) : undefined;
     const existing = await ctx.db
       .query("customers")
       .withIndex("by_email", (query) => query.eq("email", email))
@@ -33,6 +34,7 @@ export const promoteUser = internalMutation({
       throw new Error("That email is already linked to another authenticated user.");
     if (existing !== null) {
       await ctx.db.patch(existing._id, {
+        scope,
         userId: args.userId,
         role: "admin",
         status: "active",
@@ -42,6 +44,7 @@ export const promoteUser = internalMutation({
       return existing._id;
     }
     return await ctx.db.insert("customers", {
+      scope,
       userId: args.userId,
       email,
       role: "admin",
@@ -94,6 +97,7 @@ export const bootstrap = internalMutation({
       throw new Error("The bootstrap card URL and token do not match.");
 
     const now = Date.now();
+    const scope = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo" ? ("demo" as const) : undefined;
     const findCustomer = async (email: string) =>
       await ctx.db
         .query("customers")
@@ -122,6 +126,7 @@ export const bootstrap = internalMutation({
     const adminCustomerId =
       adminExisting?._id ??
       (await ctx.db.insert("customers", {
+        scope,
         userId: args.adminUserId,
         email: adminEmail,
         role: "admin",
@@ -148,6 +153,7 @@ export const bootstrap = internalMutation({
     const customerId =
       customerExisting?._id ??
       (await ctx.db.insert("customers", {
+        scope,
         userId: args.customerUserId,
         email: customerEmail,
         role: "customer",
@@ -198,6 +204,7 @@ export const bootstrap = internalMutation({
     const profileId =
       existingProfile?._id ??
       (await ctx.db.insert("profiles", {
+        scope,
         ownerId: customerId,
         slug,
         status: "published",
@@ -209,6 +216,7 @@ export const bootstrap = internalMutation({
       }));
     if (existingProfile !== null)
       await ctx.db.patch(existingProfile._id, {
+        scope,
         ownerId: customerId,
         slug,
         status: "published",
@@ -228,6 +236,7 @@ export const bootstrap = internalMutation({
     const cardId =
       existingCard?._id ??
       (await ctx.db.insert("cards", {
+        scope,
         cardUrl: args.cardUrl,
         token: args.cardToken,
         profileId,
@@ -238,6 +247,7 @@ export const bootstrap = internalMutation({
       }));
     if (existingCard !== null)
       await ctx.db.patch(existingCard._id, {
+        scope,
         profileId,
         status: "active",
         assignedAt: existingCard.assignedAt ?? now,

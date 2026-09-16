@@ -12,11 +12,12 @@ export const support = query({
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
-    if (!isActiveCustomer(account)) throw new Error("Active account required.");
-    const setting = await ctx.db
+    if (account === null || !isActiveCustomer(account)) throw new Error("Active account required.");
+    const settings = await ctx.db
       .query("settings")
       .withIndex("by_key", (query) => query.eq("key", "supportUrl"))
-      .unique();
+      .take(100);
+    const setting = settings.find((row) => row.scope === account.scope);
     return setting?.value ?? "mailto:support@example.test";
   },
 });
@@ -35,12 +36,14 @@ export const setSupport = mutation({
     if (parsed.protocol !== "https:" && parsed.protocol !== "mailto:")
       throw new Error("Support destination must use HTTPS or mailto.");
     const now = Date.now();
-    const existing = await ctx.db
+    const settings = await ctx.db
       .query("settings")
       .withIndex("by_key", (query) => query.eq("key", "supportUrl"))
-      .unique();
-    if (existing === null)
+      .take(100);
+    const existing = settings.find((row) => row.scope === account.scope);
+    if (existing === undefined)
       await ctx.db.insert("settings", {
+        scope: account.scope,
         key: "supportUrl",
         value: args.value.trim(),
         updatedAt: now,
@@ -53,6 +56,7 @@ export const setSupport = mutation({
         updatedByUserId: userId,
       });
     await ctx.db.insert("auditLogs", {
+      scope: account.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: "settings.support_updated",

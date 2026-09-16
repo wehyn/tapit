@@ -8,6 +8,7 @@ const app = defineApp({
     TAPIT_AUTH_EMAIL_FROM: v.string(),
     TAPIT_AUTH_EMAIL_API_KEY: v.string(),
     TAPIT_AUTH_EMAIL_API_URL: v.string(),
+    TAPIT_DEMO_AUTH_MODE: v.optional(v.literal("hosted-demo")),
   },
 });
 

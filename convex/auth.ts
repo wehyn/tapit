@@ -3,7 +3,7 @@ import { Email } from "@convex-dev/auth/providers/Email";
 import { Password } from "@convex-dev/auth/providers/Password";
 import { convexAuth } from "@convex-dev/auth/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
-import { action } from "./_generated/server";
+import { action, env } from "./_generated/server";
 import { internalAction, internalMutation } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { v } from "convex/values";
@@ -31,6 +31,8 @@ const emailProvider = () =>
     sendVerificationRequest: sendAuthEmail,
   });
 
+const hostedDemo = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo";
+
 const authConfig = convexAuth({
   providers: [
     Password({
@@ -42,8 +44,8 @@ const authConfig = convexAuth({
           throw new Error("Password must be at least 8 characters.");
         }
       },
-      reset: emailProvider(),
-      verify: emailProvider(),
+      reset: hostedDemo ? undefined : emailProvider(),
+      verify: hostedDemo ? undefined : emailProvider(),
     }),
   ],
   signIn: { maxFailedAttempsPerHour: 5 },
@@ -102,6 +104,7 @@ export const recordPasswordResetRequested = internalMutation({
       throw new Error("Customer account unavailable.");
     }
     await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
       actorUserId: args.actorUserId,
       actorLabel: "Administrator",
       action: "customer.password_reset_requested",

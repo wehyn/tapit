@@ -3,7 +3,7 @@ import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
-import { requireAdministrator, requireUser } from "./admin";
+import { isHostedDemo, requireAdministrator, requireUser, sameScope } from "./admin";
 import schema from "./schema";
 import { deleteProfileImages } from "./profileImages";
 import {
@@ -39,7 +39,8 @@ export const createCustomer = mutation({
     invitationId: v.id("invitations"),
   }),
   handler: async (ctx, args) => {
-    const { userId } = await requireAdministrator(ctx);
+    const { userId, account } = await requireAdministrator(ctx);
+    const scope = account.scope;
     const email = args.email.trim().toLowerCase();
     const slug = normalizeProfileSlug(args.slug);
     if (!email || !email.includes("@")) throw new Error("A valid customer email is required.");
@@ -67,6 +68,7 @@ export const createCustomer = mutation({
 
     const now = Date.now();
     const customerId = await ctx.db.insert("customers", {
+      ...(scope !== undefined ? { scope } : {}),
       email,
       role: "customer",
       status: "invited",
@@ -75,6 +77,7 @@ export const createCustomer = mutation({
       updatedAt: now,
     });
     const profileId = await ctx.db.insert("profiles", {
+      ...(scope !== undefined ? { scope } : {}),
       ownerId: customerId,
       slug,
       status: "draft",
@@ -89,6 +92,7 @@ export const createCustomer = mutation({
     });
     await ctx.db.patch(customerId, { profileId, updatedAt: now });
     const invitationId = await ctx.db.insert("invitations", {
+      ...(scope !== undefined ? { scope } : {}),
       customerId,
       email,
       tokenHash: args.tokenHash,
@@ -97,6 +101,7 @@ export const createCustomer = mutation({
       createdAt: now,
     });
     await ctx.db.insert("auditLogs", {
+      scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: "customer.created",
@@ -120,7 +125,8 @@ export const createSelfServiceAccount = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
-    if (user?.emailVerificationTime === undefined) throw new Error("Email verification required.");
+    if (!isHostedDemo() && user?.emailVerificationTime === undefined)
+      throw new Error("Email verification required.");
     const email = user?.email?.trim().toLowerCase();
     if (email === undefined || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new Error("A valid authenticated email is required.");
@@ -163,6 +169,7 @@ export const createSelfServiceAccount = mutation({
     if (duplicateSlug !== null) throw new Error("That profile slug is already in use.");
     const now = Date.now();
     const customerId = await ctx.db.insert("customers", {
+      ...(isHostedDemo() ? { scope: "demo" as const } : {}),
       userId,
       email,
       role: "customer",
@@ -172,6 +179,7 @@ export const createSelfServiceAccount = mutation({
       updatedAt: now,
     });
     const profileId = await ctx.db.insert("profiles", {
+      ...(isHostedDemo() ? { scope: "demo" as const } : {}),
       ownerId: customerId,
       slug,
       status: "draft",
@@ -181,6 +189,7 @@ export const createSelfServiceAccount = mutation({
     });
     await ctx.db.patch(customerId, { profileId, updatedAt: now });
     await ctx.db.insert("auditLogs", {
+      scope: isHostedDemo() ? "demo" : undefined,
       actorUserId: userId,
       actorLabel: email,
       action: "customer.self_service_created",
@@ -202,7 +211,8 @@ export const completeSetup = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
-    if (user?.emailVerificationTime === undefined) throw new Error("Email verification required.");
+    if (!isHostedDemo() && user?.emailVerificationTime === undefined)
+      throw new Error("Email verification required.");
     const invitation = await ctx.db
       .query("invitations")
       .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
@@ -226,6 +236,8 @@ export const completeSetup = mutation({
     if (customer.userId !== undefined && customer.userId !== userId) {
       throw new Error("This setup link has already been used.");
     }
+    if (invitation.scope !== customer.scope)
+      throw new Error("This setup link is not valid for this account.");
     const linkedAccount = await ctx.db
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
@@ -236,8 +248,14 @@ export const completeSetup = mutation({
 
     const now = Date.now();
     await ctx.db.patch(invitation._id, { usedAt: now });
-    await ctx.db.patch(customer._id, { userId, status: "active", updatedAt: now });
+    await ctx.db.patch(customer._id, {
+      userId,
+      scope: invitation.scope,
+      status: "active",
+      updatedAt: now,
+    });
     await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
       actorUserId: userId,
       actorLabel: customer.email,
       action: "customer.setup_completed",
@@ -288,15 +306,16 @@ export const list = query({
   args: { search: v.optional(v.string()) },
   returns: v.array(schema.doc("customers")),
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
+    const { account } = await requireAdministrator(ctx);
     const search = args.search?.trim().toLowerCase();
     const customers = await ctx.db
       .query("customers")
       .withIndex("by_role", (query) => query.eq("role", "customer"))
       .take(100);
+    const scopedCustomers = customers.filter((customer) => sameScope(account, customer));
     return search === undefined || search.length === 0
-      ? customers
-      : customers.filter((customer) => customer.email.includes(search));
+      ? scopedCustomers
+      : scopedCustomers.filter((customer) => customer.email.includes(search));
   },
 });
 
@@ -348,11 +367,13 @@ export const requestDeletion = mutation({
         ),
     );
     const requestId = await ctx.db.insert("deletionRequests", {
+      scope: customer.scope,
       customerId: customer._id,
       requestedAt: now,
       status: "requested",
     });
     await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
       actorUserId: userId,
       actorLabel: customer.email,
       action: "account.deletion_requested",
@@ -402,17 +423,19 @@ export const listDeletionRequests = query({
     }),
   ),
   handler: async (ctx) => {
-    await requireAdministrator(ctx);
+    const { account } = await requireAdministrator(ctx);
     const requests = await ctx.db
       .query("deletionRequests")
       .withIndex("by_customerId")
       .order("desc")
       .take(100);
     return await Promise.all(
-      requests.map(async (request) => ({
-        request,
-        customer: await ctx.db.get(request.customerId),
-      })),
+      requests
+        .filter((request) => request.scope === account.scope)
+        .map(async (request) => ({
+          request,
+          customer: await ctx.db.get(request.customerId),
+        })),
     );
   },
 });

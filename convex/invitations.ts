@@ -1,18 +1,20 @@
 import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
-import { requireAdministrator } from "./admin";
+import { requireAdministrator, sameScope } from "./admin";
 
 export const invalidate = mutation({
   args: { invitationId: v.id("invitations") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const { userId } = await requireAdministrator(ctx);
+    const { userId, account } = await requireAdministrator(ctx);
     const invitation = await ctx.db.get(args.invitationId);
-    if (invitation === null) throw new Error("Invitation not found.");
+    if (invitation === null || !sameScope(account, invitation))
+      throw new Error("Invitation not found.");
     const now = Date.now();
     await ctx.db.patch(args.invitationId, { invalidatedAt: now });
     await ctx.db.insert("auditLogs", {
+      scope: invitation.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: "invitation.invalidated",

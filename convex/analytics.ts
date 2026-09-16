@@ -50,6 +50,7 @@ export const recordView = mutation({
     const isUnique = hasSessionKey && session === null;
     if (isUnique) {
       await ctx.db.insert("analyticsSessions", {
+        scope: profile.scope,
         profileId: args.profileId,
         sessionKey,
         firstSeenAt: start,
@@ -79,6 +80,7 @@ export const recordView = mutation({
     }
     if (existing === null) {
       await ctx.db.insert("analytics", {
+        scope: profile.scope,
         profileId: args.profileId,
         eventType: "profile_view",
         bucketStart: start,
@@ -143,6 +145,7 @@ export const recordLinkClick = mutation({
     }
     if (existing === null)
       await ctx.db.insert("analytics", {
+        scope: profile.scope,
         profileId: args.profileId,
         linkKey: args.linkKey,
         eventType: "link_click",
@@ -248,13 +251,14 @@ export const all = query({
   args: { range: rangeValidator, now: v.number() },
   returns: summaryPageValidator,
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
+    const { account } = await requireAdministrator(ctx);
     const cutoff = cutoffForRange(args.range, args.now);
     const page = await ctx.db
       .query("analytics")
       .withIndex("by_bucket", (query) => query.gte("bucketStart", cutoff))
       .order("asc")
       .paginate({ numItems: 500, cursor: null });
+    page.page = page.page.filter((row) => row.scope === account.scope);
     return {
       ...summarize(page.page),
       isComplete: page.isDone,
@@ -290,13 +294,14 @@ export const allPage = query({
   args: { range: rangeValidator, now: v.number(), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(analyticsRowValidator),
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
-    return await ctx.db
+    const { account } = await requireAdministrator(ctx);
+    const page = await ctx.db
       .query("analytics")
       .withIndex("by_bucket", (query) =>
         query.gte("bucketStart", cutoffForRange(args.range, args.now)),
       )
       .order("asc")
       .paginate(args.paginationOpts);
+    return { ...page, page: page.page.filter((row) => row.scope === account.scope) };
   },
 });

@@ -33,6 +33,7 @@ type Env = {
   readonly TAPIT_AUTH_EMAIL_API_KEY: string;
   readonly TAPIT_AUTH_EMAIL_API_URL: string;
   readonly TAPIT_AUTH_EMAIL_FROM: string;
+  readonly TAPIT_DEMO_AUTH_MODE: "hosted-demo" | undefined;
   readonly TAPIT_SUPPORT_URL: string;
 };
 

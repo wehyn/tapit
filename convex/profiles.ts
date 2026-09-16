@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
-import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
 import { profileAccess } from "./profileAccess";
 import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
@@ -97,8 +97,9 @@ export const adminList = query({
   args: {},
   returns: v.array(schema.doc("profiles")),
   handler: async (ctx) => {
-    await requireAdministrator(ctx);
-    return await ctx.db.query("profiles").withIndex("by_status").take(100);
+    const { account } = await requireAdministrator(ctx);
+    const profiles = await ctx.db.query("profiles").withIndex("by_status").take(100);
+    return profiles.filter((profile) => sameScope(account, profile));
   },
 });
 
@@ -271,6 +272,7 @@ export const setStatus = mutation({
           .map((card) => ctx.db.patch(card._id, { status: "active", updatedAt: now })),
       );
       await ctx.db.insert("auditLogs", {
+        scope: profile.scope,
         actorUserId: userId,
         actorLabel: "Administrator",
         action: `profile.${args.status}`,
@@ -290,6 +292,7 @@ export const setStatus = mutation({
       ...(args.status === "suspended" ? { suspendedAt: now } : {}),
     });
     await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: `profile.${args.status}`,

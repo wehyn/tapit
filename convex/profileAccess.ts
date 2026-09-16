@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireUser } from "./admin";
+import { isActiveCustomer, requireUser, sameScope } from "./admin";
 
 type DbContext = QueryCtx | MutationCtx;
 
@@ -18,6 +18,7 @@ export async function profileAccess(ctx: DbContext, profileId: Id<"profiles">) {
     account === null ||
     !isActiveCustomer(account) ||
     profile === null ||
+    !sameScope(account, profile) ||
     (profile.ownerId !== account._id && account.role !== "admin")
   ) {
     throw new Error("Profile access denied.");
