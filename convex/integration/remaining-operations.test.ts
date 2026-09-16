@@ -194,16 +194,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         cardId,
         profileId: data.ownerProfileId,
       }),
-    ).resolves.toEqual({ status: "claimable" });
-    await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toEqual({
-      status: "onboarding",
-    });
-    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId });
-    const { challenge } = await owner.mutation(api.cardClaims.verifyCode, {
-      token: "owned-card",
-      code,
-    });
-    await owner.mutation(api.cardClaims.complete, { challenge });
+    ).resolves.toEqual({ status: "active" });
     await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner", links: [{ id: "owner-link" }] },
@@ -244,7 +235,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         cardId: reusableCardId,
         profileId: data.ownerProfileId,
       }),
-    ).resolves.toEqual({ status: "claimable" });
+    ).resolves.toEqual({ status: "active" });
   });
 
   it("scopes analytics and protects admin settings, audits, and deletion workflows", async () => {

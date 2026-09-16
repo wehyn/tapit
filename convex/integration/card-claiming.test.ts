@@ -235,24 +235,13 @@ describe("card claiming contracts", () => {
     });
     await expect(
       admin.mutation(api.cards.attach, { cardId: immediateCardId, profileId: publishedProfileId }),
-    ).resolves.toEqual({ status: "claimable" });
-    await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toEqual({
-      status: "onboarding",
-    });
-    const { code: publishedCode } = await admin.mutation(api.cards.generateClaimCode, {
-      cardId: immediateCardId,
-    });
-    const { challenge: publishedChallenge } = await owner.mutation(api.cardClaims.verifyCode, {
-      token: "card-2",
-      code: publishedCode,
-    });
-    await owner.mutation(api.cardClaims.complete, { challenge: publishedChallenge });
+    ).resolves.toEqual({ status: "active" });
     await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner-two" },
     });
     // A published profile becomes public as soon as a newly attached card is
-    // claimed; a second profile publication is not required.
+    // assigned; a claim step is only required for unpublished profiles.
 
     const invited = await admin.mutation(api.customers.createCustomer, {
       email: "invited@example.com",

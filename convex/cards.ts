@@ -167,7 +167,7 @@ export const generateCardToken = mutation({
 
 export const attach = mutation({
   args: { cardId: v.id("cards"), profileId: v.id("profiles") },
-  returns: v.object({ status: v.literal("claimable") }),
+  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -211,7 +211,8 @@ export const attach = mutation({
       if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
         throw new Error("A valid published profile is required.");
     }
-    const status = "claimable" as const;
+    const status =
+      profile.status === "published" ? ("active" as const) : ("claimable" as const);
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
@@ -365,7 +366,7 @@ export const register = mutation({
 
 export const assign = mutation({
   args: { cardId: v.id("cards"), profileId: v.id("profiles") },
-  returns: v.object({ status: v.literal("claimable") }),
+  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -406,7 +407,7 @@ export const assign = mutation({
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
-      status: "claimable",
+      status: "active",
       assignedAt: now,
       updatedAt: now,
     });
@@ -420,9 +421,9 @@ export const assign = mutation({
       accountId: profile.ownerId,
       occurredAt: now,
       before: "registered",
-      after: "claimable",
+      after: "active",
     });
-    return { status: "claimable" as const };
+    return { status: "active" as const };
   },
 });
 
