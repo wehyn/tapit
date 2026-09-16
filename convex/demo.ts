@@ -406,12 +406,11 @@ export const reset = internalMutation({
       .query("cards")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
       .take(10_000);
-    for (const card of demoCards)
-      for (const row of await ctx.db
-        .query("cardClaimChallenges")
-        .withIndex("by_cardId", (q) => q.eq("cardId", card._id))
-        .take(10_000))
-        await ctx.db.delete(row._id);
+    for (const row of await ctx.db
+      .query("cardClaimChallenges")
+      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+      .take(10_000))
+      await ctx.db.delete(row._id);
     for (const table of [
       "analyticsSessions",
       "analytics",

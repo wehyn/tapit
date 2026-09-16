@@ -182,7 +182,8 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_challengeHash", ["challengeHash"])
-    .index("by_cardId", ["cardId"]),
+    .index("by_cardId", ["cardId"])
+    .index("by_scope", ["scope"]),
   auditLogs: defineTable({
     scope: v.optional(v.literal("demo")),
     actorUserId: v.optional(v.id("users")),
