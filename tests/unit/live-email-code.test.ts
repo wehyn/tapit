@@ -343,6 +343,57 @@ describe("live email code adapter contract", () => {
     }
   });
 
+  it("closes a rejected provider request without waiting for its body", async () => {
+    // @ts-expect-error The assigned production module is JavaScript and cannot receive a declaration file.
+    const { createEmailSinkServer } = await import("../../scripts/live-email-sink.mjs");
+    const sink = createEmailSinkServer({
+      providerToken: "provider-secret",
+      codeToken: "reader-secret",
+    });
+    const baseURL = await listen(sink.server);
+    const url = new URL(`${baseURL}/send`);
+    let request: import("node:http").ClientRequest | undefined;
+    let resolveRequestClosed!: () => void;
+    const requestClosed = new Promise<void>((resolve) => {
+      resolveRequestClosed = resolve;
+    });
+    try {
+      const response = await new Promise<import("node:http").IncomingMessage>((resolve, reject) => {
+        request = httpRequest(
+          {
+            hostname: url.hostname,
+            port: url.port,
+            path: url.pathname,
+            method: "POST",
+            headers: {
+              Authorization: "Bearer wrong-provider",
+              "Content-Type": "application/json",
+              "Content-Length": 100000,
+            },
+          },
+          resolve,
+        );
+        request.once("close", resolveRequestClosed);
+        request.on("error", reject);
+        request.flushHeaders();
+      });
+      expect(response.statusCode).toBe(401);
+      response.resume();
+      await expect(
+        Promise.race([
+          requestClosed,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("rejected request stayed open")), 500),
+          ),
+        ]),
+      ).resolves.toBeUndefined();
+    } finally {
+      request?.destroy();
+      sink.server.closeAllConnections?.();
+      await close(sink.server);
+    }
+  });
+
   it("closes cleanly after an aborted request body", async () => {
     // @ts-expect-error The assigned production module is JavaScript and cannot receive a declaration file.
     const { createEmailSinkServer } = await import("../../scripts/live-email-sink.mjs");

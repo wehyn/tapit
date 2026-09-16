@@ -111,7 +111,10 @@ export const createEmailSinkServer = ({
       const requestURL = new URL(request.url ?? "/", `http://${host}:${port}`);
 
       if (request.method === "POST" && requestURL.pathname === "/send") {
-        if (!hasBearerToken(request, providerToken)) return genericResponse(response, 401);
+        if (!hasBearerToken(request, providerToken)) {
+          rejectAndCloseRequest(request, response, 401);
+          return;
+        }
         const contentLength = request.headers["content-length"];
         if (
           contentLength !== undefined &&
