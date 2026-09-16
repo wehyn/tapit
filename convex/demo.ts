@@ -138,6 +138,8 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
       draft: maraDraft,
       published: maraPublished,
       publishedAt,
+      unpublishedAt: undefined,
+      suspendedAt: undefined,
       updatedAt: now,
     });
   await ctx.db.patch(maraCustomerId, { scope: DEMO_SCOPE, profileId: maraId, updatedAt: now });
@@ -193,6 +195,19 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
       createdAt: now,
       updatedAt: now,
     }));
+  if (claimProfile !== null)
+    await ctx.db.patch(claimProfile._id, {
+      scope: DEMO_SCOPE,
+      ownerId: claimCustomerId,
+      slug: CLAIMABLE_SLUG,
+      status: "unpublished",
+      draft: claimDraft,
+      published: undefined,
+      publishedAt: undefined,
+      unpublishedAt: undefined,
+      suspendedAt: undefined,
+      updatedAt: now,
+    });
   await ctx.db.patch(claimCustomerId, {
     scope: DEMO_SCOPE,
     profileId: claimProfileId,
@@ -218,6 +233,8 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
       token,
       profileId,
       status,
+      replacedByCardId: undefined,
+      assignmentReason: undefined,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
       ...extras,
@@ -240,7 +257,13 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     `https://tapit.test/c/${CLAIMABLE_TOKEN}`,
     "claimable",
     claimProfileId,
-    { claimCodeHash: claimHash, claimCodeGeneratedAt: now, claimCodeExpiresAt: now + DAY },
+    {
+      claimCodeHash: claimHash,
+      claimCodeGeneratedAt: now,
+      claimCodeExpiresAt: now + DAY,
+      claimCodeInvalidatedAt: undefined,
+      claimCodeClaimedAt: undefined,
+    },
   );
   const inactiveCardId = await card(
     INACTIVE_TOKEN,
@@ -378,16 +401,16 @@ export const reset = internalMutation({
   handler: async (ctx, args) => {
     if (env.TAPIT_DEMO_AUTH_MODE !== "hosted-demo")
       throw new Error("Hosted demo reset requires TAPIT_DEMO_AUTH_MODE=hosted-demo.");
-    await operator(ctx, args.operatorUserId);
+    const { adminCustomerId } = await operator(ctx, args.operatorUserId);
     const demoCards = await ctx.db
       .query("cards")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .collect();
+      .take(10_000);
     for (const card of demoCards)
       for (const row of await ctx.db
         .query("cardClaimChallenges")
         .withIndex("by_cardId", (q) => q.eq("cardId", card._id))
-        .collect())
+        .take(10_000))
         await ctx.db.delete(row._id);
     for (const table of [
       "analyticsSessions",
@@ -401,12 +424,12 @@ export const reset = internalMutation({
       for (const row of await ctx.db
         .query(table)
         .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-        .collect())
+        .take(10_000))
         await ctx.db.delete(row._id);
     for (const row of await ctx.db
       .query("profileImages")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .collect()) {
+      .take(10_000)) {
       await ctx.storage.delete(row.storageId);
       await ctx.db.delete(row._id);
     }
@@ -414,15 +437,13 @@ export const reset = internalMutation({
     for (const row of await ctx.db
       .query("profiles")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .collect())
+      .take(10_000))
       await ctx.db.delete(row._id);
     for (const row of await ctx.db
       .query("customers")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .collect()) {
-      if (row.userId !== undefined) await ctx.db.patch(row._id, { profileId: undefined });
-      else await ctx.db.delete(row._id);
-    }
+      .take(10_000))
+      if (row._id !== adminCustomerId) await ctx.db.delete(row._id);
     return await seed(ctx, args.operatorUserId);
   },
 });
