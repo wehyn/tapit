@@ -37,6 +37,30 @@ NEXT_PUBLIC_DEMO_MODE=false npx convex dev --start "npm run dev -- --hostname 12
 `CONVEX_DEPLOYMENT` selects the development deployment and `NEXT_PUBLIC_CONVEX_URL` must be its matching
 Convex URL. This is a local live-mode development workflow, not a production deployment.
 
+### Disposable local mail adapter
+
+Start the loopback-only, in-memory adapter in a separate terminal before running the live harness:
+
+```bash
+TAPIT_EMAIL_SINK_PROVIDER_TOKEN=local-provider-token \
+TAPIT_LIVE_EMAIL_CODE_TOKEN=local-reader-token \
+npm run live:email-sink
+```
+
+The adapter has two separate bearer-protected boundaries. Convex sends messages to `POST /send` through
+`TAPIT_AUTH_EMAIL_API_URL`, using `TAPIT_EMAIL_SINK_PROVIDER_TOKEN`; Playwright reads only the newest opaque
+code from `GET /code?email=...&kind=...` through `TAPIT_LIVE_EMAIL_CODE_URL`, using
+`TAPIT_LIVE_EMAIL_CODE_TOKEN`. The default local reader URL is
+`http://127.0.0.1:8025/code`. The adapter keeps only the newest code per normalized recipient in process
+memory: it has no mailbox, does not persist messages, and never returns message bodies.
+
+For local live development, `TAPIT_AUTH_EMAIL_API_URL` may point to the adapter's local `/send` route only
+when Convex delivery is local and can reach that process. When Convex Cloud sends remotely, its send endpoint
+must be a separately approved HTTPS route to the adapter. A tailnet-only `tailscale serve` endpoint is not
+sufficient for Convex Cloud. Any tunnel or provider route must be bearer-protected, limited to the selected
+development/preview run, and cleaned up after the run. Expose only `/send`; keep the `/code` reader on the
+operator's loopback or another separately controlled route.
+
 ## Complete contract
 
 Put these values in the shell environment or an ignored environment manager. The command only prints
@@ -66,9 +90,12 @@ The two Convex user IDs must already exist and correspond to the Password-provid
 email domain must be an isolated disposable domain routed to the selected non-production mail adapter. The
 authenticated code endpoint must be an operator-owned HTTPS adapter (or a localhost HTTP adapter for local
 live development) that accepts the recipient and flow kind as query parameters and returns only the newest
-verification token as `{ "code": "..." }`. It must require the configured bearer token, never expose mailbox
-contents, and never be pointed at production mail. The adapter extracts the opaque token from the Convex Auth
-email URL; it does not weaken email verification.
+verification token as `{ "code": "..." }`. It must require the configured reader bearer token, never expose
+mailbox contents, and never be pointed at production mail. The adapter extracts the opaque token from the
+Convex Auth email URL; it does not weaken email verification. This reader URL is distinct from
+`TAPIT_AUTH_EMAIL_API_URL`, which is the provider-facing Convex send endpoint and must use its separate provider
+bearer token. For Convex Cloud, that send endpoint must use an approved HTTPS route; tailnet-only access is
+not enough.
 
 The existing seeded customer variables (`TAPIT_LIVE_CUSTOMER_*`, `TAPIT_LIVE_PROFILE_SLUG`, and
 `TAPIT_LIVE_PUBLISHED_BIO`) remain required only for the legacy seeded customer draft/public-profile and
@@ -105,17 +132,34 @@ fails with that exact limitation rather than attempting undocumented writes to C
 
 ## 2. Run the live workflow
 
-Once the two identities, their user IDs, and all values in the contract are configured, run exactly:
+Run the complete non-production sequence in this order:
+
+1. Select and announce the explicitly identified `dev` or `preview` Convex deployment. Sync the current code
+   to that deployment and confirm that the app URL, Convex URL, and deployment reference all target the same
+   non-production environment.
+2. Configure `TAPIT_SUPPORT_URL`, `TAPIT_AUTH_EMAIL_FROM`, `TAPIT_AUTH_EMAIL_API_KEY`, and
+   `TAPIT_AUTH_EMAIL_API_URL` on that deployment only. The API URL is the provider-facing `POST /send` route,
+   not the Playwright reader URL. For Convex Cloud, use the separately approved HTTPS route described above.
+3. Provision the administrator Password identity through the supported setup/auth flow and record its user ID.
+   Do not write directly to Convex Auth tables.
+4. Start the local adapter with `npm run live:email-sink`, using separate provider and reader bearer tokens.
+   If delivery is from Convex Cloud, expose only `/send` through the approved HTTPS route and verify that the
+   route is reachable before continuing.
+5. Set the complete live contract in ignored environment storage, including the reader URL/token, deployment,
+   existing admin user ID, confirmation, and all app/customer values. Keep `NEXT_PUBLIC_DEMO_MODE=true` as the
+   tracked repository default.
+6. Run exactly:
 
 ```bash
 npm run test:e2e:live
 ```
 
-The command requires `TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION`. It fails before
+The command requires `TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION`. It fails closed before
 provisioning when required variables are missing, when the Convex deployment reference is not `dev`/`preview`,
-when the mail adapter is not protected/HTTPS, when local-server mode is inconsistent, or when the confirmation
-is absent. The base URL, Convex deployment, credentials, disposable email domain, and code adapter must all
-describe the same non-production environment.
+when a remotely reachable mail route is not protected/HTTPS, when local-server mode is inconsistent, or when
+the confirmation is absent. Missing administrator/customer identities, missing external delivery reachability,
+or missing contract variables are blockers. Do not bypass them with direct Auth-table writes or production
+values. After the run, remove the temporary tunnel/provider route and stop the local adapter.
 
 The first customer journey also uploads `public/images/tapit-demo-mara-avatar.png` through the owned
 profile-image path. The browser receives a profile-scoped upload URL, posts the client-prepared JPEG, and

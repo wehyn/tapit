@@ -47,8 +47,8 @@ test.describe("live Convex vertical slice", () => {
     await page.getByRole("button", { name: "Verify email", exact: true }).click();
     await expect(page).toHaveURL(/\/app\/profile$/);
     await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-    await expect(page.getByLabel("Display name")).toHaveValue(name);
-    await expect(page.getByLabel("Profile link")).toHaveValue(slug);
+    await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
+    await expect(page.getByLabel("Stable profile slug", { exact: true })).toHaveValue(slug);
     await expect(page.getByRole("link", { name: `/${slug}` })).toHaveAttribute("href", `/${slug}`);
     await expect(page.getByRole("link", { name: /admin|cards|customers/i })).toHaveCount(0);
 
@@ -75,18 +75,22 @@ test.describe("live Convex vertical slice", () => {
     await page.goto("/app/links");
     await page.getByRole("button", { name: "Add link" }).click();
     await page.getByRole("button", { name: "Add link" }).click();
-    const labels = page.locator('input[id$="-label"]');
-    const destinations = page.locator('input[id$="-destination"]');
+    const labels = page.getByRole("textbox", { name: /^Label for link \d+$/ });
+    const destinations = page.getByRole("textbox", { name: /^Destination for link \d+$/ });
     await labels.nth(0).fill("Portfolio");
     await destinations.nth(0).fill("https://portfolio.example.test");
     await labels.nth(1).fill("TikTok");
     await destinations.nth(1).fill(`https://www.tiktok.com/@${slug}`);
-    await expect(page.getByLabel("Enable Portfolio")).toBeChecked();
-    await expect(page.getByLabel("Enable TikTok")).toBeChecked();
+    await expect(page.getByLabel("Enable link 1", { exact: true })).toBeChecked();
+    await expect(page.getByLabel("Enable link 2", { exact: true })).toBeChecked();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Links saved to draft.")).toBeVisible();
-    await page.getByRole("button", { name: "Publish" }).click();
-    await expect(page.getByText("Links published.")).toBeVisible();
+    await page.goto("/app/profile");
+    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+    await page.getByRole("button", { name: "Publish", exact: true }).click();
+    await expect(
+      page.getByText("Profile published. Your active card paths now show this version."),
+    ).toBeVisible();
 
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
@@ -122,6 +126,25 @@ test.describe("live Convex vertical slice", () => {
     browser,
     liveEnv,
   }) => {
+    const signInWithOptionalVerification = async (email: string, password: string) => {
+      await page.getByLabel("Email").fill(email);
+      await page.getByLabel("Password", { exact: true }).fill(password);
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+      const verificationCode = page.getByLabel("Verification code");
+      await expect
+        .poll(
+          async () => page.url().endsWith("/app/profile") || (await verificationCode.isVisible()),
+        )
+        .toBe(true);
+      if (await verificationCode.isVisible()) {
+        const code = await readLiveVerificationCode(liveEnv, email, "verification");
+        await verificationCode.fill(code);
+        await page.getByRole("button", { name: "Verify email", exact: true }).click();
+      }
+      await expect(page).toHaveURL(/\/app\/profile$/);
+    };
+
     await page.goto("/");
     await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /demo profile/i })).toHaveCount(0);
@@ -129,10 +152,7 @@ test.describe("live Convex vertical slice", () => {
     await page.goto("/app/profile");
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 
-    await page.getByLabel("Email").fill(liveEnv.customerEmail);
-    await page.getByLabel("Password", { exact: true }).fill(liveEnv.customerPassword);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
+    await signInWithOptionalVerification(liveEnv.customerEmail, liveEnv.customerPassword);
     await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
 
     await page.getByRole("button", { name: "night", exact: true }).click();
@@ -169,9 +189,7 @@ test.describe("live Convex vertical slice", () => {
     await page.goto("/app/profile");
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 
-    await page.getByLabel("Email").fill(liveEnv.customerEmail);
-    await page.getByLabel("Password", { exact: true }).fill(liveEnv.customerPassword);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await signInWithOptionalVerification(liveEnv.customerEmail, liveEnv.customerPassword);
     await page.getByRole("button", { name: "paper", exact: true }).click();
     await page.getByLabel("Bio or role").fill(liveEnv.publishedBio);
     await page.getByRole("button", { name: "Save draft" }).click();
@@ -328,8 +346,8 @@ test.describe("live Convex vertical slice", () => {
     const resetCode = await readLiveVerificationCode(liveEnv, customer!.email, "reset");
     const replacementPassword = `Reset-${Date.now()}-password`;
     await page.getByLabel("Verification code").fill(resetCode);
-    await page.getByLabel("New password").fill(replacementPassword);
-    await page.getByLabel("Confirm new password").fill(replacementPassword);
+    await page.getByLabel("New password", { exact: true }).fill(replacementPassword);
+    await page.getByLabel("Confirm new password", { exact: true }).fill(replacementPassword);
     await page.getByRole("button", { name: "Reset password", exact: true }).click();
     await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 

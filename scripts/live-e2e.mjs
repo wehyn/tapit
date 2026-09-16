@@ -108,7 +108,7 @@ async function provision() {
     await page.goto("/login");
     await page.getByLabel("Email").fill(process.env.TAPIT_LIVE_ADMIN_EMAIL);
     await page.getByLabel("Password", { exact: true }).fill(process.env.TAPIT_LIVE_ADMIN_PASSWORD);
-    await page.getByRole("button", { name: "Sign in" }).click();
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL(/\/admin\/customers(?:\?.*)?$/);
     await page.goto("/admin/customers");
     await page.getByLabel("Customer email").fill(setupEmail);
