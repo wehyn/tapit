@@ -149,5 +149,5 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   ).toBeVisible();
   await expect(customer.getByText("deleted", { exact: true })).toBeVisible();
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("account.deletion_approved")).toBeVisible();
+  await expect(page.getByText("account · deletion approved")).toBeVisible();
 });
