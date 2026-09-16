@@ -15,9 +15,11 @@ export const support = query({
     if (account === null || !isActiveCustomer(account)) throw new Error("Active account required.");
     const settings = await ctx.db
       .query("settings")
-      .withIndex("by_key", (query) => query.eq("key", "supportUrl"))
-      .take(100);
-    const setting = settings.find((row) => row.scope === account.scope);
+      .withIndex("by_scope_and_key", (query) =>
+        query.eq("scope", account.scope).eq("key", "supportUrl"),
+      )
+      .take(1);
+    const setting = settings[0];
     return setting?.value ?? "mailto:support@example.test";
   },
 });
@@ -38,9 +40,11 @@ export const setSupport = mutation({
     const now = Date.now();
     const settings = await ctx.db
       .query("settings")
-      .withIndex("by_key", (query) => query.eq("key", "supportUrl"))
-      .take(100);
-    const existing = settings.find((row) => row.scope === account.scope);
+      .withIndex("by_scope_and_key", (query) =>
+        query.eq("scope", account.scope).eq("key", "supportUrl"),
+      )
+      .take(1);
+    const existing = settings[0];
     if (existing === undefined)
       await ctx.db.insert("settings", {
         scope: account.scope,

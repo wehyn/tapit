@@ -90,9 +90,11 @@ export const adminList = query({
   ),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
-    const cards = await ctx.db.query("cards").withIndex("by_status").take(100);
+    const cards = await ctx.db
+      .query("cards")
+      .withIndex("by_scope", (query) => query.eq("scope", account.scope))
+      .take(100);
     return cards
-      .filter((card) => card.scope === account.scope)
       .map((card) => {
         const safeCard = { ...card };
         delete safeCard.claimCodeHash;
@@ -146,7 +148,7 @@ export const generateCardToken = mutation({
   args: {},
   returns: v.string(),
   handler: async (ctx) => {
-    const { account } = await requireAdministrator(ctx);
+    await requireAdministrator(ctx);
 
     // This only creates a candidate for the registration form. The register
     // mutation performs the authoritative uniqueness check before insertion.
@@ -182,6 +184,8 @@ export const attach = mutation({
     if (
       owner === null ||
       owner.role !== "customer" ||
+      !sameScope(account, owner) ||
+      !sameScope(owner, profile) ||
       owner.status === "deleted" ||
       owner.deletionStatus !== "active"
     )
@@ -397,7 +401,8 @@ export const assign = mutation({
     if (activeCards.length > 0 || claimableCards.length > 0)
       throw new Error("That profile already has an attached card.");
     const owner = await ctx.db.get(profile.ownerId);
-    if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
+    if (owner === null || !isActiveCustomer(owner) || !sameScope(account, owner) || !sameScope(owner, profile))
+      throw new Error("The profile owner account is not active.");
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
@@ -463,7 +468,7 @@ export const replace = mutation({
       throw new Error("Card URL must use the /c/<token> format and match its token.");
     const profile = await ctx.db.get(oldCard.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    if (profile === null || !isActiveCustomer(owner))
+    if (profile === null || owner === null || !isActiveCustomer(owner) || !sameScope(account, profile) || !sameScope(account, owner))
       throw new Error("The profile owner account is not active.");
     const duplicateUrl = await ctx.db
       .query("cards")

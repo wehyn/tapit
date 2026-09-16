@@ -32,6 +32,8 @@ export const promoteUser = internalMutation({
       .unique();
     if (existing !== null && existing.userId !== undefined && existing.userId !== args.userId)
       throw new Error("That email is already linked to another authenticated user.");
+    if (existing !== null && existing.scope !== undefined && existing.scope !== scope)
+      throw new Error("That administrator belongs to another scope.");
     if (existing !== null) {
       await ctx.db.patch(existing._id, {
         scope,
@@ -106,6 +108,10 @@ export const bootstrap = internalMutation({
 
     const adminExisting = await findCustomer(adminEmail);
     const customerExisting = await findCustomer(customerEmail);
+    for (const existing of [adminExisting, customerExisting]) {
+      if (existing !== null && existing.scope !== undefined && existing.scope !== scope)
+        throw new Error("Bootstrap account belongs to another scope.");
+    }
     const findCustomerByUserId = async (userId: typeof args.adminUserId) =>
       await ctx.db
         .query("customers")
@@ -183,6 +189,11 @@ export const bootstrap = internalMutation({
         : await ctx.db.get(customerExisting.profileId);
     if (existingProfile !== null && slugProfile !== null && existingProfile._id !== slugProfile._id)
       throw new Error("The bootstrap customer has conflicting profiles for the requested slug.");
+    if (existingProfile !== null && existingProfile.scope !== undefined && existingProfile.scope !== scope)
+      throw new Error("Bootstrap profile belongs to another scope.");
+    const profileOwner = existingProfile === null ? null : await ctx.db.get(existingProfile.ownerId);
+    if (profileOwner !== null && profileOwner.scope !== undefined && profileOwner.scope !== scope)
+      throw new Error("Bootstrap profile owner belongs to another scope.");
     if (existingProfile?.published !== undefined && existingProfile.published.slug !== slug)
       throw new Error("A published profile slug cannot be changed during bootstrap.");
     const publishedAt = now;
@@ -233,6 +244,10 @@ export const bootstrap = internalMutation({
       .unique();
     if (existingCard !== null && existingCard.cardUrl !== args.cardUrl)
       throw new Error("The bootstrap card token is already registered for another URL.");
+    if (existingCard !== null && existingCard.scope !== undefined && existingCard.scope !== scope)
+      throw new Error("Bootstrap card belongs to another scope.");
+    if (existingCard !== null && existingCard.profileId !== undefined && existingCard.profileId !== profileId)
+      throw new Error("The bootstrap card is already assigned to another profile.");
     const cardId =
       existingCard?._id ??
       (await ctx.db.insert("cards", {

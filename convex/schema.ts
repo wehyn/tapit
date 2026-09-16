@@ -56,7 +56,8 @@ export default defineSchema({
     .index("by_userId", ["userId"])
     .index("by_email", ["email"])
     .index("by_role", ["role"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_role", ["scope", "role"]),
   profiles: defineTable({
     scope: v.optional(v.literal("demo")),
     ownerId: v.id("customers"),
@@ -78,7 +79,8 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_ownerId", ["ownerId"])
     .index("by_status", ["status"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   profileImages: defineTable({
     scope: v.optional(v.literal("demo")),
     storageId: v.id("_storage"),
@@ -103,6 +105,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_profile_position", ["profileId", "position"])
+    .index("by_profile_and_scope_position", ["profileId", "scope", "position"])
     .index("by_scope", ["scope"]),
   cards: defineTable({
     scope: v.optional(v.literal("demo")),
@@ -133,7 +136,8 @@ export default defineSchema({
     .index("by_profileId", ["profileId"])
     .index("by_profileId_and_status", ["profileId", "status"])
     .index("by_status", ["status"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   analytics: defineTable({
     scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
@@ -158,7 +162,8 @@ export default defineSchema({
       "source",
     ])
     .index("by_bucket", ["bucketStart"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_bucketStart", ["scope", "bucketStart"]),
   analyticsSessions: defineTable({
     scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
@@ -194,7 +199,8 @@ export default defineSchema({
     .index("by_accountId", ["accountId"])
     .index("by_profileId", ["profileId"])
     .index("by_cardId", ["cardId"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_occurredAt", ["scope", "occurredAt"]),
   invitations: defineTable({
     scope: v.optional(v.literal("demo")),
     customerId: v.id("customers"),
@@ -218,7 +224,8 @@ export default defineSchema({
     status: v.union(v.literal("requested"), v.literal("approved"), v.literal("rejected")),
   })
     .index("by_customerId", ["customerId"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   settings: defineTable({
     scope: v.optional(v.literal("demo")),
     key: v.string(),
@@ -227,5 +234,6 @@ export default defineSchema({
     updatedByUserId: v.id("users"),
   })
     .index("by_key", ["key"])
-    .index("by_scope", ["scope"]),
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_key", ["scope", "key"]),
 });

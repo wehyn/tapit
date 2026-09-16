@@ -2,7 +2,7 @@ import { v } from "convex/values";
 
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
-import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
 import { profileAccess } from "./profileAccess";
 import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
@@ -98,8 +98,10 @@ export const adminList = query({
   returns: v.array(schema.doc("profiles")),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
-    const profiles = await ctx.db.query("profiles").withIndex("by_status").take(100);
-    return profiles.filter((profile) => sameScope(account, profile));
+    return await ctx.db
+      .query("profiles")
+      .withIndex("by_scope_and_status", (query) => query.eq("scope", account.scope))
+      .take(100);
   },
 });
 
@@ -213,6 +215,7 @@ export const publish = mutation({
     if (oldPublishedStorageId !== undefined && oldPublishedStorageId !== published.imageStorageId)
       await removeIfUnreferenced(ctx, oldPublishedStorageId, profile._id);
     await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Profile publisher",
       action: "profile.published",

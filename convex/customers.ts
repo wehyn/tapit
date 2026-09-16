@@ -299,7 +299,13 @@ export const myAccount = query({
 export const byIdForAdmin = internalQuery({
   args: { customerId: v.id("customers") },
   returns: v.union(v.null(), schema.doc("customers")),
-  handler: async (ctx, args) => await ctx.db.get(args.customerId),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    const customer = await ctx.db.get(args.customerId);
+    if (customer === null || !sameScope(account, customer))
+      throw new Error("Customer account unavailable.");
+    return customer;
+  },
 });
 
 export const list = query({
@@ -310,12 +316,13 @@ export const list = query({
     const search = args.search?.trim().toLowerCase();
     const customers = await ctx.db
       .query("customers")
-      .withIndex("by_role", (query) => query.eq("role", "customer"))
+      .withIndex("by_scope_and_role", (query) =>
+        query.eq("scope", account.scope).eq("role", "customer"),
+      )
       .take(100);
-    const scopedCustomers = customers.filter((customer) => sameScope(account, customer));
     return search === undefined || search.length === 0
-      ? scopedCustomers
-      : scopedCustomers.filter((customer) => customer.email.includes(search));
+      ? customers
+      : customers.filter((customer) => customer.email.includes(search));
   },
 });
 
@@ -339,7 +346,8 @@ export const requestDeletion = mutation({
     if (customer.profileId === undefined) throw new Error("Customer profile not found.");
 
     const profile = await ctx.db.get(customer.profileId);
-    if (profile === null) throw new Error("Customer profile not found.");
+    if (profile === null || !sameScope(customer, profile) || profile.ownerId !== customer._id)
+      throw new Error("Customer profile not found.");
     const now = Date.now();
     await ctx.db.patch(customer._id, {
       deletionStatus: "requested",
@@ -356,6 +364,8 @@ export const requestDeletion = mutation({
       .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
       .take(1001);
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
+    if (cards.some((card) => !sameScope(customer, card)))
+      throw new Error("Profile cards belong to another scope.");
     await Promise.all(
       cards
         .filter(
@@ -426,12 +436,11 @@ export const listDeletionRequests = query({
     const { account } = await requireAdministrator(ctx);
     const requests = await ctx.db
       .query("deletionRequests")
-      .withIndex("by_customerId")
+      .withIndex("by_scope", (query) => query.eq("scope", account.scope))
       .order("desc")
       .take(100);
     return await Promise.all(
       requests
-        .filter((request) => request.scope === account.scope)
         .map(async (request) => ({
           request,
           customer: await ctx.db.get(request.customerId),
@@ -444,15 +453,16 @@ export const approveDeletion = mutation({
   args: { requestId: v.id("deletionRequests") },
   returns: v.object({ status: v.literal("deleted") }),
   handler: async (ctx, args) => {
-    const { userId } = await requireAdministrator(ctx);
+    const { userId, account } = await requireAdministrator(ctx);
     const request = await ctx.db.get(args.requestId);
-    if (request === null || request.status !== "requested")
+    if (request === null || request.status !== "requested" || !sameScope(account, request))
       throw new Error("Deletion request is not pending.");
     const customer = await ctx.db.get(request.customerId);
-    if (customer === null || customer.profileId === undefined)
+    if (customer === null || !sameScope(account, customer) || customer.profileId === undefined)
       throw new Error("Customer account or profile not found.");
     const profile = await ctx.db.get(customer.profileId);
-    if (profile === null) throw new Error("Customer profile not found.");
+    if (profile === null || !sameScope(account, profile) || profile.ownerId !== customer._id)
+      throw new Error("Customer profile not found.");
 
     const now = Date.now();
     await ctx.db.patch(request._id, {
@@ -475,6 +485,8 @@ export const approveDeletion = mutation({
       .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
       .take(1001);
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
+    if (cards.some((card) => !sameScope(account, card)))
+      throw new Error("Profile cards belong to another scope.");
     await Promise.all(
       cards
         .filter(
@@ -487,6 +499,7 @@ export const approveDeletion = mutation({
     );
     await deleteProfileImages(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
+      scope: account.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: "account.deletion_approved",

@@ -255,10 +255,11 @@ export const all = query({
     const cutoff = cutoffForRange(args.range, args.now);
     const page = await ctx.db
       .query("analytics")
-      .withIndex("by_bucket", (query) => query.gte("bucketStart", cutoff))
+      .withIndex("by_scope_and_bucketStart", (query) =>
+        query.eq("scope", account.scope).gte("bucketStart", cutoff),
+      )
       .order("asc")
       .paginate({ numItems: 500, cursor: null });
-    page.page = page.page.filter((row) => row.scope === account.scope);
     return {
       ...summarize(page.page),
       isComplete: page.isDone,
@@ -297,11 +298,11 @@ export const allPage = query({
     const { account } = await requireAdministrator(ctx);
     const page = await ctx.db
       .query("analytics")
-      .withIndex("by_bucket", (query) =>
-        query.gte("bucketStart", cutoffForRange(args.range, args.now)),
+      .withIndex("by_scope_and_bucketStart", (query) =>
+        query.eq("scope", account.scope).gte("bucketStart", cutoffForRange(args.range, args.now)),
       )
       .order("asc")
       .paginate(args.paginationOpts);
-    return { ...page, page: page.page.filter((row) => row.scope === account.scope) };
+    return page;
   },
 });

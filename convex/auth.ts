@@ -11,6 +11,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { normalizeAuthEmail, sendAuthEmail } from "./authEmail";
 import { components } from "./components";
+import { isActiveCustomer, sameScope } from "./admin";
 
 const resetRequestLimiter = new RateLimiter(components.rateLimiter, {
   authResetRequest: { kind: "fixed window", rate: 3, period: HOUR },
@@ -96,16 +97,30 @@ export const processPasswordReset = internalAction({
 });
 
 export const recordPasswordResetRequested = internalMutation({
-  args: { customerId: v.id("customers"), actorUserId: v.id("users") },
+  args: { customerId: v.id("customers") },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const actorUserId = await getAuthUserId(ctx);
+    const admin = actorUserId === null ? null : await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
+      .unique();
     const customer = await ctx.db.get(args.customerId);
-    if (customer === null || customer.role !== "customer" || customer.deletionStatus !== "active") {
+    if (
+      actorUserId === null ||
+      admin === null ||
+      admin.role !== "admin" ||
+      !isActiveCustomer(admin) ||
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.deletionStatus !== "active" ||
+      !sameScope(admin, customer)
+    ) {
       throw new Error("Customer account unavailable.");
     }
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
-      actorUserId: args.actorUserId,
+      actorUserId,
       actorLabel: "Administrator",
       action: "customer.password_reset_requested",
       accountId: customer._id,
@@ -166,7 +181,6 @@ export const adminRequestPasswordReset = action({
       throw new Error("Customer account unavailable.");
     await ctx.runMutation(internal.auth.recordPasswordResetRequested, {
       customerId: customer._id,
-      actorUserId: userId,
     });
     await ctx.scheduler.runAfter(0, internal.auth.processPasswordReset, {
       provider: "password",
