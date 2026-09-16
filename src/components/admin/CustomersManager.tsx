@@ -1,10 +1,10 @@
 "use client";
 
-import { isLocalDemoMode } from "@/lib/demo/mode";
+import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
-import { ArrowRightIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
 import { validateProfileSlug } from "@/lib/domain";
@@ -34,6 +34,7 @@ function DemoCustomersManager() {
   const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [setupLink, setSetupLink] = useState("");
+  const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [approvalCustomer, setApprovalCustomer] = useState<DemoCustomer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
@@ -238,12 +239,27 @@ function DemoCustomersManager() {
           </div>
         ) : null}
         {setupLink ? (
-          <p className="mt-4 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-            Local setup link:{" "}
-            <a className="font-semibold text-tapit-accent hover:underline" href={setupLink}>
-              {setupLink}
-            </a>
-          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+            <span>
+              Local setup link:{" "}
+              <a className="font-semibold text-tapit-accent hover:underline" href={setupLink}>
+                {setupLink}
+              </a>
+            </span>
+            <Button
+              onClick={() => {
+                void navigator.clipboard?.writeText(
+                  new URL(setupLink, window.location.origin).href,
+                );
+                setCopiedSetupLink(true);
+              }}
+              type="button"
+              variant="secondary"
+            >
+              <CopyIcon aria-hidden="true" className="mr-2" size={17} />
+              {copiedSetupLink ? "Copied" : "Copy link"}
+            </Button>
+          </div>
         ) : null}
       </Panel>
 
@@ -435,12 +451,14 @@ function DemoCustomersManager() {
 }
 
 function LiveCustomersManager() {
+  const hostedDemo = isHostedDemoMode();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
   const [profileSlug, setProfileSlug] = useState("");
   const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [setupLink, setSetupLink] = useState("");
+  const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
   const customers = useQuery(api.customers.list, { search: query.trim() || undefined });
@@ -590,9 +608,24 @@ function LiveCustomersManager() {
           </div>
         ) : null}
         {setupLink ? (
-          <p className="mt-4 break-all rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-            One-time setup link: <strong className="text-tapit-accent">{setupLink}</strong>
-          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+            <span className="break-all">
+              One-time setup link: <strong className="text-tapit-accent">{setupLink}</strong>
+            </span>
+            <Button
+              onClick={() => {
+                void navigator.clipboard?.writeText(
+                  new URL(setupLink, window.location.origin).href,
+                );
+                setCopiedSetupLink(true);
+              }}
+              type="button"
+              variant="secondary"
+            >
+              <CopyIcon aria-hidden="true" className="mr-2" size={17} />
+              {copiedSetupLink ? "Copied" : "Copy link"}
+            </Button>
+          </div>
         ) : null}
       </Panel>
       <Panel
@@ -623,7 +656,7 @@ function LiveCustomersManager() {
                 </p>
               </div>
               <StatusBadge status={customer.status} />
-              {customer.status !== "deleted" ? (
+              {customer.status !== "deleted" && !hostedDemo ? (
                 <Button
                   onClick={() => void resetPassword(customer._id, customer.email)}
                   type="button"
@@ -631,6 +664,11 @@ function LiveCustomersManager() {
                 >
                   Send password setup/reset
                 </Button>
+              ) : null}
+              {customer.status !== "deleted" && hostedDemo ? (
+                <p className="text-sm text-tapit-muted">
+                  Password reset email delivery is disabled in hosted demo mode.
+                </p>
               ) : null}
             </article>
           ))}
