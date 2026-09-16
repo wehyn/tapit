@@ -9,7 +9,7 @@ import {
   type ProfileContent,
   type ProfileRecord,
 } from "../../src/lib/domain";
-import { createProfileMetadata } from "../../src/app/[slug]/page";
+import { createProfileMetadata } from "../../src/lib/profile-metadata";
 
 const content: ProfileContent = {
   name: "Ada Lovelace",
