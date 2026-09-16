@@ -144,6 +144,12 @@ describe("card claiming contracts", () => {
     expect(await t.query(api.cards.resolve, { token: "card-1" })).toEqual({
       status: "onboarding",
     });
+    // The public resolver must not disclose the owner's draft while the card is
+    // claimable. Keep this assertion explicit because the resolver is callable
+    // without authentication.
+    const unpublishedResolution = await t.query(api.cards.resolve, { token: "card-1" });
+    expect(unpublishedResolution).toEqual({ status: "onboarding" });
+    expect(JSON.stringify(unpublishedResolution)).not.toContain("Owner");
     await expect(
       owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
     ).rejects.toThrow("Claim the attached card before publishing");
@@ -185,6 +191,9 @@ describe("card claiming contracts", () => {
       profileId: ids.profileId,
     });
     await expect(owner.mutation(api.cardClaims.complete, { challenge })).rejects.toThrow();
+    await expect(
+      owner.mutation(api.cardClaims.verifyCode, { token: "card-1", code }),
+    ).rejects.toThrow();
     await expect(
       admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId }),
     ).rejects.toThrow();
@@ -242,6 +251,8 @@ describe("card claiming contracts", () => {
       status: "active",
       profile: { slug: "owner-two" },
     });
+    // A published profile becomes public as soon as a newly attached card is
+    // claimed; a second profile publication is not required.
 
     const invited = await admin.mutation(api.customers.createCustomer, {
       email: "invited@example.com",
