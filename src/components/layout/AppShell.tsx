@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import type { MouseEvent, ReactNode } from "react";
 
 import { Brand } from "./Brand";
 
@@ -16,6 +16,7 @@ export function AppShell({
   eyebrow,
   headerActions,
   navItems,
+  beforeNavigate,
   showPageIntro = true,
   title,
 }: {
@@ -23,10 +24,39 @@ export function AppShell({
   eyebrow: string;
   headerActions?: ReactNode;
   navItems: ShellNavItem[];
+  beforeNavigate?: (href: string) => Promise<boolean>;
   showPageIntro?: boolean;
   title: string;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleNavigation = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (
+      beforeNavigate === undefined ||
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
+
+    const destination = new URL(href, window.location.href);
+    if (destination.origin !== window.location.origin) return;
+
+    event.preventDefault();
+    void beforeNavigate(href).then(
+      (shouldNavigate) => {
+        if (shouldNavigate) router.push(href);
+      },
+      () => {
+        // A failed draft save keeps the user on the current page.
+      },
+    );
+  };
 
   return (
     <div className="min-h-[100dvh] bg-tapit-paper">
@@ -49,6 +79,7 @@ export function AppShell({
                   }`}
                   href={item.href}
                   key={item.href}
+                  onClick={(event) => handleNavigation(event, item.href)}
                 >
                   {item.label}
                 </Link>

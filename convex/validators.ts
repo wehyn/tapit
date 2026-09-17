@@ -1,6 +1,20 @@
 import { v } from "convex/values";
 
 export const MAX_PROFILE_LINKS = 100;
+export const CLAIM_CODE_LENGTH = 8;
+export const cardStatusValidator = v.union(
+  v.literal("registered"),
+  v.literal("claimable"),
+  v.literal("active"),
+  v.literal("inactive"),
+  v.literal("replaced"),
+);
+export const analyticsSourceValidator = v.union(
+  v.literal("nfc"),
+  v.literal("qr"),
+  v.literal("direct"),
+  v.literal("unknown"),
+);
 const MAX_PROFILE_NAME_LENGTH = 120;
 export const MAX_PROFILE_SLUG_LENGTH = 64;
 export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);

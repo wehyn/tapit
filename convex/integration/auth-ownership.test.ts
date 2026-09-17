@@ -171,9 +171,39 @@ describe("Convex authentication and ownership", () => {
         ownerId: first.customerId,
         slug: "ada-lovelace",
         status: "draft",
-        draft: { name: "Ada Lovelace", slug: "ada-lovelace", links: [] },
+        draft: {
+          name: "Ada Lovelace",
+          slug: "ada-lovelace",
+          email: "new@example.com",
+          links: [],
+        },
       });
       expect(profile?.published).toBeUndefined();
+    });
+  });
+
+  it("initializes invited profile drafts from the normalized customer email", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+
+    const created = await admin.mutation(api.customers.createCustomer, {
+      email: " Invited@Example.COM ",
+      slug: "invited-customer",
+      tokenHash: "invited-token",
+      expiresAt: Date.now() + 60_000,
+      name: " Invited Customer ",
+    });
+
+    await t.run(async (ctx) => {
+      const customer = await ctx.db.get(created.customerId);
+      const profile = await ctx.db.get(created.profileId);
+      expect(customer?.email).toBe("invited@example.com");
+      expect(profile?.draft).toMatchObject({
+        name: "Invited Customer",
+        slug: "invited-customer",
+        email: "invited@example.com",
+      });
     });
   });
 

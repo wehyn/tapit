@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 import { setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
@@ -16,12 +17,30 @@ import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 
-export function SetupForm({ token }: { token: string }) {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE === "false") return <LiveSetupForm token={token} />;
-  return <DemoSetupForm token={token} />;
+function setupReturnPath(value: string | null): string | undefined {
+  if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\"))
+    return undefined;
+  try {
+    const parsed = new URL(value, "https://tapit.invalid");
+    return parsed.origin === "https://tapit.invalid" ? value : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-function DemoSetupForm({ token }: { token: string }) {
+export function SetupForm({ token }: { token: string }) {
+  const nextPath =
+    typeof window === "undefined"
+      ? undefined
+      : setupReturnPath(new URLSearchParams(window.location.search).get("next"));
+  return isLocalDemoMode() ? (
+    <DemoSetupForm token={token} nextPath={nextPath} />
+  ) : (
+    <LiveSetupForm token={token} nextPath={nextPath} />
+  );
+}
+
+function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
   const router = useRouter();
   const state = useDemoState();
   const account = state.customers.find((candidate) => candidate.setupToken === token);
@@ -58,7 +77,7 @@ function DemoSetupForm({ token }: { token: string }) {
       }));
       setDemoSession({ email: account.email, role: "customer" });
       setComplete(true);
-      window.setTimeout(() => router.replace("/app/profile"), 250);
+      window.setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
     } catch {
       setError("The setup service is unavailable. Try again.");
       setSubmitting(false);
@@ -131,7 +150,7 @@ function DemoSetupForm({ token }: { token: string }) {
   );
 }
 
-function LiveSetupForm({ token }: { token: string }) {
+function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
   const router = useRouter();
   const { signIn } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
@@ -173,7 +192,7 @@ function LiveSetupForm({ token }: { token: string }) {
         setComplete(true);
         setSetupFailed(false);
         setAwaitingAuthentication(false);
-        window.setTimeout(() => router.replace("/app/profile"), 250);
+        window.setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
       })
       .catch((cause) => {
         if (cancelled) return;
@@ -187,7 +206,7 @@ function LiveSetupForm({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [awaitingAuthentication, completeSetup, isAuthenticated, router, tokenHash]);
+  }, [awaitingAuthentication, completeSetup, isAuthenticated, nextPath, router, tokenHash]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -289,7 +308,7 @@ function LiveSetupForm({ token }: { token: string }) {
       await completeSetup({ tokenHash });
       setComplete(true);
       setSetupFailed(false);
-      setTimeout(() => router.replace("/app/profile"), 250);
+      setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",

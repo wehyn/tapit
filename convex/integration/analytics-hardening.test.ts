@@ -95,15 +95,36 @@ describe("analytics hardening", () => {
     });
     await t.mutation(api.analytics.recordLinkClick, { profileId, linkKey: "site" });
     await t.mutation(api.analytics.recordLinkClick, { profileId, linkKey: "site" });
+    await t.mutation(api.analytics.recordLinkClick, {
+      profileId,
+      linkKey: "site",
+      source: "qr",
+    });
     await t.mutation(api.analytics.recordLinkClick, { profileId, linkKey: "missing" });
 
     await expect(
       owner.query(api.analytics.mine, { range: "lifetime", now: Date.now() }),
     ).resolves.toMatchObject({
       views: 0,
-      clicks: 2,
-      linkClicks: { site: 2 },
+      clicks: 3,
+      linkClicks: { site: 3 },
     });
+    await expect(
+      t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("analytics")
+            .withIndex("by_profile_event_bucket", (query) =>
+              query.eq("profileId", profileId).eq("eventType", "link_click"),
+            )
+            .collect(),
+      ),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: "unknown", total: 2, linkKey: "site" }),
+        expect.objectContaining({ source: "qr", total: 1, linkKey: "site" }),
+      ]),
+    );
   });
 
   it("uses an inclusive lower boundary for range summaries", async () => {
@@ -134,6 +155,48 @@ describe("analytics hardening", () => {
       views: 3,
       uniqueViews: 1,
     });
+  });
+
+  it("coalesces legacy rows without a source into unknown attribution", async () => {
+    const t = convexTest(schema, modules);
+    const { profileId } = await seed(t);
+    const date = new Date();
+    date.setUTCHours(0, 0, 0, 0);
+    const bucketStart = date.getTime();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("analytics", {
+        profileId,
+        eventType: "profile_view",
+        bucketStart,
+        total: 4,
+        uniqueCount: 2,
+      });
+      await ctx.db.insert("analytics", {
+        profileId,
+        eventType: "link_click",
+        linkKey: "site",
+        bucketStart,
+        total: 1,
+        uniqueCount: 0,
+      });
+    });
+
+    await t.mutation(api.analytics.recordView, { profileId });
+    await t.mutation(api.analytics.recordLinkClick, { profileId, linkKey: "site" });
+    await expect(
+      t.run(
+        async (ctx) =>
+          await ctx.db
+            .query("analytics")
+            .withIndex("by_profile_bucket", (query) => query.eq("profileId", profileId))
+            .collect(),
+      ),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventType: "profile_view", source: "unknown", total: 5 }),
+        expect.objectContaining({ eventType: "link_click", source: "unknown", total: 2 }),
+      ]),
+    );
   });
 
   it("accumulates beyond the former 1000-row lifetime cap", async () => {

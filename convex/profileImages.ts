@@ -131,6 +131,7 @@ export const getMapping = internalQuery({
       contentType: profileImageContentTypeValidator,
       size: v.number(),
       createdAt: v.number(),
+      scope: v.optional(v.literal("demo")),
     }),
   ),
   handler: async (ctx, args) => await getProfileImageMapping(ctx, args.storageId),

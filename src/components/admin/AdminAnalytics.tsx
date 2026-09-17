@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useEffect, useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -24,15 +26,58 @@ const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "90d", label: "Last 90 days" },
 ];
 
+type Source = "nfc" | "qr" | "direct" | "unknown";
+function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
+  return (
+    <div className="mt-5 grid gap-2 sm:grid-cols-4" aria-label="Traffic source breakdown">
+      {(
+        [
+          ["nfc", "NFC"],
+          ["qr", "QR code"],
+          ["direct", "Direct profile"],
+          ["unknown", "Unknown / legacy"],
+        ] as const
+      ).map(([key, label]) => (
+        <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4" key={key}>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
+            {label}
+          </p>
+          <p className="mt-2 text-xl font-semibold text-tapit-ink">
+            {totals[key].toLocaleString()}
+          </p>
+          <p className="mt-1 text-xs text-tapit-muted">Aggregate events</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function DemoAdminAnalytics() {
   // Retained only as an inert compatibility helper for the merged worktree.
   const state = useDemoState();
   const profiles = getDemoProfiles(state);
   const [range, setRange] = useState<AnalyticsRange>("lifetime");
+  const [now] = useState(() => Date.now());
   const totals = useMemo(
     () => aggregateAnalytics(state.analytics, range),
     [range, state.analytics],
   );
+  const sourceTotals = useMemo(() => {
+    const cutoff = range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * 86400000;
+    return state.analytics
+      .filter((bucket) => bucket.bucketStart >= cutoff)
+      .reduce<Record<Source, number>>(
+        (summary, bucket) => {
+          const source =
+            bucket.source === "nfc" || bucket.source === "qr" || bucket.source === "direct"
+              ? bucket.source
+              : "unknown";
+          summary[source] += bucket.views + bucket.clicks;
+          return summary;
+        },
+        { nfc: 0, qr: 0, direct: 0, unknown: 0 },
+      );
+  }, [now, range, state.analytics]);
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
@@ -61,6 +106,12 @@ function DemoAdminAnalytics() {
             </SelectField>
           </div>
         </div>
+      </Panel>
+      <Panel
+        description="Aggregate events by entry path; no visitor identities are exposed."
+        title="Traffic sources"
+      >
+        <SourceBreakdown totals={sourceTotals} />
       </Panel>
       <dl className="grid gap-2 sm:grid-cols-3">
         <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
@@ -155,6 +206,21 @@ function LiveAdminAnalytics() {
       ),
     [pages.results],
   );
+  const sourceTotals = useMemo(
+    () =>
+      pages.results.reduce<Record<Source, number>>(
+        (summary, row) => {
+          const source =
+            row.source === "nfc" || row.source === "qr" || row.source === "direct"
+              ? row.source
+              : "unknown";
+          summary[source] += row.total;
+          return summary;
+        },
+        { nfc: 0, qr: 0, direct: 0, unknown: 0 },
+      ),
+    [pages.results],
+  );
   const profiles = useQuery(api.profiles.adminList);
   const cards = useQuery(api.cards.adminList);
   if (profiles === undefined || cards === undefined || pages.status === "LoadingFirstPage")
@@ -233,13 +299,15 @@ function LiveAdminAnalytics() {
           ))}
         </div>
       </Panel>
+      <Panel
+        description="Aggregate events by entry path; no visitor identities are exposed."
+        title="Traffic sources"
+      >
+        <SourceBreakdown totals={sourceTotals} />
+      </Panel>
     </div>
   );
 }
 export function AdminAnalytics() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveAdminAnalytics />
-  ) : (
-    <DemoAdminAnalytics />
-  );
+  return !isLocalDemoMode() ? <LiveAdminAnalytics /> : <DemoAdminAnalytics />;
 }

@@ -1,5 +1,7 @@
+import { isDemoMode } from "@/lib/demo/mode";
+
 export function GET() {
-  if (process.env.NEXT_PUBLIC_DEMO_MODE !== "false") {
+  if (isDemoMode()) {
     return Response.json({ mode: "demo" });
   }
 

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 
-import { internalMutation } from "./_generated/server";
+import { env, internalMutation } from "./_generated/server";
 
 const emailArg = v.string();
 
@@ -25,14 +25,18 @@ export const promoteUser = internalMutation({
     if ((await ctx.db.get(args.userId)) === null)
       throw new Error("The administrator user does not exist.");
     const now = Date.now();
+    const scope = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo" ? ("demo" as const) : undefined;
     const existing = await ctx.db
       .query("customers")
       .withIndex("by_email", (query) => query.eq("email", email))
       .unique();
     if (existing !== null && existing.userId !== undefined && existing.userId !== args.userId)
       throw new Error("That email is already linked to another authenticated user.");
+    if (existing !== null && existing.scope !== undefined && existing.scope !== scope)
+      throw new Error("That administrator belongs to another scope.");
     if (existing !== null) {
       await ctx.db.patch(existing._id, {
+        scope,
         userId: args.userId,
         role: "admin",
         status: "active",
@@ -42,6 +46,7 @@ export const promoteUser = internalMutation({
       return existing._id;
     }
     return await ctx.db.insert("customers", {
+      scope,
       userId: args.userId,
       email,
       role: "admin",
@@ -94,6 +99,7 @@ export const bootstrap = internalMutation({
       throw new Error("The bootstrap card URL and token do not match.");
 
     const now = Date.now();
+    const scope = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo" ? ("demo" as const) : undefined;
     const findCustomer = async (email: string) =>
       await ctx.db
         .query("customers")
@@ -102,6 +108,10 @@ export const bootstrap = internalMutation({
 
     const adminExisting = await findCustomer(adminEmail);
     const customerExisting = await findCustomer(customerEmail);
+    for (const existing of [adminExisting, customerExisting]) {
+      if (existing !== null && existing.scope !== undefined && existing.scope !== scope)
+        throw new Error("Bootstrap account belongs to another scope.");
+    }
     const findCustomerByUserId = async (userId: typeof args.adminUserId) =>
       await ctx.db
         .query("customers")
@@ -122,6 +132,7 @@ export const bootstrap = internalMutation({
     const adminCustomerId =
       adminExisting?._id ??
       (await ctx.db.insert("customers", {
+        scope,
         userId: args.adminUserId,
         email: adminEmail,
         role: "admin",
@@ -148,6 +159,7 @@ export const bootstrap = internalMutation({
     const customerId =
       customerExisting?._id ??
       (await ctx.db.insert("customers", {
+        scope,
         userId: args.customerUserId,
         email: customerEmail,
         role: "customer",
@@ -177,6 +189,16 @@ export const bootstrap = internalMutation({
         : await ctx.db.get(customerExisting.profileId);
     if (existingProfile !== null && slugProfile !== null && existingProfile._id !== slugProfile._id)
       throw new Error("The bootstrap customer has conflicting profiles for the requested slug.");
+    if (
+      existingProfile !== null &&
+      existingProfile.scope !== undefined &&
+      existingProfile.scope !== scope
+    )
+      throw new Error("Bootstrap profile belongs to another scope.");
+    const profileOwner =
+      existingProfile === null ? null : await ctx.db.get(existingProfile.ownerId);
+    if (profileOwner !== null && profileOwner.scope !== undefined && profileOwner.scope !== scope)
+      throw new Error("Bootstrap profile owner belongs to another scope.");
     if (existingProfile?.published !== undefined && existingProfile.published.slug !== slug)
       throw new Error("A published profile slug cannot be changed during bootstrap.");
     const publishedAt = now;
@@ -198,6 +220,7 @@ export const bootstrap = internalMutation({
     const profileId =
       existingProfile?._id ??
       (await ctx.db.insert("profiles", {
+        scope,
         ownerId: customerId,
         slug,
         status: "published",
@@ -209,6 +232,7 @@ export const bootstrap = internalMutation({
       }));
     if (existingProfile !== null)
       await ctx.db.patch(existingProfile._id, {
+        scope,
         ownerId: customerId,
         slug,
         status: "published",
@@ -225,9 +249,18 @@ export const bootstrap = internalMutation({
       .unique();
     if (existingCard !== null && existingCard.cardUrl !== args.cardUrl)
       throw new Error("The bootstrap card token is already registered for another URL.");
+    if (existingCard !== null && existingCard.scope !== undefined && existingCard.scope !== scope)
+      throw new Error("Bootstrap card belongs to another scope.");
+    if (
+      existingCard !== null &&
+      existingCard.profileId !== undefined &&
+      existingCard.profileId !== profileId
+    )
+      throw new Error("The bootstrap card is already assigned to another profile.");
     const cardId =
       existingCard?._id ??
       (await ctx.db.insert("cards", {
+        scope,
         cardUrl: args.cardUrl,
         token: args.cardToken,
         profileId,
@@ -238,6 +271,7 @@ export const bootstrap = internalMutation({
       }));
     if (existingCard !== null)
       await ctx.db.patch(existingCard._id, {
+        scope,
         profileId,
         status: "active",
         assignedAt: existingCard.assignedAt ?? now,

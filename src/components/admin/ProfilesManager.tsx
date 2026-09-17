@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
@@ -567,9 +569,5 @@ function LiveProfilesManager() {
 }
 
 export function ProfilesManager() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveProfilesManager />
-  ) : (
-    <DemoProfilesManager />
-  );
+  return !isLocalDemoMode() ? <LiveProfilesManager /> : <DemoProfilesManager />;
 }

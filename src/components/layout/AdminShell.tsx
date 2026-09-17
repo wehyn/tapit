@@ -6,6 +6,7 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 
 import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 import { api } from "../../../convex/_generated/api";
 
 import { AppShell, type ShellNavItem } from "./AppShell";
@@ -24,7 +25,7 @@ const noHydrationSubscription = () => () => {};
 const clientHydratedSnapshot = () => true;
 const serverHydratedSnapshot = () => false;
 
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+const isDemoMode = isLocalDemoMode();
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   return isDemoMode ? (

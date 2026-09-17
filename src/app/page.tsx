@@ -3,7 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { useConvexAuth } from "@convex-dev/auth/react";
+import { useQuery } from "convex/react";
 import { ArrowRight, ArrowUpRight, LinkSimple, UserPlus } from "@phosphor-icons/react";
+import { isLocalDemoMode } from "@/lib/demo/mode";
+import { useDemoSession } from "@/lib/demo/store";
+import { api } from "../../convex/_generated/api";
 
 const navItems = [
   { href: "#product", label: "Product" },
@@ -20,6 +25,45 @@ function LandingBrand() {
       href="/"
     >
       Tapit
+    </Link>
+  );
+}
+
+function AccountLink() {
+  return isLocalDemoMode() ? <DemoAccountLink /> : <LiveAccountLink />;
+}
+
+function DemoAccountLink() {
+  const session = useDemoSession();
+  const href =
+    session === null ? "/login" : session.role === "admin" ? "/admin/customers" : "/app/profile";
+  const label = session === null ? "Sign in" : session.role === "admin" ? "Dashboard" : "Profile";
+  return (
+    <Link
+      className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
+      href={href}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function LiveAccountLink() {
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+  const signedIn = !isLoading && access?.authenticated === true;
+  const href = signedIn
+    ? access.role === "admin"
+      ? "/admin/customers"
+      : "/app/profile"
+    : "/login";
+  const label = signedIn ? (access.role === "admin" ? "Dashboard" : "Profile") : "Sign in";
+  return (
+    <Link
+      className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
+      href={href}
+    >
+      {label}
     </Link>
   );
 }
@@ -77,7 +121,7 @@ function FeatureSection({
 }
 
 export default function HomePage() {
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+  const isDemoMode = isLocalDemoMode();
 
   return (
     <main className="overflow-hidden bg-tapit-paper text-tapit-ink">
@@ -113,12 +157,7 @@ export default function HomePage() {
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-3 sm:gap-7">
-              <Link
-                className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
-                href="/login"
-              >
-                Sign in
-              </Link>
+              <AccountLink />
               <Link
                 className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-tapit-accent px-4 text-base font-semibold text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong sm:min-w-[12.25rem] sm:px-6"
                 href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}

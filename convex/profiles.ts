@@ -97,8 +97,11 @@ export const adminList = query({
   args: {},
   returns: v.array(schema.doc("profiles")),
   handler: async (ctx) => {
-    await requireAdministrator(ctx);
-    return await ctx.db.query("profiles").withIndex("by_status").take(100);
+    const { account } = await requireAdministrator(ctx);
+    return await ctx.db
+      .query("profiles")
+      .withIndex("by_scope_and_status", (query) => query.eq("scope", account.scope))
+      .take(100);
   },
 });
 
@@ -179,6 +182,19 @@ export const publish = mutation({
         profile.ownerId,
         profile.draft.imageStorageId,
       );
+    const attachedCards = await ctx.db
+      .query("cards")
+      .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
+      .take(1001);
+    if (attachedCards.length > 1000)
+      throw new Error("Too many cards are assigned to this profile.");
+    if (
+      attachedCards.some(
+        (card) => card.status === "claimable" && card.claimCodeClaimedAt === undefined,
+      )
+    ) {
+      throw new Error("Claim the attached card before publishing this profile.");
+    }
     const now = Date.now();
     const publishedContent = { ...profile.draft };
     delete publishedContent.imageUrl;
@@ -191,9 +207,15 @@ export const publish = mutation({
       publishedAt: now,
       updatedAt: now,
     });
+    await Promise.all(
+      attachedCards
+        .filter((card) => card.status === "claimable" && card.claimCodeClaimedAt !== undefined)
+        .map((card) => ctx.db.patch(card._id, { status: "active", updatedAt: now })),
+    );
     if (oldPublishedStorageId !== undefined && oldPublishedStorageId !== published.imageStorageId)
       await removeIfUnreferenced(ctx, oldPublishedStorageId, profile._id);
     await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Profile publisher",
       action: "profile.published",
@@ -229,6 +251,41 @@ export const setStatus = mutation({
           profile.ownerId,
           profile.published.imageStorageId,
         );
+      const attachedCards = await ctx.db
+        .query("cards")
+        .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
+        .take(1001);
+      if (attachedCards.length > 1000)
+        throw new Error("Too many cards are assigned to this profile.");
+      if (
+        attachedCards.some(
+          (card) => card.status === "claimable" && card.claimCodeClaimedAt === undefined,
+        )
+      ) {
+        throw new Error("Claim the attached card before publishing this profile.");
+      }
+      const now = Date.now();
+      await ctx.db.patch(profile._id, {
+        status: args.status,
+        updatedAt: now,
+      });
+      await Promise.all(
+        attachedCards
+          .filter((card) => card.status === "claimable" && card.claimCodeClaimedAt !== undefined)
+          .map((card) => ctx.db.patch(card._id, { status: "active", updatedAt: now })),
+      );
+      await ctx.db.insert("auditLogs", {
+        scope: profile.scope,
+        actorUserId: userId,
+        actorLabel: "Administrator",
+        action: `profile.${args.status}`,
+        profileId: profile._id,
+        accountId: account.account._id,
+        occurredAt: now,
+        before: profile.status,
+        after: args.status,
+      });
+      return { status: args.status };
     }
     const now = Date.now();
     await ctx.db.patch(profile._id, {
@@ -238,6 +295,7 @@ export const setStatus = mutation({
       ...(args.status === "suspended" ? { suspendedAt: now } : {}),
     });
     await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
       action: `profile.${args.status}`,

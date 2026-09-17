@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
+import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
   setDemoSession,
@@ -47,7 +48,7 @@ export function LoginForm({
   resetEmail?: string;
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  return process.env.NEXT_PUBLIC_DEMO_MODE !== "false" ? (
+  return isLocalDemoMode() ? (
     <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
   ) : (
     <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
@@ -246,6 +247,7 @@ function LiveLoginForm({
   resetEmail?: string;
 }) {
   const router = useRouter();
+  const hostedDemo = isHostedDemoMode();
   const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess);
@@ -512,6 +514,16 @@ function LiveLoginForm({
     <AuthShell mode={mode} modeChangeDisabled={submitting} onModeChange={changeMode}>
       {loading && mode === "signin" && authStep === "form" ? (
         <p className="text-sm text-tapit-muted">Checking your session…</p>
+      ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (
+        <div className="grid gap-5">
+          <Notice>
+            Password reset email delivery is disabled in hosted demo mode. Use the password you
+            chose through your setup link.
+          </Notice>
+          <Button onClick={backToSignIn} type="button" variant="quiet">
+            Back to sign in
+          </Button>
+        </div>
       ) : authStep === "reset-request" ? (
         <form className="grid gap-5" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
@@ -700,16 +712,23 @@ function LiveLoginForm({
               <Button disabled={submitting} type="submit">
                 {submitting ? "Signing in" : "Sign in"}
               </Button>
-              <Button
-                onClick={() => {
-                  setError("");
-                  setAuthStep("reset-request");
-                }}
-                type="button"
-                variant="quiet"
-              >
-                Forgot password?
-              </Button>
+              {hostedDemo ? (
+                <Notice>
+                  Password reset email delivery is disabled in hosted demo mode. Use your setup link
+                  password.
+                </Notice>
+              ) : (
+                <Button
+                  onClick={() => {
+                    setError("");
+                    setAuthStep("reset-request");
+                  }}
+                  type="button"
+                  variant="quiet"
+                >
+                  Forgot password?
+                </Button>
+              )}
             </>
           )}
         </form>

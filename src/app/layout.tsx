@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { DemoProviders } from "@/components/providers/DemoProviders";
 import { LiveProviders } from "@/components/providers/LiveProviders";
+import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { ConvexAuthNextjsServerProvider } from "@convex-dev/auth/nextjs/server";
 
 import "./globals.css";
@@ -23,9 +24,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+  const isLocalDemo = isLocalDemoMode();
+  const isHostedDemo = isHostedDemoMode();
 
-  const content = isDemoMode ? (
+  const content = isLocalDemo ? (
     <DemoProviders>{children}</DemoProviders>
   ) : (
     <LiveProviders>{children}</LiveProviders>
@@ -33,7 +35,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        {isDemoMode ? (
+        {isLocalDemo || isHostedDemo ? (
           content
         ) : (
           <ConvexAuthNextjsServerProvider>{content}</ConvexAuthNextjsServerProvider>

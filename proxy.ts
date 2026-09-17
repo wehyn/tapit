@@ -1,7 +1,7 @@
 import { convexAuthNextjsMiddleware } from "@convex-dev/auth/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 
-const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE !== "false";
+import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 
 function demoProxy(request: NextRequest) {
   return NextResponse.next({ request });
@@ -22,7 +22,7 @@ const authProxy = convexAuthNextjsMiddleware(
 );
 
 export function proxy(request: NextRequest, event: NextFetchEvent) {
-  return isDemoMode ? demoProxy(request) : authProxy(request, event);
+  return isLocalDemoMode() || isHostedDemoMode() ? demoProxy(request) : authProxy(request, event);
 }
 
 export const config = {

@@ -3,7 +3,8 @@ import { paginationResultValidator, paginationOptsValidator } from "convex/serve
 
 import { mutation, query } from "./_generated/server";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
-import { MAX_PROFILE_LINKS } from "./validators";
+import schema from "./schema";
+import { analyticsSourceValidator, MAX_PROFILE_LINKS } from "./validators";
 
 const rangeValidator = v.union(
   v.literal("lifetime"),
@@ -27,6 +28,7 @@ export const recordView = mutation({
   args: {
     profileId: v.id("profiles"),
     sessionKey: v.optional(v.string()),
+    source: v.optional(analyticsSourceValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -34,6 +36,7 @@ export const recordView = mutation({
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return null;
     const start = bucketStart();
+    const source = args.source ?? "unknown";
     const sessionKey = args.sessionKey?.trim();
     const hasSessionKey =
       sessionKey !== undefined && sessionKey.length > 0 && sessionKey.length <= 128;
@@ -48,32 +51,49 @@ export const recordView = mutation({
     const isUnique = hasSessionKey && session === null;
     if (isUnique) {
       await ctx.db.insert("analyticsSessions", {
+        scope: profile.scope,
         profileId: args.profileId,
         sessionKey,
         firstSeenAt: start,
       });
     }
-    const existing = await ctx.db
+    let existing = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_event_bucket", (query) =>
+      .withIndex("by_profile_event_bucket_source", (query) =>
         query
           .eq("profileId", args.profileId)
           .eq("eventType", "profile_view")
-          .eq("bucketStart", start),
+          .eq("bucketStart", start)
+          .eq("source", source),
       )
       .unique();
+    if (existing === null && source === "unknown") {
+      const legacyRows = await ctx.db
+        .query("analytics")
+        .withIndex("by_profile_event_bucket", (query) =>
+          query
+            .eq("profileId", args.profileId)
+            .eq("eventType", "profile_view")
+            .eq("bucketStart", start),
+        )
+        .take(5);
+      existing = legacyRows.find((row) => row.source === undefined) ?? null;
+    }
     if (existing === null) {
       await ctx.db.insert("analytics", {
+        scope: profile.scope,
         profileId: args.profileId,
         eventType: "profile_view",
         bucketStart: start,
         total: 1,
         uniqueCount: isUnique ? 1 : 0,
+        source,
       });
     } else {
       await ctx.db.patch(existing._id, {
         total: existing.total + 1,
         uniqueCount: existing.uniqueCount + (isUnique ? 1 : 0),
+        source,
       });
     }
     return null;
@@ -81,7 +101,11 @@ export const recordView = mutation({
 });
 
 export const recordLinkClick = mutation({
-  args: { profileId: v.id("profiles"), linkKey: v.string() },
+  args: {
+    profileId: v.id("profiles"),
+    linkKey: v.string(),
+    source: v.optional(analyticsSourceValidator),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
@@ -95,41 +119,48 @@ export const recordLinkClick = mutation({
     )
       return null;
     const start = bucketStart();
-    const buckets = await ctx.db
+    const source = args.source ?? "unknown";
+    let existing = await ctx.db
       .query("analytics")
-      .withIndex("by_profile_event_bucket", (query) =>
+      .withIndex("by_profile_event_bucket_link_source", (query) =>
         query
           .eq("profileId", args.profileId)
           .eq("eventType", "link_click")
-          .eq("bucketStart", start),
+          .eq("bucketStart", start)
+          .eq("linkKey", args.linkKey)
+          .eq("source", source),
       )
-      .take(MAX_PROFILE_LINKS + 1);
-    const existing = buckets.find((bucket) => bucket.linkKey === args.linkKey);
-    if (existing === undefined)
+      .unique();
+    if (existing === null && source === "unknown") {
+      const legacyRows = await ctx.db
+        .query("analytics")
+        .withIndex("by_profile_event_bucket", (query) =>
+          query
+            .eq("profileId", args.profileId)
+            .eq("eventType", "link_click")
+            .eq("bucketStart", start),
+        )
+        .take(MAX_PROFILE_LINKS + 1);
+      existing =
+        legacyRows.find((row) => row.linkKey === args.linkKey && row.source === undefined) ?? null;
+    }
+    if (existing === null)
       await ctx.db.insert("analytics", {
+        scope: profile.scope,
         profileId: args.profileId,
         linkKey: args.linkKey,
         eventType: "link_click",
         bucketStart: start,
         total: 1,
         uniqueCount: 0,
+        source,
       });
-    else await ctx.db.patch(existing._id, { total: existing.total + 1 });
+    else await ctx.db.patch(existing._id, { total: existing.total + 1, source });
     return null;
   },
 });
 
-const analyticsRowValidator = v.object({
-  _id: v.id("analytics"),
-  _creationTime: v.number(),
-  profileId: v.id("profiles"),
-  linkId: v.optional(v.id("links")),
-  linkKey: v.optional(v.string()),
-  eventType: v.union(v.literal("profile_view"), v.literal("link_click")),
-  bucketStart: v.number(),
-  total: v.number(),
-  uniqueCount: v.number(),
-});
+const analyticsRowValidator = schema.doc("analytics");
 
 const summaryPageValidator = v.object({
   views: v.number(),
@@ -147,6 +178,7 @@ function summarize(
     linkKey?: string;
     total: number;
     uniqueCount: number;
+    source?: "nfc" | "qr" | "direct" | "unknown";
   }>,
 ) {
   return rows.reduce(
@@ -162,7 +194,12 @@ function summarize(
       }
       return summary;
     },
-    { views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} as Record<string, number> },
+    {
+      views: 0,
+      uniqueViews: 0,
+      clicks: 0,
+      linkClicks: {} as Record<string, number>,
+    },
   );
 }
 
@@ -204,11 +241,13 @@ export const all = query({
   args: { range: rangeValidator, now: v.number() },
   returns: summaryPageValidator,
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
+    const { account } = await requireAdministrator(ctx);
     const cutoff = cutoffForRange(args.range, args.now);
     const page = await ctx.db
       .query("analytics")
-      .withIndex("by_bucket", (query) => query.gte("bucketStart", cutoff))
+      .withIndex("by_scope_and_bucketStart", (query) =>
+        query.eq("scope", account.scope).gte("bucketStart", cutoff),
+      )
       .order("asc")
       .paginate({ numItems: 500, cursor: null });
     return {
@@ -246,13 +285,14 @@ export const allPage = query({
   args: { range: rangeValidator, now: v.number(), paginationOpts: paginationOptsValidator },
   returns: paginationResultValidator(analyticsRowValidator),
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
-    return await ctx.db
+    const { account } = await requireAdministrator(ctx);
+    const page = await ctx.db
       .query("analytics")
-      .withIndex("by_bucket", (query) =>
-        query.gte("bucketStart", cutoffForRange(args.range, args.now)),
+      .withIndex("by_scope_and_bucketStart", (query) =>
+        query.eq("scope", account.scope).gte("bucketStart", cutoffForRange(args.range, args.now)),
       )
       .order("asc")
       .paginate(args.paginationOpts);
+    return page;
   },
 });

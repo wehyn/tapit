@@ -42,6 +42,7 @@ const publishedProfile = v.object({
 export default defineSchema({
   ...authTables,
   customers: defineTable({
+    scope: v.optional(v.literal("demo")),
     userId: v.optional(v.id("users")),
     email: v.string(),
     role: v.union(v.literal("customer"), v.literal("admin")),
@@ -54,8 +55,11 @@ export default defineSchema({
   })
     .index("by_userId", ["userId"])
     .index("by_email", ["email"])
-    .index("by_role", ["role"]),
+    .index("by_role", ["role"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_role", ["scope", "role"]),
   profiles: defineTable({
+    scope: v.optional(v.literal("demo")),
     ownerId: v.id("customers"),
     slug: v.string(),
     status: v.union(
@@ -74,8 +78,11 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_ownerId", ["ownerId"])
-    .index("by_status", ["status"]),
+    .index("by_status", ["status"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   profileImages: defineTable({
+    scope: v.optional(v.literal("demo")),
     storageId: v.id("_storage"),
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
@@ -84,8 +91,10 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_storageId", ["storageId"])
-    .index("by_profileId", ["profileId"]),
+    .index("by_profileId", ["profileId"])
+    .index("by_scope", ["scope"]),
   links: defineTable({
+    scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
     destination: v.string(),
     label: v.string(),
@@ -94,13 +103,18 @@ export default defineSchema({
     position: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index("by_profile_position", ["profileId", "position"]),
+  })
+    .index("by_profile_position", ["profileId", "position"])
+    .index("by_profile_and_scope_position", ["profileId", "scope", "position"])
+    .index("by_scope", ["scope"]),
   cards: defineTable({
+    scope: v.optional(v.literal("demo")),
     cardUrl: v.string(),
     token: v.string(),
     profileId: v.optional(v.id("profiles")),
     status: v.union(
       v.literal("registered"),
+      v.literal("claimable"),
       v.literal("active"),
       v.literal("inactive"),
       v.literal("replaced"),
@@ -111,12 +125,21 @@ export default defineSchema({
     updatedAt: v.number(),
     assignedAt: v.optional(v.number()),
     deactivatedAt: v.optional(v.number()),
+    claimCodeHash: v.optional(v.string()),
+    claimCodeGeneratedAt: v.optional(v.number()),
+    claimCodeExpiresAt: v.optional(v.number()),
+    claimCodeInvalidatedAt: v.optional(v.number()),
+    claimCodeClaimedAt: v.optional(v.number()),
   })
     .index("by_cardUrl", ["cardUrl"])
     .index("by_token", ["token"])
     .index("by_profileId", ["profileId"])
-    .index("by_status", ["status"]),
+    .index("by_profileId_and_status", ["profileId", "status"])
+    .index("by_status", ["status"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   analytics: defineTable({
+    scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
     linkId: v.optional(v.id("links")),
     linkKey: v.optional(v.string()),
@@ -124,16 +147,45 @@ export default defineSchema({
     bucketStart: v.number(),
     total: v.number(),
     uniqueCount: v.number(),
+    source: v.optional(
+      v.union(v.literal("nfc"), v.literal("qr"), v.literal("direct"), v.literal("unknown")),
+    ),
   })
     .index("by_profile_bucket", ["profileId", "bucketStart"])
     .index("by_profile_event_bucket", ["profileId", "eventType", "bucketStart"])
-    .index("by_bucket", ["bucketStart"]),
+    .index("by_profile_event_bucket_source", ["profileId", "eventType", "bucketStart", "source"])
+    .index("by_profile_event_bucket_link_source", [
+      "profileId",
+      "eventType",
+      "bucketStart",
+      "linkKey",
+      "source",
+    ])
+    .index("by_bucket", ["bucketStart"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_bucketStart", ["scope", "bucketStart"]),
   analyticsSessions: defineTable({
+    scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
     sessionKey: v.string(),
     firstSeenAt: v.number(),
-  }).index("by_profile_session", ["profileId", "sessionKey"]),
+  })
+    .index("by_profile_session", ["profileId", "sessionKey"])
+    .index("by_scope", ["scope"]),
+  cardClaimChallenges: defineTable({
+    scope: v.optional(v.literal("demo")),
+    cardId: v.id("cards"),
+    claimCodeHash: v.string(),
+    challengeHash: v.string(),
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_challengeHash", ["challengeHash"])
+    .index("by_cardId", ["cardId"])
+    .index("by_scope", ["scope"]),
   auditLogs: defineTable({
+    scope: v.optional(v.literal("demo")),
     actorUserId: v.optional(v.id("users")),
     actorLabel: v.string(),
     action: v.string(),
@@ -147,8 +199,11 @@ export default defineSchema({
     .index("by_occurredAt", ["occurredAt"])
     .index("by_accountId", ["accountId"])
     .index("by_profileId", ["profileId"])
-    .index("by_cardId", ["cardId"]),
+    .index("by_cardId", ["cardId"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_occurredAt", ["scope", "occurredAt"]),
   invitations: defineTable({
+    scope: v.optional(v.literal("demo")),
     customerId: v.id("customers"),
     email: v.string(),
     tokenHash: v.string(),
@@ -159,18 +214,27 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_tokenHash", ["tokenHash"])
-    .index("by_customerId", ["customerId"]),
+    .index("by_customerId", ["customerId"])
+    .index("by_scope", ["scope"]),
   deletionRequests: defineTable({
+    scope: v.optional(v.literal("demo")),
     customerId: v.id("customers"),
     requestedAt: v.number(),
     processedAt: v.optional(v.number()),
     processedByUserId: v.optional(v.id("users")),
     status: v.union(v.literal("requested"), v.literal("approved"), v.literal("rejected")),
-  }).index("by_customerId", ["customerId"]),
+  })
+    .index("by_customerId", ["customerId"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_status", ["scope", "status"]),
   settings: defineTable({
+    scope: v.optional(v.literal("demo")),
     key: v.string(),
     value: v.string(),
     updatedAt: v.number(),
     updatedByUserId: v.id("users"),
-  }).index("by_key", ["key"]),
+  })
+    .index("by_key", ["key"])
+    .index("by_scope", ["scope"])
+    .index("by_scope_and_key", ["scope", "key"]),
 });

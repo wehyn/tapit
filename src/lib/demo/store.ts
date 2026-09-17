@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
-import { normalizeProfileSlug, validateProfileSlug } from "../domain";
+import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
@@ -14,7 +14,6 @@ import {
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
-
 export type DemoSession = {
   email: string;
   role: "customer" | "admin";
@@ -51,6 +50,11 @@ function loadFromStorage() {
           Array.isArray(parsed.profiles) && parsed.profiles.length > 0
             ? parsed.profiles
             : [{ ...parsed.profile, theme: parsed.theme ?? fallback.theme }];
+        const cards = parsed.cards.map((card, index) => ({
+          ...card,
+          // Older demo records were appended in creation order and had no timestamp.
+          createdAt: card.createdAt ?? index,
+        }));
         const themes =
           parsed.themes ??
           Object.fromEntries(
@@ -59,6 +63,7 @@ function loadFromStorage() {
         state = {
           ...fallback,
           ...parsed,
+          cards,
           profiles,
           themes,
           profile: parsed.profile,
@@ -253,7 +258,7 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
       ownerId: customerId,
       status: "draft",
       theme: "paper",
-      draft: { name, slug, links: [] },
+      draft: { name, slug, email, links: [] },
       published: null,
     };
     const customer = {
@@ -330,30 +335,39 @@ function todayBucket(): number {
 function updateBucket(
   buckets: AnalyticsBucket[],
   profileId: string,
+  source: AnalyticsSource,
   update: (bucket: AnalyticsBucket) => AnalyticsBucket,
 ): AnalyticsBucket[] {
   const bucketStart = todayBucket();
   const existing = buckets.find(
-    (bucket) => bucket.profileId === profileId && bucket.bucketStart === bucketStart,
+    (bucket) =>
+      bucket.profileId === profileId &&
+      bucket.bucketStart === bucketStart &&
+      (bucket.source ?? "unknown") === source,
   );
   if (existing !== undefined) {
     return buckets.map((bucket) =>
-      bucket.profileId === profileId && bucket.bucketStart === bucketStart
+      bucket.profileId === profileId &&
+      bucket.bucketStart === bucketStart &&
+      (bucket.source ?? "unknown") === source
         ? update(bucket)
         : bucket,
     );
   }
   return [
     ...buckets,
-    update({ profileId, bucketStart, views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} }),
+    update({ profileId, bucketStart, source, views: 0, uniqueViews: 0, clicks: 0, linkClicks: {} }),
   ];
 }
 
-export function recordProfileView(profileId = "profile-mara"): void {
+export function recordProfileView(
+  profileId = "profile-mara",
+  source: AnalyticsSource = "unknown",
+): void {
   try {
     updateDemoState((current) => ({
       ...current,
-      analytics: updateBucket(current.analytics, profileId, (bucket) => ({
+      analytics: updateBucket(current.analytics, profileId, source, (bucket) => ({
         ...bucket,
         views: bucket.views + 1,
         uniqueViews: bucket.uniqueViews + (bucket.views === 0 ? 1 : 0),
@@ -364,11 +378,15 @@ export function recordProfileView(profileId = "profile-mara"): void {
   }
 }
 
-export function recordLinkClick(linkId: string, profileId = "profile-mara"): void {
+export function recordLinkClick(
+  linkId: string,
+  profileId = "profile-mara",
+  source: AnalyticsSource = "unknown",
+): void {
   try {
     updateDemoState((current) => ({
       ...current,
-      analytics: updateBucket(current.analytics, profileId, (bucket) => ({
+      analytics: updateBucket(current.analytics, profileId, source, (bucket) => ({
         ...bucket,
         clicks: bucket.clicks + 1,
         linkClicks: {
@@ -380,6 +398,74 @@ export function recordLinkClick(linkId: string, profileId = "profile-mara"): voi
   } catch (error) {
     if (!isPersistenceError(error)) throw error;
   }
+}
+
+export function verifyDemoCardClaim(cardToken: string, code: string): string {
+  const card = getDemoState().cards.find((candidate) => candidate.token === cardToken);
+  if (
+    card?.status !== "claimable" ||
+    card.claimCode !== code ||
+    card.claimCodeInvalidatedAt !== undefined ||
+    (card.claimCodeExpiresAt !== undefined && card.claimCodeExpiresAt <= Date.now())
+  ) {
+    throw new Error("That code is invalid or expired.");
+  }
+  const challenge = crypto.randomUUID();
+  updateDemoState((current) => ({
+    ...current,
+    cards: current.cards.map((candidate) =>
+      candidate.id === card.id
+        ? {
+            ...candidate,
+            claimChallenge: challenge,
+            claimChallengeExpiresAt: Date.now() + 10 * 60 * 1000,
+          }
+        : candidate,
+    ),
+  }));
+  return challenge;
+}
+
+export function completeDemoCardClaim(cardToken: string, challenge: string, email: string): void {
+  if (!challenge || !email) throw new Error("The card claim is invalid.");
+  const card = getDemoState().cards.find((candidate) => candidate.token === cardToken);
+  const profile =
+    card === undefined ? undefined : getDemoProfileById(getDemoState(), card.profileId);
+  const owner =
+    profile === undefined
+      ? undefined
+      : getDemoState().customers.find((candidate) => candidate.id === profile.ownerId);
+  if (
+    card?.status !== "claimable" ||
+    card.claimedAt !== undefined ||
+    owner?.email !== email ||
+    card.claimChallenge !== challenge ||
+    (card.claimChallengeExpiresAt !== undefined && card.claimChallengeExpiresAt <= Date.now())
+  )
+    throw new Error("The card claim is not available for this account.");
+  const claimedAt = Date.now();
+  updateDemoState((current) => ({
+    ...current,
+    cards: current.cards.map((candidate) =>
+      candidate.id === card.id
+        ? {
+            ...candidate,
+            claimCode: undefined,
+            claimCodeExpiresAt: undefined,
+            claimCodeInvalidatedAt: undefined,
+            claimChallenge: undefined,
+            claimChallengeExpiresAt: undefined,
+            claimedAt,
+            status: profile?.status === "published" ? "active" : "claimable",
+          }
+        : candidate,
+    ),
+    customers: current.customers.map((candidate) =>
+      candidate.id === owner.id
+        ? { ...candidate, claimedCardIds: [...(candidate.claimedCardIds ?? []), card.id] }
+        : candidate,
+    ),
+  }));
 }
 
 export type AnalyticsRange = "lifetime" | "7d" | "30d" | "90d";

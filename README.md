@@ -19,6 +19,27 @@ so the public and dashboard acceptance surfaces can be checked without productio
 deployment. Copy `.env.example` to `.env.local` and
 replace values only when configuring an isolated Convex development deployment.
 
+For a hosted demo backed by shared, non-production Convex data, set
+`NEXT_PUBLIC_DEMO_STORAGE=convex` and configure the matching non-production
+`NEXT_PUBLIC_CONVEX_URL`, and set `TAPIT_DEMO_AUTH_MODE=hosted-demo` on that Convex deployment.
+Hosted demo data is shared across users and devices; never point it at production.
+
+After an operator provisions a Convex Auth Password identity, initialize the fixed Mara demo seed with
+the identity's user ID (the command does not accept or print a password or claim code):
+
+```bash
+npx convex run --deployment dev:your-deployment demo:initialize '{"operatorUserId":"USER_ID"}'
+```
+
+To restore the shared development deployment to the fixed seed, run:
+
+```bash
+npx convex run --deployment dev:your-deployment demo:reset '{"operatorUserId":"USER_ID"}'
+```
+
+Reset removes only application records marked `scope: "demo"`; Convex Auth identities and ordinary unscoped
+records remain. It affects every connected hosted-demo device.
+
 When opening the dev server from another device, use the machine's LAN or Tailscale URL and set
 `NEXT_ALLOWED_DEV_ORIGINS` in `.env.local` to the host/IP values you will use, separated by commas. Restart
 `npm run dev` after changing it; this keeps Next.js dev resources and the demo sign-in handler available to

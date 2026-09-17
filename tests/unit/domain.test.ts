@@ -4,6 +4,7 @@ import {
   applyDeletion,
   canTransitionCard,
   createDeletionAuditPayload,
+  hasUnpublishedChanges,
   isAllowedLinkDestination,
   projectPublicProfile,
   publishProfile,
@@ -35,6 +36,60 @@ function profile(): ProfileRecord {
 }
 
 describe("profile publication and public projection", () => {
+  it("compares draft content without considering the publication timestamp", () => {
+    const published = publishProfile(profile(), "first");
+
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(
+      hasUnpublishedChanges(published.draft, { ...published.published!, publishedAt: "second" }),
+    ).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        { ...published.draft, name: "Changed draft" },
+        { ...published.published!, publishedAt: "second" },
+      ),
+    ).toBe(true);
+    expect(
+      hasUnpublishedChanges(
+        {
+          links: published.draft.links.map((link) => ({
+            enabled: link.enabled,
+            destination: link.destination,
+            label: link.label,
+            id: link.id,
+          })),
+          website: published.draft.website,
+          slug: published.draft.slug,
+          name: published.draft.name,
+          bio: published.draft.bio,
+          email: published.draft.email,
+        },
+        {
+          publishedAt: "third",
+          links: published.published!.links.map((link) => ({
+            id: link.id,
+            label: link.label,
+            destination: link.destination,
+            enabled: link.enabled,
+          })),
+          email: published.published!.email,
+          name: published.published!.name,
+          slug: published.published!.slug,
+          bio: published.published!.bio,
+          website: published.published!.website,
+        },
+      ),
+    ).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        { ...published.draft, email: undefined, phone: undefined },
+        published.published,
+      ),
+    ).toBe(false);
+    expect(hasUnpublishedChanges(draft, null)).toBe(true);
+    expect(hasUnpublishedChanges(draft, undefined)).toBe(true);
+  });
+
   it("requires a name and at least one valid enabled link", () => {
     expect(() =>
       publishProfile({ ...profile(), draft: { ...draft, name: "", links: [] } }, "now"),
@@ -84,17 +139,19 @@ describe("link safety", () => {
 });
 
 describe("card state machine", () => {
-  it("allows registration to active to inactive/replaced only", () => {
-    expect(canTransitionCard("registered", "active")).toBe(true);
+  it("requires claiming before a card can become active", () => {
+    expect(canTransitionCard("registered", "claimable")).toBe(true);
+    expect(canTransitionCard("registered", "active")).toBe(false);
     expect(canTransitionCard("active", "inactive")).toBe(true);
     expect(canTransitionCard("active", "replaced")).toBe(true);
     expect(canTransitionCard("inactive", "active")).toBe(false);
     expect(canTransitionCard("replaced", "active")).toBe(false);
-    const active = transitionCard(
+    const claimable = transitionCard(
       { id: "card-1", cardUrl: "https://tapit.test/c/1", status: "registered" },
-      "active",
+      "claimable",
       "profile-1",
     );
+    const active = transitionCard(claimable, "active", "profile-1");
     expect(transitionCard(active, "replaced", undefined, "card-2").replacedByCardId).toBe("card-2");
   });
 });

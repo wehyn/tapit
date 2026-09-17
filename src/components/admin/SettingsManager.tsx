@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -152,9 +154,5 @@ function LiveSettingsManager() {
   );
 }
 export function SettingsManager() {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveSettingsManager />
-  ) : (
-    <DemoSettingsManager />
-  );
+  return !isLocalDemoMode() ? <LiveSettingsManager /> : <DemoSettingsManager />;
 }

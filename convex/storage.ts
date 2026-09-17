@@ -80,6 +80,7 @@ export const attach = internalMutation({
       throw new Error("This image does not belong to this profile.");
     if (existing === null)
       await ctx.db.insert("profileImages", {
+        scope: profile.scope,
         storageId: args.storageId,
         profileId: args.profileId,
         ownerId: args.ownerId,

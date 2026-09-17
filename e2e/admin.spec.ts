@@ -68,17 +68,24 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(
     page.getByText("Card new-card-abc registered and ready for assignment."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Assign to profile" }).click();
-  await expect(page.getByText("Card new-card-abc is active and assigned")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Download PNG" }).last()).toBeVisible();
-  const pngDownload = page.waitForEvent("download");
-  await page.getByRole("link", { name: "Download PNG" }).last().click();
-  expect((await pngDownload).suggestedFilename()).toBe("new-card-abc.png");
-  const svgDownload = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download SVG" }).last().click();
-  expect((await svgDownload).suggestedFilename()).toBe("new-card-abc.svg");
+  const newCard = page.locator("article").filter({ hasText: "new-card-abc" }).first();
+  await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Confirm card attachment" })
+    .getByRole("button", { name: "Attach card" })
+    .click();
+  await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeHidden();
+  await newCard.locator("summary").click();
+  await expect(newCard.getByText(/Mara Velasquez \(new-card-abc\)/)).toBeVisible();
+  await expect(
+    page.getByText(
+      "Card new-card-abc is claimable and assigned to Mara Velasquez. It must be activated with a claim code.",
+    ),
+  ).toBeVisible();
+  await expect(newCard.getByRole("button", { name: "Generate claim code" })).toBeVisible();
 
   const originalCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await originalCard.locator("summary").click();
   await originalCard.getByRole("button", { name: "Replace card" }).click();
   await page.getByLabel("New pre-encoded card URL").fill("/c/replacement-card-xyz");
   await page.getByRole("button", { name: "Review replacement" }).click();
@@ -92,8 +99,8 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
 
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("card.replaced")).toBeVisible();
-  await expect(page.getByText("card.registered")).toBeVisible();
+  await expect(page.getByText("Card replaced")).toBeVisible();
+  await expect(page.getByText("Card registered")).toBeVisible();
 });
 
 test("administrator moderation hides a profile and can restore it", async ({ page }) => {
@@ -142,5 +149,5 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   ).toBeVisible();
   await expect(customer.getByText("deleted", { exact: true })).toBeVisible();
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("account.deletion_approved")).toBeVisible();
+  await expect(page.getByText("account · deletion approved")).toBeVisible();
 });

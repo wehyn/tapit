@@ -1,5 +1,7 @@
 "use client";
 
+import { isLocalDemoMode } from "@/lib/demo/mode";
+
 import { useMutation, useQuery } from "convex/react";
 import { useCallback } from "react";
 import { api } from "../../../convex/_generated/api";
@@ -14,9 +16,17 @@ import {
 } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { UnpublishedCardClaim } from "./UnpublishedCardClaim";
 import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
-function DemoCardResolver({ cardToken }: { cardToken: string }) {
+function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
+  if (source === undefined) return "nfc";
+  if (source === "nfc") return "nfc";
+  if (source === "qr") return "qr";
+  return "unknown";
+}
+
+function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
   const { hydrated, state } = useHydratedDemoState();
   if (!hydrated) {
     return <CardResolverLoading />;
@@ -24,6 +34,7 @@ function DemoCardResolver({ cardToken }: { cardToken: string }) {
   const card = state.cards.find((candidate) => candidate.token === cardToken);
   if (card === undefined) return <MissingProfilePage />;
   const profile = getDemoProfileById(state, card.profileId);
+  if (card.status === "claimable") return <UnpublishedCardClaim cardToken={cardToken} />;
   if (card.status !== "active" || profile === undefined) {
     return <InactiveCardPage supportUrl={state.supportUrl} />;
   }
@@ -39,21 +50,21 @@ function DemoCardResolver({ cardToken }: { cardToken: string }) {
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
-      onLinkClick={recordLinkClick}
-      onView={recordProfileView}
+      onLinkClick={(key, id) => recordLinkClick(key, id, sourceValue(source))}
+      onView={(id) => recordProfileView(id, sourceValue(source))}
     />
   );
 }
 
-export function CardResolverClient({ cardToken }: { cardToken: string }) {
-  return process.env.NEXT_PUBLIC_DEMO_MODE === "false" ? (
-    <LiveCardResolver cardToken={cardToken} />
+export function CardResolverClient({ cardToken, source }: { cardToken: string; source?: string }) {
+  return !isLocalDemoMode() ? (
+    <LiveCardResolver cardToken={cardToken} source={source} />
   ) : (
-    <DemoCardResolver cardToken={cardToken} />
+    <DemoCardResolver cardToken={cardToken} source={source} />
   );
 }
 
-function LiveCardResolver({ cardToken }: { cardToken: string }) {
+function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
   const result = useQuery(api.cards.resolve, { token: cardToken });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
@@ -68,9 +79,13 @@ function LiveCardResolver({ cardToken }: { cardToken: string }) {
       } catch {
         // Tracking remains best-effort when storage is unavailable.
       }
-      void recordView({ profileId: profileId as Id<"profiles">, sessionKey });
+      void recordView({
+        profileId: profileId as Id<"profiles">,
+        sessionKey,
+        source: sourceValue(source),
+      });
     },
-    [recordView],
+    [recordView, source],
   );
   const onLinkClick = useCallback(
     (linkKey: string, profileId?: string) => {
@@ -78,14 +93,16 @@ function LiveCardResolver({ cardToken }: { cardToken: string }) {
       void recordLinkClick({
         profileId: profileId as Id<"profiles">,
         linkKey,
+        source: sourceValue(source),
       });
     },
-    [recordLinkClick],
+    [recordLinkClick, source],
   );
   if (result === undefined) return <CardResolverLoading />;
   if (result.status === "missing") return <MissingProfilePage />;
   if (result.status === "inactive") return <InactiveCardPage />;
-  if (result.status === "unavailable" || result.profile === null) return <UnavailableProfilePage />;
+  if (result.status === "onboarding") return <UnpublishedCardClaim cardToken={cardToken} />;
+  if (result.status === "unavailable" || result.profile == null) return <UnavailableProfilePage />;
   const profile = {
     ...result.profile,
     links: result.profile.links.map((link) => ({

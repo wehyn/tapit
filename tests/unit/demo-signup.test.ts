@@ -47,7 +47,12 @@ describe("demo self-service signup", () => {
       ownerId: created.customerId,
       status: "draft",
       theme: "paper",
-      draft: { name: "New Person", slug: "new-person", links: [] },
+      draft: {
+        name: "New Person",
+        slug: "new-person",
+        email: "new.person@example.com",
+        links: [],
+      },
       published: null,
     });
     expect(profile && projectPublicProfile(profile)).toBeNull();

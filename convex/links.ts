@@ -25,9 +25,12 @@ export async function replaceProfileLinks(
   }>,
   now: number,
 ) {
+  const profile = await ctx.db.get(profileId);
   const existing = await ctx.db
     .query("links")
-    .withIndex("by_profile_position", (query) => query.eq("profileId", profileId))
+    .withIndex("by_profile_and_scope_position", (query) =>
+      query.eq("profileId", profileId).eq("scope", profile?.scope),
+    )
     .take(MAX_PROFILE_LINKS + 1);
   if (existing.length > MAX_PROFILE_LINKS)
     throw new Error("This profile has too many stored links to replace.");
@@ -35,6 +38,7 @@ export async function replaceProfileLinks(
   await Promise.all(
     links.map((link, position) =>
       ctx.db.insert("links", {
+        scope: profile?.scope,
         profileId,
         destination: link.destination,
         label: link.label,
@@ -59,6 +63,7 @@ async function accessibleProfile(ctx: AuthContext, profileId: Id<"profiles">) {
     account === null ||
     !isActiveCustomer(account) ||
     profile === null ||
+    account.scope !== profile.scope ||
     (account.role !== "admin" && profile.ownerId !== account._id)
   )
     throw new Error("Profile access denied.");
@@ -69,10 +74,12 @@ export const listForProfile = query({
   args: { profileId: v.id("profiles") },
   returns: v.array(schema.doc("links")),
   handler: async (ctx, args) => {
-    await accessibleProfile(ctx, args.profileId);
+    const { account } = await accessibleProfile(ctx, args.profileId);
     return await ctx.db
       .query("links")
-      .withIndex("by_profile_position", (query) => query.eq("profileId", args.profileId))
+      .withIndex("by_profile_and_scope_position", (query) =>
+        query.eq("profileId", args.profileId).eq("scope", account.scope),
+      )
       .take(100);
   },
 });
@@ -106,6 +113,7 @@ export const replaceDraft = mutation({
       .take(MAX_PROFILE_LINKS + 1);
     await replaceProfileLinks(ctx, profile._id, args.links, now);
     await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Profile editor",
       action: "profile.links_updated",
@@ -123,10 +131,15 @@ export const adminList = query({
   args: { profileId: v.id("profiles") },
   returns: v.array(schema.doc("links")),
   handler: async (ctx, args) => {
-    await requireAdministrator(ctx);
+    const { account } = await requireAdministrator(ctx);
+    const profile = await ctx.db.get(args.profileId);
+    if (profile === null || profile.scope !== account.scope)
+      throw new Error("Profile access denied.");
     return await ctx.db
       .query("links")
-      .withIndex("by_profile_position", (query) => query.eq("profileId", args.profileId))
+      .withIndex("by_profile_and_scope_position", (query) =>
+        query.eq("profileId", args.profileId).eq("scope", account.scope),
+      )
       .take(100);
   },
 });

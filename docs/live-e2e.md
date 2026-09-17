@@ -9,6 +9,37 @@ go/no-go gates, and evidence requirements.
 This workflow is for an explicitly named non-production Convex deployment only. Do not use production URLs,
 deployments, credentials, or data.
 
+Hosted demo mode is separate from local live mode: set `NEXT_PUBLIC_DEMO_MODE=true` and
+`NEXT_PUBLIC_DEMO_STORAGE=convex` to use Convex-backed demo paths. It requires a shared, non-production
+Convex deployment, and its data is visible to all hosted-demo users. Never configure hosted demo with
+production Convex data. When `NEXT_PUBLIC_DEMO_STORAGE` is absent, local demo remains the default.
+
+## Hosted-demo seed and reset
+
+Hosted demo requires the deployment environment value `TAPIT_DEMO_AUTH_MODE=hosted-demo` and a matching
+non-production `NEXT_PUBLIC_CONVEX_URL`. The app-side values are:
+
+```text
+NEXT_PUBLIC_DEMO_MODE=true
+NEXT_PUBLIC_DEMO_STORAGE=convex
+NEXT_PUBLIC_CONVEX_URL=https://your-development.convex.cloud
+```
+
+Provision the administrator Password identity through the supported Auth setup flow, then run these exact
+operator commands with its Convex Auth user ID. Use a `dev:<deployment>` or `preview/<branch>` target; never
+run them against production:
+
+```bash
+npx convex run --deployment dev:your-deployment demo:initialize '{"operatorUserId":"USER_ID"}'
+npx convex run --deployment dev:your-deployment demo:reset '{"operatorUserId":"USER_ID"}'
+```
+
+Initialization reconciles the fixed Mara published profile, claimable/active/inactive example cards,
+supported settings, and baseline analytics/audits. Claim-code plaintext is never persisted or returned.
+Reset is safe to repeat, deletes only application records with `scope: "demo"` in dependency order, and
+leaves Auth users and ordinary unscoped records untouched. Because this is shared Convex state, reset changes
+what every connected hosted-demo device sees.
+
 The live suite currently contains 6 serialized browser tests. Preview runs are allowed with the complete
 non-production contract below; production provisioning and live E2E are prohibited.
 
