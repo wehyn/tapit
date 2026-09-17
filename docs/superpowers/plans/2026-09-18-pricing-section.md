@@ -13,6 +13,7 @@
 ### Task 1: Add the pricing plans and bulk-order presentation
 
 **Files:**
+
 - Modify: `src/app/page.tsx:8` for the existing Phosphor import list.
 - Modify: `src/app/page.tsx:10-15` for the local pricing data structure.
 - Modify: `src/app/page.tsx:281-298` for the pricing section body.
@@ -175,6 +176,7 @@ Expected: one implementation commit on `feature/pricing-section`.
 ### Task 2: Verify the pricing section
 
 **Files:**
+
 - Test: existing project checks and `e2e/smoke.spec.ts`; do not add unrelated tests.
 
 - [ ] **Step 1: Run formatting, lint, type, and existing relevant tests**
@@ -206,6 +208,7 @@ Confirm the Pre-order card is the only featured card, all copy is present, each 
 ### Task 3: Independent review
 
 **Files:**
+
 - Review: `src/app/page.tsx` and the final diff only; no edits unless the root assigns a specific correction.
 
 - [ ] **Step 1: Compare implementation against the approved design**
@@ -221,4 +224,3 @@ Check the final code and verification evidence for:
 - no hero imagery, benefits section, backend/Convex code, dependencies, or workflow claims.
 
 Expected: reviewer returns either `approved` with evidence or a concise list of material corrections. Root integrates any correction, reruns the relevant checks, and confirms the final diff remains scoped.
-
