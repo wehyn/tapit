@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import type { LinkIcon } from "@/lib/domain";
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
 
 describe("LinksWorkspace", () => {
@@ -105,4 +106,50 @@ describe("LinksWorkspace", () => {
     );
     expect(screen.getByText("Add a label so visitors know where this link goes.")).toBeVisible();
   });
+
+  it.each(["legacy-icon", "constructor", "__proto__"])(
+    "falls back to the generic icon for an unsupported runtime icon: %s",
+    (runtimeIcon) => {
+      render(
+        <LinksWorkspace
+          profileUrl="/mara-velasquez"
+          links={[
+            {
+              id: "linkedin",
+              label: "LinkedIn",
+              destination: "https://www.linkedin.com/in/mara-velasquez",
+              enabled: true,
+              icon: runtimeIcon as LinkIcon,
+            },
+          ]}
+          theme="paper"
+          preview={{
+            id: "preview",
+            slug: "mara-velasquez",
+            name: "Mara Velasquez",
+            theme: "paper",
+            links: [],
+          }}
+          validation={{}}
+          publicationErrors={[]}
+          message={null}
+          previewMode="phone"
+          pendingAction={null}
+          isDirty={false}
+          publicationLabel="Publish changes"
+          onPreviewModeChange={vi.fn()}
+          onUpdateLink={vi.fn()}
+          onAddLink={vi.fn()}
+          onMoveLink={vi.fn()}
+          onRemoveLink={vi.fn()}
+          onSaveDraft={vi.fn()}
+          onPublish={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByRole("combobox", { name: "Preset icon for LinkedIn" })).toHaveValue(
+        "link",
+      );
+    },
+  );
 });

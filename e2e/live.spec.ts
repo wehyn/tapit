@@ -90,10 +90,30 @@ test.describe("live Convex vertical slice", () => {
       "true",
     );
     await expect(page.getByRole("button", { name: /^Publish/ })).toBeVisible();
+    const icons = page.locator('select[id$="-icon"]');
+    await icons.nth(0).selectOption("globe");
+    await expect(icons.nth(0)).toHaveValue("globe");
+    const desktopButton = page.getByRole("button", { name: "desktop" });
+    await desktopButton.click();
+    await expect(desktopButton).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "phone" }).click();
+    await page.locator('summary[aria-label="Actions for Portfolio"]').click();
+    await expect(page.getByRole("button", { name: "Move down" })).toBeEnabled();
+    await page.getByRole("button", { name: "Move down" }).click();
+    await expect(labels.nth(0)).toHaveValue("TikTok");
+    await page.getByRole("button", { name: "Add link" }).click();
+    const temporaryLabel = page.locator('input[id$="-label"]').last();
+    await temporaryLabel.fill("Delete me");
+    await page.locator('summary[aria-label="Actions for Delete me"]').click();
+    await page
+      .locator("details")
+      .filter({ has: page.locator('summary[aria-label="Actions for Delete me"]') })
+      .getByRole("button", { name: "Delete" })
+      .click();
+    await expect(page.getByRole("textbox", { name: "Label for Delete me" })).toHaveCount(0);
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Links saved to draft.")).toBeVisible();
-    await page.goto("/app/profile");
-    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+    await labels.nth(1).fill("Portfolio updated");
     await page.getByRole("button", { name: "Publish", exact: true }).click();
     await expect(
       page.getByText("Profile published. Your active card paths now show this version."),
@@ -108,7 +128,7 @@ test.describe("live Convex vertical slice", () => {
       await signedOutPage.goto(`/${slug}`);
       await expect(signedOutPage.getByRole("heading", { name })).toBeVisible();
       await expect(signedOutPage.getByText(bio)).toBeVisible();
-      await expect(signedOutPage.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
+      await expect(signedOutPage.getByRole("link", { name: "Portfolio updated" })).toHaveAttribute(
         "href",
         "https://portfolio.example.test",
       );

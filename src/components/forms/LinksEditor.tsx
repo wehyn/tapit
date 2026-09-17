@@ -35,6 +35,51 @@ function copyLinks(links: readonly ProfileLink[]): ProfileLink[] {
 }
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
+const MAX_PROFILE_LINKS = 100;
+const LINK_ICON_VALUES: readonly LinkIcon[] = [
+  "link",
+  "mail",
+  "phone",
+  "calendar",
+  "linkedin",
+  "instagram",
+  "globe",
+];
+
+type PersistedProfileLink = Omit<ProfileLink, "icon"> & { icon?: string };
+
+export function normalizeLinkIcon(value: string | undefined): LinkIcon {
+  return value !== undefined && LINK_ICON_VALUES.includes(value as LinkIcon)
+    ? (value as LinkIcon)
+    : "link";
+}
+
+export function canAddProfileLink(linkCount: number): boolean {
+  return linkCount < MAX_PROFILE_LINKS;
+}
+
+export function appendProfileLink(links: readonly ProfileLink[], id: string): ProfileLink[] {
+  if (!canAddProfileLink(links.length)) return [...links];
+  return [...links, { id, label: "", destination: "", enabled: true, icon: "link" }];
+}
+
+export function normalizeProfileLinks(links: readonly PersistedProfileLink[]): ProfileLink[] {
+  return links.map((link) => ({ ...link, icon: normalizeLinkIcon(link.icon) }));
+}
+
+export function areProfileLinksEqual(
+  currentLinks: readonly ProfileLink[],
+  persistedLinks: readonly PersistedProfileLink[],
+): boolean {
+  return JSON.stringify(currentLinks) === JSON.stringify(normalizeProfileLinks(persistedLinks));
+}
+
+export function canPreviewLinks(
+  validation: Record<string, string>,
+  publicationErrors: readonly string[],
+): boolean {
+  return Object.keys(validation).length === 0 && publicationErrors.length === 0;
+}
 
 function previewForLinks(
   profile: ReturnType<typeof getDemoProfileForSession>,
@@ -104,11 +149,18 @@ function DemoLinksEditor() {
         ]),
     }),
     ...lifecycleErrors,
+    ...(state.cards.some(
+      (card) =>
+        card.profileId === profile.id &&
+        card.status === "claimable" &&
+        card.claimedAt === undefined,
+    )
+      ? ["Claim the attached card before publishing this profile."]
+      : []),
   ];
-  const preview =
-    Object.keys(validation).length === 0 && publicationErrors.length === 0
-      ? previewForLinks(profile, links)
-      : null;
+  const preview = canPreviewLinks(validation, publicationErrors)
+    ? previewForLinks(profile, links)
+    : null;
   const isDirty = JSON.stringify(links) !== JSON.stringify(profile.draft.links);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
@@ -131,11 +183,11 @@ function DemoLinksEditor() {
   }
 
   function addLink() {
+    if (!canAddProfileLink(links.length))
+      return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
-    setLinks((current) => [
-      ...current,
-      { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
-    ]);
+    setLinks((current) => appendProfileLink(current, linkId));
     setMessage(null);
   }
 
@@ -301,17 +353,18 @@ function LiveLinksEditorContent({
   const currentDraft = useMemo(
     () => ({
       ...profile.draft,
-      links: links ?? profile.draft.links.map((link) => ({ ...link, icon: link.icon as LinkIcon })),
+      links: links ?? normalizeProfileLinks(profile.draft.links),
     }),
     [links, profile.draft],
+  );
+  const normalizedDraftLinks = useMemo(
+    () => normalizeProfileLinks(profile.draft.links),
+    [profile.draft.links],
   );
   const publishedForValidation = profile.published
     ? {
         ...profile.published,
-        links: profile.published.links.map((link) => ({
-          ...link,
-          icon: link.icon as LinkIcon,
-        })),
+        links: normalizeProfileLinks(profile.published.links),
         publishedAt: new Date(profile.published.publishedAt).toISOString(),
       }
     : null;
@@ -335,14 +388,16 @@ function LiveLinksEditorContent({
       return result;
     }, {});
   }, [currentDraft.links]);
-  const preview = projectPublicProfile({
-    id: "preview",
-    ownerId: "preview",
-    status: "published",
-    draft: currentDraft,
-    published: { ...currentDraft, publishedAt: new Date().toISOString() },
-  });
-  const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(profile.draft);
+  const preview = canPreviewLinks(validation, publicationErrors)
+    ? projectPublicProfile({
+        id: "preview",
+        ownerId: "preview",
+        status: "published",
+        draft: currentDraft,
+        published: { ...currentDraft, publishedAt: new Date().toISOString() },
+      })
+    : null;
+  const isDirty = !areProfileLinksEqual(currentDraft.links, profile.draft.links);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -366,13 +421,11 @@ function LiveLinksEditorContent({
     setMessage(null);
   }
   function addLink() {
-    if (currentDraft.links.length >= 100)
+    if (!canAddProfileLink(currentDraft.links.length))
       return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
-    setLinks([
-      ...currentDraft.links,
-      { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
-    ]);
+    setLinks((currentLinks) => appendProfileLink(currentLinks ?? normalizedDraftLinks, linkId));
     setMessage(null);
   }
   function removeLink(id: string) {

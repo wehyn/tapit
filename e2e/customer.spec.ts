@@ -52,6 +52,15 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
+  const linkedinIcon = page.locator("#linkedin-icon");
+  await linkedinIcon.selectOption("mail");
+  await expect(linkedinIcon).toHaveValue("mail");
+  const desktopButton = page.getByRole("button", { name: "desktop" });
+  await desktopButton.click();
+  await expect(desktopButton).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "phone" }).click();
+  await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
+
   const addLinkButton = page.getByRole("button", { name: "Add link" });
   await addLinkButton.click();
   const labels = page.locator('input[id$="-label"]');
@@ -64,14 +73,32 @@ test("customer drafts stay private until link and profile publication", async ({
   await privateNoteEnabled.uncheck({ force: true });
   await expect(privateNoteEnabled).not.toBeChecked();
   await page.locator('summary[aria-label="Actions for Private note"]').click();
-  await expect(page.getByRole("button", { name: "Move up" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Move up" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Move down" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+  await page.getByRole("button", { name: "Move up" }).click();
+  await expect(labels.nth(3)).toHaveValue("Private note");
+
+  await addLinkButton.click();
+  const deleteMeLabel = page.locator('input[id$="-label"]').last();
+  await deleteMeLabel.fill("Delete me");
+  await page.locator('summary[aria-label="Actions for Delete me"]').click();
+  await page
+    .locator("details")
+    .filter({ has: page.locator('summary[aria-label="Actions for Delete me"]') })
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(page.getByRole("textbox", { name: "Label for Delete me" })).toHaveCount(0);
+
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Links saved to draft.")).toBeVisible();
   await page.goto("/app/links");
-  await expect(labels.last()).toHaveValue("Private note");
+  await expect(labels.nth(3)).toHaveValue("Private note");
+  await expect(page.getByRole("textbox", { name: "Label for Private note" })).toHaveValue(
+    "Private note",
+  );
   await expect(page.getByRole("checkbox", { name: "Enable Private note" })).not.toBeChecked();
+  await expect(page.locator("#linkedin-icon")).toHaveValue("mail");
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),

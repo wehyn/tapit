@@ -138,7 +138,12 @@ export function LinksWorkspace({
               </div>
             ) : null}
             {links.map((link, index) => {
-              const LinkIcon = linkIconMap[link.icon ?? "link"];
+              const selectedIcon: LinkIcon =
+                link.icon !== undefined &&
+                Object.prototype.hasOwnProperty.call(linkIconMap, link.icon)
+                  ? link.icon
+                  : "link";
+              const LinkIcon = linkIconMap[selectedIcon];
               return (
                 <article
                   className="group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6"
@@ -164,7 +169,7 @@ export function LinksWorkspace({
                           onChange={(event) =>
                             onUpdateLink(link.id, { icon: event.target.value as LinkIcon })
                           }
-                          value={link.icon ?? "link"}
+                          value={selectedIcon}
                         >
                           {iconOptions.map((option) => (
                             <option key={option.value} value={option.value}>

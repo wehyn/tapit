@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { LinkIcon } from "@/lib/domain";
 import { PublicProfile } from "../../src/components/profile/PublicProfile";
 import { projectPublicProfile } from "../../src/lib/domain";
 import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
@@ -33,5 +34,32 @@ describe("public profile preview behavior", () => {
     fireEvent.click(screen.getByRole("link", { name: "Portfolio" }));
 
     expect(JSON.stringify(getDemoState().analytics)).toBe(before);
+  });
+
+  it("falls back safely when a malformed persisted icon reaches the preview", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+
+    render(
+      <PublicProfile
+        preview
+        profile={{
+          ...projection,
+          links: [
+            {
+              id: "malformed",
+              label: "Malformed icon",
+              destination: "https://example.com",
+              enabled: true,
+              icon: "constructor" as LinkIcon,
+            },
+          ],
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Malformed icon" })).toBeVisible();
   });
 });
