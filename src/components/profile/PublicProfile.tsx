@@ -150,7 +150,11 @@ export function PublicProfile({
             aria-label="Profile links"
           >
             {profile.links.map((link) => {
-              const LinkIcon = linkIcons[link.icon as keyof typeof linkIcons] ?? LinkSimple;
+              const LinkIcon =
+                link.icon !== undefined &&
+                Object.prototype.hasOwnProperty.call(linkIcons, link.icon)
+                  ? linkIcons[link.icon as keyof typeof linkIcons]
+                  : LinkSimple;
               return (
                 <li key={link.id}>
                   <a

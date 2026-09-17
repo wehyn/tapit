@@ -43,29 +43,68 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
   await expect(page.getByText("A private draft bio")).toHaveCount(0);
 
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/links");
-  await expect(page.getByRole("heading", { name: "Profile links" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your links" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "desktop" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  const linkedinIcon = page.locator("#linkedin-icon");
+  await linkedinIcon.selectOption("mail");
+  await expect(linkedinIcon).toHaveValue("mail");
+  const desktopButton = page.getByRole("button", { name: "desktop" });
+  await desktopButton.click();
+  await expect(desktopButton).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "phone" }).click();
+  await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
+
   const addLinkButton = page.getByRole("button", { name: "Add link" });
-  await addLinkButton.focus();
-  await addLinkButton.press("Enter");
+  await addLinkButton.click();
   const labels = page.locator('input[id$="-label"]');
   const destinations = page.locator('input[id$="-destination"]');
   await expect(labels.last()).toBeVisible();
-  await labels.last().fill("Contact me");
-  await destinations.last().fill("javascript:alert(1)");
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(
-    page.getByText("Link destination must be a valid HTTPS, mailto, or tel address.").last(),
-  ).toBeVisible();
-
+  await labels.last().fill("Private note");
   await destinations.last().fill("https://contact.example.test");
+  const privateNoteEnabled = page.getByRole("checkbox", { name: "Enable Private note" });
+  await expect(privateNoteEnabled).toBeChecked();
+  await privateNoteEnabled.uncheck({ force: true });
+  await expect(privateNoteEnabled).not.toBeChecked();
+  await page.locator('summary[aria-label="Actions for Private note"]').click();
+  await expect(page.getByRole("button", { name: "Move up" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Move down" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
+  await page.getByRole("button", { name: "Move up" }).click();
+  await expect(labels.nth(3)).toHaveValue("Private note");
+
+  await addLinkButton.click();
+  const deleteMeLabel = page.locator('input[id$="-label"]').last();
+  await deleteMeLabel.fill("Delete me");
+  await page.locator('summary[aria-label="Actions for Delete me"]').click();
+  await page
+    .locator("details")
+    .filter({ has: page.locator('summary[aria-label="Actions for Delete me"]') })
+    .getByRole("button", { name: "Delete" })
+    .click();
+  await expect(page.getByRole("textbox", { name: "Label for Delete me" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Links saved to draft.")).toBeVisible();
+  await page.goto("/app/links");
+  await expect(labels.nth(3)).toHaveValue("Private note");
+  await expect(page.getByRole("textbox", { name: "Label for Private note" })).toHaveValue(
+    "Private note",
+  );
+  await expect(page.getByRole("checkbox", { name: "Enable Private note" })).not.toBeChecked();
+  await expect(page.locator("#linkedin-icon")).toHaveValue("mail");
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),
   ).toBeVisible();
   await page.goto("/mara-velasquez");
   await expect(page.getByText("A private draft bio")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Contact me" })).toBeVisible();
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 

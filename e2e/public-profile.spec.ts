@@ -32,6 +32,18 @@ test("inactive cards never reveal their former profile and vCard contains the ap
 });
 
 test("demo card claim, publish, and resolver activation complete as one flow", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/app/links");
+  await expect(
+    page.getByText("Claim the attached card before publishing this profile."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Sign out" }).click();
+
   await page.goto("/c/claimable-card-demo");
   await expect(
     page.getByRole("heading", { name: "Are you the owner of this card?" }),
