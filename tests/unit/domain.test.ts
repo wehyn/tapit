@@ -151,6 +151,25 @@ describe("profile publication and public projection", () => {
     expect(hasUnpublishedChanges(draft, undefined)).toBe(true);
   });
 
+  it("treats a missing legacy redirect as the disabled default", () => {
+    const legacyPublished = {
+      ...draft,
+      publishedAt: "first",
+    };
+    const disabledDraft = {
+      ...draft,
+      redirect: { enabled: false, destination: "" },
+    };
+
+    expect(hasUnpublishedChanges(disabledDraft, legacyPublished)).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        { ...disabledDraft, redirect: { enabled: true, destination: "https://example.com" } },
+        legacyPublished,
+      ),
+    ).toBe(true);
+  });
+
   it("requires a name and at least one valid enabled link", () => {
     expect(() =>
       publishProfile({ ...profile(), draft: { ...draft, name: "", links: [] } }, "now"),

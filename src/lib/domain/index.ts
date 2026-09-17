@@ -284,9 +284,7 @@ export function publishProfile(
   const snapshot: PublishedProfileSnapshot = {
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
-    ...(profile.draft.redirect === undefined
-      ? {}
-      : { redirect: { ...profile.draft.redirect } }),
+    ...(profile.draft.redirect === undefined ? {} : { redirect: { ...profile.draft.redirect } }),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
@@ -305,6 +303,13 @@ function stableSerialize(value: unknown): string {
   return JSON.stringify(value) ?? "undefined";
 }
 
+function canonicalizeRedirect(content: ProfileContent): ProfileContent {
+  return {
+    ...content,
+    redirect: content.redirect ?? { enabled: false, destination: "" },
+  };
+}
+
 export function hasUnpublishedChanges(
   draft: ProfileContent,
   published: PublishedProfileSnapshot | null | undefined,
@@ -313,7 +318,10 @@ export function hasUnpublishedChanges(
   const publishedContent = Object.fromEntries(
     Object.entries(published).filter(([key]) => key !== "publishedAt"),
   );
-  return stableSerialize(draft) !== stableSerialize(publishedContent);
+  return (
+    stableSerialize(canonicalizeRedirect(draft)) !==
+    stableSerialize(canonicalizeRedirect(publishedContent as ProfileContent))
+  );
 }
 
 /** Projects only the last published snapshot; draft fields can never leak here. */
