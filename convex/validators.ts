@@ -48,6 +48,11 @@ export const profileThemeValidator = v.union(
   v.literal("night"),
 );
 
+export const profileRedirectValidator = v.object({
+  enabled: v.boolean(),
+  destination: v.string(),
+});
+
 export const profileContentValidator = v.object({
   name: v.string(),
   slug: v.string(),
@@ -58,6 +63,7 @@ export const profileContentValidator = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileThemeValidator),
+  redirect: v.optional(profileRedirectValidator),
   links: v.array(linkValidator),
 });
 
@@ -89,6 +95,24 @@ export function isSafeDestination(destination: string): boolean {
     if (parsed.protocol === "mailto:")
       return parsed.pathname.length > 0 && !/[\s<>]/.test(parsed.pathname);
     return parsed.protocol === "tel:" && /^[0-9+().\- x#*]+$/.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+const REDIRECT_DESTINATION_ERROR =
+  "Redirect destination must be a valid HTTPS URL without credentials.";
+
+function isSafeRedirectDestination(destination: string): boolean {
+  if (!destination.trim()) return false;
+  try {
+    const parsed = new URL(destination);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.length > 0 &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+    );
   } catch {
     return false;
   }
@@ -130,6 +154,7 @@ export function validateDraftSafety(content: {
   email?: string;
   phone?: string;
   website?: string;
+  redirect?: { enabled: boolean; destination: string };
   links: Array<{
     id: string;
     label: string;
@@ -139,6 +164,8 @@ export function validateDraftSafety(content: {
   }>;
 }): string[] {
   const errors: string[] = [];
+  if (content.redirect?.enabled && !isSafeRedirectDestination(content.redirect.destination))
+    errors.push(REDIRECT_DESTINATION_ERROR);
   if (content.links.length > MAX_PROFILE_LINKS)
     errors.push("A profile cannot contain more than 100 links.");
   if (fieldTooLong(content.name, MAX_PROFILE_NAME_LENGTH))
@@ -179,6 +206,7 @@ export function validateProfileContent(content: {
   email?: string;
   phone?: string;
   website?: string;
+  redirect?: { enabled: boolean; destination: string };
   links: Array<{
     id: string;
     label: string;
