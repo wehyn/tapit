@@ -24,6 +24,11 @@ export interface ProfileLink {
   icon?: LinkIcon;
 }
 
+export interface ProfileRedirect {
+  enabled: boolean;
+  destination: string;
+}
+
 export interface ProfileContent {
   name: string;
   slug: string;
@@ -34,6 +39,7 @@ export interface ProfileContent {
   phone?: string;
   website?: string;
   theme?: ProfileTheme;
+  redirect?: ProfileRedirect;
   links: ProfileLink[];
 }
 
@@ -103,6 +109,8 @@ export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "logi
 export type AccountStatus = "invited" | "active" | "deleted";
 
 const LINK_SCHEMES = new Set(["https:", "mailto:", "tel:"]);
+const INVALID_REDIRECT_DESTINATION =
+  "Redirect destination must be a valid HTTPS URL without credentials.";
 
 function nonblank(value: string): boolean {
   return value.trim().length > 0;
@@ -165,6 +173,31 @@ export function validateLinkDestination(destination: string): string | null {
   return isAllowedLinkDestination(destination)
     ? null
     : "Link destination must be a valid HTTPS, mailto, or tel address.";
+}
+
+export function validateRedirectDestination(destination: string): string | null {
+  if (!nonblank(destination)) return INVALID_REDIRECT_DESTINATION;
+
+  try {
+    const parsed = new URL(destination);
+    if (
+      parsed.protocol.toLowerCase() !== "https:" ||
+      !nonblank(parsed.hostname) ||
+      parsed.username.length > 0 ||
+      parsed.password.length > 0
+    ) {
+      return INVALID_REDIRECT_DESTINATION;
+    }
+  } catch {
+    return INVALID_REDIRECT_DESTINATION;
+  }
+
+  return null;
+}
+
+export function validateProfileRedirect(redirect: ProfileRedirect | undefined): string | null {
+  if (redirect === undefined || !redirect.enabled) return null;
+  return validateRedirectDestination(redirect.destination);
 }
 
 export function validatePublicationAccess(
@@ -234,6 +267,8 @@ export function validatePublication(
   if (duplicateEnabledLinkDestinations(draft.links)) {
     errors.push("Duplicate enabled link destinations are not allowed.");
   }
+  const redirectError = validateProfileRedirect(draft.redirect);
+  if (redirectError !== null) errors.push(redirectError);
   return errors;
 }
 
@@ -249,6 +284,9 @@ export function publishProfile(
   const snapshot: PublishedProfileSnapshot = {
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
+    ...(profile.draft.redirect === undefined
+      ? {}
+      : { redirect: { ...profile.draft.redirect } }),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
