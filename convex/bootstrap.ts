@@ -189,9 +189,14 @@ export const bootstrap = internalMutation({
         : await ctx.db.get(customerExisting.profileId);
     if (existingProfile !== null && slugProfile !== null && existingProfile._id !== slugProfile._id)
       throw new Error("The bootstrap customer has conflicting profiles for the requested slug.");
-    if (existingProfile !== null && existingProfile.scope !== undefined && existingProfile.scope !== scope)
+    if (
+      existingProfile !== null &&
+      existingProfile.scope !== undefined &&
+      existingProfile.scope !== scope
+    )
       throw new Error("Bootstrap profile belongs to another scope.");
-    const profileOwner = existingProfile === null ? null : await ctx.db.get(existingProfile.ownerId);
+    const profileOwner =
+      existingProfile === null ? null : await ctx.db.get(existingProfile.ownerId);
     if (profileOwner !== null && profileOwner.scope !== undefined && profileOwner.scope !== scope)
       throw new Error("Bootstrap profile owner belongs to another scope.");
     if (existingProfile?.published !== undefined && existingProfile.published.slug !== slug)
@@ -246,7 +251,11 @@ export const bootstrap = internalMutation({
       throw new Error("The bootstrap card token is already registered for another URL.");
     if (existingCard !== null && existingCard.scope !== undefined && existingCard.scope !== scope)
       throw new Error("Bootstrap card belongs to another scope.");
-    if (existingCard !== null && existingCard.profileId !== undefined && existingCard.profileId !== profileId)
+    if (
+      existingCard !== null &&
+      existingCard.profileId !== undefined &&
+      existingCard.profileId !== profileId
+    )
       throw new Error("The bootstrap card is already assigned to another profile.");
     const cardId =
       existingCard?._id ??

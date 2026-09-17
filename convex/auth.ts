@@ -101,10 +101,13 @@ export const recordPasswordResetRequested = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const actorUserId = await getAuthUserId(ctx);
-    const admin = actorUserId === null ? null : await ctx.db
-      .query("customers")
-      .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
-      .unique();
+    const admin =
+      actorUserId === null
+        ? null
+        : await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
+            .unique();
     const customer = await ctx.db.get(args.customerId);
     if (
       actorUserId === null ||

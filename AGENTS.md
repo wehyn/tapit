@@ -22,7 +22,6 @@ Convex agent skills for common tasks can be installed by running
 
 <!-- convex-ai-end -->
 
-
 # Codex project instructions
 
 For complex coding tasks, use the `astra-orchestrator` skill when its trigger conditions match.
