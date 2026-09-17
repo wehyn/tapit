@@ -3,6 +3,7 @@ import { paginationResultValidator, paginationOptsValidator } from "convex/serve
 
 import { mutation, query } from "./_generated/server";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import schema from "./schema";
 import { analyticsSourceValidator, MAX_PROFILE_LINKS } from "./validators";
 
 const rangeValidator = v.union(
@@ -159,18 +160,7 @@ export const recordLinkClick = mutation({
   },
 });
 
-const analyticsRowValidator = v.object({
-  _id: v.id("analytics"),
-  _creationTime: v.number(),
-  profileId: v.id("profiles"),
-  linkId: v.optional(v.id("links")),
-  linkKey: v.optional(v.string()),
-  eventType: v.union(v.literal("profile_view"), v.literal("link_click")),
-  bucketStart: v.number(),
-  total: v.number(),
-  uniqueCount: v.number(),
-  source: v.optional(analyticsSourceValidator),
-});
+const analyticsRowValidator = schema.doc("analytics");
 
 const summaryPageValidator = v.object({
   views: v.number(),

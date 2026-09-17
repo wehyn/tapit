@@ -270,22 +270,7 @@ export const completeSetup = mutation({
 
 export const myAccount = query({
   args: {},
-  returns: v.union(
-    v.null(),
-    v.object({
-      _id: v.id("customers"),
-      _creationTime: v.number(),
-      userId: v.optional(v.id("users")),
-      email: v.string(),
-      role: v.union(v.literal("customer"), v.literal("admin")),
-      status: v.union(v.literal("invited"), v.literal("active"), v.literal("deleted")),
-      profileId: v.optional(v.id("profiles")),
-      deletionStatus: v.union(v.literal("active"), v.literal("requested"), v.literal("deleted")),
-      deletionRequestedAt: v.optional(v.number()),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-    }),
-  ),
+  returns: v.union(v.null(), schema.doc("customers")),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) return null;
@@ -401,35 +386,8 @@ export const listDeletionRequests = query({
   args: {},
   returns: v.array(
     v.object({
-      request: v.object({
-        _id: v.id("deletionRequests"),
-        _creationTime: v.number(),
-        customerId: v.id("customers"),
-        requestedAt: v.number(),
-        processedAt: v.optional(v.number()),
-        processedByUserId: v.optional(v.id("users")),
-        status: v.union(v.literal("requested"), v.literal("approved"), v.literal("rejected")),
-      }),
-      customer: v.union(
-        v.null(),
-        v.object({
-          _id: v.id("customers"),
-          _creationTime: v.number(),
-          userId: v.optional(v.id("users")),
-          email: v.string(),
-          role: v.union(v.literal("customer"), v.literal("admin")),
-          status: v.union(v.literal("invited"), v.literal("active"), v.literal("deleted")),
-          profileId: v.optional(v.id("profiles")),
-          deletionStatus: v.union(
-            v.literal("active"),
-            v.literal("requested"),
-            v.literal("deleted"),
-          ),
-          deletionRequestedAt: v.optional(v.number()),
-          createdAt: v.number(),
-          updatedAt: v.number(),
-        }),
-      ),
+      request: schema.doc("deletionRequests"),
+      customer: v.union(v.null(), schema.doc("customers")),
     }),
   ),
   handler: async (ctx) => {
@@ -440,11 +398,10 @@ export const listDeletionRequests = query({
       .order("desc")
       .take(100);
     return await Promise.all(
-      requests
-        .map(async (request) => ({
-          request,
-          customer: await ctx.db.get(request.customerId),
-        })),
+      requests.map(async (request) => ({
+        request,
+        customer: await ctx.db.get(request.customerId),
+      })),
     );
   },
 });

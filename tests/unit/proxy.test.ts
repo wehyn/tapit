@@ -24,14 +24,17 @@ afterEach(() => {
 });
 
 describe("proxy mode selection", () => {
-  it("routes hosted demo through the Convex auth proxy", async () => {
+  it("keeps hosted demo on the client-authenticated pass-through proxy", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
 
     const { proxy } = await import("../../proxy");
     const request = {} as Parameters<typeof proxy>[0];
 
-    expect(proxy(request, {} as Parameters<typeof proxy>[1])).toBe("auth-proxy");
+    expect(proxy(request, {} as Parameters<typeof proxy>[1])).toEqual({
+      kind: "demo-proxy",
+      request,
+    });
   });
 
   it("keeps local demo on the pass-through proxy", async () => {

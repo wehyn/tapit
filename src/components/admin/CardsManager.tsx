@@ -712,6 +712,15 @@ function LiveCardsManager() {
   const assignableProfiles = profiles ?? [];
   const availableCustomers = customers ?? [];
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
+  const selectedProfileCard =
+    selectedProfileId === undefined ? undefined : liveCardForProfile(selectedProfileId);
+
+  function liveCardForProfile(profileId: Id<"profiles">) {
+    return orderedCards.find(
+      (card) =>
+        card.profileId === profileId && (card.status === "active" || card.status === "claimable"),
+    );
+  }
 
   if (cards === undefined || profiles === undefined || customers === undefined)
     return <div className="min-h-[60vh] bg-tapit-paper" />;
@@ -789,13 +798,19 @@ function LiveCardsManager() {
               onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
               value={selectedProfileId ?? ""}
             >
-              {assignableProfiles.map((candidate) => (
-                <option key={candidate._id} value={candidate._id}>
-                  {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
-                  {customers.find((customer) => customer._id === candidate.ownerId)?.email ??
-                    "unassigned"}
-                </option>
-              ))}
+              {assignableProfiles.map((candidate) =>
+                (() => {
+                  const attachedCard = liveCardForProfile(candidate._id);
+                  return (
+                    <option key={candidate._id} value={candidate._id}>
+                      {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
+                      {customers.find((customer) => customer._id === candidate.ownerId)?.email ??
+                        "unassigned"}
+                      {attachedCard ? ` · ${attachedCard.status}: ${attachedCard.token}` : ""}
+                    </option>
+                  );
+                })(),
+              )}
             </select>
           </div>
           <Button disabled={pending} onClick={generateCardUrl} type="button" variant="secondary">
@@ -806,6 +821,16 @@ function LiveCardsManager() {
             Register card
           </Button>
         </form>
+        {selectedProfileId && liveCardForProfile(selectedProfileId) ? (
+          <div className="mt-5">
+            <Notice tone="error">
+              This profile already has {liveCardForProfile(selectedProfileId)!.status} card{" "}
+              <span className="font-mono">{liveCardForProfile(selectedProfileId)!.token}</span>. A
+              second card cannot be attached; use Replace on the existing card when this is a
+              physical-card replacement.
+            </Notice>
+          </div>
+        ) : null}
         {message ? (
           <div className="mt-5">
             <Notice tone={message.tone}>{message.text}</Notice>
@@ -859,17 +884,34 @@ function LiveCardsManager() {
                               }
                               value={selectedProfileId ?? ""}
                             >
-                              {assignableProfiles.map((candidate) => (
-                                <option key={candidate._id} value={candidate._id}>
-                                  {candidate.draft.name || candidate.draft.slug} · {candidate.slug}{" "}
-                                  ·{" "}
-                                  {customers.find((customer) => customer._id === candidate.ownerId)
-                                    ?.email ?? "unassigned"}
-                                </option>
-                              ))}
+                              {assignableProfiles.map((candidate) =>
+                                (() => {
+                                  const attachedCard = liveCardForProfile(candidate._id);
+                                  return (
+                                    <option key={candidate._id} value={candidate._id}>
+                                      {candidate.draft.name || candidate.draft.slug} ·{" "}
+                                      {candidate.slug} ·{" "}
+                                      {customers.find(
+                                        (customer) => customer._id === candidate.ownerId,
+                                      )?.email ?? "unassigned"}
+                                      {attachedCard
+                                        ? ` · ${attachedCard.status}: ${attachedCard.token}`
+                                        : ""}
+                                    </option>
+                                  );
+                                })(),
+                              )}
                             </select>
+                            {selectedProfileCard ? (
+                              <p className="basis-full text-sm text-tapit-danger">
+                                This profile already has {selectedProfileCard.status} card{" "}
+                                {selectedProfileCard.token}. Use Replace on that card instead.
+                              </p>
+                            ) : null}
                             <Button
-                              disabled={pending || !selectedProfileId}
+                              disabled={
+                                pending || !selectedProfileId || selectedProfileCard !== undefined
+                              }
                               onClick={() =>
                                 selectedProfileId &&
                                 setAttachment({
