@@ -49,6 +49,7 @@ export type LinksWorkspaceProps = {
   previewMode: "phone" | "desktop";
   pendingAction: "save" | "publish" | null;
   isDirty: boolean;
+  canSaveDraft?: boolean;
   publicationLabel: string;
   onPreviewModeChange: (mode: "phone" | "desktop") => void;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
@@ -93,6 +94,7 @@ export function LinksWorkspace({
   previewMode,
   pendingAction,
   isDirty,
+  canSaveDraft = true,
   publicationLabel,
   onPreviewModeChange,
   onUpdateLink,
@@ -406,7 +408,7 @@ export function LinksWorkspace({
           </div>
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={!isDirty || pendingAction !== null}
+              disabled={!isDirty || !canSaveDraft || pendingAction !== null}
               loading={pendingAction === "save"}
               onClick={onSaveDraft}
               type="button"

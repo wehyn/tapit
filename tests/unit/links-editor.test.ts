@@ -9,6 +9,7 @@ import {
   normalizeProfileLinks,
   normalizeProfileRedirect,
   areProfileRedirectsEqual,
+  canSaveLinksDraft,
 } from "@/components/forms/LinksEditor";
 
 const baseLink = {
@@ -72,5 +73,10 @@ describe("LinksEditor controller boundaries", () => {
         { enabled: true, destination: "https://example.com" },
       ),
     ).toBe(true);
+  });
+
+  it("blocks saving an enabled invalid redirect while allowing a valid redirect-only edit", () => {
+    expect(canSaveLinksDraft({}, { enabled: true, destination: "not a URL" })).toBe(false);
+    expect(canSaveLinksDraft({}, { enabled: true, destination: "https://example.com" })).toBe(true);
   });
 });

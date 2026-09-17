@@ -91,6 +91,13 @@ export function areProfileRedirectsEqual(
   );
 }
 
+export function canSaveLinksDraft(
+  validation: Record<string, string>,
+  redirect: ProfileRedirect,
+): boolean {
+  return Object.keys(validation).length === 0 && validateProfileRedirect(redirect) === null;
+}
+
 export function canPreviewLinks(
   validation: Record<string, string>,
   publicationErrors: readonly string[],
@@ -184,6 +191,7 @@ function DemoLinksEditor() {
   const isDirty =
     !areProfileLinksEqual(links, profile.draft.links) ||
     !areProfileRedirectsEqual(redirect, profile.draft.redirect);
+  const redirectError = validateProfileRedirect(redirect);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
     profile.status === "published"
@@ -241,8 +249,14 @@ function DemoLinksEditor() {
 
   const saveDraft = useCallback(async () => {
     if (!isDirty) return true;
-    if (Object.keys(validation).length > 0) {
-      setMessage({ tone: "error", text: "Fix each highlighted link before saving the draft." });
+    if (!canSaveLinksDraft(validation, redirect)) {
+      setMessage({
+        tone: "error",
+        text:
+          redirectError !== null
+            ? "Fix the card redirect before saving the draft."
+            : "Fix each highlighted link before saving the draft.",
+      });
       return false;
     }
     setPendingAction("save");
@@ -335,7 +349,8 @@ function DemoLinksEditor() {
       profileUrl={`/${profile.draft.slug}`}
       links={links}
       redirect={redirect}
-      redirectError={validateProfileRedirect(redirect)}
+      redirectError={redirectError}
+      canSaveDraft={canSaveLinksDraft(validation, redirect)}
       theme={theme}
       preview={preview}
       validation={validation}
@@ -440,6 +455,7 @@ function LiveLinksEditorContent({
   const isDirty =
     !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
     !areProfileRedirectsEqual(currentDraft.redirect, profile.draft.redirect);
+  const redirectError = validateProfileRedirect(currentDraft.redirect);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -523,8 +539,14 @@ function LiveLinksEditorContent({
   );
   const saveDraft = useCallback(async (): Promise<boolean> => {
     if (!isDirty) return true;
-    if (Object.keys(validation).length > 0) {
-      setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
+    if (!canSaveLinksDraft(validation, currentDraft.redirect)) {
+      setMessage({
+        tone: "error",
+        text:
+          redirectError !== null
+            ? "Fix the card redirect before saving."
+            : "Fix each highlighted link before saving.",
+      });
       return false;
     }
     setPendingAction("save");
@@ -590,7 +612,8 @@ function LiveLinksEditorContent({
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
       redirect={currentDraft.redirect}
-      redirectError={validateProfileRedirect(currentDraft.redirect)}
+      redirectError={redirectError}
+      canSaveDraft={canSaveLinksDraft(validation, currentDraft.redirect)}
       theme={currentDraft.theme ?? "paper"}
       preview={preview}
       validation={validation}

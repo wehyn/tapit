@@ -85,6 +85,7 @@ describe("LinksWorkspace", () => {
         ]}
         redirect={{ enabled: true, destination: "" }}
         redirectError={"Redirect destination must be a valid HTTPS URL without credentials."}
+        canSaveDraft={false}
         theme="paper"
         preview={{
           id: "preview",
