@@ -62,6 +62,10 @@ describe("LinksWorkspace", () => {
     expect(onAddLink).toHaveBeenCalledOnce();
     expect(screen.getByRole("heading", { name: "Redirect card taps and scans" })).toBeVisible();
     expect(screen.getByText("Use the full address, including https://.")).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "HTTPS destination URL" })).toHaveAttribute(
+      "placeholder",
+      "https://www.harleystudio.com",
+    );
     await user.click(screen.getByRole("checkbox", { name: "Enable card tap and scan redirect" }));
     expect(onUpdateRedirect).toHaveBeenCalledWith({ enabled: true });
     fireEvent.change(screen.getByRole("textbox", { name: "HTTPS destination URL" }), {

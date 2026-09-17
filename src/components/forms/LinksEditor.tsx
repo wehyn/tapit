@@ -383,7 +383,7 @@ function LiveLinksEditor() {
   return <LiveLinksEditorContent profile={profile} />;
 }
 
-function LiveLinksEditorContent({
+export function LiveLinksEditorContent({
   profile,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
@@ -406,7 +406,7 @@ function LiveLinksEditorContent({
       links: links ?? normalizeProfileLinks(profile.draft.links),
       redirect: redirect ?? normalizeProfileRedirect(profile.draft.redirect),
     }),
-    [links, profile.draft],
+    [links, redirect, profile.draft],
   );
   const normalizedDraftLinks = useMemo(
     () => normalizeProfileLinks(profile.draft.links),
@@ -568,7 +568,7 @@ function LiveLinksEditorContent({
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, persistLinks, validation]);
+  }, [currentDraft.redirect, isDirty, persistLinks, redirectError, validation]);
   useEffect(() => {
     navigationSaveRef.current = saveDraft;
   }, [saveDraft]);

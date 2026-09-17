@@ -1,4 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { createElement } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+const saveMutation = vi.hoisted(() => vi.fn().mockResolvedValue({ updatedAt: 1 }));
+
+vi.mock("convex/react", () => ({
+  useMutation: () => saveMutation,
+  useQuery: () => undefined,
+}));
 
 import {
   appendProfileLink,
@@ -10,6 +19,7 @@ import {
   normalizeProfileRedirect,
   areProfileRedirectsEqual,
   canSaveLinksDraft,
+  LiveLinksEditorContent,
 } from "@/components/forms/LinksEditor";
 
 const baseLink = {
@@ -78,5 +88,45 @@ describe("LinksEditor controller boundaries", () => {
   it("blocks saving an enabled invalid redirect while allowing a valid redirect-only edit", () => {
     expect(canSaveLinksDraft({}, { enabled: true, destination: "not a URL" })).toBe(false);
     expect(canSaveLinksDraft({}, { enabled: true, destination: "https://example.com" })).toBe(true);
+  });
+
+  it("updates live redirect-only edits and saves the corrected destination", async () => {
+    render(
+      createElement(LiveLinksEditorContent, {
+        profile: {
+          _id: "profile-1",
+          _creationTime: 1,
+          ownerId: "customer-1",
+          scope: "default",
+          status: "published",
+          draft: {
+            name: "Mara Velasquez",
+            slug: "mara-velasquez",
+            links: [{ id: "site", ...baseLink }],
+          },
+          published: {
+            name: "Mara Velasquez",
+            slug: "mara-velasquez",
+            links: [{ id: "site", ...baseLink }],
+            publishedAt: new Date(1).toISOString(),
+          },
+        } as never,
+      }),
+    );
+
+    const toggle = screen.getByRole("checkbox", { name: "Enable card tap and scan redirect" });
+    const destination = screen.getByRole("textbox", { name: "HTTPS destination URL" });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    fireEvent.change(destination, { target: { value: "https://www.harleystudio.com" } });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(saveMutation).toHaveBeenCalledWith({
+      profileId: "profile-1",
+      links: [{ id: "site", ...baseLink }],
+      redirect: { enabled: true, destination: "https://www.harleystudio.com" },
+    });
   });
 });

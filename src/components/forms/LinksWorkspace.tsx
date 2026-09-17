@@ -176,7 +176,7 @@ export function LinksWorkspace({
                 className={`mt-2 min-h-11 w-full min-w-0 rounded-tapit border bg-white px-3 text-base text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:ring-2 focus:ring-tapit-focus/30 ${redirectError ? "border-tapit-danger" : "border-tapit-line"}`}
                 id="profile-redirect-destination"
                 onChange={(event) => onUpdateRedirect({ destination: event.target.value })}
-                placeholder="https://example.com"
+                placeholder="https://www.harleystudio.com"
                 type="url"
                 value={redirect.destination}
               />
@@ -195,6 +195,7 @@ export function LinksWorkspace({
                 <p
                   className="mt-2 text-xs font-medium text-tapit-accent"
                   id="profile-redirect-feedback"
+                  role="status"
                 >
                   Valid HTTPS destination
                 </p>
