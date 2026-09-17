@@ -83,6 +83,7 @@ export const createCustomer = mutation({
       status: "draft",
       draft: {
         ...emptyProfile(slug),
+        email,
         ...(args.name !== undefined ? { name: args.name.trim() } : {}),
         ...(args.bio !== undefined ? { bio: args.bio } : {}),
         ...(args.theme !== undefined ? { theme: args.theme } : {}),
@@ -183,7 +184,7 @@ export const createSelfServiceAccount = mutation({
       ownerId: customerId,
       slug,
       status: "draft",
-      draft: { name, slug, links: [] },
+      draft: { name, slug, email, links: [] },
       createdAt: now,
       updatedAt: now,
     });

@@ -254,6 +254,30 @@ export function publishProfile(
   return { ...profile, status: "published", published: snapshot };
 }
 
+function stableSerialize(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableSerialize).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    return `{${Object.keys(record)
+      .filter((key) => record[key] !== undefined)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${stableSerialize(record[key])}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value) ?? "undefined";
+}
+
+export function hasUnpublishedChanges(
+  draft: ProfileContent,
+  published: PublishedProfileSnapshot | null | undefined,
+): boolean {
+  if (published === null || published === undefined) return true;
+  const publishedContent = Object.fromEntries(
+    Object.entries(published).filter(([key]) => key !== "publishedAt"),
+  );
+  return stableSerialize(draft) !== stableSerialize(publishedContent);
+}
+
 /** Projects only the last published snapshot; draft fields can never leak here. */
 export function projectPublicProfile(profile: ProfileRecord): PublicProfileProjection | null {
   if (profile.status !== "published" || profile.published === null) return null;

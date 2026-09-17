@@ -29,6 +29,12 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
 
 test("customer drafts stay private until link and profile publication", async ({ page }) => {
   await signInAsCustomer(page);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveAttribute(
+    "href",
+    "/app/profile",
+  );
+  await page.goto("/app/profile");
   await page.getByLabel("Bio or role").fill("A private draft bio");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -53,7 +59,7 @@ test("customer drafts stay private until link and profile publication", async ({
   ).toBeVisible();
 
   await destinations.last().fill("https://contact.example.test");
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),
   ).toBeVisible();

@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import {
   ArrowDownIcon,
@@ -24,6 +24,7 @@ import {
 } from "@phosphor-icons/react";
 
 import {
+  hasUnpublishedChanges,
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
@@ -43,6 +44,7 @@ import {
 } from "@/lib/demo/store";
 
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
+import { useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { api } from "../../../convex/_generated/api";
@@ -70,6 +72,8 @@ const linkIconMap = {
 function copyLinks(links: readonly ProfileLink[]): ProfileLink[] {
   return links.map((link) => ({ ...link }));
 }
+
+const MAX_DRAFT_SAVE_ATTEMPTS = 3;
 
 function previewForLinks(
   profile: ReturnType<typeof getDemoProfileForSession>,
@@ -144,13 +148,28 @@ function DemoLinksEditor() {
       ? previewForLinks(profile, links)
       : null;
   const isDirty = JSON.stringify(links) !== JSON.stringify(profile.draft.links);
+  const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
+  const publicationLabel =
+    profile.status === "published"
+      ? hasChangesSincePublish
+        ? "Publish changes"
+        : "Published"
+      : "Publish";
+  const draftRevisionRef = useRef(0);
+  const latestLinksRef = useRef(links);
+
+  useEffect(() => {
+    latestLinksRef.current = links;
+  }, [links]);
 
   function updateLink(id: string, patch: Partial<ProfileLink>) {
+    draftRevisionRef.current += 1;
     setLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
     setMessage(null);
   }
 
   function addLink() {
+    draftRevisionRef.current += 1;
     setLinks((current) => [
       ...current,
       { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
@@ -159,6 +178,7 @@ function DemoLinksEditor() {
   }
 
   function removeLink(id: string) {
+    draftRevisionRef.current += 1;
     setLinks((current) => current.filter((link) => link.id !== id));
     setMessage(null);
   }
@@ -168,6 +188,7 @@ function DemoLinksEditor() {
       const index = current.findIndex((link) => link.id === id);
       const nextIndex = index + direction;
       if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      draftRevisionRef.current += 1;
       const next = [...current];
       const [moved] = next.splice(index, 1);
       if (moved) next.splice(nextIndex, 0, moved);
@@ -176,10 +197,11 @@ function DemoLinksEditor() {
     setMessage(null);
   }
 
-  function saveDraft() {
+  const saveDraft = useCallback(async () => {
+    if (!isDirty) return true;
     if (Object.keys(validation).length > 0) {
       setMessage({ tone: "error", text: "Fix each highlighted link before saving the draft." });
-      return;
+      return false;
     }
     try {
       updateDemoState((current) =>
@@ -192,13 +214,17 @@ function DemoLinksEditor() {
         tone: "success",
         text: "Links saved to draft. Visitors still see the last published order.",
       });
+      return true;
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Links could not be saved.",
       });
+      return false;
     }
-  }
+  }, [isDirty, links, profile.id, validation]);
+
+  useDraftSaveRegistration(saveDraft);
 
   function publish() {
     if (publicationErrors.length > 0 || Object.keys(validation).length > 0) {
@@ -480,12 +506,16 @@ function DemoLinksEditor() {
               Save draft
             </Button>
             <Button
-              disabled={publicationErrors.length > 0 || Object.keys(validation).length > 0}
+              disabled={
+                publicationErrors.length > 0 ||
+                Object.keys(validation).length > 0 ||
+                publicationLabel === "Published"
+              }
               onClick={publish}
               type="button"
             >
               <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Publish
+              {publicationLabel}
             </Button>
           </div>
         </div>
@@ -500,10 +530,24 @@ export function LinksEditor() {
 
 function LiveLinksEditor() {
   const profile = useQuery(api.profiles.mine);
+  if (profile === undefined) return <div className="min-h-[60vh] bg-tapit-paper" />;
+  if (profile === null) return <Notice tone="error">Your profile could not be found.</Notice>;
+  return <LiveLinksEditorContent profile={profile} />;
+}
+
+function LiveLinksEditorContent({
+  profile,
+}: {
+  profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
+}) {
   const saveLinks = useMutation(api.links.replaceDraft);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
+  const registeredSave = useCallback(() => navigationSaveRef.current(), []);
+  useDraftSaveRegistration(registeredSave);
+  const draftRevisionRef = useRef(0);
 
   const current = useMemo(
     () =>
@@ -523,43 +567,69 @@ function LiveLinksEditor() {
       return result;
     }, {});
   }, [current]);
+  const latestLinksRef = useRef(current);
 
-  if (profile === undefined) return <div className="min-h-[60vh] bg-tapit-paper" />;
-  if (profile === null) return <Notice tone="error">Your profile could not be found.</Notice>;
+  useEffect(() => {
+    latestLinksRef.current = current;
+  }, [current]);
+
   const liveProfile = profile;
 
   function update(id: string, patch: Partial<ProfileLink>) {
+    draftRevisionRef.current += 1;
     setLinks(current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
     setMessage(null);
   }
   function add() {
     if (current.length >= 100)
       return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    draftRevisionRef.current += 1;
     setLinks([
       ...current,
       { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
     ]);
   }
-  async function save() {
-    if (Object.keys(errors).length > 0)
-      return setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
+  async function save(): Promise<boolean> {
+    if (!profile) return true;
+    if (current.length === 0 && !profile.draft.links.length) return true;
+    if (Object.keys(errors).length > 0) {
+      setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
+      return false;
+    }
     setPending(true);
     try {
-      await saveLinks({ profileId: liveProfile._id, links: current });
-      setLinks(null);
-      setMessage({
-        tone: "success",
-        text: "Links saved to draft. Visitors still see the last published order.",
-      });
+      let linksToSave = latestLinksRef.current;
+      for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
+        const revisionAtStart = draftRevisionRef.current;
+        await saveLinks({ profileId: liveProfile._id, links: linksToSave });
+        const latestLinks = latestLinksRef.current;
+        if (
+          revisionAtStart === draftRevisionRef.current ||
+          JSON.stringify(latestLinks) === JSON.stringify(linksToSave)
+        ) {
+          setLinks(null);
+          setMessage({
+            tone: "success",
+            text: "Links saved to draft. Visitors still see the last published order.",
+          });
+          return true;
+        }
+        linksToSave = latestLinks;
+      }
+      throw new Error("Your links changed while they were saving. Try again.");
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Links could not be saved.",
       });
+      return false;
     } finally {
       setPending(false);
     }
   }
+  useEffect(() => {
+    navigationSaveRef.current = save;
+  });
   return (
     <div className="mx-auto w-full max-w-[960px] px-4 pb-28 pt-8 sm:px-8 lg:px-10">
       <div className="flex flex-wrap items-end justify-between gap-5">

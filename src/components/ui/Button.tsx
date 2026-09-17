@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
@@ -45,17 +45,20 @@ export function ButtonLink({
   children,
   className = "",
   href,
+  onClick,
   variant = "primary",
 }: {
   children: ReactNode;
   className?: string;
   href: string;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
   variant?: ButtonVariant;
 }) {
   return (
     <Link
       className={`inline-flex min-h-12 items-center justify-center rounded-tapit px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px ${variant === "primary" ? "rounded-full" : ""} ${variantClasses[variant]} ${className}`}
       href={href}
+      onClick={onClick}
     >
       {children}
     </Link>

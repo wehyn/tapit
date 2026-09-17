@@ -86,7 +86,7 @@ function DemoCustomersManager() {
           ownerId: customerId,
           status: "draft",
           theme: "paper",
-          draft: { name: profileName.trim(), slug, links: [], theme },
+          draft: { name: profileName.trim(), slug, email: normalizedEmail, links: [], theme },
           published: null,
         } satisfies DemoProfile,
       ],

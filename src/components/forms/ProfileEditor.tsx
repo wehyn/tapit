@@ -2,12 +2,13 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import NextImage from "next/image";
 import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
+  hasUnpublishedChanges,
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
@@ -35,6 +36,7 @@ import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { MissingProfilePage } from "@/components/state/StatePage";
+import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -46,6 +48,17 @@ function profileForPreview(draft: ProfileContent) {
     draft,
     published: { ...draft, publishedAt: new Date().toISOString() },
   });
+}
+
+const MAX_DRAFT_SAVE_ATTEMPTS = 3;
+
+function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; href: string }) {
+  const onClick = useDraftSaveLink(href);
+  return (
+    <ButtonLink href={href} onClick={onClick}>
+      {children}
+    </ButtonLink>
+  );
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
@@ -104,6 +117,18 @@ function DemoProfileEditor() {
   const preview = profileForPreview(draft);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
+  const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
+  const publicationLabel =
+    profile.status === "published"
+      ? hasChangesSincePublish
+        ? "Publish changes"
+        : "Published"
+      : "Publish";
+  const publicationState = isDirty
+    ? "Unsaved draft changes"
+    : profile.status === "published" && hasChangesSincePublish
+      ? "Changes ready to publish"
+      : "Draft saved";
 
   function updateField<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -121,7 +146,8 @@ function DemoProfileEditor() {
     }
   }
 
-  function saveDraft() {
+  const saveDraft = useCallback(async () => {
+    if (!isDirty) return true;
     try {
       updateDemoState((current) =>
         updateDemoProfile(current, profile.id, (currentProfile) => ({ ...currentProfile, draft })),
@@ -130,13 +156,17 @@ function DemoProfileEditor() {
         tone: "success",
         text: "Draft saved. Visitors still see the last published version.",
       });
+      return true;
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Draft could not be saved.",
       });
+      return false;
     }
-  }
+  }, [draft, isDirty, profile.id]);
+
+  useDraftSaveRegistration(saveDraft);
 
   function publish() {
     if (errors.length > 0) {
@@ -293,7 +323,7 @@ function DemoProfileEditor() {
                 Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
                 it.
                 <span className="mt-3 block">
-                  <ButtonLink href="/app/links">Add your first link</ButtonLink>
+                  <DraftSaveButtonLink href="/app/links">Add your first link</DraftSaveButtonLink>
                 </span>
               </Notice>
             ) : null}
@@ -346,21 +376,26 @@ function DemoProfileEditor() {
                 id="profile-name"
                 label="Name"
                 onChange={(event) => updateField("name", event.target.value)}
+                placeholder="e.g. Alex Morgan"
                 value={draft.name}
               />
               <TextareaField
                 id="profile-bio"
                 label="Bio or role"
+                help="A short introduction people can scan quickly."
                 maxLength={140}
                 onChange={(event) => updateField("bio", event.target.value)}
+                placeholder="e.g. Designer helping small teams"
                 value={draft.bio ?? ""}
               />
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 id="profile-email"
+                help="This appears as a contact option on your published profile."
                 label="Email"
                 onChange={(event) => updateField("email", event.target.value || undefined)}
+                placeholder="you@example.com"
                 type="email"
                 value={draft.email ?? ""}
               />
@@ -368,6 +403,7 @@ function DemoProfileEditor() {
                 id="profile-phone"
                 label="Phone"
                 onChange={(event) => updateField("phone", event.target.value || undefined)}
+                placeholder="+63 917 555 0184"
                 type="tel"
                 value={draft.phone ?? ""}
               />
@@ -375,6 +411,7 @@ function DemoProfileEditor() {
                 id="profile-website"
                 label="Website"
                 onChange={(event) => updateField("website", event.target.value || undefined)}
+                placeholder="https://yourwebsite.com"
                 type="url"
                 value={draft.website ?? ""}
               />
@@ -388,6 +425,7 @@ function DemoProfileEditor() {
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}
+                placeholder="alex-morgan"
                 value={draft.slug}
               />
             </div>
@@ -434,11 +472,7 @@ function DemoProfileEditor() {
         <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <StatusBadge status={profile.status} />
-            {isDirty ? (
-              <span className="text-sm text-tapit-muted">Unsaved draft changes</span>
-            ) : (
-              <span className="text-sm text-tapit-muted">Draft is saved</span>
-            )}
+            <span className="text-sm text-tapit-muted">{publicationState}</span>
           </div>
           {errors.length > 0 ? (
             <ul className="mt-5 grid gap-2 text-sm text-tapit-muted">
@@ -451,10 +485,17 @@ function DemoProfileEditor() {
                 </li>
               ))}
             </ul>
+          ) : profile.status === "published" && !hasChangesSincePublish ? (
+            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
+              Your published profile is up to date.
+            </p>
           ) : (
             <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
               <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              Ready to publish. The required name and one valid enabled link are present.
+              {profile.status === "published"
+                ? "Your saved changes are ready to publish."
+                : "Ready to publish. The required name and one valid enabled link are present."}
             </p>
           )}
           {profile.status === "published" ? (
@@ -500,9 +541,13 @@ function DemoProfileEditor() {
               <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
               Save draft
             </Button>
-            <Button disabled={errors.length > 0} onClick={publish} type="button">
+            <Button
+              disabled={errors.length > 0 || publicationLabel === "Published"}
+              onClick={publish}
+              type="button"
+            >
               <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Publish
+              {publicationLabel}
             </Button>
           </div>
         </div>
@@ -517,6 +562,16 @@ export function ProfileEditor() {
 
 function LiveProfileEditor() {
   const profile = useQuery(api.profiles.mine);
+  if (profile === undefined) return <ProfileEditorLoading />;
+  if (profile === null) return <MissingProfilePage />;
+  return <LiveProfileEditorContent profile={profile} />;
+}
+
+function LiveProfileEditorContent({
+  profile,
+}: {
+  profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
+}) {
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
@@ -528,17 +583,23 @@ function LiveProfileEditor() {
   const [pending, setPending] = useState<"save" | "publish" | null>(null);
   const [imagePending, setImagePending] = useState(false);
   const [imageError, setImageError] = useState("");
+  const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
+  const registeredSave = useCallback(() => navigationSaveRef.current(), []);
+  useDraftSaveRegistration(registeredSave);
+  const draftRevisionRef = useRef(0);
 
-  if (profile === undefined) return <ProfileEditorLoading />;
-  if (profile === null) return <MissingProfilePage />;
   const liveProfile = profile;
-  const currentDraft: ProfileContent = draft ?? {
-    ...liveProfile.draft,
-    links: liveProfile.draft.links.map((link) => ({
-      ...link,
-      icon: link.icon as ProfileContent["links"][number]["icon"],
-    })),
-  };
+  const currentDraft = useMemo<ProfileContent>(
+    () =>
+      draft ?? {
+        ...liveProfile.draft,
+        links: liveProfile.draft.links.map((link) => ({
+          ...link,
+          icon: link.icon as ProfileContent["links"][number]["icon"],
+        })),
+      },
+    [draft, liveProfile.draft],
+  );
   const theme: ProfileTheme = currentDraft.theme ?? "paper";
   const publishedForValidation = liveProfile.published
     ? {
@@ -556,8 +617,26 @@ function LiveProfileEditor() {
   const preview = profileForPreview(currentDraft);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
   const slugLocked = liveProfile.published !== undefined;
+  const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
+  const publicationLabel =
+    liveProfile.status === "published"
+      ? hasChangesSincePublish
+        ? "Publish changes"
+        : "Published"
+      : "Publish";
+  const publicationState = isDirty
+    ? "Unsaved draft changes"
+    : liveProfile.status === "published" && hasChangesSincePublish
+      ? "Changes ready to publish"
+      : "Draft saved";
+  const latestDraftRef = useRef(currentDraft);
+
+  useEffect(() => {
+    latestDraftRef.current = currentDraft;
+  }, [currentDraft]);
 
   function updateField<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
+    draftRevisionRef.current += 1;
     setDraft((value_) => ({ ...(value_ ?? currentDraft), [field]: value }));
     setMessage(null);
   }
@@ -586,6 +665,7 @@ function LiveProfileEditor() {
       const storageId = extractStorageId(responseData);
       if (!storageId) throw new Error("The image upload response was invalid. Try again.");
       const attached = await attachImage({ profileId: liveProfile._id, storageId });
+      draftRevisionRef.current += 1;
       setDraft((current) => ({
         ...(current ?? currentDraft),
         imageStorageId: attached.storageId,
@@ -603,6 +683,7 @@ function LiveProfileEditor() {
     setImageError("");
     try {
       await removeImage({ profileId: liveProfile._id });
+      draftRevisionRef.current += 1;
       setDraft((current) => {
         const next = { ...(current ?? currentDraft) };
         delete next.imageStorageId;
@@ -624,28 +705,47 @@ function LiveProfileEditor() {
     return persistedDraft;
   }
 
-  async function saveDraft() {
+  async function saveDraft(): Promise<boolean> {
+    if (!isDirty) return true;
     setPending("save");
     setMessage(null);
     try {
-      await saveDraftMutation({
-        profileId: liveProfile._id,
-        draft: draftForPersistence(currentDraft),
-      });
-      setDraft(null);
-      setMessage({
-        tone: "success",
-        text: "Draft saved. Visitors still see the last published version.",
-      });
+      let draftToSave = latestDraftRef.current;
+      for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
+        const revisionAtStart = draftRevisionRef.current;
+        await saveDraftMutation({
+          profileId: liveProfile._id,
+          draft: draftForPersistence(draftToSave),
+        });
+        const latestDraft = latestDraftRef.current;
+        if (
+          revisionAtStart === draftRevisionRef.current ||
+          JSON.stringify(latestDraft) === JSON.stringify(draftToSave)
+        ) {
+          setDraft(null);
+          setMessage({
+            tone: "success",
+            text: "Draft saved. Visitors still see the last published version.",
+          });
+          return true;
+        }
+        draftToSave = latestDraft;
+      }
+      throw new Error("Your draft changed while it was saving. Try again.");
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Draft could not be saved.",
       });
+      return false;
     } finally {
       setPending(null);
     }
   }
+
+  useEffect(() => {
+    navigationSaveRef.current = saveDraft;
+  });
 
   async function publish() {
     if (errors.length > 0) {
@@ -695,7 +795,7 @@ function LiveProfileEditor() {
                 Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
                 it.
                 <span className="mt-3 block">
-                  <ButtonLink href="/app/links">Add your first link</ButtonLink>
+                  <DraftSaveButtonLink href="/app/links">Add your first link</DraftSaveButtonLink>
                 </span>
               </Notice>
             ) : null}
@@ -759,19 +859,24 @@ function LiveProfileEditor() {
                 id="profile-name"
                 label="Name"
                 onChange={(event) => updateField("name", event.target.value)}
+                placeholder="e.g. Alex Morgan"
                 value={currentDraft.name}
               />
               <TextareaField
                 id="profile-bio"
                 label="Bio or role"
+                help="A short introduction people can scan quickly."
                 maxLength={140}
                 onChange={(event) => updateField("bio", event.target.value || undefined)}
+                placeholder="e.g. Designer helping small teams"
                 value={currentDraft.bio ?? ""}
               />
               <Field
                 id="profile-email"
+                help="This appears as a contact option on your published profile."
                 label="Email"
                 onChange={(event) => updateField("email", event.target.value || undefined)}
+                placeholder="you@example.com"
                 type="email"
                 value={currentDraft.email ?? ""}
               />
@@ -779,6 +884,7 @@ function LiveProfileEditor() {
                 id="profile-phone"
                 label="Phone"
                 onChange={(event) => updateField("phone", event.target.value || undefined)}
+                placeholder="+63 917 555 0184"
                 type="tel"
                 value={currentDraft.phone ?? ""}
               />
@@ -786,6 +892,7 @@ function LiveProfileEditor() {
                 id="profile-website"
                 label="Website"
                 onChange={(event) => updateField("website", event.target.value || undefined)}
+                placeholder="https://yourwebsite.com"
                 type="url"
                 value={currentDraft.website ?? ""}
               />
@@ -799,6 +906,7 @@ function LiveProfileEditor() {
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}
+                placeholder="alex-morgan"
                 value={currentDraft.slug}
               />
             </div>
@@ -827,9 +935,7 @@ function LiveProfileEditor() {
         <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <StatusBadge status={profile.status} />{" "}
-            <span className="text-sm text-tapit-muted">
-              {isDirty ? "Unsaved draft changes" : "Draft is saved"}
-            </span>
+            <span className="text-sm text-tapit-muted">{publicationState}</span>
           </div>
           {errors.length > 0 ? (
             <ul className="mt-5 grid gap-2 text-sm text-tapit-muted">
@@ -842,10 +948,17 @@ function LiveProfileEditor() {
                 </li>
               ))}
             </ul>
+          ) : liveProfile.status === "published" && !hasChangesSincePublish ? (
+            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
+              Your published profile is up to date.
+            </p>
           ) : (
             <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
               <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              Ready to publish. The required name and one valid enabled link are present.
+              {liveProfile.status === "published"
+                ? "Your saved changes are ready to publish."
+                : "Ready to publish. The required name and one valid enabled link are present."}
             </p>
           )}
         </Panel>
@@ -881,13 +994,13 @@ function LiveProfileEditor() {
               Save draft
             </Button>
             <Button
-              disabled={errors.length > 0}
+              disabled={errors.length > 0 || publicationLabel === "Published"}
               loading={pending === "publish"}
               onClick={publish}
               type="button"
             >
               <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Publish
+              {publicationLabel}
             </Button>
           </div>
         </div>

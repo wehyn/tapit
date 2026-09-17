@@ -258,7 +258,7 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
       ownerId: customerId,
       status: "draft",
       theme: "paper",
-      draft: { name, slug, links: [] },
+      draft: { name, slug, email, links: [] },
       published: null,
     };
     const customer = {

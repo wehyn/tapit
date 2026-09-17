@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 
 import { AppShell, type ShellNavItem } from "./AppShell";
+import { DraftSaveProvider, useDraftSave } from "./DraftSaveContext";
 import { Button } from "../ui/Button";
 import { clearDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
@@ -25,10 +26,14 @@ const serverHydratedSnapshot = () => false;
 const isDemoMode = isLocalDemoMode();
 
 export function CustomerShell({ children }: { children: React.ReactNode }) {
-  return isDemoMode ? (
-    <DemoCustomerShell>{children}</DemoCustomerShell>
-  ) : (
-    <LiveCustomerShell>{children}</LiveCustomerShell>
+  return (
+    <DraftSaveProvider>
+      {isDemoMode ? (
+        <DemoCustomerShell>{children}</DemoCustomerShell>
+      ) : (
+        <LiveCustomerShell>{children}</LiveCustomerShell>
+      )}
+    </DraftSaveProvider>
   );
 }
 
@@ -37,6 +42,8 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const session = useDemoSession();
   const state = useDemoState();
+  const draftSave = useDraftSave();
+  const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
@@ -76,6 +83,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppShell
+      beforeNavigate={beforeNavigate}
       eyebrow="Customer workspace"
       headerActions={
         <Button
@@ -104,6 +112,8 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+  const draftSave = useDraftSave();
+  const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;
@@ -126,6 +136,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AppShell
+      beforeNavigate={beforeNavigate}
       eyebrow="Customer workspace"
       headerActions={
         <Button
