@@ -7,6 +7,8 @@ import {
   canPreviewLinks,
   normalizeLinkIcon,
   normalizeProfileLinks,
+  normalizeProfileRedirect,
+  areProfileRedirectsEqual,
 } from "@/components/forms/LinksEditor";
 
 const baseLink = {
@@ -55,5 +57,20 @@ describe("LinksEditor controller boundaries", () => {
     expect(canPreviewLinks({}, ["Claim the attached card before publishing this profile."])).toBe(
       false,
     );
+  });
+
+  it("normalizes a missing redirect and compares redirect edits", () => {
+    const disabled = normalizeProfileRedirect(undefined);
+    expect(disabled).toEqual({ enabled: false, destination: "" });
+    expect(areProfileRedirectsEqual(disabled, undefined)).toBe(true);
+    expect(
+      areProfileRedirectsEqual({ enabled: true, destination: "https://example.com" }, undefined),
+    ).toBe(false);
+    expect(
+      areProfileRedirectsEqual(
+        { enabled: true, destination: "https://example.com" },
+        { enabled: true, destination: "https://example.com" },
+      ),
+    ).toBe(true);
   });
 });
