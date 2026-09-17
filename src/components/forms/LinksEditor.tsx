@@ -4,7 +4,6 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { FloppyDiskIcon, PlusIcon } from "@phosphor-icons/react";
 
 import {
   hasUnpublishedChanges,
@@ -28,7 +27,6 @@ import {
 
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
 import { useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
-import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { api } from "../../../convex/_generated/api";
 
@@ -290,82 +288,146 @@ function LiveLinksEditorContent({
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
 }) {
   const saveLinks = useMutation(api.links.replaceDraft);
+  const publishMutation = useMutation(api.profiles.publish);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [pending, setPending] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
+  const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
 
-  const current = useMemo(
-    () =>
-      links ?? profile?.draft.links.map((link) => ({ ...link, icon: link.icon as LinkIcon })) ?? [],
-    [links, profile],
+  const currentDraft = useMemo(
+    () => ({
+      ...profile.draft,
+      links: links ?? profile.draft.links.map((link) => ({ ...link, icon: link.icon as LinkIcon })),
+    }),
+    [links, profile.draft],
   );
-  const errors = useMemo(() => {
+  const publishedForValidation = profile.published
+    ? {
+        ...profile.published,
+        links: profile.published.links.map((link) => ({
+          ...link,
+          icon: link.icon as LinkIcon,
+        })),
+        publishedAt: new Date(profile.published.publishedAt).toISOString(),
+      }
+    : null;
+  const publicationErrors = validatePublication(currentDraft, publishedForValidation, {
+    immutableSlug: profile.published?.slug,
+  });
+  const validation = useMemo(() => {
     const seen = new Set<string>();
-    return current.reduce<Record<string, string>>((result, link) => {
+    return currentDraft.links.reduce<Record<string, string>>((result, link) => {
       if (!link.enabled) return result;
       const key = link.destination.trim().toLowerCase();
-      if (!link.label.trim()) result[link.id] = "Add a label.";
-      else if (validateLinkDestination(link.destination))
-        result[link.id] = validateLinkDestination(link.destination)!;
-      if (key && seen.has(key)) result[link.id] = "This destination is already used.";
+      if (!link.label.trim())
+        result[link.id] = "Add a label so visitors know where this link goes.";
+      else {
+        const destinationError = validateLinkDestination(link.destination);
+        if (destinationError) result[link.id] = destinationError;
+      }
+      if (key && seen.has(key))
+        result[link.id] = "This destination is already used by another link.";
       if (key) seen.add(key);
       return result;
     }, {});
-  }, [current]);
-  const latestLinksRef = useRef(current);
+  }, [currentDraft.links]);
+  const preview = projectPublicProfile({
+    id: "preview",
+    ownerId: "preview",
+    status: "published",
+    draft: currentDraft,
+    published: { ...currentDraft, publishedAt: new Date().toISOString() },
+  });
+  const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(profile.draft);
+  const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
+  const publicationLabel =
+    profile.status === "published"
+      ? hasChangesSincePublish
+        ? "Publish changes"
+        : "Published"
+      : "Publish";
+  const latestLinksRef = useRef(currentDraft.links);
 
   useEffect(() => {
-    latestLinksRef.current = current;
-  }, [current]);
+    latestLinksRef.current = currentDraft.links;
+  }, [currentDraft.links]);
 
-  const liveProfile = profile;
-
-  function update(id: string, patch: Partial<ProfileLink>) {
+  function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
-    setLinks(current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
+    setLinks((currentLinks) =>
+      (currentLinks ?? currentDraft.links).map((link) =>
+        link.id === id ? { ...link, ...patch } : link,
+      ),
+    );
     setMessage(null);
   }
-  function add() {
-    if (current.length >= 100)
+  function addLink() {
+    if (currentDraft.links.length >= 100)
       return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
     draftRevisionRef.current += 1;
     setLinks([
-      ...current,
+      ...currentDraft.links,
       { id: `link-${Date.now()}`, label: "", destination: "", enabled: true, icon: "link" },
     ]);
+    setMessage(null);
   }
-  async function save(): Promise<boolean> {
-    if (!profile) return true;
-    if (current.length === 0 && !profile.draft.links.length) return true;
-    if (Object.keys(errors).length > 0) {
-      setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
-      return false;
-    }
-    setPending(true);
-    try {
-      let linksToSave = latestLinksRef.current;
+  function removeLink(id: string) {
+    draftRevisionRef.current += 1;
+    setLinks((currentLinks) =>
+      (currentLinks ?? currentDraft.links).filter((link) => link.id !== id),
+    );
+    setMessage(null);
+  }
+  function moveLink(id: string, direction: -1 | 1) {
+    setLinks((currentLinks) => {
+      const next = [...(currentLinks ?? currentDraft.links)];
+      const index = next.findIndex((link) => link.id === id);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= next.length) return currentLinks;
+      const [moved] = next.splice(index, 1);
+      if (moved) next.splice(nextIndex, 0, moved);
+      draftRevisionRef.current += 1;
+      return next;
+    });
+    setMessage(null);
+  }
+  const persistLinks = useCallback(
+    async (linksToSave: ProfileLink[]) => {
+      let nextLinks = linksToSave;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
-        await saveLinks({ profileId: liveProfile._id, links: linksToSave });
+        await saveLinks({ profileId: profile._id, links: nextLinks });
         const latestLinks = latestLinksRef.current;
         if (
           revisionAtStart === draftRevisionRef.current ||
-          JSON.stringify(latestLinks) === JSON.stringify(linksToSave)
-        ) {
-          setLinks(null);
-          setMessage({
-            tone: "success",
-            text: "Links saved to draft. Visitors still see the last published order.",
-          });
-          return true;
-        }
-        linksToSave = latestLinks;
+          JSON.stringify(latestLinks) === JSON.stringify(nextLinks)
+        )
+          return;
+        nextLinks = latestLinks;
       }
       throw new Error("Your links changed while they were saving. Try again.");
+    },
+    [profile._id, saveLinks],
+  );
+  const saveDraft = useCallback(async (): Promise<boolean> => {
+    if (!isDirty) return true;
+    if (Object.keys(validation).length > 0) {
+      setMessage({ tone: "error", text: "Fix each highlighted link before saving." });
+      return false;
+    }
+    setPendingAction("save");
+    try {
+      await persistLinks(latestLinksRef.current);
+      setLinks(null);
+      setMessage({
+        tone: "success",
+        text: "Links saved to draft. Visitors still see the last published order.",
+      });
+      return true;
     } catch (error) {
       setMessage({
         tone: "error",
@@ -373,83 +435,66 @@ function LiveLinksEditorContent({
       });
       return false;
     } finally {
-      setPending(false);
+      setPendingAction(null);
+    }
+  }, [isDirty, persistLinks, validation]);
+  useEffect(() => {
+    navigationSaveRef.current = saveDraft;
+  }, [saveDraft]);
+
+  async function publish() {
+    if (publicationErrors.length > 0 || Object.keys(validation).length > 0) {
+      setMessage({
+        tone: "error",
+        text:
+          Object.keys(validation).length > 0
+            ? "Fix each highlighted link before publishing."
+            : publicationErrors.join(" "),
+      });
+      return;
+    }
+    setPendingAction("publish");
+    setMessage(null);
+    try {
+      if (isDirty) {
+        await persistLinks(latestLinksRef.current);
+        setLinks(null);
+      }
+      await publishMutation({ profileId: profile._id });
+      setMessage({
+        tone: "success",
+        text: "Profile published. Your active card paths now show this version.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be published.",
+      });
+    } finally {
+      setPendingAction(null);
     }
   }
-  useEffect(() => {
-    navigationSaveRef.current = save;
-  });
+
   return (
-    <div className="mx-auto w-full max-w-[960px] px-4 pb-28 pt-8 sm:px-8 lg:px-10">
-      <div className="flex flex-wrap items-end justify-between gap-5">
-        <div>
-          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-            Your links
-          </h1>
-          <p className="mt-2 text-base leading-7 text-tapit-muted">
-            Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links; email
-            and phone actions can use mailto: or tel:.
-          </p>
-        </div>
-        <Button onClick={add} type="button">
-          <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-          Add link
-        </Button>
-      </div>
-      {message ? (
-        <div className="mt-6">
-          <Notice tone={message.tone}>{message.text}</Notice>
-        </div>
-      ) : null}
-      <div className="mt-8 grid gap-3">
-        {current.map((link, index) => (
-          <div
-            className="grid gap-3 rounded-tapit border border-tapit-line bg-white p-4 sm:grid-cols-[1fr_1.5fr_auto]"
-            key={link.id}
-          >
-            <input
-              aria-label={`Label for link ${index + 1}`}
-              className="min-h-11 rounded-tapit border border-tapit-line px-3"
-              onChange={(event) => update(link.id, { label: event.target.value })}
-              value={link.label}
-              placeholder="Label"
-            />
-            <input
-              aria-label={`Destination for link ${index + 1}`}
-              className="min-h-11 rounded-tapit border border-tapit-line px-3"
-              onChange={(event) => update(link.id, { destination: event.target.value })}
-              value={link.destination}
-              placeholder="https://example.com"
-            />
-            <div className="flex items-center gap-2">
-              <input
-                aria-label={`Enable link ${index + 1}`}
-                checked={link.enabled}
-                onChange={(event) => update(link.id, { enabled: event.target.checked })}
-                type="checkbox"
-              />
-              <button
-                className="text-sm text-tapit-danger"
-                onClick={() => setLinks(current.filter((candidate) => candidate.id !== link.id))}
-                type="button"
-              >
-                Remove
-              </button>
-            </div>
-            {errors[link.id] ? (
-              <p className="text-sm text-tapit-danger sm:col-span-3">{errors[link.id]}</p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-[960px] justify-end">
-          <Button disabled={pending} onClick={save} type="button">
-            <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-            {pending ? "Saving..." : "Save draft"}
-          </Button>
-        </div>
-      </div>
-    </div>
+    <LinksWorkspace
+      profileUrl={`/${currentDraft.slug}`}
+      links={currentDraft.links}
+      theme={currentDraft.theme ?? "paper"}
+      preview={preview}
+      validation={validation}
+      publicationErrors={publicationErrors}
+      message={message}
+      previewMode={previewMode}
+      pendingAction={pendingAction}
+      isDirty={isDirty}
+      publicationLabel={publicationLabel}
+      onPreviewModeChange={setPreviewMode}
+      onUpdateLink={updateLink}
+      onAddLink={addLink}
+      onMoveLink={moveLink}
+      onRemoveLink={removeLink}
+      onSaveDraft={saveDraft}
+      onPublish={publish}
+    />
   );
 }

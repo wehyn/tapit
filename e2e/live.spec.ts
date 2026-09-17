@@ -75,14 +75,21 @@ test.describe("live Convex vertical slice", () => {
     await page.goto("/app/links");
     await page.getByRole("button", { name: "Add link" }).click();
     await page.getByRole("button", { name: "Add link" }).click();
-    const labels = page.getByRole("textbox", { name: /^Label for link \d+$/ });
-    const destinations = page.getByRole("textbox", { name: /^Destination for link \d+$/ });
+    const labels = page.locator('input[id$="-label"]');
+    const destinations = page.locator('input[id$="-destination"]');
     await labels.nth(0).fill("Portfolio");
     await destinations.nth(0).fill("https://portfolio.example.test");
     await labels.nth(1).fill("TikTok");
     await destinations.nth(1).fill(`https://www.tiktok.com/@${slug}`);
-    await expect(page.getByLabel("Enable link 1", { exact: true })).toBeChecked();
-    await expect(page.getByLabel("Enable link 2", { exact: true })).toBeChecked();
+    const enabled = page.locator('input[type="checkbox"]');
+    await expect(enabled.nth(0)).toBeChecked();
+    await expect(enabled.nth(1)).toBeChecked();
+    await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expect(page.getByRole("button", { name: /^Publish/ })).toBeVisible();
     await page.getByRole("button", { name: "Save draft" }).click();
     await expect(page.getByText("Links saved to draft.")).toBeVisible();
     await page.goto("/app/profile");
