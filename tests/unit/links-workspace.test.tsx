@@ -103,8 +103,6 @@ describe("LinksWorkspace", () => {
       "aria-invalid",
       "true",
     );
-    expect(
-      screen.getByText("Add a label so visitors know where this link goes."),
-    ).toBeVisible();
+    expect(screen.getByText("Add a label so visitors know where this link goes.")).toBeVisible();
   });
 });

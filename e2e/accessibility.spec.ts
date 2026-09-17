@@ -20,6 +20,11 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
   await expectNoA11yViolations(page);
+
+  await page.goto("/app/links");
+  await expect(page.getByRole("heading", { name: "Your links" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
+  await expectNoA11yViolations(page);
 });
 
 test("customer signup has no automated accessibility violations", async ({ page }) => {
