@@ -51,6 +51,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Profile links" })).toBeVisible();
   await page.getByRole("link", { name: "Profile", exact: true }).click();
   await expect(page.getByLabel("Bio or role")).toHaveValue("A new customer bio");
+  await page.getByLabel("Bio or role").fill("A new customer bio with an explicit save");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(
     page.getByText("Draft saved. Visitors still see the last published version."),
@@ -73,13 +74,11 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.getByRole("link", { name: "Analytics", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
   await page.getByRole("link", { name: "Links", exact: true }).click();
-  await expect(page.getByLabel("Label for link 1")).toHaveValue("Portfolio");
-  await expect(page.getByLabel("Destination for link 2")).toHaveValue(
-    "https://www.tiktok.com/@new-customer",
-  );
+  await expect(labels.nth(0)).toHaveValue("Portfolio");
+  await expect(destinations.nth(1)).toHaveValue("https://www.tiktok.com/@new-customer");
   await page.getByRole("button", { name: "Add link" }).click();
-  await page.getByLabel("Label for link 3").fill("Newsletter");
-  await page.getByLabel("Destination for link 3").fill("https://newsletter.example.test");
+  await labels.nth(2).fill("Newsletter");
+  await destinations.nth(2).fill("https://newsletter.example.test");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(
     page.getByText("Links saved to draft. Visitors still see the last published order."),

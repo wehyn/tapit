@@ -28,7 +28,7 @@ test("inactive cards never reveal their former profile and vCard contains the ap
   const downloadPath = await download.path();
   expect(downloadPath).not.toBeNull();
   const vCard = await readFile(downloadPath as string, "utf8");
-  expect(vCard).toContain("URL:http://127.0.0.1:3000/mara-velasquez");
+  expect(vCard).toContain(`URL:${new URL(page.url()).origin}/mara-velasquez`);
 });
 
 test("demo card claim, publish, and resolver activation complete as one flow", async ({ page }) => {
