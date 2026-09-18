@@ -169,6 +169,20 @@ describe("card redirect hydration", () => {
     expect(resolverMocks.replace).toHaveBeenCalledTimes(1);
   });
 
+  it("records another view when a different card resolves to the same profile", async () => {
+    resolverMocks.recordView.mockResolvedValue(undefined);
+    resolverMocks.result = {
+      ...activeResult,
+      redirectDestination: "https://destination.example/card",
+    };
+    const view = render(createElement(CardResolverClient, { cardToken: "card-live-one" }));
+
+    await waitFor(() => expect(resolverMocks.recordView).toHaveBeenCalledTimes(1));
+    view.rerender(createElement(CardResolverClient, { cardToken: "card-live-two" }));
+
+    await waitFor(() => expect(resolverMocks.recordView).toHaveBeenCalledTimes(2));
+  });
+
   it("records and redirects only once even when the resolver rerenders", async () => {
     resolverMocks.recordView.mockResolvedValue(undefined);
     resolverMocks.result = {

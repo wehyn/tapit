@@ -39,27 +39,30 @@ function getAnalyticsSessionKey(): string | undefined {
 }
 
 function RedirectingCard({
+  cardToken,
   profileId,
   destination,
   recordView,
 }: {
+  cardToken: string;
   profileId: string;
   destination: string;
   recordView: () => Promise<void>;
 }) {
-  const redirectAttempt = useRef<{ profileId: string; analytics: Promise<void> } | undefined>(
-    undefined,
-  );
+  const redirectAttempt = useRef<
+    { cardToken: string; profileId: string; analytics: Promise<void> } | undefined
+  >(undefined);
   const recordViewRef = useRef(recordView);
   useEffect(() => {
     recordViewRef.current = recordView;
   }, [recordView]);
   useEffect(() => {
     const analytics =
-      redirectAttempt.current?.profileId === profileId
+      redirectAttempt.current?.cardToken === cardToken &&
+      redirectAttempt.current.profileId === profileId
         ? redirectAttempt.current.analytics
         : recordViewRef.current();
-    redirectAttempt.current = { profileId, analytics };
+    redirectAttempt.current = { cardToken, profileId, analytics };
     let cancelled = false;
     void analytics
       .catch(() => {
@@ -71,7 +74,7 @@ function RedirectingCard({
     return () => {
       cancelled = true;
     };
-  }, [destination, profileId]);
+  }, [cardToken, destination, profileId]);
 
   return <CardRedirectLoading />;
 }
@@ -102,6 +105,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (redirectDestination !== undefined) {
     return (
       <RedirectingCard
+        cardToken={cardToken}
         profileId={profile.id}
         destination={redirectDestination}
         recordView={async () => {
@@ -174,6 +178,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (activeResult.redirectDestination !== undefined) {
     return (
       <RedirectingCard
+        cardToken={cardToken}
         profileId={activeResult.profile.id}
         destination={activeResult.redirectDestination}
         recordView={() => recordProfileViewForVisit(activeResult.profile.id)}

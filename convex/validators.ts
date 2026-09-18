@@ -118,6 +118,10 @@ function isSafeRedirectDestination(destination: string): boolean {
   }
 }
 
+export function validateRedirectDestination(destination: string): string | null {
+  return isSafeRedirectDestination(destination) ? null : REDIRECT_DESTINATION_ERROR;
+}
+
 export function normalizeProfileSlug(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -164,8 +168,10 @@ export function validateDraftSafety(content: {
   }>;
 }): string[] {
   const errors: string[] = [];
-  if (content.redirect?.enabled && !isSafeRedirectDestination(content.redirect.destination))
-    errors.push(REDIRECT_DESTINATION_ERROR);
+  if (content.redirect?.enabled) {
+    const redirectError = validateRedirectDestination(content.redirect.destination);
+    if (redirectError !== null) errors.push(redirectError);
+  }
   if (content.links.length > MAX_PROFILE_LINKS)
     errors.push("A profile cannot contain more than 100 links.");
   if (fieldTooLong(content.name, MAX_PROFILE_NAME_LENGTH))
