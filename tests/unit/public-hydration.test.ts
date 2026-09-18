@@ -194,7 +194,7 @@ describe("card redirect hydration", () => {
     await waitFor(() =>
       expect(resolverMocks.replace).toHaveBeenCalledWith("https://destination.example/strict-mode"),
     );
-    expect(resolverMocks.recordView).toHaveBeenCalledTimes(2);
+    expect(resolverMocks.recordView).toHaveBeenCalledTimes(1);
     expect(resolverMocks.replace).toHaveBeenCalledTimes(1);
   });
 

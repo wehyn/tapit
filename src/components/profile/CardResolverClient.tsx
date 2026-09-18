@@ -39,23 +39,28 @@ function getAnalyticsSessionKey(): string | undefined {
 }
 
 function RedirectingCard({
+  profileId,
   destination,
   recordView,
 }: {
+  profileId: string;
   destination: string;
   recordView: () => Promise<void>;
 }) {
-  const launchedDestination = useRef<string | undefined>(undefined);
+  const redirectAttempt = useRef<{ key: string; analytics: Promise<void> } | undefined>(undefined);
   const recordViewRef = useRef(recordView);
   useEffect(() => {
     recordViewRef.current = recordView;
   }, [recordView]);
   useEffect(() => {
-    if (launchedDestination.current === destination) return;
-    launchedDestination.current = destination;
+    const key = `${profileId}\u0000${destination}`;
+    const analytics =
+      redirectAttempt.current?.key === key
+        ? redirectAttempt.current.analytics
+        : recordViewRef.current();
+    redirectAttempt.current = { key, analytics };
     let cancelled = false;
-    void recordViewRef
-      .current()
+    void analytics
       .catch(() => {
         // Redirects must not be blocked by best-effort analytics.
       })
@@ -64,9 +69,8 @@ function RedirectingCard({
       });
     return () => {
       cancelled = true;
-      if (launchedDestination.current === destination) launchedDestination.current = undefined;
     };
-  }, [destination]);
+  }, [destination, profileId]);
 
   return <CardRedirectLoading />;
 }
@@ -97,6 +101,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (redirectDestination !== undefined) {
     return (
       <RedirectingCard
+        profileId={profile.id}
         destination={redirectDestination}
         recordView={async () => {
           recordProfileView(profile.id, sourceValue(source));
@@ -168,6 +173,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (activeResult.redirectDestination !== undefined) {
     return (
       <RedirectingCard
+        profileId={activeResult.profile.id}
         destination={activeResult.redirectDestination}
         recordView={() => recordProfileViewForVisit(activeResult.profile.id)}
       />
