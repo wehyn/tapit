@@ -13,8 +13,33 @@ const resolveResultValidator = v.union(
   v.object({ status: v.literal("inactive") }),
   v.object({ status: v.literal("unavailable") }),
   v.object({ status: v.literal("onboarding") }),
-  v.object({ status: v.literal("active"), profile: publicProfileValidator }),
+  v.object({
+    status: v.literal("active"),
+    profile: publicProfileValidator,
+    redirectDestination: v.optional(v.string()),
+  }),
 );
+
+function resolvePublishedRedirectDestination(
+  redirect: { enabled: boolean; destination: string } | undefined,
+): string | undefined {
+  if (redirect?.enabled !== true) return undefined;
+  const destination = redirect.destination.trim();
+  if (!destination) return undefined;
+  try {
+    const parsed = new URL(destination);
+    if (
+      parsed.protocol !== "https:" ||
+      parsed.hostname.length === 0 ||
+      parsed.username.length > 0 ||
+      parsed.password.length > 0
+    )
+      return undefined;
+    return destination;
+  } catch {
+    return undefined;
+  }
+}
 
 function tokenFromCardUrl(cardUrl: string): string | null {
   try {
@@ -61,7 +86,12 @@ export const resolve = query({
     const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
     if (profile === null || !isActiveCustomer(owner) || projection === null)
       return { status: "unavailable" as const };
-    return { status: "active" as const, profile: projection };
+    const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
+    return {
+      status: "active" as const,
+      profile: projection,
+      ...(redirectDestination === undefined ? {} : { redirectDestination }),
+    };
   },
 });
 
