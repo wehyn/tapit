@@ -288,6 +288,16 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       ).resolves.not.toHaveProperty("redirectDestination");
     }
 
+    const setPublishedRedirect = async (destination: string) => {
+      await t.run(async (ctx) => {
+        const profile = await ctx.db.get(data.ownerProfileId);
+        if (profile === null || profile.published === undefined) throw new Error("Profile missing");
+        await ctx.db.patch(data.ownerProfileId, {
+          published: { ...profile.published, redirect: { enabled: true, destination } },
+        });
+      });
+    };
+    await setPublishedRedirect("https://redirect.example/active");
     for (const status of ["inactive", "replaced", "claimable"] as const) {
       await t.run(async (ctx) => await ctx.db.patch(cardId, { status }));
       await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
@@ -296,10 +306,99 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     }
 
     await t.run(async (ctx) => await ctx.db.patch(cardId, { status: "active" }));
+    await t.run(async (ctx) => await ctx.db.patch(data.ownerProfileId, { status: "unpublished" }));
+    await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run(async (ctx) => await ctx.db.patch(data.ownerProfileId, { status: "published" }));
     await t.run(async (ctx) => await ctx.db.patch(data.ownerProfileId, { status: "suspended" }));
     await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
       status: "unavailable",
     });
+    await t.run(async (ctx) => await ctx.db.patch(data.ownerProfileId, { status: "published" }));
+
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { profileId: undefined }));
+    await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { profileId: data.ownerProfileId }));
+
+    await t.run(async (ctx) => await ctx.db.patch(data.ownerCustomerId, { status: "invited" }));
+    await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run(async (ctx) => await ctx.db.patch(data.ownerCustomerId, { status: "deleted" }));
+    await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.ownerCustomerId, { status: "active" });
+      await ctx.db.delete(data.ownerProfileId);
+    });
+    await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+  });
+
+  it("keeps draft redirects private until the profile is published", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const cardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/draft-redirect-card",
+      token: "draft-redirect-card",
+    });
+    await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: data.ownerProfileId,
+      draft: {
+        ...content("owner", "Owner"),
+        redirect: { enabled: true, destination: "https://draft-redirect.example/card" },
+      },
+    });
+    await expect(
+      t.query(api.cards.resolve, { token: "draft-redirect-card" }),
+    ).resolves.not.toHaveProperty("redirectDestination");
+    await expect(
+      owner.mutation(api.profiles.publish, { profileId: data.ownerProfileId }),
+    ).resolves.toMatchObject({
+      slug: "owner",
+    });
+    await expect(
+      t.query(api.cards.resolve, { token: "draft-redirect-card" }),
+    ).resolves.toMatchObject({
+      status: "active",
+      redirectDestination: "https://draft-redirect.example/card",
+    });
+  });
+
+  it("does not expose a redirect when the active card owner is unavailable", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const cardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/unavailable-redirect-card",
+      token: "unavailable-redirect-card",
+    });
+    await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(data.ownerProfileId);
+      if (profile === null || profile.published === undefined) throw new Error("Profile missing");
+      await ctx.db.patch(data.ownerProfileId, {
+        published: {
+          ...profile.published,
+          redirect: { enabled: true, destination: "https://redirect.example/owner" },
+        },
+      });
+      await ctx.db.patch(data.ownerCustomerId, { deletionStatus: "deleted" });
+    });
+    await expect(
+      t.query(api.cards.resolve, { token: "unavailable-redirect-card" }),
+    ).resolves.toEqual({ status: "unavailable" });
   });
 
   it("scopes analytics and protects admin settings, audits, and deletion workflows", async () => {
