@@ -91,11 +91,8 @@ export function areProfileRedirectsEqual(
   );
 }
 
-export function canSaveLinksDraft(
-  validation: Record<string, string>,
-  redirect: ProfileRedirect,
-): boolean {
-  return Object.keys(validation).length === 0 && validateProfileRedirect(redirect) === null;
+export function canSaveLinksDraft(redirect: ProfileRedirect): boolean {
+  return validateProfileRedirect(redirect) === null;
 }
 
 export function canPreviewLinks(
@@ -249,7 +246,7 @@ function DemoLinksEditor() {
 
   const saveDraft = useCallback(async () => {
     if (!isDirty) return true;
-    if (!canSaveLinksDraft(validation, redirect)) {
+    if (redirectError !== null || Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
         text:
@@ -281,7 +278,7 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, links, profile.id, redirect, validation]);
+  }, [isDirty, links, profile.id, redirect, redirectError, validation]);
 
   useDraftSaveRegistration(saveDraft);
 
@@ -350,7 +347,7 @@ function DemoLinksEditor() {
       links={links}
       redirect={redirect}
       redirectError={redirectError}
-      canSaveDraft={canSaveLinksDraft(validation, redirect)}
+      canSaveDraft={canSaveLinksDraft(redirect)}
       theme={theme}
       preview={preview}
       validation={validation}
@@ -539,7 +536,7 @@ export function LiveLinksEditorContent({
   );
   const saveDraft = useCallback(async (): Promise<boolean> => {
     if (!isDirty) return true;
-    if (!canSaveLinksDraft(validation, currentDraft.redirect)) {
+    if (redirectError !== null || Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
         text:
@@ -568,7 +565,7 @@ export function LiveLinksEditorContent({
     } finally {
       setPendingAction(null);
     }
-  }, [currentDraft.redirect, isDirty, persistLinks, redirectError, validation]);
+  }, [isDirty, persistLinks, redirectError, validation]);
   useEffect(() => {
     navigationSaveRef.current = saveDraft;
   }, [saveDraft]);
@@ -613,7 +610,7 @@ export function LiveLinksEditorContent({
       links={currentDraft.links}
       redirect={currentDraft.redirect}
       redirectError={redirectError}
-      canSaveDraft={canSaveLinksDraft(validation, currentDraft.redirect)}
+      canSaveDraft={canSaveLinksDraft(currentDraft.redirect)}
       theme={currentDraft.theme ?? "paper"}
       preview={preview}
       validation={validation}

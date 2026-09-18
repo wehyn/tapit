@@ -94,8 +94,8 @@ describe("LinksEditor controller boundaries", () => {
   });
 
   it("blocks saving an enabled invalid redirect while allowing a valid redirect-only edit", () => {
-    expect(canSaveLinksDraft({}, { enabled: true, destination: "not a URL" })).toBe(false);
-    expect(canSaveLinksDraft({}, { enabled: true, destination: "https://example.com" })).toBe(true);
+    expect(canSaveLinksDraft({ enabled: true, destination: "not a URL" })).toBe(false);
+    expect(canSaveLinksDraft({ enabled: true, destination: "https://example.com" })).toBe(true);
   });
 
   it("updates live redirect-only edits and saves the corrected destination", async () => {
