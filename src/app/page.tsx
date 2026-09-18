@@ -380,12 +380,14 @@ export default function HomePage() {
               Request a quote <ArrowRight aria-hidden="true" size={18} weight="bold" />
             </Link>
           </div>
-          <Link
-            className="inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
-            href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
-          >
-            Get Started <ArrowRight aria-hidden="true" size={22} weight="bold" />
-          </Link>
+          <div className="mt-5 flex">
+            <Link
+              className="inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
+              href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
+            >
+              Get Started <ArrowRight aria-hidden="true" size={22} weight="bold" />
+            </Link>
+          </div>
         </div>
       </section>
 
