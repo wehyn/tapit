@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -131,10 +131,42 @@ describe("card redirect hydration", () => {
     );
   });
 
-  it("renders the profile when an active card has no redirect", () => {
-    render(createElement(CardResolverClient, { cardToken: "card-live" }));
+  it("renders the profile and records a view when an active card has no redirect", () => {
+    render(createElement(CardResolverClient, { cardToken: "card-live", source: "qr" }));
     expect(screen.getByTestId("public-profile")).toBeInTheDocument();
     expect(resolverMocks.replace).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("public-profile"));
+    expect(resolverMocks.recordView).toHaveBeenCalledWith(
+      expect.objectContaining({ profileId: "profile-live", source: "qr" }),
+    );
+  });
+
+  it("records one view and navigates to the latest destination when it changes before settlement", async () => {
+    let resolveView!: () => void;
+    resolverMocks.recordView.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveView = resolve;
+      }),
+    );
+    resolverMocks.result = {
+      ...activeResult,
+      redirectDestination: "https://destination.example/a",
+    };
+    const view = render(createElement(CardResolverClient, { cardToken: "card-live" }));
+
+    resolverMocks.result = {
+      ...activeResult,
+      redirectDestination: "https://destination.example/b",
+    };
+    view.rerender(createElement(CardResolverClient, { cardToken: "card-live" }));
+    expect(resolverMocks.recordView).toHaveBeenCalledTimes(1);
+    expect(resolverMocks.replace).not.toHaveBeenCalled();
+
+    resolveView();
+    await waitFor(() =>
+      expect(resolverMocks.replace).toHaveBeenCalledWith("https://destination.example/b"),
+    );
+    expect(resolverMocks.replace).toHaveBeenCalledTimes(1);
   });
 
   it("records and redirects only once even when the resolver rerenders", async () => {

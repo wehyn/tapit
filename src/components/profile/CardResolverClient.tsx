@@ -47,18 +47,19 @@ function RedirectingCard({
   destination: string;
   recordView: () => Promise<void>;
 }) {
-  const redirectAttempt = useRef<{ key: string; analytics: Promise<void> } | undefined>(undefined);
+  const redirectAttempt = useRef<{ profileId: string; analytics: Promise<void> } | undefined>(
+    undefined,
+  );
   const recordViewRef = useRef(recordView);
   useEffect(() => {
     recordViewRef.current = recordView;
   }, [recordView]);
   useEffect(() => {
-    const key = `${profileId}\u0000${destination}`;
     const analytics =
-      redirectAttempt.current?.key === key
+      redirectAttempt.current?.profileId === profileId
         ? redirectAttempt.current.analytics
         : recordViewRef.current();
-    redirectAttempt.current = { key, analytics };
+    redirectAttempt.current = { profileId, analytics };
     let cancelled = false;
     void analytics
       .catch(() => {
