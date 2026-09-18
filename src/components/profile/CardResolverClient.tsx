@@ -45,18 +45,27 @@ function RedirectingCard({
   destination: string;
   recordView: () => Promise<void>;
 }) {
-  const started = useRef(false);
+  const launchedDestination = useRef<string | undefined>(undefined);
+  const recordViewRef = useRef(recordView);
   useEffect(() => {
-    if (started.current) return;
-    started.current = true;
-    void recordView()
+    recordViewRef.current = recordView;
+  }, [recordView]);
+  useEffect(() => {
+    if (launchedDestination.current === destination) return;
+    launchedDestination.current = destination;
+    let cancelled = false;
+    void recordViewRef
+      .current()
       .catch(() => {
         // Redirects must not be blocked by best-effort analytics.
       })
       .finally(() => {
-        window.location.replace(destination);
+        if (!cancelled) window.location.replace(destination);
       });
-  }, [destination, recordView]);
+    return () => {
+      cancelled = true;
+    };
+  }, [destination]);
 
   return <CardRedirectLoading />;
 }
