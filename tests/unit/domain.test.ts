@@ -12,6 +12,8 @@ import {
   transitionCard,
   type ProfileContent,
   type ProfileRecord,
+  validateProfileRedirect,
+  validateRedirectDestination,
 } from "../../src/lib/domain";
 
 const websiteLink = {
@@ -36,6 +38,65 @@ function profile(): ProfileRecord {
 }
 
 describe("profile publication and public projection", () => {
+  it("validates profile redirect destinations", () => {
+    expect(validateRedirectDestination("https://example.com/path")).toBeNull();
+    expect(validateRedirectDestination("HTTPS://EXAMPLE.COM/path")).toBeNull();
+    for (const destination of [
+      "",
+      "   ",
+      "not a url",
+      "http://example.com",
+      "javascript:alert(1)",
+      "data:text/html,evil",
+      "https://",
+      "https://user:password@example.com",
+    ]) {
+      expect(validateRedirectDestination(destination)).toBe(
+        "Redirect destination must be a valid HTTPS URL without credentials.",
+      );
+    }
+  });
+
+  it("allows missing or disabled redirects, but validates enabled redirects", () => {
+    expect(validateProfileRedirect(undefined)).toBeNull();
+    expect(validateProfileRedirect({ enabled: false, destination: "" })).toBeNull();
+    expect(validateProfileRedirect({ enabled: true, destination: "" })).toBe(
+      "Redirect destination must be a valid HTTPS URL without credentials.",
+    );
+  });
+
+  it("copies a redirect into the published snapshot and detects changes", () => {
+    const withRedirect = {
+      ...profile(),
+      draft: {
+        ...draft,
+        redirect: { enabled: true, destination: "https://example.com/redirect" },
+      },
+    };
+    const published = publishProfile(withRedirect, "first");
+
+    expect(published.published?.redirect).toEqual(withRedirect.draft.redirect);
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        {
+          ...published.draft,
+          redirect: { enabled: true, destination: "https://example.com/other" },
+        },
+        published.published,
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects an enabled invalid redirect during publication", () => {
+    expect(() =>
+      publishProfile(
+        { ...profile(), draft: { ...draft, redirect: { enabled: true, destination: "" } } },
+        "now",
+      ),
+    ).toThrow("Redirect destination must be a valid HTTPS URL without credentials.");
+  });
+
   it("compares draft content without considering the publication timestamp", () => {
     const published = publishProfile(profile(), "first");
 
@@ -88,6 +149,25 @@ describe("profile publication and public projection", () => {
     ).toBe(false);
     expect(hasUnpublishedChanges(draft, null)).toBe(true);
     expect(hasUnpublishedChanges(draft, undefined)).toBe(true);
+  });
+
+  it("treats a missing legacy redirect as the disabled default", () => {
+    const legacyPublished = {
+      ...draft,
+      publishedAt: "first",
+    };
+    const disabledDraft = {
+      ...draft,
+      redirect: { enabled: false, destination: "" },
+    };
+
+    expect(hasUnpublishedChanges(disabledDraft, legacyPublished)).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        { ...disabledDraft, redirect: { enabled: true, destination: "https://example.com" } },
+        legacyPublished,
+      ),
+    ).toBe(true);
   });
 
   it("requires a name and at least one valid enabled link", () => {

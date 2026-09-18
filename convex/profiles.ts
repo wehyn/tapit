@@ -8,6 +8,7 @@ import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
 import {
   profileContentValidator,
+  profileRedirectValidator,
   profileStatusValidator,
   publicProfileValidator,
   profileThemeValidator,
@@ -149,6 +150,7 @@ export const publish = mutation({
     phone: v.optional(v.string()),
     website: v.optional(v.string()),
     theme: v.optional(profileThemeValidator),
+    redirect: v.optional(profileRedirectValidator),
     links: v.array(
       v.object({
         id: v.string(),

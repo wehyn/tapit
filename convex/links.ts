@@ -8,6 +8,7 @@ import {
   isSafeDestination,
   linkValidator,
   MAX_PROFILE_LINKS,
+  profileRedirectValidator,
   validateDraftSafety,
 } from "./validators";
 
@@ -85,13 +86,18 @@ export const listForProfile = query({
 });
 
 export const replaceDraft = mutation({
-  args: { profileId: v.id("profiles"), links: v.array(linkValidator) },
+  args: {
+    profileId: v.id("profiles"),
+    links: v.array(linkValidator),
+    redirect: v.optional(profileRedirectValidator),
+  },
   returns: v.object({ updatedAt: v.number() }),
   handler: async (ctx, args) => {
     if (args.links.length > MAX_PROFILE_LINKS)
       throw new Error("A profile cannot contain more than 100 links.");
     const { profile, userId } = await accessibleProfile(ctx, args.profileId);
-    const safetyErrors = validateDraftSafety({ ...profile.draft, links: args.links });
+    const redirect = args.redirect ?? profile.draft.redirect;
+    const safetyErrors = validateDraftSafety({ ...profile.draft, links: args.links, redirect });
     if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
     const seen = new Set<string>();
     for (const link of args.links) {
@@ -104,7 +110,11 @@ export const replaceDraft = mutation({
     }
     const now = Date.now();
     await ctx.db.patch(profile._id, {
-      draft: { ...profile.draft, links: args.links },
+      draft: {
+        ...profile.draft,
+        links: args.links,
+        ...(args.redirect === undefined ? {} : { redirect: args.redirect }),
+      },
       updatedAt: now,
     });
     const existing = await ctx.db

@@ -19,7 +19,14 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
-import type { LinkIcon, ProfileLink, ProfileTheme, PublicProfileProjection } from "@/lib/domain";
+import type {
+  LinkIcon,
+  ProfileLink,
+  ProfileRedirect,
+  ProfileTheme,
+  PublicProfileProjection,
+} from "@/lib/domain";
+import { validateRedirectDestination } from "@/lib/domain";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -32,6 +39,8 @@ export type LinksWorkspaceMessage = {
 export type LinksWorkspaceProps = {
   profileUrl: string;
   links: ProfileLink[];
+  redirect: ProfileRedirect;
+  redirectError: string | null;
   theme: ProfileTheme;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
@@ -40,9 +49,11 @@ export type LinksWorkspaceProps = {
   previewMode: "phone" | "desktop";
   pendingAction: "save" | "publish" | null;
   isDirty: boolean;
+  canSaveDraft?: boolean;
   publicationLabel: string;
   onPreviewModeChange: (mode: "phone" | "desktop") => void;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
+  onUpdateRedirect: (patch: Partial<ProfileRedirect>) => void;
   onAddLink: () => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
   onRemoveLink: (id: string) => void;
@@ -73,6 +84,8 @@ const linkIconMap = {
 export function LinksWorkspace({
   profileUrl,
   links,
+  redirect,
+  redirectError,
   theme,
   preview,
   validation,
@@ -81,15 +94,25 @@ export function LinksWorkspace({
   previewMode,
   pendingAction,
   isDirty,
+  canSaveDraft = true,
   publicationLabel,
   onPreviewModeChange,
   onUpdateLink,
+  onUpdateRedirect,
   onAddLink,
   onMoveLink,
   onRemoveLink,
   onSaveDraft,
   onPublish,
 }: LinksWorkspaceProps) {
+  const hasValidRedirectDestination =
+    redirect.destination.trim().length > 0 &&
+    validateRedirectDestination(redirect.destination) === null;
+  const redirectDescribedBy = [
+    "profile-redirect-help",
+    ...(redirectError || hasValidRedirectDestination ? ["profile-redirect-feedback"] : []),
+  ].join(" ");
+
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
@@ -112,6 +135,77 @@ export function LinksWorkspace({
               Add link
             </Button>
           </div>
+          <section
+            aria-labelledby="profile-redirect-title"
+            className="mt-7 overflow-hidden rounded-tapit border border-tapit-line bg-white shadow-[0_18px_50px_rgba(21,25,24,0.05)]"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-5 sm:py-6">
+              <div className="min-w-0 max-w-2xl">
+                <h2
+                  className="text-lg font-semibold tracking-[-0.02em] text-tapit-ink"
+                  id="profile-redirect-title"
+                >
+                  Redirect card taps and scans
+                </h2>
+                <p className="mt-1.5 text-sm leading-6 text-tapit-muted">
+                  When enabled and published, active NFC and QR card visits are counted, then sent
+                  to your destination.
+                </p>
+              </div>
+              <label className="flex min-h-11 shrink-0 items-center gap-2 text-sm font-medium text-tapit-ink">
+                <input
+                  aria-label="Enable card tap and scan redirect"
+                  checked={redirect.enabled}
+                  className="peer sr-only"
+                  onChange={(event) => onUpdateRedirect({ enabled: event.target.checked })}
+                  type="checkbox"
+                />
+                <span
+                  aria-hidden="true"
+                  className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-tapit-soft-surface transition-colors after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
+                />
+                <span>Enabled</span>
+              </label>
+            </div>
+            <div className="border-t border-tapit-line bg-tapit-surface/50 px-4 py-5 sm:px-5 sm:py-6">
+              <label
+                className="block text-sm font-medium text-tapit-ink"
+                htmlFor="profile-redirect-destination"
+              >
+                HTTPS destination URL
+              </label>
+              <input
+                aria-describedby={redirectDescribedBy}
+                aria-invalid={Boolean(redirectError)}
+                className={`mt-2 min-h-11 w-full min-w-0 rounded-tapit border bg-white px-3 text-base text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:ring-2 focus:ring-tapit-focus/30 ${redirectError ? "border-tapit-danger" : "border-tapit-line"}`}
+                id="profile-redirect-destination"
+                onChange={(event) => onUpdateRedirect({ destination: event.target.value })}
+                placeholder="https://www.harleystudio.com"
+                type="url"
+                value={redirect.destination}
+              />
+              <p className="mt-2 text-xs leading-5 text-tapit-muted" id="profile-redirect-help">
+                Use the full address, including https://.
+              </p>
+              {redirectError ? (
+                <p
+                  className="mt-2 text-xs font-medium text-tapit-danger"
+                  id="profile-redirect-feedback"
+                  role="alert"
+                >
+                  {redirectError}
+                </p>
+              ) : hasValidRedirectDestination ? (
+                <p
+                  className="mt-2 text-xs font-medium text-tapit-accent"
+                  id="profile-redirect-feedback"
+                  role="status"
+                >
+                  Valid HTTPS destination
+                </p>
+              ) : null}
+            </div>
+          </section>
           <h2 className="sr-only">Profile links</h2>
           {message ? (
             <div className="mt-6">
@@ -319,7 +413,7 @@ export function LinksWorkspace({
           </div>
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={!isDirty || pendingAction !== null}
+              disabled={!isDirty || !canSaveDraft || pendingAction !== null}
               loading={pendingAction === "save"}
               onClick={onSaveDraft}
               type="button"

@@ -65,8 +65,9 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.goto("/app/links");
   await page.getByRole("button", { name: "Add link" }).click();
   await page.getByRole("button", { name: "Add link" }).click();
-  const labels = page.locator('input[id$="-label"]');
-  const destinations = page.locator('input[id$="-destination"]');
+  const editableLinks = page.locator('[aria-label="Editable profile links"]');
+  const labels = editableLinks.locator('input[id$="-label"]');
+  const destinations = editableLinks.locator('input[id$="-destination"]');
   await labels.nth(0).fill("Portfolio");
   await destinations.nth(0).fill("https://portfolio.example.test");
   await labels.nth(1).fill("TikTok");

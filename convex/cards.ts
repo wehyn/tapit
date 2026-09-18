@@ -3,8 +3,12 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
-import { cardStatusValidator, publicProfileValidator } from "./validators";
-import { validateProfileContent } from "./validators";
+import {
+  cardStatusValidator,
+  publicProfileValidator,
+  validateProfileContent,
+  validateRedirectDestination,
+} from "./validators";
 import { projectPublicProfile } from "./profileProjection";
 import { components } from "./components";
 
@@ -13,8 +17,20 @@ const resolveResultValidator = v.union(
   v.object({ status: v.literal("inactive") }),
   v.object({ status: v.literal("unavailable") }),
   v.object({ status: v.literal("onboarding") }),
-  v.object({ status: v.literal("active"), profile: publicProfileValidator }),
+  v.object({
+    status: v.literal("active"),
+    profile: publicProfileValidator,
+    redirectDestination: v.optional(v.string()),
+  }),
 );
+
+function resolvePublishedRedirectDestination(
+  redirect: { enabled: boolean; destination: string } | undefined,
+): string | undefined {
+  if (redirect?.enabled !== true) return undefined;
+  const destination = redirect.destination.trim();
+  return validateRedirectDestination(destination) === null ? destination : undefined;
+}
 
 function tokenFromCardUrl(cardUrl: string): string | null {
   try {
@@ -61,7 +77,12 @@ export const resolve = query({
     const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
     if (profile === null || !isActiveCustomer(owner) || projection === null)
       return { status: "unavailable" as const };
-    return { status: "active" as const, profile: projection };
+    const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
+    return {
+      status: "active" as const,
+      profile: projection,
+      ...(redirectDestination === undefined ? {} : { redirectDestination }),
+    };
   },
 });
 

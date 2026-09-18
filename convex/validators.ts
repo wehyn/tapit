@@ -48,6 +48,11 @@ export const profileThemeValidator = v.union(
   v.literal("night"),
 );
 
+export const profileRedirectValidator = v.object({
+  enabled: v.boolean(),
+  destination: v.string(),
+});
+
 export const profileContentValidator = v.object({
   name: v.string(),
   slug: v.string(),
@@ -58,6 +63,7 @@ export const profileContentValidator = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileThemeValidator),
+  redirect: v.optional(profileRedirectValidator),
   links: v.array(linkValidator),
 });
 
@@ -92,6 +98,28 @@ export function isSafeDestination(destination: string): boolean {
   } catch {
     return false;
   }
+}
+
+const REDIRECT_DESTINATION_ERROR =
+  "Redirect destination must be a valid HTTPS URL without credentials.";
+
+function isSafeRedirectDestination(destination: string): boolean {
+  if (!destination.trim()) return false;
+  try {
+    const parsed = new URL(destination);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.length > 0 &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function validateRedirectDestination(destination: string): string | null {
+  return isSafeRedirectDestination(destination) ? null : REDIRECT_DESTINATION_ERROR;
 }
 
 export function normalizeProfileSlug(value: string): string {
@@ -130,6 +158,7 @@ export function validateDraftSafety(content: {
   email?: string;
   phone?: string;
   website?: string;
+  redirect?: { enabled: boolean; destination: string };
   links: Array<{
     id: string;
     label: string;
@@ -139,6 +168,10 @@ export function validateDraftSafety(content: {
   }>;
 }): string[] {
   const errors: string[] = [];
+  if (content.redirect?.enabled) {
+    const redirectError = validateRedirectDestination(content.redirect.destination);
+    if (redirectError !== null) errors.push(redirectError);
+  }
   if (content.links.length > MAX_PROFILE_LINKS)
     errors.push("A profile cannot contain more than 100 links.");
   if (fieldTooLong(content.name, MAX_PROFILE_NAME_LENGTH))
@@ -179,6 +212,7 @@ export function validateProfileContent(content: {
   email?: string;
   phone?: string;
   website?: string;
+  redirect?: { enabled: boolean; destination: string };
   links: Array<{
     id: string;
     label: string;

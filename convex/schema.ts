@@ -12,6 +12,11 @@ const profileLink = v.object({
 
 const profileTheme = v.union(v.literal("paper"), v.literal("moss"), v.literal("night"));
 
+const profileRedirect = v.object({
+  enabled: v.boolean(),
+  destination: v.string(),
+});
+
 const profileContent = v.object({
   name: v.string(),
   slug: v.string(),
@@ -22,6 +27,7 @@ const profileContent = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
 });
 
@@ -35,6 +41,7 @@ const publishedProfile = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
   publishedAt: v.number(),
 });
