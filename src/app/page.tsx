@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { ArrowRight, ArrowUpRight, LinkSimple, UserPlus } from "@phosphor-icons/react";
+import { ArrowRight, LinkSimple, UserPlus } from "@phosphor-icons/react";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useDemoSession } from "@/lib/demo/store";
 import { api } from "../../convex/_generated/api";
@@ -158,17 +158,6 @@ export default function HomePage() {
             </nav>
             <div className="ml-auto flex items-center gap-3 sm:gap-7">
               <AccountLink />
-              <Link
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-tapit-accent px-4 text-base font-semibold text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong sm:min-w-[12.25rem] sm:px-6"
-                href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
-              >
-                <span className="hidden sm:inline">
-                  {isDemoMode ? "View demo profile" : "Create your profile"}
-                </span>
-                <span className="sm:hidden">
-                  {isDemoMode ? "Demo profile" : "Create your profile"}
-                </span>
-              </Link>
             </div>
           </header>
 
@@ -186,13 +175,6 @@ export default function HomePage() {
                 Your links, contact details, and more in one tap.
                 <br className="hidden sm:block" /> Simple, elegant, always up to date.
               </p>
-              <Link
-                className="mt-9 inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
-                href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
-              >
-                {isDemoMode ? "View demo profile" : "Create your profile"}
-                <ArrowRight aria-hidden="true" size={22} weight="bold" />
-              </Link>
             </div>
 
             <div className="relative hidden h-[min(38rem,calc(100dvh-17rem))] w-auto origin-center aspect-[859/1299] justify-self-end lg:flex lg:-translate-x-[1vw] lg:-translate-y-8 lg:rotate-[-1deg] xl:-translate-x-[4vw] xl:-translate-y-6">
@@ -289,10 +271,10 @@ export default function HomePage() {
             </h2>
           </div>
           <Link
-            className="inline-flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-accent transition hover:text-tapit-accent-strong"
-            href="/login"
+            className="inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
+            href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
           >
-            Open your workspace <ArrowUpRight aria-hidden="true" size={18} />
+            Get Started <ArrowRight aria-hidden="true" size={22} weight="bold" />
           </Link>
         </div>
       </section>
