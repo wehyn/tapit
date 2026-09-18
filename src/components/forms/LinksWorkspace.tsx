@@ -108,6 +108,10 @@ export function LinksWorkspace({
   const hasValidRedirectDestination =
     redirect.destination.trim().length > 0 &&
     validateRedirectDestination(redirect.destination) === null;
+  const redirectDescribedBy = [
+    "profile-redirect-help",
+    ...(redirectError || hasValidRedirectDestination ? ["profile-redirect-feedback"] : []),
+  ].join(" ");
 
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
@@ -171,7 +175,7 @@ export function LinksWorkspace({
                 HTTPS destination URL
               </label>
               <input
-                aria-describedby="profile-redirect-help profile-redirect-feedback"
+                aria-describedby={redirectDescribedBy}
                 aria-invalid={Boolean(redirectError)}
                 className={`mt-2 min-h-11 w-full min-w-0 rounded-tapit border bg-white px-3 text-base text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:ring-2 focus:ring-tapit-focus/30 ${redirectError ? "border-tapit-danger" : "border-tapit-line"}`}
                 id="profile-redirect-destination"
