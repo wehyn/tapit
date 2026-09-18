@@ -64,6 +64,7 @@ function RedirectingCard({
       });
     return () => {
       cancelled = true;
+      if (launchedDestination.current === destination) launchedDestination.current = undefined;
     };
   }, [destination]);
 

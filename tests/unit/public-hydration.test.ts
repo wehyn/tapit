@@ -1,5 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
-import { createElement } from "react";
+import { createElement, StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolverMocks = vi.hoisted(() => ({
@@ -171,6 +171,31 @@ describe("card redirect hydration", () => {
 
     await act(async () => resolveView());
     expect(resolverMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["fulfills", () => Promise.resolve()],
+    ["rejects", () => Promise.reject(new Error("analytics unavailable"))],
+  ])("supports StrictMode effect replay when analytics %s", async (_outcome, analytics) => {
+    resolverMocks.recordView.mockImplementation(analytics);
+    resolverMocks.result = {
+      ...activeResult,
+      redirectDestination: "https://destination.example/strict-mode",
+    };
+
+    render(
+      createElement(
+        StrictMode,
+        null,
+        createElement(CardResolverClient, { cardToken: "card-live" }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(resolverMocks.replace).toHaveBeenCalledWith("https://destination.example/strict-mode"),
+    );
+    expect(resolverMocks.recordView).toHaveBeenCalledTimes(2);
+    expect(resolverMocks.replace).toHaveBeenCalledTimes(1);
   });
 
   it("redirects an active demo card after recording one demo view", async () => {
