@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { ArrowRight, LinkSimple, UserPlus } from "@phosphor-icons/react";
+import { ArrowRight, ArrowUpRight, Buildings, LinkSimple, UserPlus } from "@phosphor-icons/react";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useDemoSession } from "@/lib/demo/store";
 import { api } from "../../convex/_generated/api";
@@ -16,6 +16,42 @@ const navItems = [
   { href: "#teams", label: "For teams" },
   { href: "#pricing", label: "Pricing" },
 ];
+
+const pricingPlans = [
+  {
+    name: "Pre-order",
+    descriptor: "Founding 25",
+    price: "₱250",
+    description:
+      "Get your custom Tapit card at our launch price. Limited to the first 25 customers.",
+    cta: "Pre-order your Tapit",
+    featured: true,
+  },
+  {
+    name: "Student",
+    descriptor: "25% Discount",
+    price: "₱375",
+    description: "Valid student ID required. Same features, made more accessible for students.",
+    cta: "Get student pricing",
+    featured: false,
+  },
+  {
+    name: "Regular",
+    descriptor: "Your Tapit",
+    price: "₱500",
+    description: "One custom NFC + QR card with your Tapit profile. No monthly fees.",
+    cta: "Get your Tapit",
+    featured: false,
+  },
+  {
+    name: "Teams",
+    descriptor: "10-card Batch",
+    price: "₱4,000",
+    description: "₱400 per card. Made for teams, organizations, and groups.",
+    cta: "Order for your team",
+    featured: false,
+  },
+] as const;
 
 function LandingBrand() {
   return (
@@ -260,15 +296,89 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="border-t border-tapit-line py-24 sm:py-32" id="pricing">
-        <div className="mx-auto flex w-full max-w-[95rem] flex-col gap-8 px-[clamp(1.25rem,5vw,5.25rem)] sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs font-semibold tracking-[0.24em] text-tapit-accent uppercase">
-              Pricing
-            </p>
-            <h2 className="mt-5 text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
-              Start with a profile that feels like you.
-            </h2>
+      <section
+        aria-labelledby="pricing-heading"
+        className="border-t border-tapit-line py-24 sm:py-32"
+        id="pricing"
+      >
+        <div className="mx-auto w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)]">
+          <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold tracking-[0.24em] text-tapit-accent uppercase">
+                Pricing
+              </p>
+              <h2
+                className="mt-5 text-5xl font-normal tracking-[-0.06em] sm:text-7xl"
+                id="pricing-heading"
+              >
+                Start with a profile that feels like you.
+              </h2>
+            </div>
+            <Link
+              className="inline-flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-accent transition hover:text-tapit-accent-strong"
+              href="/login"
+            >
+              Open your workspace <ArrowUpRight aria-hidden="true" size={18} />
+            </Link>
+          </div>
+
+          <div className="mt-12 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {pricingPlans.map((plan) => (
+              <article
+                className={`flex min-w-0 flex-col rounded-[1.5rem] border p-6 sm:p-7 ${
+                  plan.featured
+                    ? "border-tapit-accent/60 bg-tapit-accent-soft shadow-[0_18px_50px_rgba(21,25,24,0.07)]"
+                    : "border-tapit-line bg-tapit-surface"
+                }`}
+                key={plan.name}
+              >
+                {plan.featured ? (
+                  <span className="mb-4 self-start rounded-full bg-tapit-accent px-3 py-1.5 text-[0.65rem] font-semibold tracking-[0.14em] text-white uppercase">
+                    Limited to first 25
+                  </span>
+                ) : null}
+                <h3 className="text-2xl font-medium tracking-[-0.05em]">{plan.name}</h3>
+                <p className="mt-2 text-sm text-tapit-muted">{plan.descriptor}</p>
+                <p className="mt-5 text-4xl font-medium tracking-[-0.08em] text-tapit-ink">
+                  {plan.price}
+                </p>
+                <p className="mt-5 max-w-xs text-sm leading-6 text-tapit-muted">
+                  {plan.description}
+                </p>
+                <div className="mt-auto pt-8">
+                  <Link
+                    className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl px-5 text-sm font-semibold transition hover:-translate-y-px ${
+                      plan.featured
+                        ? "bg-tapit-accent text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] hover:bg-tapit-accent-strong"
+                        : "border border-tapit-line text-tapit-ink hover:border-tapit-ink/30 hover:bg-tapit-paper"
+                    }`}
+                    href="/login"
+                  >
+                    {plan.cta} <ArrowRight aria-hidden="true" size={18} weight="bold" />
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="mt-5 flex flex-col gap-4 rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent">
+                <Buildings aria-hidden="true" size={24} weight="regular" />
+              </span>
+              <div>
+                <h3 className="text-lg font-medium tracking-[-0.04em]">Need more than 10?</h3>
+                <p className="mt-1 text-sm text-tapit-muted">
+                  Custom and bulk orders are available with volume pricing.
+                </p>
+              </div>
+            </div>
+            <Link
+              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-3 rounded-2xl border border-tapit-line px-5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-ink/30 hover:bg-tapit-paper"
+              href="/login"
+            >
+              Request a quote <ArrowRight aria-hidden="true" size={18} weight="bold" />
+            </Link>
           </div>
           <Link
             className="inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"

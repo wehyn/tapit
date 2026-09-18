@@ -36,6 +36,8 @@ const validDraft = (links: TestLink[] = [validLink()]) => ({
   links,
 });
 
+const validRedirect = { enabled: true, destination: "https://redirect.example.com/card" };
+
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
@@ -164,6 +166,66 @@ describe("content hardening", () => {
         expect.objectContaining({ position: 1, enabled: false }),
       ]),
     );
+  });
+
+  it("persists redirect settings through saveDraft and links.replaceDraft", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: data.profileId,
+      draft: { ...validDraft(), redirect: validRedirect },
+    });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { redirect: validRedirect },
+    });
+
+    const replacement = { enabled: true, destination: "https://next.example.com/card" };
+    await owner.mutation(api.links.replaceDraft, {
+      profileId: data.profileId,
+      links: [validLink("updated")],
+      redirect: replacement,
+    });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { redirect: replacement, links: [{ id: "updated" }] },
+    });
+
+    await expect(
+      owner.mutation(api.profiles.publish, { profileId: data.profileId }),
+    ).resolves.toMatchObject({
+      redirect: replacement,
+    });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      published: { redirect: replacement },
+    });
+  });
+
+  it("rejects redirect destinations that are not credential-free HTTPS URLs", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    for (const destination of [
+      "http://redirect.example.com",
+      "https://user:pass@redirect.example.com",
+    ]) {
+      await expect(
+        owner.mutation(api.profiles.saveDraft, {
+          profileId: data.profileId,
+          draft: { ...validDraft(), redirect: { enabled: true, destination } },
+        }),
+      ).rejects.toThrow("Redirect destination must be a valid HTTPS URL without credentials.");
+    }
+  });
+
+  it("accepts legacy profiles with no redirect field", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { name: "Owner" },
+    });
   });
 
   it("requires valid published content for status changes and card assignment", async () => {
