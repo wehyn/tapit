@@ -3,11 +3,11 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMutation, useQuery } from "convex/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
-import { isActiveAccount, projectPublicProfile } from "@/lib/domain";
+import { isActiveAccount, projectPublicProfile, validateRedirectDestination } from "@/lib/domain";
 
 import {
   InactiveCardPage,
@@ -24,6 +24,41 @@ function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
   if (source === "nfc") return "nfc";
   if (source === "qr") return "qr";
   return "unknown";
+}
+
+function getAnalyticsSessionKey(): string | undefined {
+  try {
+    const key = "tapit:analytics-session";
+    const sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
+    window.sessionStorage.setItem(key, sessionKey);
+    return sessionKey;
+  } catch {
+    // Tracking remains best-effort when storage is unavailable.
+    return undefined;
+  }
+}
+
+function RedirectingCard({
+  destination,
+  recordView,
+}: {
+  destination: string;
+  recordView: () => Promise<void>;
+}) {
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current) return;
+    started.current = true;
+    void recordView()
+      .catch(() => {
+        // Redirects must not be blocked by best-effort analytics.
+      })
+      .finally(() => {
+        window.location.replace(destination);
+      });
+  }, [destination, recordView]);
+
+  return <CardRedirectLoading />;
 }
 
 function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
@@ -44,6 +79,21 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   }
   const projection = projectPublicProfile(profile);
   if (projection === null) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
+  const redirect = profile.published?.redirect;
+  const redirectDestination =
+    redirect?.enabled === true && validateRedirectDestination(redirect.destination) === null
+      ? redirect.destination.trim()
+      : undefined;
+  if (redirectDestination !== undefined) {
+    return (
+      <RedirectingCard
+        destination={redirectDestination}
+        recordView={async () => {
+          recordProfileView(profile.id, sourceValue(source));
+        }}
+      />
+    );
+  }
   return (
     <PublicProfile
       profile={projection}
@@ -68,24 +118,24 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   const result = useQuery(api.cards.resolve, { token: cardToken });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
-  const onView = useCallback(
-    (profileId?: string) => {
-      if (profileId === undefined) return;
-      let sessionKey: string | undefined;
-      try {
-        const key = "tapit:analytics-session";
-        sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
-        window.sessionStorage.setItem(key, sessionKey);
-      } catch {
-        // Tracking remains best-effort when storage is unavailable.
-      }
-      void recordView({
+  const recordProfileViewForVisit = useCallback(
+    async (profileId: string) => {
+      await recordView({
         profileId: profileId as Id<"profiles">,
-        sessionKey,
+        sessionKey: getAnalyticsSessionKey(),
         source: sourceValue(source),
       });
     },
     [recordView, source],
+  );
+  const onView = useCallback(
+    (profileId?: string) => {
+      if (profileId === undefined) return;
+      void recordProfileViewForVisit(profileId).catch(() => {
+        // Tracking remains best-effort.
+      });
+    },
+    [recordProfileViewForVisit],
   );
   const onLinkClick = useCallback(
     (linkKey: string, profileId?: string) => {
@@ -102,10 +152,20 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (result.status === "missing") return <MissingProfilePage />;
   if (result.status === "inactive") return <InactiveCardPage />;
   if (result.status === "onboarding") return <UnpublishedCardClaim cardToken={cardToken} />;
-  if (result.status === "unavailable" || result.profile == null) return <UnavailableProfilePage />;
+  if (result.status === "unavailable") return <UnavailableProfilePage />;
+  if (result.status !== "active" || result.profile == null) return <UnavailableProfilePage />;
+  const activeResult = result;
+  if (activeResult.redirectDestination !== undefined) {
+    return (
+      <RedirectingCard
+        destination={activeResult.redirectDestination}
+        recordView={() => recordProfileViewForVisit(activeResult.profile.id)}
+      />
+    );
+  }
   const profile = {
-    ...result.profile,
-    links: result.profile.links.map((link) => ({
+    ...activeResult.profile,
+    links: activeResult.profile.links.map((link) => ({
       ...link,
       icon: link.icon as import("@/lib/domain").ProfileLink["icon"],
     })),
@@ -134,6 +194,26 @@ function CardResolverLoading() {
         <div className="mt-8 h-10 w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
         <p className="mt-5 text-sm text-tapit-muted" role="status">
           Loading card...
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function CardRedirectLoading() {
+  return (
+    <main
+      aria-busy="true"
+      aria-live="polite"
+      className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-10"
+    >
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-xl flex-col justify-center border-t border-b border-tapit-line py-12">
+        <div className="grid h-24 w-24 place-items-center rounded-full bg-tapit-accent-soft">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-tapit-line border-t-tapit-accent" />
+        </div>
+        <h1 className="mt-8 text-3xl font-semibold tracking-tight text-tapit-ink">Redirecting</h1>
+        <p className="mt-3 text-sm text-tapit-muted" role="status">
+          Taking you to the destination...
         </p>
       </div>
     </main>
