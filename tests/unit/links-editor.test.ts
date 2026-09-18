@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const saveMutation = vi.hoisted(() => vi.fn().mockResolvedValue({ updatedAt: 1 }));
 
@@ -19,8 +19,10 @@ import {
   normalizeProfileRedirect,
   areProfileRedirectsEqual,
   canSaveLinksDraft,
+  LinksEditor,
   LiveLinksEditorContent,
 } from "@/components/forms/LinksEditor";
+import { getDemoState, resetDemoState, setDemoSession } from "@/lib/demo/store";
 
 const baseLink = {
   label: "Link",
@@ -30,6 +32,12 @@ const baseLink = {
 };
 
 describe("LinksEditor controller boundaries", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetDemoState();
+    setDemoSession({ email: "mara@example.test", role: "customer" });
+  });
+
   it("stops adding links at the 100-link limit", () => {
     expect(canAddProfileLink(99)).toBe(true);
     expect(canAddProfileLink(100)).toBe(false);
@@ -127,6 +135,42 @@ describe("LinksEditor controller boundaries", () => {
       profileId: "profile-1",
       links: [{ id: "site", ...baseLink }],
       redirect: { enabled: true, destination: "https://www.harleystudio.com" },
+    });
+  });
+
+  it("saves a demo redirect as draft and publishes it separately", async () => {
+    render(createElement(LinksEditor));
+
+    const toggle = screen.getByRole("checkbox", { name: "Enable card tap and scan redirect" });
+    const destination = screen.getByRole("textbox", { name: "HTTPS destination URL" });
+    expect(toggle).not.toBeChecked();
+    expect(destination).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+
+    fireEvent.click(toggle);
+    fireEvent.change(destination, { target: { value: "https://www.harleystudio.com" } });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByText("Links saved to draft. Visitors still see the last published order.");
+
+    let profile = getDemoState().profiles.find((candidate) => candidate.id === "profile-mara");
+    expect(profile?.draft.redirect).toEqual({
+      enabled: true,
+      destination: "https://www.harleystudio.com",
+    });
+    expect(profile?.draft.links).toEqual(profile?.published?.links);
+    expect(profile?.published?.redirect).toBeUndefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
+    await screen.findByText(
+      "Links published. The public profile now uses this order and enabled state.",
+    );
+
+    profile = getDemoState().profiles.find((candidate) => candidate.id === "profile-mara");
+    expect(profile?.published?.redirect).toEqual({
+      enabled: true,
+      destination: "https://www.harleystudio.com",
     });
   });
 });
