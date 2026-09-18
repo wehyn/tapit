@@ -75,13 +75,14 @@ test.describe("live Convex vertical slice", () => {
     await page.goto("/app/links");
     await page.getByRole("button", { name: "Add link" }).click();
     await page.getByRole("button", { name: "Add link" }).click();
-    const labels = page.locator('input[id$="-label"]');
-    const destinations = page.locator('input[id$="-destination"]');
+    const editableLinks = page.locator('[aria-label="Editable profile links"]');
+    const labels = editableLinks.locator('input[id$="-label"]');
+    const destinations = editableLinks.locator('input[id$="-destination"]');
     await labels.nth(0).fill("Portfolio");
     await destinations.nth(0).fill("https://portfolio.example.test");
     await labels.nth(1).fill("TikTok");
     await destinations.nth(1).fill(`https://www.tiktok.com/@${slug}`);
-    const enabled = page.locator('input[type="checkbox"]');
+    const enabled = editableLinks.locator('input[type="checkbox"]');
     await expect(enabled.nth(0)).toBeChecked();
     await expect(enabled.nth(1)).toBeChecked();
     await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
@@ -102,7 +103,7 @@ test.describe("live Convex vertical slice", () => {
     await page.getByRole("button", { name: "Move down" }).click();
     await expect(labels.nth(0)).toHaveValue("TikTok");
     await page.getByRole("button", { name: "Add link" }).click();
-    const temporaryLabel = page.locator('input[id$="-label"]').last();
+    const temporaryLabel = labels.last();
     await temporaryLabel.fill("Delete me");
     await page.locator('summary[aria-label="Actions for Delete me"]').click();
     await page

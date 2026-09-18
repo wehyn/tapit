@@ -63,8 +63,9 @@ test("customer drafts stay private until link and profile publication", async ({
 
   const addLinkButton = page.getByRole("button", { name: "Add link" });
   await addLinkButton.click();
-  const labels = page.locator('input[id$="-label"]');
-  const destinations = page.locator('input[id$="-destination"]');
+  const editableLinks = page.locator('[aria-label="Editable profile links"]');
+  const labels = editableLinks.locator('input[id$="-label"]');
+  const destinations = editableLinks.locator('input[id$="-destination"]');
   await expect(labels.last()).toBeVisible();
   await labels.last().fill("Private note");
   await destinations.last().fill("https://contact.example.test");
@@ -80,7 +81,7 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(labels.nth(3)).toHaveValue("Private note");
 
   await addLinkButton.click();
-  const deleteMeLabel = page.locator('input[id$="-label"]').last();
+  const deleteMeLabel = labels.last();
   await deleteMeLabel.fill("Delete me");
   await page.locator('summary[aria-label="Actions for Delete me"]').click();
   await page
