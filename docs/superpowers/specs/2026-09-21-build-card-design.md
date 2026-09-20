@@ -78,4 +78,3 @@ Add the minimum customer-workspace navigation entry needed to reach `/build-card
 - Add unit coverage for the initial chooser, Canva URL/target attributes, valid upload, invalid upload, local preview modal, choose-another-design cleanup, unauthenticated order redirect, authenticated coming-soon state, and modal keyboard behavior.
 - Run formatting, lint, type checking, the targeted unit test, the full unit suite, and the production build.
 - Visually inspect the route at desktop and narrow mobile widths, including the centered popup, long filenames, validation errors, and no horizontal overflow.
-

@@ -53,7 +53,7 @@ Do not modify:
 
 Create `tests/unit/card-design.test.ts` with the exact accepted and rejected cases:
 
-~~~typescript
+```typescript
 import { describe, expect, it } from "vitest";
 
 import {
@@ -93,15 +93,15 @@ describe("validateCardDesignFile", () => {
     );
   });
 });
-~~~
+```
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/card-design.test.ts
-~~~
+```
 
 Expected: FAIL because `@/lib/card-design` does not exist.
 
@@ -109,7 +109,7 @@ Expected: FAIL because `@/lib/card-design` does not exist.
 
 Create `src/lib/card-design.ts`:
 
-~~~typescript
+```typescript
 export const CARD_DESIGN_ACCEPT = "image/png,image/jpeg";
 export const CARD_DESIGN_MAX_BYTES = 10 * 1024 * 1024;
 
@@ -137,24 +137,24 @@ export function validateCardDesignFile(file: CardDesignFileLike | null): string 
 
   return null;
 }
-~~~
+```
 
 - [ ] **Step 4: Run the focused test and verify it passes**
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/card-design.test.ts
-~~~
+```
 
 Expected: 4 tests pass in the `unit` project.
 
 - [ ] **Step 5: Commit the validation contract**
 
-~~~bash
+```bash
 git add src/lib/card-design.ts tests/unit/card-design.test.ts
 git commit -m "test: define build card file validation"
-~~~
+```
 
 ### Task 2: Build the centered preview dialog
 
@@ -167,7 +167,7 @@ git commit -m "test: define build card file validation"
 
 Create `tests/unit/card-preview-dialog.test.tsx`:
 
-~~~tsx
+```tsx
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
@@ -243,15 +243,15 @@ describe("CardPreviewDialog", () => {
     expect(screen.getByRole("button", { name: "Choose another design" })).toBeVisible();
   });
 });
-~~~
+```
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/card-preview-dialog.test.tsx
-~~~
+```
 
 Expected: FAIL because `CardPreviewDialog` does not exist.
 
@@ -259,7 +259,7 @@ Expected: FAIL because `CardPreviewDialog` does not exist.
 
 Create `src/components/card-builder/CardPreviewDialog.tsx` with these props and behaviors:
 
-~~~tsx
+```tsx
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -335,7 +335,10 @@ export function CardPreviewDialog({
           </Button>
         </div>
         <div className="text-center">
-          <h2 className="text-2xl font-semibold tracking-tight text-tapit-ink" id="card-preview-title">
+          <h2
+            className="text-2xl font-semibold tracking-tight text-tapit-ink"
+            id="card-preview-title"
+          >
             Looks good?
           </h2>
           <div className="mt-5 rounded-tapit bg-tapit-paper p-5">
@@ -364,7 +367,7 @@ export function CardPreviewDialog({
     </div>
   );
 }
-~~~
+```
 
 Keep the popup open on the order-coming-soon state. The close control and choosing another design remain available. Do not close on backdrop clicks; this prevents an accidental click from discarding the local preview.
 
@@ -372,18 +375,18 @@ Keep the popup open on the order-coming-soon state. The close control and choosi
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/card-preview-dialog.test.tsx
-~~~
+```
 
 Expected: 3 tests pass in the `unit` project.
 
 - [ ] **Step 5: Commit the dialog**
 
-~~~bash
+```bash
 git add src/components/card-builder/CardPreviewDialog.tsx tests/unit/card-preview-dialog.test.tsx
 git commit -m "feat: add build card preview dialog"
-~~~
+```
 
 ### Task 3: Add the public chooser, local preview state, and auth-aware actions
 
@@ -397,7 +400,7 @@ git commit -m "feat: add build card preview dialog"
 
 Create `tests/unit/build-card.test.tsx`. Test the props-driven workspace so the behavior is isolated from live Convex and local-demo providers:
 
-~~~tsx
+```tsx
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -532,15 +535,15 @@ describe("BuildCardWorkspace", () => {
     expect(screen.queryByText("Ordering is coming soon")).not.toBeInTheDocument();
   });
 });
-~~~
+```
 
 - [ ] **Step 2: Run the focused test and verify it fails**
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/build-card.test.tsx
-~~~
+```
 
 Expected: FAIL because the route experience and `BuildCardWorkspace` do not exist.
 
@@ -548,19 +551,19 @@ Expected: FAIL because the route experience and `BuildCardWorkspace` do not exis
 
 Create `src/app/build-card/page.tsx` as a Server Component that only exposes the route:
 
-~~~tsx
+```tsx
 import { BuildCardExperience } from "@/components/card-builder/BuildCardExperience";
 
 export default function BuildCardPage() {
   return <BuildCardExperience />;
 }
-~~~
+```
 
 - [ ] **Step 4: Implement the demo/live auth adapters and workspace state**
 
 Create `src/components/card-builder/BuildCardExperience.tsx` with these exported constants and boundaries:
 
-~~~tsx
+```tsx
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -590,12 +593,7 @@ export function BuildCardExperience() {
 
 function DemoBuildCardExperience() {
   const session = useDemoSession();
-  return (
-    <BuildCardWorkspace
-      authLoading={false}
-      isAuthenticated={session?.role === "customer"}
-    />
-  );
+  return <BuildCardWorkspace authLoading={false} isAuthenticated={session?.role === "customer"} />;
 }
 
 function LiveBuildCardExperience() {
@@ -667,7 +665,10 @@ export function BuildCardWorkspace({
       <header className="border-b border-tapit-line/80 bg-tapit-surface/95">
         <div className="mx-auto flex max-w-[1480px] items-center justify-between px-5 py-3 sm:px-8">
           <Brand showMark={false} />
-          <Link className="text-sm font-semibold text-tapit-muted hover:text-tapit-ink" href="/login">
+          <Link
+            className="text-sm font-semibold text-tapit-muted hover:text-tapit-ink"
+            href="/login"
+          >
             Sign in
           </Link>
         </div>
@@ -705,16 +706,24 @@ export function BuildCardWorkspace({
             rel="noopener noreferrer"
             target="_blank"
           >
-            <span className="text-2xl text-tapit-accent" aria-hidden="true">✦</span>
+            <span className="text-2xl text-tapit-accent" aria-hidden="true">
+              ✦
+            </span>
             <span className="mt-5 block text-lg font-semibold text-tapit-ink">
-              Build your own with Canva <ArrowUpRightIcon aria-hidden="true" className="ml-1 inline" size={18} />
+              Build your own with Canva{" "}
+              <ArrowUpRightIcon aria-hidden="true" className="ml-1 inline" size={18} />
             </span>
             <span className="mt-2 block text-sm leading-6 text-tapit-muted">
               Use the Tapit template and make it yours.
             </span>
           </a>
           <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_18px_50px_rgba(21,25,24,0.05)]">
-            <UploadSimpleIcon aria-hidden="true" className="text-tapit-accent" size={28} weight="bold" />
+            <UploadSimpleIcon
+              aria-hidden="true"
+              className="text-tapit-accent"
+              size={28}
+              weight="bold"
+            />
             <p className="mt-5 text-lg font-semibold text-tapit-ink">Already got your design?</p>
             <p className="mt-2 text-sm leading-6 text-tapit-muted">
               Upload a PNG or JPG for a quick preview.
@@ -751,7 +760,7 @@ export function BuildCardWorkspace({
     </div>
   );
 }
-~~~
+```
 
 Keep `BuildCardExperience` split into demo/live wrappers because local demo mode does not mount a Convex provider. The props-driven `BuildCardWorkspace` must remain independently renderable in unit tests. The object-URL cleanup effect must revoke the previous URL when the preview changes or unmounts; `clearPreview` resets the input so selecting the same file again fires `onChange`.
 
@@ -759,18 +768,18 @@ Keep `BuildCardExperience` split into demo/live wrappers because local demo mode
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/build-card.test.tsx
-~~~
+```
 
 Expected: 7 tests pass in the `unit` project.
 
 - [ ] **Step 6: Commit the public build-card flow**
 
-~~~bash
+```bash
 git add src/app/build-card/page.tsx src/components/card-builder/BuildCardExperience.tsx tests/unit/build-card.test.tsx
 git commit -m "feat: add public build card flow"
-~~~
+```
 
 ### Task 4: Add the customer-workspace navigation entry
 
@@ -782,7 +791,7 @@ git commit -m "feat: add public build card flow"
 
 Update the existing `customerNav` array by inserting the new item between Links and Analytics:
 
-~~~tsx
+```tsx
 const customerNav: ShellNavItem[] = [
   { href: "/app/profile", label: "Profile" },
   { href: "/app/links", label: "Links" },
@@ -790,7 +799,7 @@ const customerNav: ShellNavItem[] = [
   { href: "/app/analytics", label: "Analytics" },
   { href: "/app/account", label: "Account" },
 ];
-~~~
+```
 
 Do not put `/build-card` under `/app`; the route must remain public so logged-out visitors can try it before auth.
 
@@ -798,18 +807,18 @@ Do not put `/build-card` under `/app`; the route must remain public so logged-ou
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/draft-save-context.test.tsx tests/unit/build-card.test.tsx
-~~~
+```
 
 Expected: all selected tests pass, with no navigation regressions.
 
 - [ ] **Step 3: Commit the navigation entry**
 
-~~~bash
+```bash
 git add src/components/layout/CustomerShell.tsx
 git commit -m "feat: add build card workspace navigation"
-~~~
+```
 
 ### Task 5: Run formatting, static checks, and production verification
 
@@ -821,9 +830,9 @@ git commit -m "feat: add build card workspace navigation"
 
 Run:
 
-~~~bash
+```bash
 npm run format:check
-~~~
+```
 
 Expected: Prettier reports no changed files. If formatting fails, run `npm run format`, inspect the diff, and commit the formatting correction separately.
 
@@ -831,10 +840,10 @@ Expected: Prettier reports no changed files. If formatting fails, run `npm run f
 
 Run:
 
-~~~bash
+```bash
 npm run lint
 npm run typecheck
-~~~
+```
 
 Expected: both commands exit with code 0 and report no new diagnostics.
 
@@ -842,10 +851,10 @@ Expected: both commands exit with code 0 and report no new diagnostics.
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/card-design.test.ts tests/unit/card-preview-dialog.test.tsx tests/unit/build-card.test.tsx
 npm run test
-~~~
+```
 
 Expected: the three targeted files and the full Vitest projects pass.
 
@@ -853,9 +862,9 @@ Expected: the three targeted files and the full Vitest projects pass.
 
 Run:
 
-~~~bash
+```bash
 npm run build
-~~~
+```
 
 Expected: Next.js produces a successful production build with `/build-card` included as a public route.
 
@@ -875,11 +884,11 @@ Start the app with the repository’s development command and inspect `http://lo
 
 - [ ] **Step 6: Commit the verified implementation**
 
-~~~bash
+```bash
 git status --short
 git log --oneline --decorate -6
 git commit --allow-empty -m "test: verify build card flow"
-~~~
+```
 
 Expected: the branch contains the design commit, the focused implementation commits, and a final verification commit; `.superpowers/` remains untracked and is not included.
 
