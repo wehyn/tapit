@@ -63,7 +63,13 @@ describe("BuildCardWorkspace", () => {
   it("renders the chooser content and Canva action", () => {
     renderWorkspace();
 
-    expect(screen.getByText("Coming soon")).toBeVisible();
+    expect(screen.getByText("Coming soon")).toHaveClass(
+      "rounded-full",
+      "bg-tapit-accent",
+      "px-4",
+      "py-2",
+      "text-white",
+    );
     expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
     expect(screen.getByText(/Start with a template in Canva/)).toHaveClass(
       "mx-auto",

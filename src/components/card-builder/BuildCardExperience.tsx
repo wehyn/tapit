@@ -130,7 +130,7 @@ export function BuildCardWorkspace({
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
             <div className="mx-auto max-w-2xl text-center">
-              <StatusBadge status="Coming soon" />
+              <StatusBadge prominent status="Coming soon" />
               <h1 className="mt-5 text-4xl font-semibold tracking-[-0.055em] sm:text-6xl">
                 Bring your card to life
               </h1>
