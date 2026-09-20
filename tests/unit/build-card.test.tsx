@@ -65,6 +65,10 @@ describe("BuildCardWorkspace", () => {
 
     expect(screen.getByText("Coming soon")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+    expect(screen.getByText(/Start with a template in Canva/)).toHaveClass(
+      "mx-auto",
+      "text-center",
+    );
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute(
       "aria-current",
@@ -85,6 +89,10 @@ describe("BuildCardWorkspace", () => {
     expect(screen.getByText("Already got your design?")).toBeVisible();
     const input = screen.getByLabelText("Upload your design");
     expect(input).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Build your own with Canva" }).querySelector("svg"),
+    ).not.toBeNull();
+    expect(input.closest("label")?.querySelector("svg")).not.toBeNull();
     expect(input).not.toHaveAttribute("aria-describedby");
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(screen.getByText("Already got your design?").closest("label")).toHaveClass(

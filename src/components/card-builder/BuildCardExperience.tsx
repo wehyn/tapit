@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
+import { PaintBrushIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
@@ -133,7 +134,7 @@ export function BuildCardWorkspace({
               <h1 className="mt-5 text-4xl font-semibold tracking-[-0.055em] sm:text-6xl">
                 Bring your card to life
               </h1>
-              <p className="mt-5 max-w-lg text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
+              <p className="mx-auto mt-5 max-w-xl text-center text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
                 Start with a template in Canva, or upload a design you already love. We&apos;ll take
                 it from there when custom card ordering opens.
               </p>
@@ -147,6 +148,12 @@ export function BuildCardWorkspace({
                 rel="noopener noreferrer"
                 target="_blank"
               >
+                <span
+                  aria-hidden="true"
+                  className="grid size-11 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent transition-colors group-hover:bg-tapit-accent group-hover:text-white"
+                >
+                  <PaintBrushIcon size={21} weight="bold" />
+                </span>
                 <span className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
                   Start fresh
                 </span>
@@ -161,9 +168,15 @@ export function BuildCardWorkspace({
               </a>
 
               <label
-                className="flex min-h-56 cursor-pointer flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
+                className="group flex min-h-56 cursor-pointer flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
                 htmlFor="card-design-upload"
               >
+                <span
+                  aria-hidden="true"
+                  className="grid size-11 place-items-center rounded-full bg-tapit-paper text-tapit-accent transition-colors group-hover:bg-tapit-accent-soft"
+                >
+                  <UploadSimpleIcon size={21} weight="bold" />
+                </span>
                 <span className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
                   Already got your design?
                 </span>
