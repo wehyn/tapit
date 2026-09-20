@@ -80,6 +80,44 @@ describe("CardPreviewDialog", () => {
     expect(last).toHaveFocus();
   });
 
+  it("pulls forward and reverse focus into the dialog from outside", () => {
+    const outside = document.createElement("button");
+    outside.type = "button";
+    document.body.append(outside);
+    renderDialog();
+
+    const first = screen.getByRole("button", { name: "Close card preview" });
+    const last = screen.getByRole("button", { name: "Choose another design" });
+
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "Tab" });
+    expect(first).toHaveFocus();
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+    outside.remove();
+  });
+
+  it("uses the latest Escape callback after rerender", () => {
+    const initialOnClose = vi.fn();
+    const replacementOnClose = vi.fn();
+    const view = renderDialog({ onClose: initialOnClose });
+
+    view.rerender(
+      <CardPreviewDialog
+        file={file}
+        onChooseAnother={vi.fn()}
+        onClose={replacementOnClose}
+        onOrder={vi.fn()}
+        orderingComingSoon={false}
+      />,
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(initialOnClose).not.toHaveBeenCalled();
+    expect(replacementOnClose).toHaveBeenCalledOnce();
+  });
+
   it("keeps both actions available and announces when ordering is coming soon", () => {
     const onChooseAnother = vi.fn();
     const onOrder = vi.fn();
