@@ -15,6 +15,7 @@ const navItems = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#teams", label: "For teams" },
   { href: "#pricing", label: "Pricing" },
+  { href: "/build-card", label: "Build card" },
 ];
 
 const pricingPlans = [

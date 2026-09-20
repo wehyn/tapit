@@ -65,6 +65,11 @@ describe("BuildCardWorkspace", () => {
 
     expect(screen.getByText("Coming soon")).toBeVisible();
     expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(screen.getByRole("link", { name: "Build your own with Canva" })).toHaveAttribute(
       "href",
       BUILD_CARD_CANVA_URL,

@@ -107,17 +107,28 @@ export function BuildCardWorkspace({
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-6xl flex-col px-5 sm:px-10">
         <header className="flex items-center justify-between border-b border-tapit-line py-5 sm:py-7">
           <Brand />
-          <Link
-            className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
-            href="/login"
-          >
-            Sign in
-          </Link>
+          <div className="ml-auto flex items-center gap-5 sm:gap-8">
+            <nav aria-label="Primary navigation" className="flex items-center">
+              <Link
+                aria-current="page"
+                className="inline-flex min-h-11 items-center border-b-2 border-tapit-accent text-sm font-semibold text-tapit-ink sm:text-base"
+                href="/build-card"
+              >
+                Build card
+              </Link>
+            </nav>
+            <Link
+              className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
+              href="/login"
+            >
+              Sign in
+            </Link>
+          </div>
         </header>
 
         <section className="flex flex-1 items-center py-14 sm:py-20">
-          <div className="grid w-full gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center lg:gap-16">
-            <div className="max-w-xl">
+          <div className="mx-auto w-full max-w-4xl">
+            <div className="mx-auto max-w-2xl text-center">
               <StatusBadge status="Coming soon" />
               <h1 className="mt-5 text-4xl font-semibold tracking-[-0.055em] sm:text-6xl">
                 Bring your card to life
@@ -128,7 +139,7 @@ export function BuildCardWorkspace({
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="mx-auto mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
               <a
                 aria-label="Build your own with Canva"
                 className="group flex min-h-56 flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent sm:p-7"
