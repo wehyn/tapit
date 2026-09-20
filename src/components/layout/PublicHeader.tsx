@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 
@@ -65,6 +66,8 @@ function AccountAnchor({ href, children }: { href: string; children: string }) {
 }
 
 export function PublicHeader({ activeHref }: { activeHref?: string }) {
+  const pathname = usePathname();
+
   return (
     <header className="flex items-center border-b border-tapit-ink/10 py-5 sm:py-7">
       <PublicBrand />
@@ -72,12 +75,14 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
         aria-label="Primary navigation"
         className="hidden items-center gap-9 lg:ml-20 lg:flex lg:mr-auto"
       >
-        {publicNavItems.map((item) =>
-          item.href.startsWith("/") ? (
+        {publicNavItems.map((item) => {
+          const href = item.href.startsWith("#") && pathname !== "/" ? `/${item.href}` : item.href;
+
+          return href.startsWith("/") ? (
             <Link
               aria-current={item.href === activeHref ? "page" : undefined}
               className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
-              href={item.href}
+              href={href}
               key={item.href}
             >
               {item.label}
@@ -86,13 +91,13 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
             <a
               aria-current={item.href === activeHref ? "page" : undefined}
               className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
-              href={item.href}
+              href={href}
               key={item.href}
             >
               {item.label}
             </a>
-          ),
-        )}
+          );
+        })}
       </nav>
       <div className="ml-auto flex items-center gap-3 sm:gap-7">
         <AccountLink />

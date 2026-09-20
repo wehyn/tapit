@@ -10,6 +10,7 @@ const isLocalDemoMode = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
+  usePathname: () => "/build-card",
 }));
 
 vi.mock("@convex-dev/auth/react", () => ({
@@ -79,6 +80,11 @@ describe("BuildCardWorkspace", () => {
       "text-center",
     );
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
+    expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
+      "href",
+      "/#how-it-works",
+    );
     expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute(
       "aria-current",
       "page",
