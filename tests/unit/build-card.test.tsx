@@ -88,11 +88,13 @@ describe("BuildCardWorkspace", () => {
     );
     expect(screen.getByText("Already got your design?")).toBeVisible();
     const input = screen.getByLabelText("Upload your design");
+    const canvaAction = screen.getByRole("link", { name: "Build your own with Canva" });
+    const uploadAction = input.closest("label");
     expect(input).toBeVisible();
-    expect(
-      screen.getByRole("link", { name: "Build your own with Canva" }).querySelector("svg"),
-    ).not.toBeNull();
-    expect(input.closest("label")?.querySelector("svg")).not.toBeNull();
+    expect(canvaAction).toHaveClass("items-center", "justify-center", "text-center");
+    expect(uploadAction).toHaveClass("items-center", "justify-center", "text-center");
+    expect(canvaAction.querySelector("svg")).not.toBeNull();
+    expect(uploadAction?.querySelector("svg")).not.toBeNull();
     expect(input).not.toHaveAttribute("aria-describedby");
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(screen.getByText("Already got your design?").closest("label")).toHaveClass(

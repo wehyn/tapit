@@ -143,7 +143,7 @@ export function BuildCardWorkspace({
             <div className="mx-auto mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
               <a
                 aria-label="Build your own with Canva"
-                className="group flex min-h-56 flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent sm:p-7"
+                className="group flex min-h-56 flex-col items-center justify-center gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent sm:p-7"
                 href={BUILD_CARD_CANVA_URL}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -168,7 +168,7 @@ export function BuildCardWorkspace({
               </a>
 
               <label
-                className="group flex min-h-56 cursor-pointer flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
+                className="group flex min-h-56 cursor-pointer flex-col items-center justify-center gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
                 htmlFor="card-design-upload"
               >
                 <span
