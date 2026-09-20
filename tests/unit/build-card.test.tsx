@@ -78,7 +78,14 @@ describe("BuildCardWorkspace", () => {
       "noopener noreferrer",
     );
     expect(screen.getByText("Already got your design?")).toBeVisible();
-    expect(screen.getByLabelText("Upload your design")).toBeVisible();
+    const input = screen.getByLabelText("Upload your design");
+    expect(input).toBeVisible();
+    expect(input).not.toHaveAttribute("aria-describedby");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByText("Already got your design?").closest("label")).toHaveClass(
+      "focus-within:ring-2",
+      "focus-within:ring-tapit-focus",
+    );
   });
 
   it.each([
@@ -91,7 +98,14 @@ describe("BuildCardWorkspace", () => {
       target: { files: [makeFile(name, type)] },
     });
 
+    const input = screen.getByLabelText("Upload your design");
     expect(screen.getByRole("alert")).toHaveTextContent("Upload a PNG or JPG image.");
+    expect(input).toHaveAttribute("aria-describedby", "card-design-upload-error");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert").parentElement).toHaveAttribute(
+      "id",
+      "card-design-upload-error",
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -120,8 +134,61 @@ describe("BuildCardWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Choose another design" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:card-design");
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:card-design");
     expect(input).toHaveValue("");
+  });
+
+  it("revokes the previous URL exactly once when replacing a valid design", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.mocked(URL.createObjectURL);
+    createObjectURL.mockReset();
+    createObjectURL.mockReturnValueOnce("blob:first").mockReturnValueOnce("blob:second");
+    renderWorkspace();
+    const input = screen.getByLabelText("Upload your design");
+
+    await user.upload(input, makeFile("first.png", "image/png"));
+    await user.upload(input, makeFile("second.png", "image/png"));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:first");
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokes the current URL exactly once when replacing it with an invalid file", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+    const input = screen.getByLabelText("Upload your design");
+
+    await user.upload(input, makeFile("design.png", "image/png"));
+    fireEvent.change(input, { target: { files: [makeFile("design.pdf", "application/pdf")] } });
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:card-design");
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokes the current URL exactly once when closing the dialog", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+    const input = screen.getByLabelText("Upload your design");
+
+    await user.upload(input, makeFile("design.png", "image/png"));
+    await user.click(screen.getByRole("button", { name: "Close card preview" }));
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:card-design");
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokes the current URL exactly once when unmounting", async () => {
+    const user = userEvent.setup();
+    const view = renderWorkspace();
+
+    await user.upload(
+      screen.getByLabelText("Upload your design"),
+      makeFile("design.png", "image/png"),
+    );
+    view.unmount();
+
+    expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:card-design");
+    expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
   });
 });
 

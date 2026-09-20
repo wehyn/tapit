@@ -17,6 +17,7 @@ import { useDemoSession } from "@/lib/demo/store";
 import type { CardDesignPreview } from "@/lib/card-design";
 
 export const BUILD_CARD_CANVA_URL = "https://canva.link/tapit-templates";
+const CARD_DESIGN_UPLOAD_ERROR_ID = "card-design-upload-error";
 
 export function BuildCardExperience() {
   if (isLocalDemoMode()) return <LocalDemoBuildCardExperience />;
@@ -149,7 +150,7 @@ export function BuildCardWorkspace({
               </a>
 
               <label
-                className="flex min-h-56 cursor-pointer flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent sm:p-7"
+                className="flex min-h-56 cursor-pointer flex-col justify-between rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_12px_40px_rgba(21,25,24,0.04)] transition hover:-translate-y-1 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
                 htmlFor="card-design-upload"
               >
                 <span className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
@@ -166,6 +167,8 @@ export function BuildCardWorkspace({
                 <input
                   accept={CARD_DESIGN_ACCEPT}
                   aria-label="Upload your design"
+                  aria-describedby={error !== null ? CARD_DESIGN_UPLOAD_ERROR_ID : undefined}
+                  aria-invalid={error !== null ? true : undefined}
                   className="sr-only"
                   id="card-design-upload"
                   onChange={handleFileChange}
@@ -177,7 +180,11 @@ export function BuildCardWorkspace({
           </div>
         </section>
 
-        {error !== null ? <Notice tone="error">{error}</Notice> : null}
+        {error !== null ? (
+          <div id={CARD_DESIGN_UPLOAD_ERROR_ID}>
+            <Notice tone="error">{error}</Notice>
+          </div>
+        ) : null}
         <footer className="border-t border-tapit-line py-5 text-xs text-tapit-muted sm:py-6">
           A focused workspace for a more memorable introduction.
         </footer>
