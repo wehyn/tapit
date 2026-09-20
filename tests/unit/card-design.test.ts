@@ -25,7 +25,7 @@ describe("card design file validation", () => {
 
   it("rejects a supported image over the size limit", () => {
     expect(validateCardDesignFile(file("image/png", CARD_DESIGN_MAX_BYTES + 1))).toBe(
-      "Choose an image smaller than 10 MB.",
+      "Choose an image that is 10 MB or smaller.",
     );
   });
 });
