@@ -51,10 +51,19 @@ export function CardPreviewDialog({
       const last = focusable.at(-1);
       if (first === undefined || last === undefined) return;
 
-      if (event.shiftKey && document.activeElement === first) {
+      const activeElement = document.activeElement;
+      const focusIsInsideDialog =
+        activeElement instanceof Node && dialogRef.current.contains(activeElement);
+      if (!focusIsInsideDialog || activeElement === dialogRef.current) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+
+      if (event.shiftKey && activeElement === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && activeElement === last) {
         event.preventDefault();
         first.focus();
       }

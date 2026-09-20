@@ -60,6 +60,25 @@ describe("CardPreviewDialog", () => {
     trigger.remove();
   });
 
+  it("traps forward and reverse focus from the dialog root and its boundaries", () => {
+    renderDialog();
+
+    const dialog = screen.getByRole("dialog");
+    const first = screen.getByRole("button", { name: "Close card preview" });
+    const last = screen.getByRole("button", { name: "Choose another design" });
+
+    dialog.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+  });
+
   it("keeps both actions available and announces when ordering is coming soon", () => {
     const onChooseAnother = vi.fn();
     const onOrder = vi.fn();
