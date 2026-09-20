@@ -70,6 +70,7 @@ describe("CardPreviewDialog", () => {
     dialog.focus();
     fireEvent.keyDown(dialog, { key: "Tab" });
     expect(first).toHaveFocus();
+    dialog.focus();
     fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
     expect(last).toHaveFocus();
 
