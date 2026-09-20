@@ -1,5 +1,6 @@
 node_modules
 .next
+.convex/local
 coverage
 playwright-report
 test-results
