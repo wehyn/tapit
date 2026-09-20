@@ -26,7 +26,7 @@ export function BuildCardExperience() {
 
 function LocalDemoBuildCardExperience() {
   const session = useDemoSession();
-  return <BuildCardWorkspace authLoading={false} isAuthenticated={session?.role === "customer"} />;
+  return <BuildCardWorkspace authLoading={false} isAuthenticated={session !== null} />;
 }
 
 function LiveBuildCardExperience() {
@@ -37,7 +37,7 @@ function LiveBuildCardExperience() {
   return (
     <BuildCardWorkspace
       authLoading={authLoading}
-      isAuthenticated={access?.authenticated === true && access.role === "customer"}
+      isAuthenticated={access?.authenticated === true}
     />
   );
 }

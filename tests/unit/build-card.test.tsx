@@ -241,6 +241,28 @@ describe("BuildCardExperience auth-aware order action", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("shows the coming-soon status for a demo admin without pushing", async () => {
+    isLocalDemoMode.mockReturnValue(true);
+    useDemoSession.mockReturnValue({ email: "admin@tapit.local", role: "admin" });
+    const user = await openPreview();
+
+    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("shows the coming-soon status for a live admin without pushing", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({ authenticated: true, role: "admin" });
+    const user = await openPreview();
+
+    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("does nothing while auth is loading", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: true });
     const user = await openPreview();
