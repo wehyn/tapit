@@ -89,7 +89,7 @@ describe("validateCardDesignFile", () => {
 
   it("rejects files larger than 10 MiB", () => {
     expect(validateCardDesignFile(png({ size: CARD_DESIGN_MAX_BYTES + 1 }))).toBe(
-      "Choose an image smaller than 10 MB.",
+      "Choose an image that is 10 MB or smaller.",
     );
   });
 });
@@ -132,7 +132,7 @@ export function validateCardDesignFile(file: CardDesignFileLike | null): string 
   }
 
   if (file.size > CARD_DESIGN_MAX_BYTES) {
-    return "Choose an image smaller than 10 MB.";
+    return "Choose an image that is 10 MB or smaller.";
   }
 
   return null;
