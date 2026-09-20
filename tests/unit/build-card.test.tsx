@@ -48,6 +48,9 @@ describe("BuildCardWorkspace", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue(undefined);
+    useDemoSession.mockReturnValue(null);
     isLocalDemoMode.mockReturnValue(false);
     vi.stubGlobal("URL", {
       ...URL,

@@ -3,20 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { useConvexAuth } from "@convex-dev/auth/react";
-import { useQuery } from "convex/react";
 import { ArrowRight, ArrowUpRight, Buildings, LinkSimple, UserPlus } from "@phosphor-icons/react";
 import { isLocalDemoMode } from "@/lib/demo/mode";
-import { useDemoSession } from "@/lib/demo/store";
-import { api } from "../../convex/_generated/api";
-
-const navItems = [
-  { href: "#product", label: "Product" },
-  { href: "#how-it-works", label: "How it works" },
-  { href: "#teams", label: "For teams" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "/build-card", label: "Build card" },
-];
+import { PublicBrand, PublicHeader } from "@/components/layout/PublicHeader";
 
 const pricingPlans = [
   {
@@ -53,57 +42,6 @@ const pricingPlans = [
     featured: false,
   },
 ] as const;
-
-function LandingBrand() {
-  return (
-    <Link
-      aria-label="Tapit home"
-      className="inline-flex min-h-11 items-center text-[1.75rem] font-semibold tracking-[-0.06em] text-tapit-ink"
-      href="/"
-    >
-      Tapit
-    </Link>
-  );
-}
-
-function AccountLink() {
-  return isLocalDemoMode() ? <DemoAccountLink /> : <LiveAccountLink />;
-}
-
-function DemoAccountLink() {
-  const session = useDemoSession();
-  const href =
-    session === null ? "/login" : session.role === "admin" ? "/admin/customers" : "/app/profile";
-  const label = session === null ? "Sign in" : session.role === "admin" ? "Dashboard" : "Profile";
-  return (
-    <Link
-      className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
-      href={href}
-    >
-      {label}
-    </Link>
-  );
-}
-
-function LiveAccountLink() {
-  const { isAuthenticated, isLoading } = useConvexAuth();
-  const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
-  const signedIn = !isLoading && access?.authenticated === true;
-  const href = signedIn
-    ? access.role === "admin"
-      ? "/admin/customers"
-      : "/app/profile"
-    : "/login";
-  const label = signedIn ? (access.role === "admin" ? "Dashboard" : "Profile") : "Sign in";
-  return (
-    <Link
-      className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
-      href={href}
-    >
-      {label}
-    </Link>
-  );
-}
 
 function ProfileCard() {
   return (
@@ -177,26 +115,7 @@ export default function HomePage() {
           className="absolute inset-0 bg-gradient-to-r from-tapit-paper/95 via-tapit-paper/65 to-transparent lg:via-tapit-paper/35"
         />
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
-          <header className="flex items-center border-b border-tapit-ink/10 py-5 sm:py-7">
-            <LandingBrand />
-            <nav
-              aria-label="Primary navigation"
-              className="hidden items-center gap-9 lg:ml-20 lg:flex lg:mr-auto"
-            >
-              {navItems.map((item) => (
-                <a
-                  className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
-                  href={item.href}
-                  key={item.href}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </nav>
-            <div className="ml-auto flex items-center gap-3 sm:gap-7">
-              <AccountLink />
-            </div>
-          </header>
+          <PublicHeader />
 
           <div className="grid flex-1 items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
@@ -394,7 +313,7 @@ export default function HomePage() {
 
       <footer className="border-t border-tapit-line">
         <div className="mx-auto flex w-full max-w-[95rem] flex-wrap items-center justify-between gap-4 px-[clamp(1.25rem,5vw,5.25rem)] py-6 text-xs text-tapit-muted">
-          <LandingBrand />
+          <PublicBrand />
           <div className="flex items-center gap-6">
             <span>Built for quick, human introductions.</span>
             <Link className="font-medium text-tapit-ink" href="/app/profile">

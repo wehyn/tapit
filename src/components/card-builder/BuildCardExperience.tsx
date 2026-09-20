@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -9,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import { CardPreviewDialog } from "@/components/card-builder/CardPreviewDialog";
-import { Brand } from "@/components/layout/Brand";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 import { Notice } from "@/components/ui/Notice";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CARD_DESIGN_ACCEPT, validateCardDesignFile } from "@/lib/card-design";
@@ -105,27 +104,8 @@ export function BuildCardWorkspace({
 
   return (
     <main className="min-h-[100dvh] overflow-x-hidden bg-tapit-paper text-tapit-ink">
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-6xl flex-col px-5 sm:px-10">
-        <header className="flex items-center justify-between border-b border-tapit-line py-5 sm:py-7">
-          <Brand />
-          <div className="ml-auto flex items-center gap-5 sm:gap-8">
-            <nav aria-label="Primary navigation" className="flex items-center">
-              <Link
-                aria-current="page"
-                className="inline-flex min-h-11 items-center border-b-2 border-tapit-accent text-sm font-semibold text-tapit-ink sm:text-base"
-                href="/build-card"
-              >
-                Build card
-              </Link>
-            </nav>
-            <Link
-              className="inline-flex min-h-11 items-center text-base font-medium text-tapit-muted transition hover:text-tapit-ink"
-              href="/login"
-            >
-              Sign in
-            </Link>
-          </div>
-        </header>
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
+        <PublicHeader activeHref="/build-card" />
 
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
