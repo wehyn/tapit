@@ -99,8 +99,9 @@ export default function HomePage() {
   const isDemoMode = isLocalDemoMode();
 
   return (
-    <main className="overflow-hidden bg-tapit-paper text-tapit-ink">
-      <section className="relative min-h-[100dvh] overflow-hidden">
+    <main className="bg-tapit-paper text-tapit-ink">
+      <PublicHeader />
+      <section className="relative -mt-16 min-h-[100dvh] overflow-hidden sm:-mt-[4.5rem]">
         <Image
           alt=""
           aria-hidden="true"
@@ -115,8 +116,6 @@ export default function HomePage() {
           className="absolute inset-0 bg-gradient-to-r from-tapit-paper/95 via-tapit-paper/65 to-transparent lg:via-tapit-paper/35"
         />
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
-          <PublicHeader />
-
           <div className="grid flex-1 items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
               <p className="flex items-center gap-4 text-xs font-semibold tracking-[0.28em] text-tapit-muted uppercase">

@@ -69,38 +69,41 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
   const pathname = usePathname();
 
   return (
-    <header className="flex items-center border-b border-tapit-ink/10 py-2.5 sm:py-3.5">
-      <PublicBrand />
-      <nav
-        aria-label="Primary navigation"
-        className="hidden items-center gap-9 lg:ml-20 lg:flex lg:mr-auto"
-      >
-        {publicNavItems.map((item) => {
-          const href = item.href.startsWith("#") && pathname !== "/" ? `/${item.href}` : item.href;
+    <header className="sticky top-0 z-40 w-full border-b border-tapit-ink/10">
+      <div className="mx-auto flex w-full max-w-[95rem] items-center px-[clamp(1.25rem,5vw,5.25rem)] py-2.5 xl:max-w-none xl:pr-[6vw] sm:py-3.5">
+        <PublicBrand />
+        <nav
+          aria-label="Primary navigation"
+          className="hidden items-center gap-9 lg:ml-20 lg:flex lg:mr-auto"
+        >
+          {publicNavItems.map((item) => {
+            const href =
+              item.href.startsWith("#") && pathname !== "/" ? `/${item.href}` : item.href;
 
-          return href.startsWith("/") ? (
-            <Link
-              aria-current={item.href === activeHref ? "page" : undefined}
-              className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
-              href={href}
-              key={item.href}
-            >
-              {item.label}
-            </Link>
-          ) : (
-            <a
-              aria-current={item.href === activeHref ? "page" : undefined}
-              className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
-              href={href}
-              key={item.href}
-            >
-              {item.label}
-            </a>
-          );
-        })}
-      </nav>
-      <div className="ml-auto flex items-center gap-3 sm:gap-7">
-        <AccountLink />
+            return href.startsWith("/") ? (
+              <Link
+                aria-current={item.href === activeHref ? "page" : undefined}
+                className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
+                href={href}
+                key={item.href}
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <a
+                aria-current={item.href === activeHref ? "page" : undefined}
+                className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
+                href={href}
+                key={item.href}
+              >
+                {item.label}
+              </a>
+            );
+          })}
+        </nav>
+        <div className="ml-auto flex items-center gap-3 sm:gap-7">
+          <AccountLink />
+        </div>
       </div>
     </header>
   );

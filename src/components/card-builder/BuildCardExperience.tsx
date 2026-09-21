@@ -103,10 +103,9 @@ export function BuildCardWorkspace({
   }
 
   return (
-    <main className="min-h-[100dvh] overflow-x-hidden bg-tapit-paper text-tapit-ink">
+    <main className="min-h-[100dvh] bg-tapit-paper text-tapit-ink">
+      <PublicHeader activeHref="/build-card" />
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
-        <PublicHeader activeHref="/build-card" />
-
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
             <div className="mx-auto max-w-2xl text-center">
