@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -11,6 +11,26 @@ const isLocalDemoMode = vi.fn();
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   usePathname: () => "/build-card",
+}));
+
+vi.mock("next/link", () => ({
+  default: ({
+    children,
+    href,
+    onClick,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a
+      {...props}
+      href={href}
+      onClick={(event) => {
+        onClick?.(event);
+        event.preventDefault();
+      }}
+    >
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@convex-dev/auth/react", () => ({
@@ -34,6 +54,7 @@ import {
   BuildCardWorkspace,
   BUILD_CARD_CANVA_URL,
 } from "@/components/card-builder/BuildCardExperience";
+import { PublicHeader } from "@/components/layout/PublicHeader";
 
 function renderWorkspace(props: Partial<React.ComponentProps<typeof BuildCardWorkspace>> = {}) {
   return render(<BuildCardWorkspace authLoading={false} isAuthenticated={false} {...props} />);
@@ -226,6 +247,40 @@ describe("BuildCardWorkspace", () => {
 
     expect(URL.revokeObjectURL).toHaveBeenCalledExactlyOnceWith("blob:card-design");
     expect(URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PublicHeader responsive navigation", () => {
+  beforeEach(() => {
+    isLocalDemoMode.mockReturnValue(true);
+    useDemoSession.mockReturnValue(null);
+  });
+
+  it("shows the ordered mobile menu with the demo profile and closes predictably", async () => {
+    const user = userEvent.setup();
+    render(<PublicHeader />);
+
+    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+
+    const mobileNavigation = screen.getByRole("navigation", { name: "Mobile navigation" });
+    expect(
+      within(mobileNavigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Product", "How it works", "Pricing", "Build card", "Demo Profile"]);
+    expect(within(mobileNavigation).queryByText("For teams")).not.toBeInTheDocument();
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(
+      within(screen.getByRole("navigation", { name: "Mobile navigation" })).getByRole("link", {
+        name: "Build card",
+      }),
+    );
+    expect(screen.queryByRole("navigation", { name: "Mobile navigation" })).not.toBeInTheDocument();
   });
 });
 
