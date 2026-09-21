@@ -79,7 +79,13 @@ describe("BuildCardWorkspace", () => {
       "mx-auto",
       "text-center",
     );
-    expect(screen.getByRole("banner")).toHaveClass("sticky", "top-0", "z-40", "w-full");
+    expect(screen.getByRole("banner")).toHaveClass(
+      "sticky",
+      "top-0",
+      "z-40",
+      "w-full",
+      "bg-tapit-surface",
+    );
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
     expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
