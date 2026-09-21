@@ -6,6 +6,7 @@ const push = vi.fn();
 const useConvexAuth = vi.fn();
 const useQuery = vi.fn();
 const useDemoSession = vi.fn();
+const isDemoMode = vi.fn();
 const isLocalDemoMode = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -42,6 +43,7 @@ vi.mock("convex/react", () => ({
 }));
 
 vi.mock("@/lib/demo/mode", () => ({
+  isDemoMode: () => isDemoMode(),
   isLocalDemoMode: () => isLocalDemoMode(),
 }));
 
@@ -70,9 +72,11 @@ describe("BuildCardWorkspace", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    isDemoMode.mockReset();
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
     useDemoSession.mockReturnValue(null);
+    isDemoMode.mockReturnValue(false);
     isLocalDemoMode.mockReturnValue(false);
     vi.stubGlobal("URL", {
       ...URL,
@@ -252,7 +256,8 @@ describe("BuildCardWorkspace", () => {
 
 describe("PublicHeader responsive navigation", () => {
   beforeEach(() => {
-    isLocalDemoMode.mockReturnValue(true);
+    isDemoMode.mockReturnValue(true);
+    isLocalDemoMode.mockReturnValue(false);
     useDemoSession.mockReturnValue(null);
   });
 
@@ -290,7 +295,9 @@ describe("BuildCardExperience auth-aware order action", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    isDemoMode.mockReset();
     isLocalDemoMode.mockReturnValue(false);
+    isDemoMode.mockReturnValue(false);
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
     vi.stubGlobal("URL", {

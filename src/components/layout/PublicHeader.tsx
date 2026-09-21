@@ -8,7 +8,7 @@ import { ListIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type MouseEventHandler } from "react";
 
 import { api } from "../../../convex/_generated/api";
-import { isLocalDemoMode } from "@/lib/demo/mode";
+import { isDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { useDemoSession } from "@/lib/demo/store";
 
 type PublicNavItem = {
@@ -29,7 +29,7 @@ const demoProfileNavItem: PublicNavItem = {
 };
 
 function getPublicNavItems(): PublicNavItem[] {
-  return isLocalDemoMode() ? [...publicNavItems, demoProfileNavItem] : publicNavItems;
+  return isDemoMode() ? [...publicNavItems, demoProfileNavItem] : publicNavItems;
 }
 
 export function PublicBrand() {
