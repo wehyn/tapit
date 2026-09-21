@@ -69,7 +69,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
   const pathname = usePathname();
 
   return (
-    <header className="sticky top-0 z-40 flex items-center border-b border-tapit-ink/10 bg-tapit-paper/90 py-2.5 backdrop-blur-md sm:py-3.5">
+    <header className="flex items-center border-b border-tapit-ink/10 py-2.5 sm:py-3.5">
       <PublicBrand />
       <nav
         aria-label="Primary navigation"

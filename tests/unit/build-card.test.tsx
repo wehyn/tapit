@@ -80,7 +80,6 @@ describe("BuildCardWorkspace", () => {
       "text-center",
     );
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-    expect(screen.getByRole("banner")).toHaveClass("sticky", "top-0", "z-40");
     expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
     expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
       "href",
