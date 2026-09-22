@@ -107,10 +107,11 @@ test("customization stays private in drafts and is shared by public projections 
   await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
     theme: "paper",
   });
-  await owner.mutation(api.profiles.saveDraft, {
+  const savedDraft = await owner.mutation(api.profiles.saveDraft, {
     profileId: data.profileId,
     draft: draft("owner", { customization }),
   });
+  expect(savedDraft).toMatchObject({ customization });
   await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
     theme: "paper",
   });

@@ -109,7 +109,10 @@ export const adminList = query({
 
 export const saveDraft = mutation({
   args: { profileId: v.id("profiles"), draft: profileContentValidator },
-  returns: v.object({ updatedAt: v.number() }),
+  returns: v.object({
+    updatedAt: v.number(),
+    customization: v.optional(profileCustomizationValidator),
+  }),
   handler: async (ctx, args) => {
     const { profile } = await profileAccess(ctx, args.profileId);
     const normalizedSlug = normalizeProfileSlug(args.draft.slug);
@@ -135,7 +138,10 @@ export const saveDraft = mutation({
       await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, draft.imageStorageId);
     await ctx.db.patch(profile._id, { slug: normalizedSlug, draft, updatedAt: now });
     await replaceProfileLinks(ctx, profile._id, draft.links, now);
-    return { updatedAt: now };
+    return {
+      updatedAt: now,
+      ...(draft.customization === undefined ? {} : { customization: draft.customization }),
+    };
   },
 });
 
