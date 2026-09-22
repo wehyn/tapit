@@ -11,6 +11,7 @@ const useConvexAuth = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
+  usePathname: () => "/login",
 }));
 
 vi.mock("@convex-dev/auth/react", () => ({
@@ -65,6 +66,10 @@ describe("live authentication state machine", () => {
 
     const user = userEvent.setup();
     const { unmount } = render(<LoginForm />);
+    expect(screen.getByRole("banner")).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
+    expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute("href", "/build-card");
     await user.click(screen.getByRole("button", { name: "Forgot password?" }));
     await user.type(screen.getByLabelText("Email"), "known@example.test");
     await user.click(screen.getByRole("button", { name: "Send reset instructions" }));

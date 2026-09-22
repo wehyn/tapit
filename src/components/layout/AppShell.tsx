@@ -30,6 +30,9 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const activeHref = navItems
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((left, right) => right.href.length - left.href.length)[0]?.href;
 
   const handleNavigation = (event: MouseEvent<HTMLAnchorElement>, href: string) => {
     if (
@@ -68,7 +71,7 @@ export function AppShell({
             className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const active = item.href === activeHref;
               return (
                 <Link
                   aria-current={active ? "page" : undefined}

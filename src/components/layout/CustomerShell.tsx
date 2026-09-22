@@ -15,6 +15,7 @@ import { api } from "../../../convex/_generated/api";
 const customerNav: ShellNavItem[] = [
   { href: "/app/profile", label: "Profile" },
   { href: "/app/links", label: "Links" },
+  { href: "/app/account/build-card", label: "Build card" },
   { href: "/app/analytics", label: "Analytics" },
   { href: "/app/account", label: "Account" },
 ];

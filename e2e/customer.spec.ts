@@ -8,6 +8,19 @@ async function signInAsCustomer(page: Page) {
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
 
+test("customer build card stays inside the authenticated workspace", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  await page.getByRole("link", { name: "Build card", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/app\/account\/build-card$/);
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: /Your Tapit profile navigation/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
+});
+
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
