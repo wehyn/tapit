@@ -19,17 +19,51 @@ import type { CardDesignPreview } from "@/lib/card-design";
 export const BUILD_CARD_CANVA_URL = "https://canva.link/tapit-templates";
 const CARD_DESIGN_UPLOAD_ERROR_ID = "card-design-upload-error";
 
-export function BuildCardExperience() {
-  if (isLocalDemoMode()) return <LocalDemoBuildCardExperience />;
-  return <LiveBuildCardExperience />;
+export function BuildCardExperience({ embedded = false }: { embedded?: boolean } = {}) {
+  const showPublicHeader = !embedded;
+  const loginReturnPath = embedded ? "/app/account/build-card" : "/build-card";
+
+  if (isLocalDemoMode()) {
+    return (
+      <LocalDemoBuildCardExperience
+        loginReturnPath={loginReturnPath}
+        showPublicHeader={showPublicHeader}
+      />
+    );
+  }
+  return (
+    <LiveBuildCardExperience
+      loginReturnPath={loginReturnPath}
+      showPublicHeader={showPublicHeader}
+    />
+  );
 }
 
-function LocalDemoBuildCardExperience() {
+function LocalDemoBuildCardExperience({
+  loginReturnPath,
+  showPublicHeader,
+}: {
+  loginReturnPath: string;
+  showPublicHeader: boolean;
+}) {
   const session = useDemoSession();
-  return <BuildCardWorkspace authLoading={false} isAuthenticated={session !== null} />;
+  return (
+    <BuildCardWorkspace
+      authLoading={false}
+      isAuthenticated={session !== null}
+      loginReturnPath={loginReturnPath}
+      showPublicHeader={showPublicHeader}
+    />
+  );
 }
 
-function LiveBuildCardExperience() {
+function LiveBuildCardExperience({
+  loginReturnPath,
+  showPublicHeader,
+}: {
+  loginReturnPath: string;
+  showPublicHeader: boolean;
+}) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const authLoading = isLoading || (isAuthenticated && access === undefined);
@@ -38,6 +72,8 @@ function LiveBuildCardExperience() {
     <BuildCardWorkspace
       authLoading={authLoading}
       isAuthenticated={access?.authenticated === true}
+      loginReturnPath={loginReturnPath}
+      showPublicHeader={showPublicHeader}
     />
   );
 }
@@ -45,9 +81,13 @@ function LiveBuildCardExperience() {
 export function BuildCardWorkspace({
   authLoading,
   isAuthenticated,
+  loginReturnPath = "/build-card",
+  showPublicHeader = true,
 }: {
   authLoading: boolean;
   isAuthenticated: boolean;
+  loginReturnPath?: string;
+  showPublicHeader?: boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -96,15 +136,17 @@ export function BuildCardWorkspace({
   function handleOrder() {
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push("/login?next=%2Fbuild-card");
+      router.push(`/login?next=${encodeURIComponent(loginReturnPath)}`);
       return;
     }
     setOrderingComingSoon(true);
   }
 
+  const Root = showPublicHeader ? "main" : "div";
+
   return (
-    <main className="min-h-[100dvh] bg-tapit-paper text-tapit-ink">
-      <PublicHeader activeHref="/build-card" />
+    <Root className="min-h-[100dvh] bg-tapit-paper text-tapit-ink">
+      {showPublicHeader ? <PublicHeader activeHref="/build-card" /> : null}
       <div className="mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
@@ -202,6 +244,6 @@ export function BuildCardWorkspace({
           orderingComingSoon={orderingComingSoon}
         />
       ) : null}
-    </main>
+    </Root>
   );
 }

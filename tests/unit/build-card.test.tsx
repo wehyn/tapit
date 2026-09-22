@@ -329,6 +329,13 @@ describe("BuildCardExperience auth-aware order action", () => {
     expect(push).toHaveBeenCalledWith("/login?next=%2Fbuild-card");
   });
 
+  it("reuses the builder without the public header in the customer workspace", () => {
+    render(<BuildCardExperience embedded />);
+
+    expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+  });
+
   it("shows the coming-soon status for an authenticated customer without pushing", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
     useQuery.mockReturnValue({ authenticated: true, role: "customer" });

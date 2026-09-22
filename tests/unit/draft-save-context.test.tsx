@@ -11,8 +11,9 @@ import {
 } from "@/components/layout/DraftSaveContext";
 
 const push = vi.fn();
+const usePathname = vi.fn();
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/app/profile",
+  usePathname: () => usePathname(),
   useRouter: () => ({ push }),
 }));
 vi.mock("next/link", () => ({
@@ -37,6 +38,7 @@ vi.mock("next/link", () => ({
 
 beforeEach(() => {
   push.mockClear();
+  usePathname.mockReturnValue("/app/profile");
 });
 
 function SaveButton({ handler }: { handler: DraftSaveHandler | null }) {
@@ -77,6 +79,32 @@ describe("DraftSaveProvider", () => {
 });
 
 describe("AppShell draft navigation", () => {
+  it("marks only the most specific nested destination as active", () => {
+    usePathname.mockReturnValue("/app/account/build-card");
+
+    render(
+      <AppShell
+        eyebrow="Customer workspace"
+        navItems={[
+          { href: "/app/account", label: "Account" },
+          { href: "/app/account/build-card", label: "Build card" },
+        ]}
+        title="Workspace"
+      >
+        Content
+      </AppShell>,
+    );
+
+    expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Account" })).not.toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  });
+
   it("waits for a successful save before routing", async () => {
     let resolveSave!: (value: boolean) => void;
     const save = vi.fn(
