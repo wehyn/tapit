@@ -17,6 +17,9 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
     ...(profile.published.phone === undefined ? {} : { phone: profile.published.phone }),
     ...(profile.published.website === undefined ? {} : { website: profile.published.website }),
     theme: profile.published.theme ?? "paper",
+    ...(profile.published.customization === undefined
+      ? {}
+      : { customization: profile.published.customization }),
     links: profile.published.links.filter((link) => link.enabled),
   };
 }

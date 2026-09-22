@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { profileCustomizationValidator } from "./validators";
 
 const profileLink = v.object({
   id: v.string(),
@@ -27,6 +28,7 @@ const profileContent = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  customization: v.optional(profileCustomizationValidator),
   redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
 });
@@ -41,6 +43,7 @@ const publishedProfile = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  customization: v.optional(profileCustomizationValidator),
   redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
   publishedAt: v.number(),

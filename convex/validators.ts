@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { validateProfileCustomization } from "../src/lib/profile-customization";
 
 export const MAX_PROFILE_LINKS = 100;
 export const CLAIM_CODE_LENGTH = 8;
@@ -48,6 +49,25 @@ export const profileThemeValidator = v.union(
   v.literal("night"),
 );
 
+const profileCustomizationSectionValidator = v.union(
+  v.object({ kind: v.literal("about"), body: v.string() }),
+  v.object({
+    kind: v.literal("services"),
+    body: v.string(),
+    items: v.optional(v.array(v.string())),
+  }),
+);
+
+export const profileCustomizationValidator = v.object({
+  preset: v.literal("warm-studio"),
+  accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
+  typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
+  linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
+  contentOrder: v.union(v.literal("links-first"), v.literal("section-first")),
+  featuredLinkId: v.optional(v.string()),
+  section: v.optional(profileCustomizationSectionValidator),
+});
+
 export const profileRedirectValidator = v.object({
   enabled: v.boolean(),
   destination: v.string(),
@@ -63,6 +83,7 @@ export const profileContentValidator = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileThemeValidator),
+  customization: v.optional(profileCustomizationValidator),
   redirect: v.optional(profileRedirectValidator),
   links: v.array(linkValidator),
 });
@@ -84,6 +105,7 @@ export const publicProfileValidator = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: profileThemeValidator,
+  customization: v.optional(profileCustomizationValidator),
   links: v.array(linkValidator),
 });
 
@@ -159,6 +181,7 @@ export function validateDraftSafety(content: {
   phone?: string;
   website?: string;
   redirect?: { enabled: boolean; destination: string };
+  customization?: unknown;
   links: Array<{
     id: string;
     label: string;
@@ -184,6 +207,11 @@ export function validateDraftSafety(content: {
     if (field !== undefined && fieldTooLong(field, MAX_PROFILE_FIELD_LENGTH))
       errors.push("A profile field is too long.");
   }
+  errors.push(
+    ...validateProfileCustomization(
+      content.customization as Parameters<typeof validateProfileCustomization>[0],
+    ),
+  );
   const seenIds = new Set<string>();
   for (const link of content.links) {
     if (!link.id.trim()) errors.push("Every link needs a valid ID.");
@@ -213,6 +241,7 @@ export function validateProfileContent(content: {
   phone?: string;
   website?: string;
   redirect?: { enabled: boolean; destination: string };
+  customization?: unknown;
   links: Array<{
     id: string;
     label: string;

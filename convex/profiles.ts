@@ -12,6 +12,7 @@ import {
   profileStatusValidator,
   publicProfileValidator,
   profileThemeValidator,
+  profileCustomizationValidator,
   validateDraftSafety,
   validateProfileContent,
   normalizeProfileSlug,
@@ -150,6 +151,7 @@ export const publish = mutation({
     phone: v.optional(v.string()),
     website: v.optional(v.string()),
     theme: v.optional(profileThemeValidator),
+    customization: v.optional(profileCustomizationValidator),
     redirect: v.optional(profileRedirectValidator),
     links: v.array(
       v.object({

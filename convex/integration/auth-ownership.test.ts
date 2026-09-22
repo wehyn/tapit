@@ -336,11 +336,24 @@ describe("Convex authentication and ownership", () => {
     });
     await owner.mutation(api.profiles.saveDraft, {
       profileId: data.ownerProfileId,
-      draft: { ...draft("owner", "Owner Draft"), theme: "night" },
+      draft: {
+        ...draft("owner", "Owner Draft"),
+        theme: "night",
+        customization: {
+          preset: "warm-studio",
+          accent: "jade",
+          typeScale: "editorial",
+          linkTreatment: "outlined",
+          contentOrder: "section-first",
+        },
+      },
     });
     await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
       theme: "paper",
     });
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.not.toHaveProperty(
+      "customization",
+    );
     await expect(t.query(api.cards.resolve, { token: "owner-card" })).resolves.toMatchObject({
       status: "active",
       profile: { theme: "paper" },
@@ -349,6 +362,7 @@ describe("Convex authentication and ownership", () => {
     await owner.mutation(api.profiles.publish, { profileId: data.ownerProfileId });
     await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
       theme: "night",
+      customization: { accent: "jade" },
     });
     await expect(t.query(api.cards.resolve, { token: "owner-card" })).resolves.toMatchObject({
       status: "active",
