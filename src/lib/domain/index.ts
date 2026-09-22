@@ -1,6 +1,7 @@
 /** Shared, persistence-agnostic domain rules for profiles, links, cards, and access. */
 
 import type { Id } from "../../../convex/_generated/dataModel";
+import { type ProfileCustomization, validateProfileCustomization } from "../profile-customization";
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
@@ -39,6 +40,7 @@ export interface ProfileContent {
   phone?: string;
   website?: string;
   theme?: ProfileTheme;
+  customization?: ProfileCustomization;
   redirect?: ProfileRedirect;
   links: ProfileLink[];
 }
@@ -65,6 +67,7 @@ export interface PublicProfileProjection {
   phone?: string;
   website?: string;
   theme: ProfileTheme;
+  customization?: ProfileCustomization;
   links: ProfileLink[];
 }
 
@@ -269,6 +272,7 @@ export function validatePublication(
   }
   const redirectError = validateProfileRedirect(draft.redirect);
   if (redirectError !== null) errors.push(redirectError);
+  errors.push(...validateProfileCustomization(draft.customization, draft.links));
   return errors;
 }
 
@@ -285,6 +289,9 @@ export function publishProfile(
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
     ...(profile.draft.redirect === undefined ? {} : { redirect: { ...profile.draft.redirect } }),
+    ...(profile.draft.customization === undefined
+      ? {}
+      : { customization: structuredClone(profile.draft.customization) }),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
@@ -338,6 +345,9 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(snapshot.phone === undefined ? {} : { phone: snapshot.phone }),
     ...(snapshot.website === undefined ? {} : { website: snapshot.website }),
     theme: snapshot.theme ?? "paper",
+    ...(snapshot.customization === undefined
+      ? {}
+      : { customization: structuredClone(snapshot.customization) }),
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }
