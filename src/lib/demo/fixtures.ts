@@ -1,4 +1,5 @@
 import type { CardRecord, ProfileRecord } from "@/lib/domain";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "@/lib/profile-customization";
 
 import { DEFAULT_DEMO_PASSWORD_HASH } from "./password";
 
@@ -123,10 +124,12 @@ export function createDefaultDemoState(): DemoState {
     draft: {
       ...profileContent,
       links: publishedLinks.map((link) => ({ ...link })),
+      customization: { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION },
     },
     published: {
       ...profileContent,
       links: publishedLinks.map((link) => ({ ...link })),
+      customization: { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION },
       publishedAt,
     },
   };

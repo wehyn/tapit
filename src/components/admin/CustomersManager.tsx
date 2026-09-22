@@ -8,6 +8,7 @@ import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phospho
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
 import { validateProfileSlug } from "@/lib/domain";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "@/lib/profile-customization";
 import {
   getDemoProfiles,
   updateDemoProfile,
@@ -25,13 +26,16 @@ import { hashSetupToken } from "@/lib/auth/setup-token";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+function createDefaultWarmStudioCustomization() {
+  return structuredClone(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+}
+
 function DemoCustomersManager() {
   const state = useDemoState();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
   const [profileSlug, setProfileSlug] = useState("");
-  const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [setupLink, setSetupLink] = useState("");
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
@@ -86,7 +90,13 @@ function DemoCustomersManager() {
           ownerId: customerId,
           status: "draft",
           theme: "paper",
-          draft: { name: profileName.trim(), slug, email: normalizedEmail, links: [], theme },
+          draft: {
+            name: profileName.trim(),
+            slug,
+            email: normalizedEmail,
+            links: [],
+            customization: createDefaultWarmStudioCustomization(),
+          },
           published: null,
         } satisfies DemoProfile,
       ],
@@ -209,24 +219,6 @@ function DemoCustomersManager() {
               placeholder="Optional stable slug"
               value={profileSlug}
             />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-semibold text-tapit-ink"
-              htmlFor="customer-profile-theme"
-            >
-              Initial theme
-            </label>
-            <select
-              className="mt-2 min-h-12 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm text-tapit-ink"
-              id="customer-profile-theme"
-              onChange={(event) => setTheme(event.target.value as typeof theme)}
-              value={theme}
-            >
-              <option value="paper">Paper</option>
-              <option value="moss">Moss</option>
-              <option value="night">Night</option>
-            </select>
           </div>
           <Button type="submit">
             <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
@@ -456,7 +448,6 @@ function LiveCustomersManager() {
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
   const [profileSlug, setProfileSlug] = useState("");
-  const [theme, setTheme] = useState<"paper" | "moss" | "night">("paper");
   const [setupLink, setSetupLink] = useState("");
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -492,7 +483,6 @@ function LiveCustomersManager() {
         email: normalizedEmail,
         slug: requestedSlug,
         name: profileName.trim(),
-        theme,
         tokenHash: await hashSetupToken(token),
         expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
@@ -578,24 +568,6 @@ function LiveCustomersManager() {
               placeholder="Optional stable slug"
               value={profileSlug}
             />
-          </div>
-          <div>
-            <label
-              className="block text-sm font-semibold text-tapit-ink"
-              htmlFor="live-customer-profile-theme"
-            >
-              Initial theme
-            </label>
-            <select
-              className="mt-2 min-h-12 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm text-tapit-ink"
-              id="live-customer-profile-theme"
-              onChange={(event) => setTheme(event.target.value as typeof theme)}
-              value={theme}
-            >
-              <option value="paper">Paper</option>
-              <option value="moss">Moss</option>
-              <option value="night">Night</option>
-            </select>
           </div>
           <Button disabled={pending} loading={pending} type="submit">
             <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />

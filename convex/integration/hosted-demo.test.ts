@@ -30,6 +30,10 @@ describe("hosted-demo scope boundaries", () => {
         const card = await ctx.db.get(first.claimableCardId);
         expect(card?.claimCodeHash).toBeDefined();
         expect(card).not.toHaveProperty("claimCode");
+        const profile = await ctx.db.get(first.maraProfileId);
+        expect(profile?.draft.customization).toMatchObject({ preset: "warm-studio" });
+        expect(profile?.published?.customization).toMatchObject({ preset: "warm-studio" });
+        expect(profile?.draft.theme).toBe("paper");
       });
     } finally {
       if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
@@ -85,6 +89,120 @@ describe("hosted-demo scope boundaries", () => {
         expect(await ctx.db.get(ids.cardId)).not.toBeNull();
         expect(await ctx.db.get(first.claimableCardId)).toBeNull();
       });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
+  it("does not promote Mara's draft-only customization during initialization", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const operatorUserId = await t.run(async (ctx) =>
+        ctx.db.insert("users", { email: "operator@example.test", emailVerificationTime: 1 }),
+      );
+      await t.run(async (ctx) => {
+        const customerId = await ctx.db.insert("customers", {
+          scope: "demo",
+          email: "mara@example.test",
+          role: "customer",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        await ctx.db.insert("profiles", {
+          scope: "demo",
+          ownerId: customerId,
+          slug: "mara-velasquez",
+          status: "published",
+          draft: {
+            name: "Mara Draft",
+            slug: "mara-velasquez",
+            links: [],
+            customization: {
+              preset: "warm-studio",
+              accent: "jade",
+              typeScale: "editorial",
+              linkTreatment: "outlined",
+              contentOrder: "section-first",
+            },
+          },
+          published: { name: "Mara Published", slug: "mara-velasquez", links: [], publishedAt: 1 },
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      });
+
+      const result = await t.mutation(internal.demo.initialize, { operatorUserId });
+      await t.run(async (ctx) => {
+        const profile = await ctx.db.get(result.maraProfileId);
+        expect(profile?.draft.customization?.accent).toBe("jade");
+        expect(profile?.published?.customization).toBeUndefined();
+      });
+      await expect(
+        t.query(api.profiles.publicBySlug, { slug: "mara-velasquez" }),
+      ).resolves.not.toHaveProperty("customization");
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
+  it("keeps Mara's divergent draft theme private during initialization", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const operatorUserId = await t.run(async (ctx) =>
+        ctx.db.insert("users", { email: "operator@example.test", emailVerificationTime: 1 }),
+      );
+      await t.run(async (ctx) => {
+        const customerId = await ctx.db.insert("customers", {
+          scope: "demo",
+          email: "mara@example.test",
+          role: "customer",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        await ctx.db.insert("profiles", {
+          scope: "demo",
+          ownerId: customerId,
+          slug: "mara-velasquez",
+          status: "published",
+          draft: {
+            name: "Mara Draft",
+            slug: "mara-velasquez",
+            theme: "night",
+            links: [],
+          },
+          published: {
+            name: "Mara Published",
+            slug: "mara-velasquez",
+            theme: "moss",
+            links: [],
+            publishedAt: 1,
+          },
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      });
+
+      const result = await t.mutation(internal.demo.initialize, { operatorUserId });
+      await t.run(async (ctx) => {
+        const profile = await ctx.db.get(result.maraProfileId);
+        expect(profile?.draft.theme).toBe("night");
+        expect(profile?.published?.theme).toBe("moss");
+      });
+      await expect(
+        t.query(api.profiles.publicBySlug, { slug: "mara-velasquez" }),
+      ).resolves.toMatchObject({ theme: "moss" });
     } finally {
       if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
       else process.env.TAPIT_DEMO_AUTH_MODE = previous;

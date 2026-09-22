@@ -5,6 +5,7 @@ import rateLimiter from "@convex-dev/rate-limiter/test";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
 
@@ -176,6 +177,7 @@ describe("Convex authentication and ownership", () => {
           slug: "ada-lovelace",
           email: "new@example.com",
           links: [],
+          customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
         },
       });
       expect(profile?.published).toBeUndefined();
@@ -203,6 +205,7 @@ describe("Convex authentication and ownership", () => {
         name: "Invited Customer",
         slug: "invited-customer",
         email: "invited@example.com",
+        customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
       });
     });
   });
@@ -489,6 +492,120 @@ describe("Convex authentication and ownership", () => {
     expect(profile).toMatchObject({
       draft: { bio: "Configured live bio" },
       published: { bio: "Configured live bio" },
+    });
+  });
+
+  it("defaults a new bootstrap profile to Warm Studio in both snapshots", async () => {
+    const t = testConvex();
+    const ids = await t.run(async (ctx) => ({
+      adminUserId: await ctx.db.insert("users", {
+        email: "new-admin@example.com",
+        emailVerificationTime: 1,
+      }),
+      customerUserId: await ctx.db.insert("users", {
+        email: "new-customer@example.com",
+        emailVerificationTime: 1,
+      }),
+    }));
+
+    const result = await t.mutation(internal.bootstrap.bootstrap, {
+      adminUserId: ids.adminUserId,
+      customerUserId: ids.customerUserId,
+      adminEmail: "new-admin@example.com",
+      customerEmail: "new-customer@example.com",
+      customerSlug: "new-bootstrap",
+      publishedBio: "New bootstrap profile",
+      cardUrl: "https://tapit.test/c/new-bootstrap-token",
+      cardToken: "new-bootstrap-token",
+    });
+    const profile = await t.run(async (ctx) => await ctx.db.get(result.profileId));
+    expect(profile?.draft.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(profile?.published?.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+  });
+
+  it("round-trips an existing theme-only profile without adding customization", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.ownerProfileId, {
+        draft: { ...draft("owner", "Legacy Draft"), theme: "moss" },
+        published: { ...draft("owner", "Legacy Published"), theme: "moss", publishedAt: 1 },
+      });
+    });
+
+    const result = await t.mutation(internal.bootstrap.bootstrap, {
+      adminUserId: data.adminUserId,
+      customerUserId: data.ownerUserId,
+      adminEmail: "admin@example.com",
+      customerEmail: "owner@example.com",
+      customerSlug: "owner",
+      publishedBio: "Legacy theme profile",
+      cardUrl: "https://tapit.test/c/legacy-theme-token",
+      cardToken: "legacy-theme-token",
+    });
+    const profile = await t.run(async (ctx) => await ctx.db.get(result.profileId));
+    expect(profile?.draft).toMatchObject({ theme: "moss" });
+    expect(profile?.published).toMatchObject({ theme: "moss" });
+    expect(profile?.draft.customization).toBeUndefined();
+    expect(profile?.published?.customization).toBeUndefined();
+  });
+
+  it("does not promote draft-only customization during bootstrap", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.ownerProfileId, {
+        draft: {
+          ...draft("owner", "Draft Customization"),
+          customization: { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, accent: "jade" },
+        },
+        published: { ...draft("owner", "Published Legacy"), publishedAt: 1 },
+      });
+    });
+
+    await t.mutation(internal.bootstrap.bootstrap, {
+      adminUserId: data.adminUserId,
+      customerUserId: data.ownerUserId,
+      adminEmail: "admin@example.com",
+      customerEmail: "owner@example.com",
+      customerSlug: "owner",
+      publishedBio: "Published legacy bio",
+      cardUrl: "https://tapit.test/c/draft-customization-token",
+      cardToken: "draft-customization-token",
+    });
+    const profile = await t.run(async (ctx) => await ctx.db.get(data.ownerProfileId));
+    expect(profile?.draft.customization?.accent).toBe("jade");
+    expect(profile?.published?.customization).toBeUndefined();
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.not.toHaveProperty(
+      "customization",
+    );
+  });
+
+  it("keeps a divergent draft theme private during bootstrap", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.ownerProfileId, {
+        draft: { ...draft("owner", "Draft Theme"), theme: "night" },
+        published: { ...draft("owner", "Published Theme"), theme: "moss", publishedAt: 1 },
+      });
+    });
+
+    await t.mutation(internal.bootstrap.bootstrap, {
+      adminUserId: data.adminUserId,
+      customerUserId: data.ownerUserId,
+      adminEmail: "admin@example.com",
+      customerEmail: "owner@example.com",
+      customerSlug: "owner",
+      publishedBio: "Published theme bio",
+      cardUrl: "https://tapit.test/c/divergent-theme-token",
+      cardToken: "divergent-theme-token",
+    });
+    const profile = await t.run(async (ctx) => await ctx.db.get(data.ownerProfileId));
+    expect(profile?.draft.theme).toBe("night");
+    expect(profile?.published?.theme).toBe("moss");
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
+      theme: "moss",
     });
   });
 
