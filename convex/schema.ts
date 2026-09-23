@@ -128,6 +128,104 @@ export default defineSchema({
     ])
     .index("by_status_and_uploadWindowEndsAt", ["status", "uploadWindowEndsAt"])
     .index("by_status_and_createdAt", ["status", "createdAt"]),
+  uploadAssets: defineTable({
+    kind: v.union(v.literal("profile-photo"), v.literal("card-design")),
+    policyVersion: v.string(),
+    ownerId: v.id("customers"),
+    scope: v.optional(v.string()),
+    domainType: v.string(),
+    domainRecordId: v.string(),
+    status: v.union(
+      v.literal("initiated"),
+      v.literal("uploaded"),
+      v.literal("validating"),
+      v.literal("processing"),
+      v.literal("ready"),
+      v.literal("attached"),
+      v.literal("rejected"),
+      v.literal("failed"),
+      v.literal("expired"),
+      v.literal("deleted"),
+    ),
+    quarantineStorageId: v.optional(v.id("_storage")),
+    sourceStorageId: v.optional(v.id("_storage")),
+    declaredContentType: v.optional(v.string()),
+    declaredFileName: v.optional(v.string()),
+    detectedContentType: v.optional(v.string()),
+    byteSize: v.optional(v.number()),
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
+    pixelCount: v.optional(v.number()),
+    sha256: v.optional(v.string()),
+    createdAt: v.number(),
+    expiresAt: v.number(),
+    uploadedAt: v.optional(v.number()),
+    validatingAt: v.optional(v.number()),
+    processingAt: v.optional(v.number()),
+    readyAt: v.optional(v.number()),
+    attachedAt: v.optional(v.number()),
+    deletionEligibleAt: v.optional(v.number()),
+    deletedAt: v.optional(v.number()),
+    retryCount: v.number(),
+    lastFailureAt: v.optional(v.number()),
+    failureCode: v.optional(
+      v.union(
+        v.literal("UNAUTHENTICATED"),
+        v.literal("FORBIDDEN"),
+        v.literal("UNSUPPORTED_TYPE"),
+        v.literal("FILE_TOO_LARGE"),
+        v.literal("INVALID_SIGNATURE"),
+        v.literal("INVALID_IMAGE"),
+        v.literal("DIMENSIONS_EXCEEDED"),
+        v.literal("RATE_LIMITED"),
+        v.literal("QUOTA_EXCEEDED"),
+        v.literal("UPLOAD_EXPIRED"),
+        v.literal("PROCESSING_FAILED"),
+        v.literal("STORAGE_UNAVAILABLE"),
+        v.literal("CONFLICT"),
+      ),
+    ),
+    failureDetail: v.optional(v.string()),
+  })
+    .index("by_ownerId_and_status", ["ownerId", "status"])
+    .index("by_sourceStorageId", ["sourceStorageId"])
+    .index("by_domainType_and_domainRecordId", ["domainType", "domainRecordId"])
+    .index("by_status_and_deletionEligibleAt", ["status", "deletionEligibleAt"]),
+  uploadAssetVariants: defineTable({
+    assetId: v.id("uploadAssets"),
+    purpose: v.union(v.literal("preview"), v.literal("thumbnail")),
+    storageId: v.id("_storage"),
+    contentType: v.string(),
+    byteSize: v.number(),
+    width: v.number(),
+    height: v.number(),
+    checksum: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_assetId_and_purpose", ["assetId", "purpose"])
+    .index("by_storageId", ["storageId"]),
+  uploadAssetReferences: defineTable({
+    assetId: v.id("uploadAssets"),
+    domainType: v.string(),
+    domainRecordId: v.string(),
+    role: v.string(),
+    createdAt: v.number(),
+    releasedAt: v.optional(v.number()),
+  })
+    .index("by_assetId", ["assetId"])
+    .index("by_domainType_and_domainRecordId_and_role", ["domainType", "domainRecordId", "role"])
+    .index("by_assetId_and_releasedAt", ["assetId", "releasedAt"]),
+  cardDesigns: defineTable({
+    customerId: v.id("customers"),
+    profileId: v.id("profiles"),
+    templateId: v.string(),
+    currentAssetId: v.optional(v.id("uploadAssets")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_customerId", ["customerId"])
+    .index("by_profileId", ["profileId"])
+    .index("by_currentAssetId", ["currentAssetId"]),
   links: defineTable({
     scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),
