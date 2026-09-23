@@ -10,6 +10,8 @@ import {
   normalizeProfileMedia,
   stripProfileMediaUrls,
   validateProfileMedia,
+  type PublicProfileMediaImage,
+  type PublicProfileMediaPresentation,
   type ProfileMediaPresentation,
 } from "../profile-media";
 
@@ -80,7 +82,7 @@ export interface PublicProfileProjection {
   website?: string;
   theme: ProfileTheme;
   customization?: ProfileCustomization;
-  media?: ProfileMediaPresentation;
+  media?: PublicProfileMediaPresentation;
   links: ProfileLink[];
 }
 
@@ -326,7 +328,10 @@ export function publishProfile(
       : { customization: structuredClone(profile.draft.customization) }),
     ...(profile.draft.media === undefined
       ? {}
-      : { media: stripProfileMediaUrls(structuredClone(profile.draft.media)) }),
+      : (() => {
+          const media = stripProfileMediaUrls(structuredClone(profile.draft.media));
+          return media === undefined ? {} : { media };
+        })()),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
@@ -346,10 +351,48 @@ function stableSerialize(value: unknown): string {
 }
 
 function canonicalizeRedirect(content: ProfileContent): ProfileContent {
+  const media = stripProfileMediaUrls(content.media);
   return {
     ...content,
     redirect: content.redirect ?? { enabled: false, destination: "" },
-    ...(content.media === undefined ? {} : { media: stripProfileMediaUrls(content.media) }),
+    ...(media === undefined ? {} : { media }),
+  };
+}
+
+function projectPublicProfileMedia(value: unknown): PublicProfileMediaPresentation | undefined {
+  const normalized = normalizeProfileMedia(value);
+  if (normalized === undefined) return undefined;
+
+  const projectImage = (
+    image: ProfileMediaPresentation["slideshow"][number],
+  ): PublicProfileMediaImage | undefined =>
+    typeof image.url === "string" && image.url.trim().length > 0
+      ? { src: image.url.trim(), alt: image.altText }
+      : undefined;
+  const slideshow = normalized.slideshow.flatMap((image) => {
+    const projected = projectImage(image);
+    return projected === undefined ? [] : [projected];
+  });
+  const background =
+    normalized.background === undefined
+      ? undefined
+      : (() => {
+          const projected = projectImage(normalized.background);
+          return projected === undefined
+            ? undefined
+            : {
+                ...projected,
+                positionX: normalized.background.positionX,
+                positionY: normalized.background.positionY,
+              };
+        })();
+
+  if (background === undefined && slideshow.length === 0) return undefined;
+  return {
+    ...(background === undefined ? {} : { background }),
+    heroHeight: normalized.heroHeight,
+    slideshow,
+    autoplay: normalized.autoplay,
   };
 }
 
@@ -371,6 +414,8 @@ export function hasUnpublishedChanges(
 export function projectPublicProfile(profile: ProfileRecord): PublicProfileProjection | null {
   if (profile.status !== "published" || profile.published === null) return null;
   const snapshot = profile.published;
+  const media = projectPublicProfileMedia(snapshot.media);
+  const customization = normalizeProfileCustomization(snapshot.customization);
   return {
     id: profile.id,
     slug: snapshot.slug,
@@ -381,12 +426,8 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(snapshot.phone === undefined ? {} : { phone: snapshot.phone }),
     ...(snapshot.website === undefined ? {} : { website: snapshot.website }),
     theme: snapshot.theme ?? "paper",
-    ...(normalizeProfileCustomization(snapshot.customization) === undefined
-      ? {}
-      : { customization: normalizeProfileCustomization(snapshot.customization) }),
-    ...(normalizeProfileMedia(snapshot.media) === undefined
-      ? {}
-      : { media: normalizeProfileMedia(snapshot.media) }),
+    ...(customization === undefined ? {} : { customization }),
+    ...(media === undefined ? {} : { media }),
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }

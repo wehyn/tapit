@@ -19,6 +19,17 @@ describe("profile media contract", () => {
     });
   });
 
+  it("does not expose a mutable shared default slideshow", () => {
+    expect(Object.isFrozen(DEFAULT_PROFILE_MEDIA)).toBe(true);
+    expect(Object.isFrozen(DEFAULT_PROFILE_MEDIA.slideshow)).toBe(true);
+    expect(() =>
+      (DEFAULT_PROFILE_MEDIA.slideshow as unknown as ProfileMediaPresentation["slideshow"]).push({
+        assetId: "mutated",
+        altText: "Mutated",
+      }),
+    ).toThrow();
+  });
+
   it("accepts bounded crop and hero values", () => {
     expect(
       validateProfileMedia({
@@ -101,6 +112,36 @@ describe("profile media contract", () => {
       },
       slideshow: [{ assetId: "one", altText: "First frame" }],
     });
+  });
+
+  it("defaults malformed autoplay values to enabled", () => {
+    const normalized = normalizeProfileMedia({
+      autoplay: "false",
+      background: {
+        assetId: "background",
+        altText: "Backdrop",
+        positionX: 50,
+        positionY: 50,
+      },
+      slideshow: [],
+    });
+
+    expect(normalized?.autoplay).toBe(true);
+    expect(
+      validateProfileMedia({
+        heroHeight: 320,
+        autoplay: "false",
+        slideshow: [],
+      } as unknown),
+    ).toContain("Media autoplay must be a boolean.");
+  });
+
+  it("handles malformed optional media without throwing", () => {
+    expect(validateProfileMedia(null)).toEqual([]);
+    expect(() => validateProfileMedia([null, { slideshow: "nope" }] as unknown)).not.toThrow();
+    expect(() => normalizeProfileMedia({ slideshow: [null, 42, { assetId: null }] })).not.toThrow();
+    expect(stripProfileMediaUrls(null)).toBeUndefined();
+    expect(stripProfileMediaUrls({ heroHeight: 320, autoplay: true })).toBeUndefined();
   });
 
   it("strips owner-only URLs before persistence", () => {

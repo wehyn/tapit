@@ -109,7 +109,13 @@ describe("profile publication and public projection", () => {
         positionY: 50,
         url: "https://cdn.test/published.jpg",
       },
-      slideshow: [],
+      slideshow: [
+        {
+          assetId: "slide",
+          altText: "Published slide",
+          url: "https://cdn.test/slide.jpg",
+        },
+      ],
     };
     const published = publishProfile({ ...profile(), draft: { ...draft, media } }, "first");
     const changed = {
@@ -122,18 +128,33 @@ describe("profile publication and public projection", () => {
 
     expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
     expect(hasUnpublishedChanges(changed.draft, published.published)).toBe(true);
-    expect(projectPublicProfile(changed)?.media).toEqual({
-      ...media,
+    const resolvedPublished = {
+      ...published,
+      published: { ...published.published!, media },
+    };
+    expect(projectPublicProfile(resolvedPublished)?.media).toEqual({
+      heroHeight: 360,
+      autoplay: true,
       background: {
-        assetId: "background",
-        altText: "Published backdrop",
+        src: "https://cdn.test/published.jpg",
+        alt: "Published backdrop",
         positionX: 50,
         positionY: 50,
       },
+      slideshow: [
+        {
+          src: "https://cdn.test/slide.jpg",
+          alt: "Published slide",
+        },
+      ],
     });
+    expect(projectPublicProfile(resolvedPublished)?.media?.background).not.toHaveProperty(
+      "assetId",
+    );
+    expect(projectPublicProfile(resolvedPublished)?.media?.slideshow[0]).not.toHaveProperty("url");
 
     const draftOnly = {
-      ...published,
+      ...resolvedPublished,
       draft: {
         ...published.draft,
         media: {
@@ -142,10 +163,31 @@ describe("profile publication and public projection", () => {
         },
       },
     };
-    expect(projectPublicProfile(draftOnly)?.media).toEqual(published.published?.media);
+    expect(projectPublicProfile(draftOnly)?.media).toEqual(
+      projectPublicProfile(resolvedPublished)?.media,
+    );
     expect(
       projectPublicProfile({ ...profile(), draft: { ...draft, media } })?.media,
     ).toBeUndefined();
+  });
+
+  it("does not throw when comparing malformed media", () => {
+    const malformedDraft = {
+      ...draft,
+      media: null,
+    } as unknown as ProfileContent;
+    const malformedPublished = {
+      ...draft,
+      media: { heroHeight: 320, autoplay: true },
+      publishedAt: "first",
+    } as unknown as ProfileRecord["published"];
+    const malformedDraftValue = {
+      ...draft,
+      media: [null, { background: "invalid" }],
+    } as unknown as ProfileContent;
+
+    expect(() => hasUnpublishedChanges(malformedDraft, malformedPublished)).not.toThrow();
+    expect(() => hasUnpublishedChanges(malformedDraftValue, malformedPublished)).not.toThrow();
   });
 
   it("deeply isolates nested customization data in the published snapshot", () => {

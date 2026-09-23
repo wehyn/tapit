@@ -37,11 +37,11 @@ export interface PublicProfileMediaPresentation {
   autoplay: boolean;
 }
 
-export const DEFAULT_PROFILE_MEDIA: ProfileMediaPresentation = {
+export const DEFAULT_PROFILE_MEDIA = Object.freeze({
   heroHeight: DEFAULT_PROFILE_HERO_HEIGHT,
   autoplay: true,
-  slideshow: [],
-};
+  slideshow: Object.freeze([] as ProfileMediaImage[]),
+});
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -86,8 +86,9 @@ function validateImage(image: unknown, label: string): string[] {
   return errors;
 }
 
-export function validateProfileMedia(media: ProfileMediaPresentation | undefined): string[] {
-  if (media === undefined) return [];
+export function validateProfileMedia(media: unknown): string[] {
+  if (media === undefined || media === null) return [];
+  if (!isRecord(media)) return ["Profile media is invalid."];
   const errors: string[] = [];
   if (
     !isFiniteNumber(media.heroHeight) ||
@@ -177,25 +178,27 @@ export function normalizeProfileMedia(value: unknown): ProfileMediaPresentation 
     ...(background === undefined ? {} : { background }),
     heroHeight,
     slideshow,
-    autoplay: value.autoplay === undefined ? true : value.autoplay === true,
+    autoplay: typeof value.autoplay === "boolean" ? value.autoplay : true,
   };
 }
 
-export function stripProfileMediaUrls(media: ProfileMediaPresentation): ProfileMediaPresentation {
+export function stripProfileMediaUrls(media: unknown): ProfileMediaPresentation | undefined {
+  const normalized = normalizeProfileMedia(media);
+  if (normalized === undefined) return undefined;
   return {
-    ...(media.background === undefined
+    ...(normalized.background === undefined
       ? {}
       : {
           background: {
-            assetId: media.background.assetId,
-            altText: media.background.altText,
-            positionX: media.background.positionX,
-            positionY: media.background.positionY,
+            assetId: normalized.background.assetId,
+            altText: normalized.background.altText,
+            positionX: normalized.background.positionX,
+            positionY: normalized.background.positionY,
           },
         }),
-    heroHeight: media.heroHeight,
-    autoplay: media.autoplay,
-    slideshow: media.slideshow.map(({ assetId, altText }) => ({ assetId, altText })),
+    heroHeight: normalized.heroHeight,
+    autoplay: normalized.autoplay,
+    slideshow: normalized.slideshow.map(({ assetId, altText }) => ({ assetId, altText })),
   };
 }
 
