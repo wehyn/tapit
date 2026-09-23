@@ -25,6 +25,17 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await expect(page.getByRole("heading", { name: "Your links" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
   await expectNoA11yViolations(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(
+    page.getByRole("navigation", { name: "Your Tapit profile navigation" }),
+  ).toBeVisible();
+  await expectNoA11yViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Open navigation" })).toBeFocused();
+  await expectNoA11yViolations(page);
 });
 
 test("customer signup has no automated accessibility violations", async ({ page }) => {
@@ -41,5 +52,14 @@ test("administrator workspace has no automated accessibility violations", async 
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
   await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+  await expectNoA11yViolations(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/customers");
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await expect(page.getByRole("navigation", { name: "Tapit operations navigation" })).toBeVisible();
+  await expectNoA11yViolations(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Open navigation" })).toBeFocused();
   await expectNoA11yViolations(page);
 });

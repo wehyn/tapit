@@ -343,6 +343,7 @@ function DemoCardsManager() {
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
+        className="min-w-0"
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
         title="Register card URL"
       >
@@ -392,6 +393,7 @@ function DemoCardsManager() {
       </Panel>
 
       <Panel
+        className="min-w-0"
         description="Search registered URLs, tokens, and state. Inactive and replaced cards cannot be reactivated or reassigned."
         title="Card registry"
       >
@@ -412,7 +414,7 @@ function DemoCardsManager() {
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">
@@ -613,6 +615,7 @@ function DemoCardsManager() {
 
       {confirmation?.type === "replace" ? (
         <Panel
+          className="min-w-0"
           description={`The old ${confirmation.card.token} path will become replaced and the new card will remain assigned to its existing profile.`}
           title="Replacement card URL"
         >
@@ -772,6 +775,7 @@ function LiveCardsManager() {
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
+        className="min-w-0"
         description="Register pre-encoded URLs and manage assignments. All operations are checked and audited server-side."
         title="Register card URL"
       >
@@ -837,7 +841,11 @@ function LiveCardsManager() {
           </div>
         ) : null}
       </Panel>
-      <Panel description="Inactive and replaced cards cannot be reused." title="Card registry">
+      <Panel
+        className="min-w-0"
+        description="Inactive and replaced cards cannot be reused."
+        title="Card registry"
+      >
         <div className="mt-6 grid gap-2">
           {orderedCards.length === 0 ? (
             <Notice>No registered cards.</Notice>
@@ -847,7 +855,7 @@ function LiveCardsManager() {
               const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
               return (
                 <article
-                  className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+                  className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
                   key={card._id}
                 >
                   <details className="group">

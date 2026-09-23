@@ -9,16 +9,27 @@ import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { api } from "../../../convex/_generated/api";
 
-import { AppShell, type ShellNavItem } from "./AppShell";
+import { AppShell } from "./AppShell";
+import type { ShellNavGroup } from "./navigation";
 import { Button } from "../ui/Button";
 
-const adminNav: ShellNavItem[] = [
-  { href: "/admin/customers", label: "Customers" },
-  { href: "/admin/profiles", label: "Profiles" },
-  { href: "/admin/cards", label: "Cards" },
-  { href: "/admin/analytics", label: "Analytics" },
-  { href: "/admin/audit-log", label: "Audit log" },
-  { href: "/admin/settings", label: "Settings" },
+const adminNavGroups: ShellNavGroup[] = [
+  {
+    label: "Operations",
+    items: [
+      { href: "/admin/customers", label: "Customers", icon: "users" },
+      { href: "/admin/profiles", label: "Profiles", icon: "profiles" },
+      { href: "/admin/cards", label: "Cards", icon: "card" },
+      { href: "/admin/analytics", label: "Analytics", icon: "chart" },
+    ],
+  },
+  {
+    label: "Governance",
+    items: [
+      { href: "/admin/audit-log", label: "Audit log", icon: "audit" },
+      { href: "/admin/settings", label: "Settings", icon: "settings" },
+    ],
+  },
 ];
 
 const noHydrationSubscription = () => () => {};
@@ -56,22 +67,28 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppShell eyebrow="Administrator console" navItems={adminNav} title="Tapit operations">
-      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-2 pt-5 sm:px-8">
-        <p className="text-sm text-tapit-muted">
-          Signed in as <strong className="text-tapit-ink">{session.email}</strong>
-        </p>
-        <Button
-          onClick={() => {
-            clearDemoSession();
-            router.replace("/login");
-          }}
-          type="button"
-          variant="quiet"
-        >
-          Sign out
-        </Button>
-      </div>
+    <AppShell
+      eyebrow="Administrator console"
+      navGroups={adminNavGroups}
+      sidebarFooter={
+        <div className="space-y-3">
+          <p className="px-1 text-sm text-tapit-muted">
+            Signed in as <strong className="text-tapit-ink">{session.email}</strong>
+          </p>
+          <Button
+            onClick={() => {
+              clearDemoSession();
+              router.replace("/login");
+            }}
+            type="button"
+            variant="quiet"
+          >
+            Sign out
+          </Button>
+        </div>
+      }
+      title="Tapit operations"
+    >
       {children}
     </AppShell>
   );
@@ -104,19 +121,25 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AppShell eyebrow="Administrator console" navItems={adminNav} title="Tapit operations">
-      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 pb-2 pt-5 sm:px-8">
-        <p className="text-sm text-tapit-muted">Administrator workspace</p>
-        <Button
-          onClick={() => {
-            void signOut().finally(() => router.replace("/login"));
-          }}
-          type="button"
-          variant="quiet"
-        >
-          Sign out
-        </Button>
-      </div>
+    <AppShell
+      eyebrow="Administrator console"
+      navGroups={adminNavGroups}
+      sidebarFooter={
+        <div className="space-y-3">
+          <p className="px-1 text-sm text-tapit-muted">Administrator workspace</p>
+          <Button
+            onClick={() => {
+              void signOut().finally(() => router.replace("/login"));
+            }}
+            type="button"
+            variant="quiet"
+          >
+            Sign out
+          </Button>
+        </div>
+      }
+      title="Tapit operations"
+    >
       {children}
     </AppShell>
   );
