@@ -11,7 +11,7 @@
   --tapit-accent-strong: #0f5a4a;
   --tapit-accent-soft: #dcefe9;
   --tapit-danger: #a33c38;
-  --tapit-focus: #b86500;
+  --tapit-focus: var(--tapit-accent);
   --tapit-radius: 12px;
 }
 
