@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+/* eslint-disable @next/next/no-img-element -- Profile uploads already have explicit 192px/384px variants for native srcSet selection. */
 import {
   ArrowUpRight,
   CalendarDots,
@@ -112,12 +112,13 @@ export function PublicProfile({
             className={`flex flex-col ${preview ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
           >
             {profile.imageUrl ? (
-              <Image
+              <img
                 alt={`${profile.name} profile`}
                 className={`${preview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
                 height={96}
                 src={profile.imageUrl}
-                unoptimized
+                srcSet={profile.imageSrcSet}
+                sizes={profile.imageSrcSet ? "(min-width: 640px) 96px, 80px" : undefined}
                 width={96}
               />
             ) : (

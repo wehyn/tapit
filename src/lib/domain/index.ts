@@ -61,6 +61,7 @@ export interface PublicProfileProjection {
   name: string;
   bio?: string;
   imageUrl?: string;
+  imageSrcSet?: string;
   email?: string;
   phone?: string;
   website?: string;

@@ -6,6 +6,7 @@ import {
   missingLiveContract,
   readLiveAppContract,
   validateLiveContract,
+  verifyProfileImageCors,
 } from "./live-e2e-contract.mjs";
 
 function fail(message) {
@@ -140,6 +141,8 @@ if (preflightError) fail(preflightError);
 await startLocalServer();
 const appContractError = await readLiveAppContract(process.env);
 if (appContractError) fail(appContractError);
+const imageCorsError = await verifyProfileImageCors(process.env);
+if (imageCorsError) fail(imageCorsError);
 let exitCode = 0;
 try {
   const setup = await provision();

@@ -4,6 +4,7 @@ export const liveContractEnvNames = {
   baseURL: "TAPIT_LIVE_BASE_URL",
   appEnvironment: "TAPIT_LIVE_APP_ENV",
   convexURL: "TAPIT_LIVE_CONVEX_URL",
+  convexSiteURL: "NEXT_PUBLIC_CONVEX_SITE_URL",
   convexDeployment: "TAPIT_LIVE_CONVEX_DEPLOYMENT",
   adminEmail: "TAPIT_LIVE_ADMIN_EMAIL",
   adminPassword: "TAPIT_LIVE_ADMIN_PASSWORD",
@@ -25,6 +26,7 @@ const coreContractNames = [
   "baseURL",
   "appEnvironment",
   "convexURL",
+  "convexSiteURL",
   "convexDeployment",
   "adminEmail",
   "adminPassword",
@@ -93,6 +95,28 @@ export function validateLiveContract(
   if (convexURL.protocol !== "https:") {
     return "the selected live Convex URL must use HTTPS";
   }
+  if (!env.NEXT_PUBLIC_CONVEX_SITE_URL) {
+    return "NEXT_PUBLIC_CONVEX_SITE_URL is required for live image upload verification";
+  }
+  let convexSiteURL;
+  try {
+    convexSiteURL = new URL(env.NEXT_PUBLIC_CONVEX_SITE_URL);
+  } catch {
+    return "the Convex site URL must be a valid URL";
+  }
+  if (
+    !convexURL.hostname.endsWith(".convex.cloud") ||
+    convexSiteURL.protocol !== "https:" ||
+    convexSiteURL.hostname !== convexURL.hostname.replace(/\.convex\.cloud$/, ".convex.site") ||
+    convexSiteURL.port ||
+    convexSiteURL.pathname !== "/" ||
+    convexSiteURL.search ||
+    convexSiteURL.hash ||
+    convexSiteURL.username ||
+    convexSiteURL.password
+  ) {
+    return "the Convex site URL does not match the selected live Convex deployment";
+  }
   const localEmailCodeSink =
     emailCodeURL.hostname === "127.0.0.1" || emailCodeURL.hostname === "localhost";
   if (!localEmailCodeSink && emailCodeURL.protocol !== "https:") {
@@ -132,10 +156,22 @@ export function validateObservedLiveApp(expected, observed) {
   if (observed.appEnvironment === "production") {
     return "production app targets are not permitted";
   }
-  if (observed.convexUrl !== expected.TAPIT_LIVE_CONVEX_URL) {
+  if (!sameOrigin(observed.convexUrl, expected.TAPIT_LIVE_CONVEX_URL)) {
     return "the app's Convex URL does not match the selected live Convex URL";
   }
+  if (!sameOrigin(observed.convexSiteUrl, expected.NEXT_PUBLIC_CONVEX_SITE_URL)) {
+    return "the app's Convex site URL does not match the selected live site URL";
+  }
   return null;
+}
+
+function sameOrigin(actual, expected) {
+  if (typeof actual !== "string" || typeof expected !== "string") return false;
+  try {
+    return new URL(actual).origin === new URL(expected).origin;
+  } catch {
+    return false;
+  }
 }
 
 export async function readLiveAppContract(env) {
@@ -151,6 +187,36 @@ export async function readLiveAppContract(env) {
     return validateObservedLiveApp(env, observed);
   } catch {
     return "the live app contract could not be verified";
+  }
+}
+
+export async function verifyProfileImageCors(env, fetchImpl = fetch) {
+  let appOrigin;
+  try {
+    appOrigin = new URL(env.TAPIT_LIVE_BASE_URL).origin;
+  } catch {
+    return "the live app origin could not be derived for image CORS verification";
+  }
+  try {
+    const response = await fetchImpl(
+      `${env.NEXT_PUBLIC_CONVEX_SITE_URL.replace(/\/$/, "")}/profile-image-upload`,
+      {
+        method: "OPTIONS",
+        headers: {
+          Origin: appOrigin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers":
+            "authorization,content-type,x-profile-id,x-image-revision",
+        },
+        redirect: "error",
+      },
+    );
+    if (!response.ok || response.headers.get("Access-Control-Allow-Origin") !== appOrigin) {
+      return "the selected app origin is not allowed by the Convex profile-image upload CORS policy";
+    }
+    return null;
+  } catch {
+    return "the Convex profile-image upload CORS preflight could not be verified";
   }
 }
 
