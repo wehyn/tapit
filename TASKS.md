@@ -1,6 +1,6 @@
 # Shared Links Workspace UI Execution Ledger
 
-Source plan: `docs/plans/2026-09-17-20-04-shared-links-workspace-ui.md`
+Source plan: removed from the working tree during documentation cleanup; see Git history for the original plan.
 
 | ID    | Objective                                                                 | Owner                          | File/module scope                                                                                                   | Dependencies                         | Status | Acceptance checks                                                                          | Verification evidence                                                                                                                                                                                                   | Commit/branch       |
 | ----- | ------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
@@ -14,7 +14,7 @@ Source plan: `docs/plans/2026-09-17-20-04-shared-links-workspace-ui.md`
 
 ## Profile image upload hardening execution ledger
 
-Source plan: `docs/plans/2026-09-23-22-34-profile-image-upload-hardening.md`. Base revision: `1d3ce5b876c8e3ee1c8e0e6e6d714e1d5d4a0d8a` on `main`. The plan and `public/images/tapit-profile-card-cutout-v2.png` were untracked at start and must be preserved.
+Source plan: removed from the working tree during documentation cleanup; see Git history for the original plan. Base revision: `1d3ce5b876c8e3ee1c8e0e6e6d714e1d5d4a0d8a` on `main`. The untracked `public/images/tapit-profile-card-cutout-v2.png` remains preserved.
 
 | ID        | Objective                                      | Owner                                                              | File/module scope                                                  | Dependencies                                            | Status       | Acceptance checks                                             | Verification evidence                                                                                                                                      | Commit/branch |
 | --------- | ---------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------- | ------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
