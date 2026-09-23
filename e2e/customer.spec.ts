@@ -162,6 +162,32 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 
+test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  const photo = page.getByRole("img", { name: "Mara Velasquez profile" }).first();
+  const previousSource = await photo.getAttribute("src");
+  const imageInput = page.getByLabel("Profile photo or logo");
+  await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", previousSource ?? "");
+
+  await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
+
+  await imageInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
+});
+
 test("customer analytics and account controls stay scoped to the customer", async ({ page }) => {
   await signInAsCustomer(page);
   await page.getByRole("link", { name: "Analytics" }).click();

@@ -379,7 +379,11 @@ function LiveProfilesManager() {
     const profileId = profile._id;
     const draftToSave = currentDraft;
     try {
-      await save({ profileId, draft: draftToSave });
+      await save({
+        profileId,
+        draft: draftToSave,
+        expectedImageRevision: profile.imageRevision ?? 0,
+      });
       setMessage({ tone: "success", text: "Administrative draft changes saved." });
     } catch (error) {
       setMessage({
@@ -407,9 +411,13 @@ function LiveProfilesManager() {
     const draftToPublish = currentDraft;
     try {
       if (JSON.stringify(draftToPublish) !== JSON.stringify(profile.draft)) {
-        await save({ profileId, draft: draftToPublish });
+        await save({
+          profileId,
+          draft: draftToPublish,
+          expectedImageRevision: profile.imageRevision ?? 0,
+        });
       }
-      await publish({ profileId });
+      await publish({ profileId, expectedImageRevision: profile.imageRevision ?? 0 });
       setMessage({ tone: "success", text: "Profile published." });
     } catch (error) {
       setMessage({

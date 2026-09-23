@@ -382,11 +382,25 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 
 ### Image handling
 
-- Accept JPG, PNG, and WebP uploads up to 5 MB.
-- Provide basic crop and preview before saving.
-- Resize and optimize images into responsive sizes.
-- Store image references separately from profile records.
-- Exact storage retention and deletion behavior must follow the account-deletion policy.
+- Accept JPG, PNG, and WebP source uploads up to 5 MiB.
+- Provide a 1:1 crop and preview before saving; the browser sends exactly one
+  384×384 crop.
+- Store the 384×384 crop as the canonical large variant and generate a
+  192×192 responsive variant. Opaque crops are JPEG; crops containing alpha
+  remain PNG, without silently flattening transparent logos.
+- Enforce a combined maximum of 5 MiB for the large and small output files.
+- Store image references separately from profile records. A failed, cancelled,
+  or invalid upload preserves the existing image and reports an actionable
+  validation, upload, or service-failure state.
+- Abandoned upload blobs are eligible for bounded cleanup only after 24 hours
+  and only when they are unreferenced. This orphan grace period is separate
+  from the unresolved legal/account-deletion retention period, which remains a
+  launch decision.
+- Draft image references and upload records are returned only to the owning
+  account; public projections expose only published image URLs and never storage
+  IDs, upload-job records, or raw uploaded bytes. A direct storage URL is
+  reusable by anyone who obtains it; revocable draft media needs a separate
+  authenticated serving decision before production.
 
 ### Required integrations
 
@@ -527,8 +541,8 @@ The MVP is complete in scope when it provides:
 - **AC-010:** Given a customer adds an unsafe URL scheme, when they save the link, then Tapit rejects it with an actionable validation message.
 - **AC-011:** Given a customer has multiple enabled links, when they reorder them and publish, then visitors see the new order.
 - **AC-012:** Given a customer disables a link, when the profile is published, then the disabled link is not displayed publicly and is not counted as clickable.
-- **AC-013:** Given a customer uploads a JPG, PNG, or WebP image of no more than 5 MB, when they crop and save it, then Tapit stores an optimized responsive image.
-- **AC-014:** Given a customer uploads an unsupported or oversized image, when the upload is attempted, then Tapit rejects it without removing the existing image.
+- **AC-013:** Given a customer uploads a decodable JPG, PNG, or WebP source of no more than 5 MiB, when they apply a 1:1 crop and save it, then Tapit stores a 384×384 canonical crop and a 192×192 responsive variant, uses JPEG for opaque output or alpha-preserving PNG for transparent output, and rejects output whose combined size exceeds 5 MiB.
+- **AC-014:** Given a customer selects an unsupported, malformed, undecodable, zero-dimension, over-pixel-limit, oversized-source, or over-combined-output image, or a crop/upload encounters a validation, service, or authorization failure, when the upload is attempted, then Tapit reports an actionable failure and preserves the existing image and published state. Unreferenced partial upload blobs are eligible for cleanup after 24 hours; this rule does not resolve account-deletion retention.
 
 ### NFC, QR, and card administration
 

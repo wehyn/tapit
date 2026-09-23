@@ -589,7 +589,10 @@ export function LiveLinksEditorContent({
         setLinks(null);
         setRedirect(null);
       }
-      await publishMutation({ profileId: profile._id });
+      await publishMutation({
+        profileId: profile._id,
+        expectedImageRevision: profile.imageRevision ?? 0,
+      });
       setMessage({
         tone: "success",
         text: "Profile published. Your active card paths now show this version.",
