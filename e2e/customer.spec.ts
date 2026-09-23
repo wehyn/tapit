@@ -55,6 +55,46 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
+test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  const desktopNavigation = page.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  await expect(desktopNavigation).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Workspace" })).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
+  for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
+    await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/profile");
+  const openNavigation = page.getByRole("button", { name: "Open navigation" });
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
+  await openNavigation.click();
+  const drawerNavigation = page.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  await expect(drawerNavigation).toBeVisible();
+  await expect(
+    drawerNavigation.getByRole("link", { name: "Build card", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(openNavigation).toBeFocused();
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  await openNavigation.click();
+  await drawerNavigation.getByRole("link", { name: "Build card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/account\/build-card$/);
+  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+});
+
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
@@ -218,6 +258,32 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("navigation", { name: "Contact actions" })).toBeVisible();
   await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+});
+
+test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  const photo = page.getByRole("img", { name: "Mara Velasquez profile" }).first();
+  const previousSource = await photo.getAttribute("src");
+  const imageInput = page.getByLabel("Profile photo or logo");
+  await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", previousSource ?? "");
+
+  await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
+
+  await imageInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await expect(cropDialog).toHaveCount(0);
+  await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
 });
 
 test("customer analytics and account controls stay scoped to the customer", async ({ page }) => {

@@ -173,4 +173,33 @@ describe("LinksEditor controller boundaries", () => {
       destination: "https://www.harleystudio.com",
     });
   });
+
+  it("publishes live links against the image revision shown to the editor", async () => {
+    saveMutation.mockClear();
+    render(
+      createElement(LiveLinksEditorContent, {
+        profile: {
+          _id: "profile-1",
+          _creationTime: 1,
+          ownerId: "customer-1",
+          status: "draft",
+          imageRevision: 7,
+          draft: {
+            name: "Mara Velasquez",
+            slug: "mara-velasquez",
+            links: [{ id: "site", ...baseLink }],
+          },
+          createdAt: 1,
+          updatedAt: 1,
+        } as never,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await screen.findByText("Profile published. Your active card paths now show this version.");
+    expect(saveMutation).toHaveBeenCalledWith({
+      profileId: "profile-1",
+      expectedImageRevision: 7,
+    });
+  });
 });

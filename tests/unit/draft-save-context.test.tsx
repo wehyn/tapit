@@ -3,6 +3,7 @@ import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppShell } from "@/components/layout/AppShell";
+import type { ShellNavGroup } from "@/components/layout/navigation";
 import {
   DraftSaveProvider,
   useDraftSave,
@@ -51,6 +52,20 @@ function SaveButton({ handler }: { handler: DraftSaveHandler | null }) {
   );
 }
 
+const testNavGroups: ShellNavGroup[] = [
+  {
+    label: "Workspace",
+    items: [
+      { href: "/app/links", label: "Links", icon: "link" },
+      { href: "/app/account/build-card", label: "Build card", icon: "card" },
+    ],
+  },
+  {
+    label: "Personal",
+    items: [{ href: "/app/account", label: "Account", icon: "gear" }],
+  },
+];
+
 describe("DraftSaveProvider", () => {
   it("does not let a stale unregister clear the latest handler", async () => {
     const first = vi.fn<DraftSaveHandler>(async () => true);
@@ -83,14 +98,7 @@ describe("AppShell draft navigation", () => {
     usePathname.mockReturnValue("/app/account/build-card");
 
     render(
-      <AppShell
-        eyebrow="Customer workspace"
-        navItems={[
-          { href: "/app/account", label: "Account" },
-          { href: "/app/account/build-card", label: "Build card" },
-        ]}
-        title="Workspace"
-      >
+      <AppShell eyebrow="Customer workspace" navGroups={testNavGroups} title="Workspace">
         Content
       </AppShell>,
     );
@@ -120,7 +128,7 @@ describe("AppShell draft navigation", () => {
         <AppShell
           beforeNavigate={async () => useSave(save)}
           eyebrow="Customer workspace"
-          navItems={[{ href: "/app/links", label: "Links" }]}
+          navGroups={testNavGroups}
           title="Workspace"
         >
           Content
@@ -142,7 +150,7 @@ describe("AppShell draft navigation", () => {
         <AppShell
           beforeNavigate={async () => save()}
           eyebrow="Customer workspace"
-          navItems={[{ href: "/app/links", label: "Links" }]}
+          navGroups={testNavGroups}
           title="Workspace"
         >
           Content
@@ -165,7 +173,7 @@ describe("AppShell draft navigation", () => {
       <AppShell
         beforeNavigate={async () => save()}
         eyebrow="Customer workspace"
-        navItems={[{ href: "/app/links", label: "Links" }]}
+        navGroups={testNavGroups}
         title="Workspace"
       >
         Content
@@ -184,7 +192,12 @@ describe("AppShell draft navigation", () => {
       <AppShell
         beforeNavigate={async () => save()}
         eyebrow="Customer workspace"
-        navItems={[{ href: "https://example.com", label: "External" }]}
+        navGroups={[
+          {
+            label: "Workspace",
+            items: [{ href: "https://example.com", label: "External", icon: "link" }],
+          },
+        ]}
         title="Workspace"
       >
         Content
@@ -204,7 +217,7 @@ describe("AppShell draft navigation", () => {
         <AppShell
           beforeNavigate={async () => save()}
           eyebrow="Customer workspace"
-          navItems={[{ href: "/app/links", label: "Links" }]}
+          navGroups={testNavGroups}
           title="Workspace"
         >
           Content

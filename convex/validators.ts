@@ -102,6 +102,7 @@ export const publicProfileValidator = v.object({
   name: v.string(),
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
+  imageSrcSet: v.optional(v.string()),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),

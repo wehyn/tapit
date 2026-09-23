@@ -82,6 +82,7 @@ export default defineSchema({
     published: v.optional(publishedProfile),
     createdAt: v.number(),
     updatedAt: v.number(),
+    imageRevision: v.optional(v.number()),
     publishedAt: v.optional(v.number()),
     unpublishedAt: v.optional(v.number()),
     suspendedAt: v.optional(v.number()),
@@ -94,6 +95,7 @@ export default defineSchema({
   profileImages: defineTable({
     scope: v.optional(v.literal("demo")),
     storageId: v.id("_storage"),
+    smallStorageId: v.optional(v.id("_storage")),
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
     contentType: v.union(v.literal("image/jpeg"), v.literal("image/png"), v.literal("image/webp")),
@@ -101,8 +103,34 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_storageId", ["storageId"])
+    .index("by_smallStorageId", ["smallStorageId"])
     .index("by_profileId", ["profileId"])
     .index("by_scope", ["scope"]),
+  profileImageUploadJobs: defineTable({
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+    largeSha256: v.string(),
+    smallSha256: v.optional(v.string()),
+    largeStorageId: v.optional(v.id("_storage")),
+    smallStorageId: v.optional(v.id("_storage")),
+    expectedImageRevision: v.optional(v.number()),
+    status: v.union(v.literal("pending"), v.literal("attached"), v.literal("failed")),
+    createdAt: v.number(),
+    uploadWindowEndsAt: v.number(),
+    scanCursor: v.optional(v.string()),
+    scanLargeCandidateId: v.optional(v.id("_storage")),
+    scanSmallCandidateId: v.optional(v.id("_storage")),
+    scanLargeAmbiguous: v.optional(v.boolean()),
+    scanSmallAmbiguous: v.optional(v.boolean()),
+  })
+    .index("by_profileId", ["profileId"])
+    .index("by_profileId_and_status_and_uploadWindowEndsAt", [
+      "profileId",
+      "status",
+      "uploadWindowEndsAt",
+    ])
+    .index("by_status_and_uploadWindowEndsAt", ["status", "uploadWindowEndsAt"])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
   links: defineTable({
     scope: v.optional(v.literal("demo")),
     profileId: v.id("profiles"),

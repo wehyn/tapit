@@ -1,36 +1,34 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 
-import { Brand } from "./Brand";
-
-export type ShellNavItem = {
-  href: string;
-  label: string;
-};
+import { SidebarNav } from "./SidebarNav";
+import type { ShellNavGroup } from "./navigation";
 
 export function AppShell({
   children,
   eyebrow,
-  headerActions,
-  navItems,
+  mobileHeaderActions,
+  navGroups,
   beforeNavigate,
   showPageIntro = true,
+  sidebarFooter,
   title,
 }: {
   children: ReactNode;
   eyebrow: string;
-  headerActions?: ReactNode;
-  navItems: ShellNavItem[];
+  mobileHeaderActions?: ReactNode;
+  navGroups: ShellNavGroup[];
   beforeNavigate?: (href: string) => Promise<boolean>;
   showPageIntro?: boolean;
+  sidebarFooter?: ReactNode;
   title: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const activeHref = navItems
+  const activeHref = navGroups
+    .flatMap((group) => group.items)
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((left, right) => right.href.length - left.href.length)[0]?.href;
 
@@ -63,36 +61,16 @@ export function AppShell({
 
   return (
     <div className="min-h-[100dvh] bg-tapit-paper">
-      <header className="border-b border-tapit-line/80 bg-tapit-surface/95">
-        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center gap-x-10 gap-y-3 px-5 py-3 sm:px-8 sm:py-3">
-          <Brand showMark={false} />
-          <nav
-            aria-label={`${title} navigation`}
-            className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1 pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-          >
-            {navItems.map((item) => {
-              const active = item.href === activeHref;
-              return (
-                <Link
-                  aria-current={active ? "page" : undefined}
-                  className={`relative shrink-0 px-2 py-2 text-sm transition-colors after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-tapit-accent after:transition-transform ${
-                    active
-                      ? "font-semibold text-tapit-ink after:scale-x-100"
-                      : "text-tapit-muted after:scale-x-0 hover:text-tapit-ink hover:after:scale-x-100"
-                  }`}
-                  href={item.href}
-                  key={item.href}
-                  onClick={(event) => handleNavigation(event, item.href)}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-          {headerActions ? <div className="ml-auto flex items-center">{headerActions}</div> : null}
-        </div>
-      </header>
-      <main>
+      <SidebarNav
+        activeHref={activeHref}
+        eyebrow={eyebrow}
+        groups={navGroups}
+        mobileHeaderActions={mobileHeaderActions}
+        onNavigate={handleNavigation}
+        sidebarFooter={sidebarFooter}
+        title={title}
+      />
+      <main className="lg:ml-[285px] lg:[&_.fixed.inset-x-0]:left-[285px]">
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
             <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">

@@ -19,6 +19,7 @@ import {
   validateProfileSlugValue,
 } from "./validators";
 import { replaceProfileLinks } from "./links";
+import { IMAGE_REVISION_CONFLICT, IMAGE_UPLOAD_PENDING } from "./storage";
 
 export const publicBySlug = query({
   args: { slug: v.string() },
@@ -108,13 +109,21 @@ export const adminList = query({
 });
 
 export const saveDraft = mutation({
-  args: { profileId: v.id("profiles"), draft: profileContentValidator },
+  args: {
+    profileId: v.id("profiles"),
+    draft: profileContentValidator,
+    expectedImageRevision: v.optional(v.number()),
+  },
   returns: v.object({
     updatedAt: v.number(),
+    imageRevision: v.number(),
     customization: v.optional(profileCustomizationValidator),
   }),
   handler: async (ctx, args) => {
     const { profile } = await profileAccess(ctx, args.profileId);
+    const imageRevision = profile.imageRevision ?? 0;
+    if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
+      throw new Error(IMAGE_REVISION_CONFLICT);
     const normalizedSlug = normalizeProfileSlug(args.draft.slug);
     const draft = { ...args.draft, slug: normalizedSlug };
     if (profile.published !== undefined && profile.published.slug !== normalizedSlug) {
@@ -134,19 +143,24 @@ export const saveDraft = mutation({
       throw new Error("That profile slug is already in use.");
     const now = Date.now();
     delete draft.imageUrl;
-    if (draft.imageStorageId !== undefined)
-      await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, draft.imageStorageId);
+    if (
+      args.draft.imageStorageId !== undefined &&
+      args.draft.imageStorageId !== profile.draft.imageStorageId
+    )
+      await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, args.draft.imageStorageId);
+    draft.imageStorageId = profile.draft.imageStorageId;
     await ctx.db.patch(profile._id, { slug: normalizedSlug, draft, updatedAt: now });
     await replaceProfileLinks(ctx, profile._id, draft.links, now);
     return {
       updatedAt: now,
+      imageRevision,
       ...(draft.customization === undefined ? {} : { customization: draft.customization }),
     };
   },
 });
 
 export const publish = mutation({
-  args: { profileId: v.id("profiles") },
+  args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
   returns: v.object({
     name: v.string(),
     slug: v.string(),
@@ -172,6 +186,19 @@ export const publish = mutation({
   }),
   handler: async (ctx, args) => {
     const { profile, userId } = await profileAccess(ctx, args.profileId);
+    const imageRevision = profile.imageRevision ?? 0;
+    if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
+      throw new Error(IMAGE_REVISION_CONFLICT);
+    const pendingUpload = await ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (query) =>
+        query
+          .eq("profileId", profile._id)
+          .eq("status", "pending")
+          .gt("uploadWindowEndsAt", Date.now()),
+      )
+      .first();
+    if (pendingUpload !== null) throw new Error(IMAGE_UPLOAD_PENDING);
     const owner = await ctx.db.get(profile.ownerId);
     if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
     if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");

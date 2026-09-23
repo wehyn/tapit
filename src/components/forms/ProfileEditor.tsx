@@ -3,7 +3,8 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
 import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
@@ -28,7 +29,8 @@ import {
   updateDemoState,
 } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
-import { prepareProfileImage, validateProfileImageFile } from "@/lib/profile-image";
+import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
+import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
@@ -38,6 +40,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { MissingProfilePage } from "@/components/state/StatePage";
+import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -205,7 +208,16 @@ function DemoProfileEditor() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
-  const errors = (() => {
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [imagePending, setImagePending] = useState(false);
+  const imageRequestRef = useRef(0);
+  useEffect(
+    () => () => {
+      imageRequestRef.current += 1;
+    },
+    [],
+  );
+  const errors = useMemo(() => {
     const customer =
       session?.role === "customer"
         ? state.customers.find((candidate) => candidate.email === session.email)
@@ -234,7 +246,7 @@ function DemoProfileEditor() {
         ? ["Claim the attached card before publishing this profile."]
         : []),
     ];
-  })();
+  }, [draft, profile, session, state]);
   const preview = profileForPreview(draft, theme);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
@@ -268,6 +280,7 @@ function DemoProfileEditor() {
   }
 
   const saveDraft = useCallback(async () => {
+    if (cropFile !== null || imagePending) return false;
     if (!isDirty) return true;
     try {
       updateDemoState((current) =>
@@ -285,11 +298,12 @@ function DemoProfileEditor() {
       });
       return false;
     }
-  }, [draft, isDirty, profile.id, setMessage]);
+  }, [cropFile, draft, imagePending, isDirty, profile.id]);
 
   useDraftSaveRegistration(saveDraft);
 
   function publish() {
+    if (cropFile !== null || imagePending) return;
     if (errors.length > 0) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
@@ -383,44 +397,39 @@ function DemoProfileEditor() {
 
   function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
-      setImageError("Use a JPG, PNG, or WebP image.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      setImageError("Images must be 5 MB or smaller.");
-      return;
-    }
+    const validationError = validateProfileImageFile(file);
+    if (validationError) return setImageError(validationError);
     setImageError("");
-    const reader = new FileReader();
-    reader.onerror = () => setImageError("That image could not be read. Choose another file.");
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        setImageError("That image could not be converted. Choose another file.");
-        return;
-      }
-      const image = new Image();
-      image.onerror = () =>
-        setImageError("That image could not be converted. Choose another file.");
-      image.onload = () => {
-        try {
-          const maxSize = 1200;
-          const scale = Math.min(1, maxSize / Math.max(image.naturalWidth, image.naturalHeight));
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-          const context = canvas.getContext("2d");
-          if (!context) throw new Error("Canvas unavailable");
-          context.drawImage(image, 0, 0, canvas.width, canvas.height);
-          updateField("imageUrl", canvas.toDataURL("image/jpeg", 0.8));
-        } catch {
-          setImageError("That image could not be converted. Choose another file.");
-        }
-      };
-      image.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+    imageRequestRef.current += 1;
+    setCropFile(file);
+  }
+
+  async function applyDemoCrop(crop: Crop) {
+    if (cropFile === null || imagePending) return;
+    const requestId = imageRequestRef.current;
+    setImagePending(true);
+    try {
+      const prepared = await prepareProfileImageCrop(cropFile, crop);
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("That image could not be read. Try again."));
+        reader.onload = () =>
+          typeof reader.result === "string"
+            ? resolve(reader.result)
+            : reject(new Error("That image could not be converted. Try again."));
+        reader.readAsDataURL(prepared.blob);
+      });
+      if (requestId !== imageRequestRef.current) return;
+      updateField("imageUrl", dataUrl);
+      setCropFile(null);
+    } catch (error) {
+      if (requestId === imageRequestRef.current)
+        setImageError(error instanceof Error ? error.message : "The image crop failed. Try again.");
+    } finally {
+      if (requestId === imageRequestRef.current) setImagePending(false);
+    }
   }
 
   return (
@@ -467,12 +476,13 @@ function DemoProfileEditor() {
                         htmlFor="profile-image"
                       >
                         <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                        Change photo
+                        {imagePending ? "Preparing..." : "Change photo"}
                       </label>
                       <input
                         accept="image/jpeg,image/png,image/webp"
                         aria-label="Profile photo or logo"
                         className="sr-only"
+                        disabled={cropFile !== null || imagePending}
                         id="profile-image"
                         onChange={chooseImage}
                         type="file"
@@ -605,12 +615,22 @@ function DemoProfileEditor() {
             <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button disabled={!isDirty} onClick={saveDraft} type="button" variant="secondary">
+            <Button
+              disabled={!isDirty || cropFile !== null || imagePending}
+              onClick={() => void saveDraft()}
+              type="button"
+              variant="secondary"
+            >
               <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
               Save draft
             </Button>
             <Button
-              disabled={errors.length > 0 || publicationLabel === "Published"}
+              disabled={
+                errors.length > 0 ||
+                publicationLabel === "Published" ||
+                cropFile !== null ||
+                imagePending
+              }
               onClick={publish}
               type="button"
             >
@@ -620,6 +640,17 @@ function DemoProfileEditor() {
           </div>
         </div>
       </div>
+      {cropFile !== null ? (
+        <ProfileImageCropDialog
+          busy={imagePending}
+          file={cropFile}
+          onApply={(crop) => void applyDemoCrop(crop)}
+          onCancel={() => {
+            imageRequestRef.current += 1;
+            setCropFile(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -642,22 +673,29 @@ function LiveProfileEditorContent({
 }) {
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
-  const generateUploadUrl = useMutation(api.storage.generateUploadUrl);
-  const attachImage = useAction(api.storage.attachImage);
   const removeImage = useMutation(api.storage.removeImage);
+  const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [pending, setPending] = useState<"save" | "publish" | null>(null);
-  const [imagePending, setImagePending] = useState(false);
+  const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
-
+  const imageRequestRef = useRef(0);
   const liveProfile = profile;
+  const imageRevisionRef = useRef(liveProfile.imageRevision ?? 0);
+
+  useEffect(
+    () => () => {
+      imageRequestRef.current += 1;
+    },
+    [],
+  );
   const currentDraft = useMemo<ProfileContent>(
     () =>
       draft ?? {
@@ -720,7 +758,7 @@ function LiveProfileEditorContent({
     } else setCopyMessage(url);
   }
 
-  async function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
+  function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
@@ -729,42 +767,71 @@ function LiveProfileEditorContent({
       setImageError(validationError);
       return;
     }
-    setImagePending(true);
+    setImageError("");
+    imageRequestRef.current += 1;
+    setCropFile(file);
+  }
+
+  async function applyImageCrop(crop: Crop) {
+    if (cropFile === null || pending !== null) return;
+    const requestId = imageRequestRef.current;
+    setPending("image");
     setImageError("");
     try {
-      const prepared = await prepareProfileImage(file);
-      const uploadUrl = await generateUploadUrl({ profileId: liveProfile._id });
-      const response = await fetch(uploadUrl, {
+      if (authToken === null) throw new Error("Authentication is required to upload a photo.");
+      const prepared = await prepareProfileImageCrop(cropFile, crop);
+      if (requestId !== imageRequestRef.current) return;
+      const siteUrl = requirePairedConvexSiteUrl(
+        process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
+        process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
+      );
+      const response = await fetch(`${siteUrl}/profile-image-upload`, {
         method: "POST",
-        body: prepared,
-        headers: { "Content-Type": "image/jpeg" },
+        body: prepared.blob,
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": prepared.contentType,
+          "X-Image-Revision": String(imageRevisionRef.current),
+          "X-Profile-Id": liveProfile._id,
+        },
       });
-      if (!response.ok) throw new Error("The image upload failed. Choose another file.");
-      const responseData: unknown = await response.json();
-      const storageId = extractStorageId(responseData);
-      if (!storageId) throw new Error("The image upload response was invalid. Try again.");
-      const attached = await attachImage({ profileId: liveProfile._id, storageId });
+      if (!response.ok)
+        throw new Error((await response.text()) || "The image upload failed. Choose another file.");
+      const uploaded = parseImageUploadResponse(await response.json());
+      if (requestId !== imageRequestRef.current) return;
+      imageRevisionRef.current = uploaded.imageRevision;
       draftRevisionRef.current += 1;
-      setDraft((current) => ({
-        ...(current ?? currentDraft),
-        imageStorageId: attached.storageId,
-        imageUrl: attached.imageUrl,
-      }));
+      setDraft((current) => {
+        return {
+          ...(current ?? latestDraftRef.current),
+          imageStorageId: uploaded.storageId,
+          imageUrl: uploaded.imageUrl,
+        };
+      });
+      setCropFile(null);
     } catch (error) {
-      setImageError(error instanceof Error ? error.message : "The image upload failed. Try again.");
+      if (requestId === imageRequestRef.current)
+        setImageError(
+          error instanceof Error ? error.message : "The image upload failed. Try again.",
+        );
     } finally {
-      setImagePending(false);
+      if (requestId === imageRequestRef.current) setPending(null);
     }
   }
 
   async function clearImage() {
-    setImagePending(true);
+    if (pending !== null) return;
+    setPending("image");
     setImageError("");
     try {
-      await removeImage({ profileId: liveProfile._id });
+      const result = await removeImage({
+        profileId: liveProfile._id,
+        expectedImageRevision: imageRevisionRef.current,
+      });
+      imageRevisionRef.current = result.imageRevision;
       draftRevisionRef.current += 1;
       setDraft((current) => {
-        const next = { ...(current ?? currentDraft) };
+        const next = { ...(current ?? latestDraftRef.current) };
         delete next.imageStorageId;
         delete next.imageUrl;
         return next;
@@ -774,7 +841,7 @@ function LiveProfileEditorContent({
         error instanceof Error ? error.message : "The image could not be removed. Try again.",
       );
     } finally {
-      setImagePending(false);
+      setPending(null);
     }
   }
 
@@ -784,18 +851,21 @@ function LiveProfileEditorContent({
     return persistedDraft;
   }
 
-  async function saveDraft(): Promise<boolean> {
+  async function saveDraft(keepPublishPending = false): Promise<boolean> {
+    if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
     if (!isDirty) return true;
-    setPending("save");
+    setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
     try {
       let draftToSave = latestDraftRef.current;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
-        await saveDraftMutation({
+        const result = await saveDraftMutation({
           profileId: liveProfile._id,
           draft: draftForPersistence(draftToSave),
+          expectedImageRevision: imageRevisionRef.current,
         });
+        imageRevisionRef.current = result.imageRevision;
         const latestDraft = latestDraftRef.current;
         if (
           revisionAtStart === draftRevisionRef.current ||
@@ -818,7 +888,7 @@ function LiveProfileEditorContent({
       });
       return false;
     } finally {
-      setPending(null);
+      if (!keepPublishPending) setPending(null);
     }
   }
 
@@ -827,19 +897,18 @@ function LiveProfileEditorContent({
   });
 
   async function publish() {
-    if (errors.length > 0) {
+    if (errors.length > 0 || pending !== null || cropFile !== null) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
     }
     setPending("publish");
     setMessage(null);
     try {
-      if (isDirty)
-        await saveDraftMutation({
-          profileId: liveProfile._id,
-          draft: draftForPersistence(currentDraft),
-        });
-      await publishMutation({ profileId: liveProfile._id });
+      if (isDirty && !(await saveDraft(true))) return;
+      await publishMutation({
+        profileId: liveProfile._id,
+        expectedImageRevision: imageRevisionRef.current,
+      });
       setDraft(null);
       setMessage({
         tone: "success",
@@ -897,11 +966,11 @@ function LiveProfileEditorContent({
                         htmlFor="profile-image"
                       >
                         <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                        {imagePending ? "Uploading..." : "Change photo"}
+                        {pending === "image" ? "Uploading..." : "Change photo"}
                       </label>
                       {currentDraft.imageUrl ? (
                         <Button
-                          disabled={imagePending}
+                          disabled={pending !== null || cropFile !== null}
                           onClick={clearImage}
                           type="button"
                           variant="quiet"
@@ -913,7 +982,7 @@ function LiveProfileEditorContent({
                         accept="image/jpeg,image/png,image/webp"
                         aria-label="Profile photo or logo"
                         className="sr-only"
-                        disabled={imagePending}
+                        disabled={pending !== null || cropFile !== null}
                         id="profile-image"
                         onChange={chooseImage}
                         type="file"
@@ -1028,9 +1097,9 @@ function LiveProfileEditorContent({
           </span>
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={!isDirty}
+              disabled={!isDirty || pending !== null || cropFile !== null}
               loading={pending === "save"}
-              onClick={saveDraft}
+              onClick={() => void saveDraft()}
               type="button"
               variant="secondary"
             >
@@ -1038,7 +1107,12 @@ function LiveProfileEditorContent({
               Save draft
             </Button>
             <Button
-              disabled={errors.length > 0 || publicationLabel === "Published"}
+              disabled={
+                errors.length > 0 ||
+                publicationLabel === "Published" ||
+                pending !== null ||
+                cropFile !== null
+              }
               loading={pending === "publish"}
               onClick={publish}
               type="button"
@@ -1049,16 +1123,47 @@ function LiveProfileEditorContent({
           </div>
         </div>
       </div>
+      {cropFile !== null ? (
+        <ProfileImageCropDialog
+          busy={pending === "image"}
+          file={cropFile}
+          onApply={(crop) => void applyImageCrop(crop)}
+          onCancel={() => {
+            imageRequestRef.current += 1;
+            setCropFile(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
 
-function extractStorageId(value: unknown): Id<"_storage"> | null {
-  if (typeof value !== "object" || value === null || !("storageId" in value)) return null;
-  const storageId = (value as { storageId?: unknown }).storageId;
-  return typeof storageId === "string" && storageId.length > 0
-    ? (storageId as Id<"_storage">)
-    : null;
+function parseImageUploadResponse(value: unknown): {
+  storageId: Id<"_storage">;
+  imageUrl: string;
+  imageRevision: number;
+} {
+  if (typeof value !== "object" || value === null)
+    throw new Error("The image service returned an invalid response.");
+  const response = value as {
+    storageId?: unknown;
+    imageUrl?: unknown;
+    imageRevision?: unknown;
+  };
+  if (
+    typeof response.storageId !== "string" ||
+    response.storageId.length === 0 ||
+    typeof response.imageUrl !== "string" ||
+    response.imageUrl.length === 0 ||
+    !Number.isSafeInteger(response.imageRevision) ||
+    (response.imageRevision as number) < 0
+  )
+    throw new Error("The image service returned an invalid response.");
+  return {
+    storageId: response.storageId as Id<"_storage">,
+    imageUrl: response.imageUrl,
+    imageRevision: response.imageRevision as number,
+  };
 }
 
 function ProfileEditorLoading() {

@@ -9,5 +9,6 @@ export function GET() {
     mode: "live",
     appEnvironment: process.env.TAPIT_APP_ENV ?? null,
     convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL ?? null,
+    convexSiteUrl: process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? null,
   });
 }

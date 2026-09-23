@@ -133,6 +133,7 @@ describe("ProfileEditor customization seam", () => {
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     expect(mocks.saveDraft).toHaveBeenCalledWith({
+      expectedImageRevision: 0,
       profileId: "live-profile",
       draft: expect.objectContaining({
         customization: expect.objectContaining({
@@ -153,6 +154,7 @@ describe("ProfileEditor customization seam", () => {
     await user.click(screen.getByRole("button", { name: "Save draft" }));
 
     expect(mocks.saveDraft).toHaveBeenCalledWith({
+      expectedImageRevision: 0,
       profileId: "live-profile",
       draft: expect.objectContaining({ bio: undefined }),
     });

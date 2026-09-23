@@ -102,6 +102,7 @@ provisioning.
 TAPIT_LIVE_BASE_URL=https://non-production-app.example
 TAPIT_LIVE_APP_ENV=preview
 TAPIT_LIVE_CONVEX_URL=https://your-preview-deployment.convex.cloud
+NEXT_PUBLIC_CONVEX_SITE_URL=https://your-preview-deployment.convex.site
 TAPIT_LIVE_ADMIN_EMAIL=admin@example.test
 TAPIT_LIVE_ADMIN_PASSWORD=...
 TAPIT_LIVE_CUSTOMER_EMAIL=customer@example.test
@@ -192,12 +193,14 @@ the confirmation is absent. Missing administrator/customer identities, missing e
 or missing contract variables are blockers. Do not bypass them with direct Auth-table writes or production
 values. After the run, remove the temporary tunnel/provider route and stop the local adapter.
 
-The first customer journey also uploads `public/images/tapit-demo-mara-avatar.png` through the owned
-profile-image path. The browser receives a profile-scoped upload URL, posts the client-prepared JPEG, and
-finalizes it through the authenticated attach action. The image is visible in the customer preview and only
-appears in the signed-out slug/card projections after publication. Rejected formats and files over 5 MB leave
-the existing image unchanged; Convex Storage cleanup and the profile-image ownership mapping are exercised by
-the local Convex integration tests.
+The customer journey also crops `public/images/tapit-demo-mara-avatar.png`, cancels once to prove the current
+image is preserved, then applies and uploads a 384px crop in one bearer-authenticated request to the paired
+`.convex.site` HTTP action. Convex validates the decoded image, creates a 192px derivative, and atomically
+attaches the image set. The image is visible in the private customer preview and only appears in signed-out
+slug/card projections after publication, with `192w` and `384w` candidates. Rejected formats and files over
+5 MB leave the existing image unchanged. Local Convex integration tests cover reference-aware replacement,
+removal, deletion, and 24-hour abandoned-upload reconciliation; deployment HTTP/CORS and cleanup dry-run
+evidence still require this guarded flow against an explicitly selected non-production target.
 
 ## Local live build
 
@@ -207,10 +210,15 @@ use a local base URL and opt in explicitly:
 ```text
 TAPIT_LIVE_BASE_URL=http://127.0.0.1:3000
 TAPIT_LIVE_LOCAL_SERVER=true
+NEXT_PUBLIC_CONVEX_SITE_URL=https://your-preview-deployment.convex.site
 ```
 
 The live config then starts `npm run dev -- --hostname 127.0.0.1`. The Convex deployment used for
 provisioning remains the explicit `TAPIT_LIVE_CONVEX_DEPLOYMENT` target.
+The site URL must share the deployment hostname with `TAPIT_LIVE_CONVEX_URL` and the
+app's `NEXT_PUBLIC_CONVEX_URL`. The live preflight verifies the served app reports
+that paired site URL and confirms the selected app origin passes the upload route's
+`OPTIONS` CORS policy before any provisioning or image upload is attempted.
 
 For a remote live base URL, leave `TAPIT_LIVE_LOCAL_SERVER` unset or set it to a value other than `true`.
 The harness never starts a local Next.js server in that mode. Do not run both local-server workflows on the

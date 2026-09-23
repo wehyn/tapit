@@ -132,6 +132,31 @@ describe("public profile preview behavior", () => {
     expect(summary).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("lets the browser select a published image variant by rendered size", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          imageUrl: "https://images.example/large.png",
+          imageSrcSet:
+            "https://images.example/small.png 192w, https://images.example/large.png 384w",
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const image = screen.getByRole("img", { name: `${projection.name} profile` });
+    expect(image).toHaveAttribute(
+      "srcset",
+      "https://images.example/small.png 192w, https://images.example/large.png 384w",
+    );
+    expect(image).toHaveAttribute("sizes", "(min-width: 640px) 96px, 80px");
+    expect(image).toHaveAttribute("src", "https://images.example/large.png");
+  });
+
   it.each([
     ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "bg-[#3e806d]"],
     ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "bg-[#2c2420]"],

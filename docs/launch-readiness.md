@@ -33,6 +33,7 @@ Record the owner-approved value and an evidence link or dashboard reference for 
 | Launch jurisdiction and privacy notice location     | Jurisdiction and URL/path for the applicable notice                           |
 | Monitoring owner and alert destination              | Dashboard owner, alert channel, and response target                           |
 | Backup frequency, restore owner, and rollback owner | Schedule, named operators, restore target, and rollback authority             |
+| Abandoned-image cleanup alert owner and threshold   | Named owner, count/error threshold, alert destination, and response runbook  |
 | Final brand assets and public metadata              | Approved asset revision, title, description, and social preview values        |
 
 Current implementation decisions that still need owner/provider evidence:
@@ -101,6 +102,7 @@ behavior, or an unrecoverable data-integrity error. Never use the live E2E provi
 | Auth and email delivery         | Pending owner decision        | Pending alert channel             | Pending  |
 | Signup abuse and rate limiting  | Pending owner decision        | Pending alert channel             | Pending  |
 | Backup and restore execution    | Pending owner decision        | Pending escalation destination    | Pending  |
+| Profile-image orphan cleanup    | Pending owner decision        | Pending alert channel             | Count-only daily logs; threshold pending |
 | Release and incident comms      | Pending owner decision        | Pending escalation destination    | Pending  |
 
 ## Edge abuse-control record

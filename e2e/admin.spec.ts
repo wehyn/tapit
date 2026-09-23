@@ -16,6 +16,37 @@ async function signInAsCustomer(page: Page) {
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
 
+test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
+  await signInAsAdmin(page);
+
+  const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
+  await expect(desktopNavigation).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Operations" })).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Governance" })).toBeVisible();
+  for (const label of ["Customers", "Profiles", "Cards", "Analytics", "Audit log", "Settings"]) {
+    await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/admin/customers");
+  const openNavigation = page.getByRole("button", { name: "Open navigation" });
+  await openNavigation.click();
+  const drawerNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
+  await expect(drawerNavigation).toBeVisible();
+  await expect(
+    drawerNavigation.getByRole("link", { name: "Audit log", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await drawerNavigation.getByRole("link", { name: "Cards", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/cards$/);
+  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
 test("administrator can create and inspect a customer invitation", async ({ page }) => {
   await signInAsAdmin(page);
   await expect(page.getByRole("link", { name: "Customers" })).toBeVisible();
