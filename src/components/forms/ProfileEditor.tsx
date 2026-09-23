@@ -36,6 +36,7 @@ import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
+import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
 import { api } from "../../../convex/_generated/api";
@@ -66,6 +67,111 @@ function profileForPreview(draft: ProfileContent, legacyTheme?: ProfileTheme) {
 }
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
+
+type ProfileFieldChange = <K extends keyof ProfileContent>(
+  field: K,
+  value: ProfileContent[K],
+) => void;
+
+function ProfileIdentityForm({
+  draft,
+  imageContent,
+  message,
+  onboarding,
+  onChange,
+  onCopyUrl,
+  copyMessage,
+  slugLocked,
+}: {
+  draft: ProfileContent;
+  imageContent?: React.ReactNode;
+  message?: React.ReactNode;
+  onboarding?: React.ReactNode;
+  onChange: ProfileFieldChange;
+  onCopyUrl: () => void;
+  copyMessage: string;
+  slugLocked: boolean;
+}) {
+  return (
+    <Panel className="shadow-none" title="Profile identity">
+      <div className="mt-6 grid gap-5">
+        {message}
+        {onboarding}
+        {imageContent}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field
+            id="profile-name"
+            label="Name"
+            onChange={(event) => onChange("name", event.target.value)}
+            placeholder="e.g. Alex Morgan"
+            value={draft.name}
+          />
+          <TextareaField
+            id="profile-bio"
+            label="Bio or role"
+            help="A short introduction people can scan quickly."
+            maxLength={140}
+            onChange={(event) => onChange("bio", event.target.value || undefined)}
+            placeholder="e.g. Designer helping small teams"
+            value={draft.bio ?? ""}
+          />
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field
+            id="profile-email"
+            help="This appears as a contact option on your published profile."
+            label="Email"
+            onChange={(event) => onChange("email", event.target.value || undefined)}
+            placeholder="you@example.com"
+            type="email"
+            value={draft.email ?? ""}
+          />
+          <Field
+            id="profile-phone"
+            label="Phone"
+            onChange={(event) => onChange("phone", event.target.value || undefined)}
+            placeholder="+63 917 555 0184"
+            type="tel"
+            value={draft.phone ?? ""}
+          />
+          <Field
+            id="profile-website"
+            label="Website"
+            onChange={(event) => onChange("website", event.target.value || undefined)}
+            placeholder="https://yourwebsite.com"
+            type="url"
+            value={draft.website ?? ""}
+          />
+          <Field
+            disabled={slugLocked}
+            help={
+              slugLocked
+                ? "The slug is immutable after first publication."
+                : "Use lowercase letters, numbers, and hyphens."
+            }
+            id="profile-slug"
+            label="Stable profile slug"
+            onChange={(event) => onChange("slug", event.target.value)}
+            placeholder="alex-morgan"
+            value={draft.slug}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
+          <span className="font-semibold text-tapit-ink">Public URL</span>
+          <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
+            {typeof window === "undefined"
+              ? `/${draft.slug}`
+              : `${window.location.origin}/${draft.slug}`}
+          </code>
+          <Button onClick={onCopyUrl} type="button" variant="secondary">
+            <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
+            {copyMessage || "Copy"}
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
 
 function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; href: string }) {
   const onClick = useDraftSaveLink(href);
@@ -330,159 +436,107 @@ function DemoProfileEditor() {
             </p>
           </div>
         </div>
-        <Panel className="shadow-none" title="Profile identity">
-          <div className="mt-6 grid gap-5">
-            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-            {needsLinkOnboarding(draft, profile.published) ? (
-              <Notice>
-                Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
-                it.
-                <span className="mt-3 block">
-                  <DraftSaveButtonLink href="/app/links">Add your first link</DraftSaveButtonLink>
-                </span>
-              </Notice>
-            ) : null}
-            <div className="border-t border-tapit-line/70 pt-5">
-              <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-              <div className="mt-3 flex flex-wrap items-center gap-4">
-                <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-                  {draft.imageUrl ? (
-                    <NextImage
-                      alt={`${draft.name} profile`}
-                      className="size-full object-cover"
-                      height={80}
-                      src={draft.imageUrl}
-                      unoptimized
-                      width={80}
-                    />
-                  ) : (
-                    draft.name.slice(0, 1).toUpperCase()
-                  )}
+        <ProfileCustomizationEditor
+          customization={draft.customization}
+          errors={errors}
+          identityContent={
+            <ProfileIdentityForm
+              copyMessage={copyMessage}
+              draft={draft}
+              imageContent={
+                <div className="border-t border-tapit-line/70 pt-5">
+                  <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+                      {draft.imageUrl ? (
+                        <NextImage
+                          alt={`${draft.name} profile`}
+                          className="size-full object-cover"
+                          height={80}
+                          src={draft.imageUrl}
+                          unoptimized
+                          width={80}
+                        />
+                      ) : (
+                        draft.name.slice(0, 1).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <label
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+                        htmlFor="profile-image"
+                      >
+                        <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+                        Change photo
+                      </label>
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Profile photo or logo"
+                        className="sr-only"
+                        id="profile-image"
+                        onChange={chooseImage}
+                        type="file"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-tapit-muted">
+                        JPG, PNG, or WebP. Max 5 MB.
+                      </p>
+                    </div>
+                  </div>
+                  {imageError ? (
+                    <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+                      {imageError}
+                    </p>
+                  ) : null}
                 </div>
-                <div>
-                  <label
-                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-                    htmlFor="profile-image"
-                  >
-                    <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                    Change photo
-                  </label>
-                  <input
-                    accept="image/jpeg,image/png,image/webp"
-                    aria-label="Profile photo or logo"
-                    className="sr-only"
-                    id="profile-image"
-                    onChange={chooseImage}
-                    type="file"
+              }
+              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              onChange={updateField}
+              onCopyUrl={copyUrl}
+              onboarding={
+                needsLinkOnboarding(draft, profile.published) ? (
+                  <Notice>
+                    Your profile link is ready. Add a Portfolio, TikTok, or contact link, then
+                    publish it.
+                    <span className="mt-3 block">
+                      <DraftSaveButtonLink href="/app/links">
+                        Add your first link
+                      </DraftSaveButtonLink>
+                    </span>
+                  </Notice>
+                ) : null
+              }
+              slugLocked={slugLocked}
+            />
+          }
+          links={draft.links}
+          onChange={(customization) => updateField("customization", customization)}
+        />
+        {!draft.customization ? (
+          <Panel
+            className="shadow-none"
+            description="These controls stay deliberately small so every legacy theme remains readable."
+            title="Legacy appearance"
+          >
+            <div className="mt-6 grid gap-5 sm:grid-cols-3">
+              {(["paper", "moss", "night"] as const).map((themeOption) => (
+                <button
+                  aria-pressed={theme === themeOption}
+                  className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                  key={themeOption}
+                  onClick={() => chooseTheme(themeOption)}
+                  type="button"
+                >
+                  <span
+                    className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
                   />
-                  <p className="mt-2 text-xs leading-5 text-tapit-muted">
-                    JPG, PNG, or WebP. Max 5 MB.
-                  </p>
-                </div>
-              </div>
-              {imageError ? (
-                <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-                  {imageError}
-                </p>
-              ) : null}
+                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
+                    {themeOption}
+                  </span>
+                </button>
+              ))}
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                id="profile-name"
-                label="Name"
-                onChange={(event) => updateField("name", event.target.value)}
-                placeholder="e.g. Alex Morgan"
-                value={draft.name}
-              />
-              <TextareaField
-                id="profile-bio"
-                label="Bio or role"
-                help="A short introduction people can scan quickly."
-                maxLength={140}
-                onChange={(event) => updateField("bio", event.target.value)}
-                placeholder="e.g. Designer helping small teams"
-                value={draft.bio ?? ""}
-              />
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                id="profile-email"
-                help="This appears as a contact option on your published profile."
-                label="Email"
-                onChange={(event) => updateField("email", event.target.value || undefined)}
-                placeholder="you@example.com"
-                type="email"
-                value={draft.email ?? ""}
-              />
-              <Field
-                id="profile-phone"
-                label="Phone"
-                onChange={(event) => updateField("phone", event.target.value || undefined)}
-                placeholder="+63 917 555 0184"
-                type="tel"
-                value={draft.phone ?? ""}
-              />
-              <Field
-                id="profile-website"
-                label="Website"
-                onChange={(event) => updateField("website", event.target.value || undefined)}
-                placeholder="https://yourwebsite.com"
-                type="url"
-                value={draft.website ?? ""}
-              />
-              <Field
-                disabled={slugLocked}
-                help={
-                  slugLocked
-                    ? "The slug is immutable after first publication."
-                    : "Use lowercase letters, numbers, and hyphens."
-                }
-                id="profile-slug"
-                label="Stable profile slug"
-                onChange={(event) => updateField("slug", event.target.value)}
-                placeholder="alex-morgan"
-                value={draft.slug}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
-              <span className="font-semibold text-tapit-ink">Public URL</span>
-              <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
-                {typeof window === "undefined"
-                  ? `/${draft.slug}`
-                  : `${window.location.origin}/${draft.slug}`}
-              </code>
-              <Button onClick={copyUrl} type="button" variant="secondary">
-                <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
-                {copyMessage || "Copy"}
-              </Button>
-            </div>
-          </div>
-        </Panel>
-
-        <Panel
-          className="shadow-none"
-          description="These controls stay deliberately small so every theme remains readable."
-          title="Profile style"
-        >
-          <div className="mt-6 grid gap-5 sm:grid-cols-3">
-            {(["paper", "moss", "night"] as const).map((themeOption) => (
-              <button
-                aria-pressed={theme === themeOption}
-                className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                key={themeOption}
-                onClick={() => chooseTheme(themeOption)}
-                type="button"
-              >
-                <span
-                  className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
-                />
-                <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                  {themeOption}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Panel>
+          </Panel>
+        ) : null}
 
         <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
@@ -597,6 +651,7 @@ function LiveProfileEditorContent({
   const [pending, setPending] = useState<"save" | "publish" | null>(null);
   const [imagePending, setImagePending] = useState(false);
   const [imageError, setImageError] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
   useDraftSaveRegistration(registeredSave);
@@ -653,6 +708,16 @@ function LiveProfileEditorContent({
     draftRevisionRef.current += 1;
     setDraft((value_) => ({ ...(value_ ?? currentDraft), [field]: value }));
     setMessage(null);
+  }
+
+  function copyUrl() {
+    const url = `${window.location.origin}/${currentDraft.slug}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(
+        () => setCopyMessage("Copied"),
+        () => setCopyMessage(url),
+      );
+    } else setCopyMessage(url);
   }
 
   async function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
@@ -801,151 +866,117 @@ function LiveProfileEditorContent({
             Edit your details and see how your profile looks to others.
           </p>
         </div>
-        <Panel className="shadow-none" title="Profile identity">
-          <div className="mt-6 grid gap-5">
-            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-            {needsLinkOnboarding(currentDraft, publishedForValidation) ? (
-              <Notice>
-                Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish
-                it.
-                <span className="mt-3 block">
-                  <DraftSaveButtonLink href="/app/links">Add your first link</DraftSaveButtonLink>
-                </span>
-              </Notice>
-            ) : null}
-            <div className="border-t border-tapit-line/70 pt-5">
-              <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-              <div className="mt-3 flex flex-wrap items-center gap-4">
-                <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-                  {currentDraft.imageUrl ? (
-                    <NextImage
-                      alt={`${currentDraft.name} profile`}
-                      className="size-full object-cover"
-                      height={80}
-                      src={currentDraft.imageUrl}
-                      unoptimized
-                      width={80}
-                    />
-                  ) : (
-                    currentDraft.name.slice(0, 1).toUpperCase()
-                  )}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <label
-                    className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-                    htmlFor="profile-image"
-                  >
-                    <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                    {imagePending ? "Uploading..." : "Change photo"}
-                  </label>
-                  {currentDraft.imageUrl ? (
-                    <Button
-                      disabled={imagePending}
-                      onClick={clearImage}
-                      type="button"
-                      variant="quiet"
-                    >
-                      Remove photo
-                    </Button>
+        <ProfileCustomizationEditor
+          customization={currentDraft.customization}
+          errors={errors}
+          identityContent={
+            <ProfileIdentityForm
+              copyMessage={copyMessage}
+              draft={currentDraft}
+              imageContent={
+                <div className="border-t border-tapit-line/70 pt-5">
+                  <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+                  <div className="mt-3 flex flex-wrap items-center gap-4">
+                    <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+                      {currentDraft.imageUrl ? (
+                        <NextImage
+                          alt={`${currentDraft.name} profile`}
+                          className="size-full object-cover"
+                          height={80}
+                          src={currentDraft.imageUrl}
+                          unoptimized
+                          width={80}
+                        />
+                      ) : (
+                        currentDraft.name.slice(0, 1).toUpperCase()
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label
+                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+                        htmlFor="profile-image"
+                      >
+                        <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+                        {imagePending ? "Uploading..." : "Change photo"}
+                      </label>
+                      {currentDraft.imageUrl ? (
+                        <Button
+                          disabled={imagePending}
+                          onClick={clearImage}
+                          type="button"
+                          variant="quiet"
+                        >
+                          Remove photo
+                        </Button>
+                      ) : null}
+                      <input
+                        accept="image/jpeg,image/png,image/webp"
+                        aria-label="Profile photo or logo"
+                        className="sr-only"
+                        disabled={imagePending}
+                        id="profile-image"
+                        onChange={chooseImage}
+                        type="file"
+                      />
+                      <p className="basis-full text-xs leading-5 text-tapit-muted">
+                        JPG, PNG, or WebP. Max 5 MB.
+                      </p>
+                    </div>
+                  </div>
+                  {imageError ? (
+                    <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+                      {imageError}
+                    </p>
                   ) : null}
-                  <input
-                    accept="image/jpeg,image/png,image/webp"
-                    aria-label="Profile photo or logo"
-                    className="sr-only"
-                    disabled={imagePending}
-                    id="profile-image"
-                    onChange={chooseImage}
-                    type="file"
-                  />
-                  <p className="basis-full text-xs leading-5 text-tapit-muted">
-                    JPG, PNG, or WebP. Max 5 MB.
-                  </p>
                 </div>
-              </div>
-              {imageError ? (
-                <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-                  {imageError}
-                </p>
-              ) : null}
+              }
+              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              onChange={updateField}
+              onCopyUrl={copyUrl}
+              onboarding={
+                needsLinkOnboarding(currentDraft, publishedForValidation) ? (
+                  <Notice>
+                    Your profile link is ready. Add a Portfolio, TikTok, or contact link, then
+                    publish it.
+                    <span className="mt-3 block">
+                      <DraftSaveButtonLink href="/app/links">
+                        Add your first link
+                      </DraftSaveButtonLink>
+                    </span>
+                  </Notice>
+                ) : null
+              }
+              slugLocked={slugLocked}
+            />
+          }
+          links={currentDraft.links}
+          onChange={(customization) => updateField("customization", customization)}
+        />
+        {!currentDraft.customization ? (
+          <Panel className="shadow-none" title="Legacy appearance">
+            <p className="mt-5 text-sm leading-6 text-tapit-muted">
+              This profile keeps its existing appearance until you opt into Warm Studio.
+            </p>
+            <div className="mt-5 grid gap-5 sm:grid-cols-3">
+              {(["paper", "moss", "night"] as const).map((option) => (
+                <button
+                  aria-pressed={theme === option}
+                  className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                  key={option}
+                  onClick={() => updateField("theme", option)}
+                  type="button"
+                >
+                  <span
+                    className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                  />
+                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
+                    {option}
+                  </span>
+                </button>
+              ))}
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                id="profile-name"
-                label="Name"
-                onChange={(event) => updateField("name", event.target.value)}
-                placeholder="e.g. Alex Morgan"
-                value={currentDraft.name}
-              />
-              <TextareaField
-                id="profile-bio"
-                label="Bio or role"
-                help="A short introduction people can scan quickly."
-                maxLength={140}
-                onChange={(event) => updateField("bio", event.target.value || undefined)}
-                placeholder="e.g. Designer helping small teams"
-                value={currentDraft.bio ?? ""}
-              />
-              <Field
-                id="profile-email"
-                help="This appears as a contact option on your published profile."
-                label="Email"
-                onChange={(event) => updateField("email", event.target.value || undefined)}
-                placeholder="you@example.com"
-                type="email"
-                value={currentDraft.email ?? ""}
-              />
-              <Field
-                id="profile-phone"
-                label="Phone"
-                onChange={(event) => updateField("phone", event.target.value || undefined)}
-                placeholder="+63 917 555 0184"
-                type="tel"
-                value={currentDraft.phone ?? ""}
-              />
-              <Field
-                id="profile-website"
-                label="Website"
-                onChange={(event) => updateField("website", event.target.value || undefined)}
-                placeholder="https://yourwebsite.com"
-                type="url"
-                value={currentDraft.website ?? ""}
-              />
-              <Field
-                disabled={slugLocked}
-                help={
-                  slugLocked
-                    ? "The slug is immutable after first publication."
-                    : "Use lowercase letters, numbers, and hyphens."
-                }
-                id="profile-slug"
-                label="Stable profile slug"
-                onChange={(event) => updateField("slug", event.target.value)}
-                placeholder="alex-morgan"
-                value={currentDraft.slug}
-              />
-            </div>
-          </div>
-        </Panel>
-        <Panel className="shadow-none" title="Profile style">
-          <div className="mt-6 grid gap-5 sm:grid-cols-3">
-            {(["paper", "moss", "night"] as const).map((option) => (
-              <button
-                aria-pressed={theme === option}
-                className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                key={option}
-                onClick={() => updateField("theme", option)}
-                type="button"
-              >
-                <span
-                  className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
-                />
-                <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                  {option}
-                </span>
-              </button>
-            ))}
-          </div>
-        </Panel>
+          </Panel>
+        ) : null}
         <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <StatusBadge status={profile.status} />{" "}
