@@ -1,11 +1,45 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function signInAsCustomer(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("mara@example.test");
-  await page.getByLabel("Password").fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/profile$/);
+import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+
+async function prepareLegacyMaraProfile(page: Page) {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Legacy profile migration test.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo state to be persisted before legacy setup.");
+    const state = JSON.parse(raw);
+    const customer = state.customers.find(
+      (candidate: { email?: string }) => candidate.email === "mara@example.test",
+    );
+    const stripCustomization = (profile: {
+      id?: string;
+      draft?: object;
+      published?: object | null;
+    }) => {
+      if (profile.id !== customer?.profileId) return profile;
+      const draft = { ...profile.draft } as { customization?: unknown };
+      delete draft.customization;
+      const next = { ...profile, draft } as typeof profile & { published?: object | null };
+      if (profile.published) {
+        const published = { ...profile.published } as { customization?: unknown };
+        delete published.customization;
+        next.published = published;
+      }
+      return next;
+    };
+    state.profiles = state.profiles.map(stripCustomization);
+    state.profile = stripCustomization(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await signInAsCustomer(page);
 }
 
 test("customer build card stays inside the authenticated workspace", async ({ page }) => {
@@ -120,6 +154,70 @@ test("customer drafts stay private until link and profile publication", async ({
   await page.goto("/mara-velasquez");
   await expect(page.getByText("A private draft bio")).toBeVisible();
   await expect(page.getByText("Private note")).toHaveCount(0);
+});
+
+test("customer customization drafts stay private until the profile is published", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await page.goto("/app/profile");
+  await page.getByRole("radio", { name: "Warm Studio" }).check();
+  await page.getByRole("radio", { name: "Editorial" }).check();
+  await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
+  await page.getByRole("radio", { name: "About", exact: true }).check();
+  await page.getByLabel("About copy").fill("A private draft introduction.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByText("A private draft introduction.")).toHaveCount(0);
+  const bookingLink = page.getByRole("link", { name: "Book a conversation" });
+  await expect(bookingLink).toBeVisible();
+  await expect(bookingLink).not.toHaveAttribute("data-featured", "true");
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  const aboutDisclosure = page.locator("summary").filter({ hasText: "About" });
+  await expect(aboutDisclosure).toHaveAttribute("aria-expanded", "false");
+  await aboutDisclosure.focus();
+  await expect(aboutDisclosure).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(aboutDisclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("A private draft introduction.")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Email" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Book a conversation" })).toHaveAttribute(
+    "data-featured",
+    "true",
+  );
+});
+
+test("legacy profiles opt into Warm Studio before the new presentation is published", async ({
+  page,
+}) => {
+  await prepareLegacyMaraProfile(page);
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("navigation", { name: "Contact actions" })).toHaveCount(0);
+
+  await page.goto("/app/profile");
+  await expect(page.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
+  await page.getByRole("button", { name: "Use Warm Studio" }).click();
+  await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("navigation", { name: "Contact actions" })).toBeVisible();
+  await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
 });
 
 test("customer analytics and account controls stay scoped to the customer", async ({ page }) => {
