@@ -21,6 +21,46 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
+test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  const desktopNavigation = page.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  await expect(desktopNavigation).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Workspace" })).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
+  for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
+    await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/app/profile");
+  const openNavigation = page.getByRole("button", { name: "Open navigation" });
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
+  await openNavigation.click();
+  const drawerNavigation = page.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  await expect(drawerNavigation).toBeVisible();
+  await expect(
+    drawerNavigation.getByRole("link", { name: "Build card", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(openNavigation).toBeFocused();
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
+  await openNavigation.click();
+  await drawerNavigation.getByRole("link", { name: "Build card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/account\/build-card$/);
+  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+});
+
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();

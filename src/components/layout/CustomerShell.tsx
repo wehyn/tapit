@@ -5,19 +5,28 @@ import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 
-import { AppShell, type ShellNavItem } from "./AppShell";
+import { AppShell } from "./AppShell";
 import { DraftSaveProvider, useDraftSave } from "./DraftSaveContext";
+import type { ShellNavGroup } from "./navigation";
 import { Button } from "../ui/Button";
 import { clearDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { api } from "../../../convex/_generated/api";
 
-const customerNav: ShellNavItem[] = [
-  { href: "/app/profile", label: "Profile" },
-  { href: "/app/links", label: "Links" },
-  { href: "/app/account/build-card", label: "Build card" },
-  { href: "/app/analytics", label: "Analytics" },
-  { href: "/app/account", label: "Account" },
+const customerNavGroups: ShellNavGroup[] = [
+  {
+    label: "Workspace",
+    items: [
+      { href: "/app/profile", label: "Profile", icon: "user" },
+      { href: "/app/links", label: "Links", icon: "link" },
+      { href: "/app/account/build-card", label: "Build card", icon: "card" },
+      { href: "/app/analytics", label: "Analytics", icon: "chart" },
+    ],
+  },
+  {
+    label: "Personal",
+    items: [{ href: "/app/account", label: "Account", icon: "gear" }],
+  },
 ];
 
 const noHydrationSubscription = () => () => {};
@@ -86,20 +95,23 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow="Customer workspace"
-      headerActions={
-        <Button
-          onClick={() => {
-            clearDemoSession();
-            router.replace("/login");
-          }}
-          variant="quiet"
-          type="button"
-        >
-          Sign out
-        </Button>
-      }
-      navItems={customerNav}
+      navGroups={customerNavGroups}
       showPageIntro={false}
+      sidebarFooter={
+        <div className="space-y-3">
+          <p className="px-1 text-sm text-tapit-muted">{customer.email}</p>
+          <Button
+            onClick={() => {
+              clearDemoSession();
+              router.replace("/login");
+            }}
+            variant="quiet"
+            type="button"
+          >
+            Sign out
+          </Button>
+        </div>
+      }
       title="Your Tapit profile"
     >
       {children}
@@ -139,19 +151,22 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow="Customer workspace"
-      headerActions={
-        <Button
-          onClick={() => {
-            void signOut().finally(() => router.replace("/login"));
-          }}
-          variant="quiet"
-          type="button"
-        >
-          Sign out
-        </Button>
-      }
-      navItems={customerNav}
+      navGroups={customerNavGroups}
       showPageIntro={false}
+      sidebarFooter={
+        <div className="space-y-3">
+          <p className="px-1 text-sm text-tapit-muted">Customer workspace</p>
+          <Button
+            onClick={() => {
+              void signOut().finally(() => router.replace("/login"));
+            }}
+            variant="quiet"
+            type="button"
+          >
+            Sign out
+          </Button>
+        </div>
+      }
       title="Your Tapit profile"
     >
       {children}
