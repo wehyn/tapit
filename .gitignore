@@ -11,11 +11,6 @@
 /.playwright-cli
 /.superpowers/
 
-# agent-only planning artifacts
-/docs/plans/
-/docs/superpowers/
-/docs/premium-ui-redesign-plan.md
-
 # next.js
 /.next/
 /out/
