@@ -24,6 +24,7 @@ const MAX_PROFILE_FIELD_LENGTH = 320;
 const MAX_LINK_ID_LENGTH = 160;
 const MAX_LINK_LABEL_LENGTH = 120;
 const MAX_DESTINATION_LENGTH = 2048;
+const WEBSITE_ERROR = "A profile website must be a valid HTTPS URL without credentials.";
 
 export const linkIconValidator = v.union(
   v.literal("link"),
@@ -144,6 +145,21 @@ export function validateRedirectDestination(destination: string): string | null 
   return isSafeRedirectDestination(destination) ? null : REDIRECT_DESTINATION_ERROR;
 }
 
+function isSafeWebsite(website: string): boolean {
+  if (!website.trim()) return true;
+  try {
+    const parsed = new URL(website);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.length > 0 &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeProfileSlug(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -207,6 +223,7 @@ export function validateDraftSafety(content: {
     if (field !== undefined && fieldTooLong(field, MAX_PROFILE_FIELD_LENGTH))
       errors.push("A profile field is too long.");
   }
+  if (content.website !== undefined && !isSafeWebsite(content.website)) errors.push(WEBSITE_ERROR);
   errors.push(
     ...validateProfileCustomization(
       content.customization as Parameters<typeof validateProfileCustomization>[0],

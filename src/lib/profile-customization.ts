@@ -39,6 +39,39 @@ export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
   contentOrder: "links-first",
 };
 
+/** Returns only a complete, render-safe customization object from runtime data. */
+export function normalizeProfileCustomization(value: unknown): ProfileCustomization | undefined {
+  if (
+    !isRecord(value) ||
+    validateProfileCustomization(value as unknown as ProfileCustomization).length > 0
+  ) {
+    return undefined;
+  }
+
+  const normalized: ProfileCustomization = {
+    preset: "warm-studio",
+    accent: value.accent as ProfileAccent,
+    typeScale: value.typeScale as ProfileTypeScale,
+    linkTreatment: value.linkTreatment as ProfileLinkTreatment,
+    contentOrder: value.contentOrder as ProfileContentOrder,
+  };
+  if (typeof value.featuredLinkId === "string") normalized.featuredLinkId = value.featuredLinkId;
+  if (isRecord(value.section)) {
+    if (value.section.kind === "about") {
+      normalized.section = { kind: "about", body: value.section.body as string };
+    } else {
+      normalized.section = {
+        kind: "services",
+        body: value.section.body as string,
+        ...(value.section.items === undefined
+          ? {}
+          : { items: [...(value.section.items as string[])] }),
+      };
+    }
+  }
+  return normalized;
+}
+
 export function resolveProfileAppearance(
   customization: ProfileCustomization | undefined,
 ): ResolvedProfileAppearance {
@@ -143,7 +176,10 @@ function httpsWebsite(value: unknown): string | undefined {
   if (value.trim().length === 0) return undefined;
   try {
     const url = new URL(value);
-    return url.protocol.toLowerCase() === "https:" && url.hostname.length > 0
+    return url.protocol.toLowerCase() === "https:" &&
+      url.hostname.length > 0 &&
+      url.username.length === 0 &&
+      url.password.length === 0
       ? value.trim()
       : undefined;
   } catch {

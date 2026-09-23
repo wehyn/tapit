@@ -58,6 +58,15 @@ describe("profile publication and public projection", () => {
     }
   });
 
+  it("rejects credential-bearing profile websites during publication", () => {
+    expect(() =>
+      publishProfile(
+        { ...profile(), draft: { ...draft, website: "https://user:password@example.com" } },
+        "now",
+      ),
+    ).toThrow("A profile website must be a valid HTTPS URL without credentials.");
+  });
+
   it("allows missing or disabled redirects, but validates enabled redirects", () => {
     expect(validateProfileRedirect(undefined)).toBeNull();
     expect(validateProfileRedirect({ enabled: false, destination: "" })).toBeNull();

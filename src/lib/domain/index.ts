@@ -1,7 +1,11 @@
 /** Shared, persistence-agnostic domain rules for profiles, links, cards, and access. */
 
 import type { Id } from "../../../convex/_generated/dataModel";
-import { type ProfileCustomization, validateProfileCustomization } from "../profile-customization";
+import {
+  normalizeProfileCustomization,
+  type ProfileCustomization,
+  validateProfileCustomization,
+} from "../profile-customization";
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
@@ -114,6 +118,7 @@ export type AccountStatus = "invited" | "active" | "deleted";
 const LINK_SCHEMES = new Set(["https:", "mailto:", "tel:"]);
 const INVALID_REDIRECT_DESTINATION =
   "Redirect destination must be a valid HTTPS URL without credentials.";
+const INVALID_WEBSITE = "A profile website must be a valid HTTPS URL without credentials.";
 
 function nonblank(value: string): boolean {
   return value.trim().length > 0;
@@ -203,6 +208,21 @@ export function validateProfileRedirect(redirect: ProfileRedirect | undefined): 
   return validateRedirectDestination(redirect.destination);
 }
 
+function validateWebsite(website: string | undefined): string | null {
+  if (website === undefined || !nonblank(website)) return null;
+  try {
+    const parsed = new URL(website);
+    return parsed.protocol.toLowerCase() === "https:" &&
+      nonblank(parsed.hostname) &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+      ? null
+      : INVALID_WEBSITE;
+  } catch {
+    return INVALID_WEBSITE;
+  }
+}
+
 export function validatePublicationAccess(
   profileStatus: ProfileStatus,
   accountStatus: AccountStatus | undefined,
@@ -272,6 +292,8 @@ export function validatePublication(
   }
   const redirectError = validateProfileRedirect(draft.redirect);
   if (redirectError !== null) errors.push(redirectError);
+  const websiteError = validateWebsite(draft.website);
+  if (websiteError !== null) errors.push(websiteError);
   errors.push(...validateProfileCustomization(draft.customization, draft.links));
   return errors;
 }
@@ -345,9 +367,9 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(snapshot.phone === undefined ? {} : { phone: snapshot.phone }),
     ...(snapshot.website === undefined ? {} : { website: snapshot.website }),
     theme: snapshot.theme ?? "paper",
-    ...(snapshot.customization === undefined
+    ...(normalizeProfileCustomization(snapshot.customization) === undefined
       ? {}
-      : { customization: structuredClone(snapshot.customization) }),
+      : { customization: normalizeProfileCustomization(snapshot.customization) }),
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }

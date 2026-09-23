@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LinkIcon } from "@/lib/domain";
 import { PublicProfile } from "../../src/components/profile/PublicProfile";
@@ -32,6 +32,12 @@ describe("public profile preview behavior", () => {
 
     const before = JSON.stringify(getDemoState().analytics);
     fireEvent.click(screen.getByRole("link", { name: "Portfolio" }));
+    const contactEmail = screen
+      .getByRole("navigation", { name: "Contact actions" })
+      .querySelector('a[href="mailto:mara@example.test"]');
+    if (contactEmail === null) throw new Error("The contact email action is missing.");
+    contactEmail.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(contactEmail);
 
     expect(JSON.stringify(getDemoState().analytics)).toBe(before);
   });
@@ -61,5 +67,334 @@ describe("public profile preview behavior", () => {
     );
 
     expect(screen.getByRole("link", { name: "Malformed icon" })).toBeVisible();
+  });
+
+  it("renders the Warm Studio presentation from the public projection", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: "hello@example.com",
+          phone: "+1 555 0100",
+          website: "https://example.com",
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "editorial",
+            linkTreatment: "outlined",
+            contentOrder: "section-first",
+            featuredLinkId: "portfolio",
+            section: { kind: "about", body: "A short studio introduction." },
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(
+      screen
+        .getByRole("navigation", { name: "Contact actions" })
+        .querySelector('a[href="mailto:hello@example.com"]'),
+    ).toHaveAttribute("href", "mailto:hello@example.com");
+    expect(
+      screen
+        .getByRole("navigation", { name: "Contact actions" })
+        .querySelector('a[href="tel:+1 555 0100"]'),
+    ).toHaveAttribute("href", "tel:+1 555 0100");
+    expect(
+      screen
+        .getByRole("navigation", { name: "Contact actions" })
+        .querySelector('a[href="https://example.com"]'),
+    ).toHaveAttribute("href", "https://example.com");
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
+      "data-featured",
+      "true",
+    );
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
+      "border-[#a84431]",
+      "bg-transparent",
+    );
+    expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
+      "border-[#a84431]",
+      "bg-transparent",
+      "text-[#a84431]",
+    );
+    const summary = screen.getByText("About").closest("summary");
+    if (summary === null) throw new Error("The About disclosure summary is missing.");
+    expect(summary).toHaveAttribute("aria-expanded", "false");
+    const disclosure = summary.parentElement;
+    if (disclosure === null) throw new Error("The About disclosure is missing.");
+    (disclosure as HTMLDetailsElement).open = true;
+    fireEvent(disclosure, new Event("toggle", { bubbles: true }));
+    expect(summary).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it.each([
+    ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "bg-[#3e806d]"],
+    ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "bg-[#2c2420]"],
+    ["comfortable", "coral", "text-3xl", "bg-[#ffede3]", "text-[#a84431]", "bg-[#b24f38]"],
+  ] as const)(
+    "applies the %s type scale and finite %s accent in preview",
+    (typeScale, accent, headingClass, avatarBackground, avatarText, filledBackground) => {
+      if (projection === null) throw new Error("The demo profile fixture is missing.");
+      render(
+        <PublicProfile
+          preview
+          profile={{
+            ...projection,
+            imageUrl: undefined,
+            customization: {
+              preset: "warm-studio",
+              accent,
+              typeScale,
+              linkTreatment: "filled",
+              contentOrder: "links-first",
+              featuredLinkId: "portfolio",
+            },
+          }}
+          profileUrl="/mara-velasquez"
+          trackClicks={false}
+          trackView={false}
+        />,
+      );
+
+      expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(headingClass);
+      expect(screen.getByText("M")).toHaveClass(avatarBackground, avatarText);
+      expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
+        filledBackground,
+        "text-white",
+      );
+    },
+  );
+
+  it.each(["disabled", "missing"])("does not render a %s featured link", (variant) => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          links: [
+            {
+              id: "featured",
+              label: "Featured",
+              destination: "https://example.com/featured",
+              enabled: variant !== "disabled",
+            },
+          ],
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+            featuredLinkId: variant === "disabled" ? "featured" : "missing",
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.queryByRole("list", { name: "Featured profile link" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Featured" })).not.toHaveAttribute(
+      "data-featured",
+      "true",
+    );
+  });
+
+  it("omits an empty contact strip and preserves the legacy theme", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: undefined,
+          phone: undefined,
+          website: undefined,
+          customization: undefined,
+          theme: "night",
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+    expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(
+      "text-3xl",
+      "sm:text-4xl",
+    );
+  });
+
+  it("does not add the contact strip to a populated legacy profile", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{ ...projection, customization: undefined, theme: "night" }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+  });
+
+  it("uses the solid accent treatment for ordinary filled links", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
+      "bg-[#b24f38]",
+      "text-white",
+    );
+  });
+
+  it("treats malformed customization as legacy and does not render its section", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          customization: {
+            ...projection.customization,
+            preset: "invalid",
+            section: { kind: "services", body: "", items: ["not-a-safe-item"] },
+          } as never,
+          theme: "night",
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+    expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Services")).not.toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+  });
+
+  it("exports validated phone contact data while omitting unsafe email and website values", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => undefined);
+    const blob = vi.spyOn(globalThis, "Blob");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: "javascript:alert(1)",
+          website: "javascript:alert(2)",
+          phone: "+63 917 555 0184",
+          customization: { ...projection.customization! },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save contact" }));
+    expect(blob).toHaveBeenCalledWith([expect.stringContaining("TEL:+63 917 555 0184")], {
+      type: "text/vcard;charset=utf-8",
+    });
+    expect(String(blob.mock.calls[0]?.[0])).not.toContain("javascript:");
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
+    click.mockRestore();
+    blob.mockRestore();
+    createObjectURL.mockRestore();
+    revokeObjectURL.mockRestore();
+  });
+
+  it("does not offer an empty legacy vCard for unsafe contact values", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: "javascript:alert(1)",
+          website: "javascript:alert(2)",
+          phone: undefined,
+          customization: undefined,
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Save contact" })).not.toBeInTheDocument();
+  });
+
+  it("offers a vCard for a phone-only customized profile", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: undefined,
+          website: undefined,
+          phone: "+63 917 555 0184",
+          customization: { ...projection.customization! },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
+  });
+
+  it("offers a phone-only vCard for a legacy profile", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    const blob = vi.spyOn(globalThis, "Blob");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: undefined,
+          website: undefined,
+          phone: "+63 917 555 0184",
+          customization: undefined,
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Save contact" }));
+    expect(blob).toHaveBeenCalledWith([expect.stringContaining("TEL:+63 917 555 0184")], {
+      type: "text/vcard;charset=utf-8",
+    });
+    blob.mockRestore();
   });
 });

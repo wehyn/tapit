@@ -3,6 +3,7 @@ import {
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   getAutomaticContactActions,
   getFeaturedProfileLink,
+  normalizeProfileCustomization,
   resolveProfileAppearance,
   validateProfileCustomization,
 } from "../../src/lib/profile-customization";
@@ -44,6 +45,29 @@ describe("profile customization contract", () => {
       accent: "coral",
       typeScale: "comfortable",
       linkTreatment: "filled",
+    });
+  });
+
+  it.each([
+    { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: "future" },
+    { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, section: { kind: "about", body: "   " } },
+    {
+      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+      section: { kind: "services", body: "Services", items: ["ok", 42] },
+    },
+  ])("normalizes malformed runtime customization to absence", (customization) => {
+    expect(normalizeProfileCustomization(customization)).toBeUndefined();
+  });
+
+  it("preserves a valid Warm Studio customization while copying nested data safely", () => {
+    expect(
+      normalizeProfileCustomization({
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        section: { kind: "services", body: "Services", items: ["Brand strategy"] },
+      }),
+    ).toEqual({
+      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+      section: { kind: "services", body: "Services", items: ["Brand strategy"] },
     });
   });
 
@@ -117,6 +141,13 @@ describe("profile customization contract", () => {
     ).toEqual([]);
     expect(getAutomaticContactActions({ phone: "tel:+15551212" })).toEqual([]);
   });
+
+  it.each(["https://user@example.test", "https://:password@example.test"])(
+    "omits credential-bearing website contact input: %s",
+    (website) => {
+      expect(getAutomaticContactActions({ website })).toEqual([]);
+    },
+  );
 
   it("does not feature a disabled or missing link", () => {
     expect(getFeaturedProfileLink(links, "booking")).toEqual(links[0]);

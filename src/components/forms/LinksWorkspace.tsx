@@ -19,13 +19,7 @@ import {
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
-import type {
-  LinkIcon,
-  ProfileLink,
-  ProfileRedirect,
-  ProfileTheme,
-  PublicProfileProjection,
-} from "@/lib/domain";
+import type { LinkIcon, ProfileLink, ProfileRedirect, PublicProfileProjection } from "@/lib/domain";
 import { validateRedirectDestination } from "@/lib/domain";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
@@ -41,7 +35,6 @@ export type LinksWorkspaceProps = {
   links: ProfileLink[];
   redirect: ProfileRedirect;
   redirectError: string | null;
-  theme: ProfileTheme;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
   publicationErrors: string[];
@@ -86,7 +79,6 @@ export function LinksWorkspace({
   links,
   redirect,
   redirectError,
-  theme,
   preview,
   validation,
   publicationErrors,
@@ -390,7 +382,6 @@ export function LinksWorkspace({
               onModeChange={onPreviewModeChange}
               preview={preview}
               profileUrl={profileUrl}
-              theme={theme}
             />
           ) : (
             <Notice tone="error">Add a valid name and link to see the preview.</Notice>

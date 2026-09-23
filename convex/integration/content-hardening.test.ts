@@ -129,6 +129,19 @@ describe("content hardening", () => {
     ).rejects.toThrow("Duplicate link IDs");
   });
 
+  it("rejects credential-bearing profile websites in draft validation", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: data.profileId,
+        draft: { ...validDraft(), website: "https://user:password@example.com" },
+      }),
+    ).rejects.toThrow("A profile website must be a valid HTTPS URL without credentials.");
+  });
+
   it("rejects unknown icons while allowing incomplete draft fields", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

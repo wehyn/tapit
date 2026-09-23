@@ -10,7 +10,6 @@ import {
 } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
-import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { PublicProfile } from "@/components/profile/PublicProfile";
 
 export function WorkspacePreview({
@@ -19,14 +18,12 @@ export function WorkspacePreview({
   preview,
   profileUrl,
   showProfileUrl = false,
-  theme,
 }: {
   mode: "phone" | "desktop";
   onModeChange: (mode: "phone" | "desktop") => void;
   preview: PublicProfileProjection;
   profileUrl: string;
   showProfileUrl?: boolean;
-  theme: ProfileTheme;
 }) {
   return (
     <section className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_20px_70px_rgba(21,25,24,0.06)]">
@@ -67,7 +64,7 @@ export function WorkspacePreview({
         style={{ backgroundImage: "url('/images/tapit-hero-atmosphere.png')" }}
       >
         <div
-          className={`mx-auto transition-[max-width] duration-300 ${
+          className={`mx-auto transition-[max-width] duration-300 motion-reduce:transition-none ${
             mode === "phone" ? "max-w-[21rem]" : "max-w-[34rem]"
           }`}
         >
@@ -75,7 +72,6 @@ export function WorkspacePreview({
             preview
             profile={preview}
             profileUrl={profileUrl}
-            theme={theme}
             trackClicks={false}
             trackView={false}
           />

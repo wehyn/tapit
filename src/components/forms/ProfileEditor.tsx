@@ -27,6 +27,7 @@ import {
   useDemoState,
   updateDemoState,
 } from "@/lib/demo/store";
+import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { prepareProfileImage, validateProfileImageFile } from "@/lib/profile-image";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -40,7 +41,21 @@ import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-function profileForPreview(draft: ProfileContent) {
+function profileForPreview(draft: ProfileContent, legacyTheme?: ProfileTheme) {
+  if (legacyTheme !== undefined) {
+    return projectDemoPublicProfile(
+      {
+        id: "preview",
+        ownerId: "preview",
+        status: "published",
+        theme: legacyTheme,
+        draft,
+        published: null,
+      },
+      draft,
+      legacyTheme,
+    );
+  }
   return projectPublicProfile({
     id: "preview",
     ownerId: "preview",
@@ -84,7 +99,7 @@ function DemoProfileEditor() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
-  const errors = useMemo(() => {
+  const errors = (() => {
     const customer =
       session?.role === "customer"
         ? state.customers.find((candidate) => candidate.email === session.email)
@@ -113,8 +128,8 @@ function DemoProfileEditor() {
         ? ["Claim the attached card before publishing this profile."]
         : []),
     ];
-  }, [draft, profile.id, profile.published, profile.status, session, state]);
-  const preview = profileForPreview(draft);
+  })();
+  const preview = profileForPreview(draft, theme);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
@@ -164,7 +179,7 @@ function DemoProfileEditor() {
       });
       return false;
     }
-  }, [draft, isDirty, profile.id]);
+  }, [draft, isDirty, profile.id, setMessage]);
 
   useDraftSaveRegistration(saveDraft);
 
@@ -516,7 +531,6 @@ function DemoProfileEditor() {
             preview={preview}
             profileUrl={`/${draft.slug}`}
             showProfileUrl
-            theme={theme}
           />
         ) : (
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
@@ -971,7 +985,6 @@ function LiveProfileEditorContent({
             preview={preview}
             profileUrl={`/${currentDraft.slug}`}
             showProfileUrl
-            theme={theme}
           />
         ) : (
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>

@@ -1,6 +1,7 @@
 export type VCardFields = {
   name: string;
   email?: string;
+  phone?: string;
   website?: string;
   profileUrl: string;
 };
@@ -25,6 +26,7 @@ export function buildVCard(fields: VCardFields): string {
     `URL:${escapeVCard(fields.profileUrl)}`,
   ];
   if (fields.email?.trim()) lines.push(`EMAIL;TYPE=INTERNET:${escapeVCard(fields.email.trim())}`);
+  if (fields.phone?.trim()) lines.push(`TEL:${escapeVCard(fields.phone.trim())}`);
   if (fields.website?.trim()) lines.push(`item1.URL:${escapeVCard(fields.website.trim())}`);
   lines.push("END:VCARD");
   return `${lines.join("\r\n")}\r\n`;

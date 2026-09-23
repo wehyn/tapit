@@ -18,6 +18,24 @@ describe("public contact and QR features", () => {
     expect(vCard).not.toContain("TEL");
   });
 
+  it("includes phone-only and email-plus-phone contact data", () => {
+    expect(
+      buildVCard({
+        name: "Mara Velasquez",
+        phone: "+63 917 555 0184",
+        profileUrl: "https://tapit.example/mara-velasquez",
+      }),
+    ).toContain("TEL:+63 917 555 0184");
+    expect(
+      buildVCard({
+        name: "Mara Velasquez",
+        email: "mara@example.test",
+        phone: "+63 917 555 0184",
+        profileUrl: "https://tapit.example/mara-velasquez",
+      }),
+    ).toMatch(/EMAIL;TYPE=INTERNET:mara@example\.test\r\nTEL:\+63 917 555 0184/);
+  });
+
   it("resolves a relative public profile URL before creating a vCard", () => {
     expect(resolveProfileUrl("/mara-velasquez", "https://tapit.example")).toBe(
       "https://tapit.example/mara-velasquez",
