@@ -1,0 +1,241 @@
+export const MAX_PROFILE_SLIDESHOW_IMAGES = 10;
+export const MIN_PROFILE_HERO_HEIGHT = 220;
+export const MAX_PROFILE_HERO_HEIGHT = 520;
+export const DEFAULT_PROFILE_HERO_HEIGHT = 320;
+export const MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH = 160;
+
+export interface ProfileMediaImage {
+  assetId: string;
+  altText: string;
+  url?: string;
+}
+
+export interface ProfileMediaBackground extends ProfileMediaImage {
+  positionX: number;
+  positionY: number;
+}
+
+export interface ProfileMediaPresentation {
+  background?: ProfileMediaBackground;
+  heroHeight: number;
+  slideshow: ProfileMediaImage[];
+  autoplay: boolean;
+}
+
+export interface PublicProfileMediaImage {
+  src: string;
+  alt: string;
+}
+
+export interface PublicProfileMediaPresentation {
+  background?: PublicProfileMediaImage & {
+    positionX: number;
+    positionY: number;
+  };
+  heroHeight: number;
+  slideshow: PublicProfileMediaImage[];
+  autoplay: boolean;
+}
+
+export const DEFAULT_PROFILE_MEDIA: ProfileMediaPresentation = {
+  heroHeight: DEFAULT_PROFILE_HERO_HEIGHT,
+  autoplay: true,
+  slideshow: [],
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function validAssetId(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validAltText(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.trim().length > 0 &&
+    value.trim().length <= MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH
+  );
+}
+
+function validUrl(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function validateImage(image: unknown, label: string): string[] {
+  if (!isRecord(image)) return [`${label} is invalid.`];
+  const errors: string[] = [];
+  if (!validAssetId(image.assetId)) errors.push(`${label} needs a valid asset reference.`);
+  if (!validAltText(image.altText)) {
+    errors.push(
+      label === "A background image" &&
+        (typeof image.altText !== "string" || image.altText.trim().length === 0)
+        ? "A background image needs an accessible description."
+        : `${label} needs nonblank accessible text of at most ${MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH} characters.`,
+    );
+  }
+  return errors;
+}
+
+export function validateProfileMedia(media: ProfileMediaPresentation | undefined): string[] {
+  if (media === undefined) return [];
+  const errors: string[] = [];
+  if (
+    !isFiniteNumber(media.heroHeight) ||
+    media.heroHeight < MIN_PROFILE_HERO_HEIGHT ||
+    media.heroHeight > MAX_PROFILE_HERO_HEIGHT
+  ) {
+    errors.push(
+      `Hero height must be between ${MIN_PROFILE_HERO_HEIGHT} and ${MAX_PROFILE_HERO_HEIGHT}.`,
+    );
+  }
+  if (typeof media.autoplay !== "boolean") errors.push("Media autoplay must be a boolean.");
+  if (!Array.isArray(media.slideshow)) {
+    errors.push("A slideshow must be a list of images.");
+  } else {
+    if (media.slideshow.length > MAX_PROFILE_SLIDESHOW_IMAGES) {
+      errors.push("A slideshow can contain at most ten images.");
+    }
+    const assetIds = new Set<string>();
+    media.slideshow.forEach((image, index) => {
+      errors.push(...validateImage(image, `Slideshow image ${index + 1}`));
+      if (isRecord(image) && validAssetId(image.assetId)) {
+        const assetId = image.assetId.trim();
+        if (assetIds.has(assetId)) errors.push("Slideshow images must be unique.");
+        assetIds.add(assetId);
+      }
+    });
+  }
+  if (media.background !== undefined) {
+    errors.push(...validateImage(media.background, "A background image"));
+    if (isRecord(media.background)) {
+      if (
+        !isFiniteNumber(media.background.positionX) ||
+        media.background.positionX < 0 ||
+        media.background.positionX > 100
+      ) {
+        errors.push("Background horizontal position must be between 0 and 100.");
+      }
+      if (
+        !isFiniteNumber(media.background.positionY) ||
+        media.background.positionY < 0 ||
+        media.background.positionY > 100
+      ) {
+        errors.push("Background vertical position must be between 0 and 100.");
+      }
+    }
+  }
+  return errors;
+}
+
+function normalizeImage(value: unknown): ProfileMediaImage | undefined {
+  if (!isRecord(value) || !validAssetId(value.assetId) || !validAltText(value.altText))
+    return undefined;
+  return {
+    assetId: value.assetId.trim(),
+    altText: value.altText.trim(),
+    ...(validUrl(value.url) ? { url: value.url.trim() } : {}),
+  };
+}
+
+function normalizeBackground(value: unknown): ProfileMediaBackground | undefined {
+  const image = normalizeImage(value);
+  if (image === undefined || !isRecord(value)) return undefined;
+  const positionX = isFiniteNumber(value.positionX) ? clamp(value.positionX, 0, 100) : 50;
+  const positionY = isFiniteNumber(value.positionY) ? clamp(value.positionY, 0, 100) : 50;
+  return { ...image, positionX, positionY };
+}
+
+export function normalizeProfileMedia(value: unknown): ProfileMediaPresentation | undefined {
+  if (!isRecord(value)) return undefined;
+  const background = normalizeBackground(value.background);
+  const slideshow: ProfileMediaImage[] = [];
+  if (Array.isArray(value.slideshow)) {
+    const assetIds = new Set<string>();
+    for (const item of value.slideshow) {
+      const image = normalizeImage(item);
+      if (image === undefined || assetIds.has(image.assetId)) continue;
+      assetIds.add(image.assetId);
+      slideshow.push(image);
+      if (slideshow.length === MAX_PROFILE_SLIDESHOW_IMAGES) break;
+    }
+  }
+  if (background === undefined && slideshow.length === 0) return undefined;
+  const heroHeight = isFiniteNumber(value.heroHeight)
+    ? clamp(value.heroHeight, MIN_PROFILE_HERO_HEIGHT, MAX_PROFILE_HERO_HEIGHT)
+    : DEFAULT_PROFILE_HERO_HEIGHT;
+  return {
+    ...(background === undefined ? {} : { background }),
+    heroHeight,
+    slideshow,
+    autoplay: value.autoplay === undefined ? true : value.autoplay === true,
+  };
+}
+
+export function stripProfileMediaUrls(media: ProfileMediaPresentation): ProfileMediaPresentation {
+  return {
+    ...(media.background === undefined
+      ? {}
+      : {
+          background: {
+            assetId: media.background.assetId,
+            altText: media.background.altText,
+            positionX: media.background.positionX,
+            positionY: media.background.positionY,
+          },
+        }),
+    heroHeight: media.heroHeight,
+    autoplay: media.autoplay,
+    slideshow: media.slideshow.map(({ assetId, altText }) => ({ assetId, altText })),
+  };
+}
+
+export function reorderProfileMediaSlides(
+  media: ProfileMediaPresentation,
+  fromIndex: number,
+  toIndex: number,
+): ProfileMediaPresentation {
+  const slideshow = media.slideshow.map((image) => ({ ...image }));
+  if (
+    fromIndex < 0 ||
+    fromIndex >= slideshow.length ||
+    toIndex < 0 ||
+    toIndex >= slideshow.length ||
+    fromIndex === toIndex
+  ) {
+    return {
+      ...media,
+      ...(media.background ? { background: { ...media.background } } : {}),
+      slideshow,
+    };
+  }
+  const [image] = slideshow.splice(fromIndex, 1);
+  slideshow.splice(toIndex, 0, image!);
+  return {
+    ...media,
+    ...(media.background ? { background: { ...media.background } } : {}),
+    slideshow,
+  };
+}
+
+export function removeProfileMediaSlide(
+  media: ProfileMediaPresentation,
+  index: number,
+): ProfileMediaPresentation {
+  const slideshow = media.slideshow.map((image) => ({ ...image }));
+  if (index >= 0 && index < slideshow.length) slideshow.splice(index, 1);
+  return {
+    ...media,
+    ...(media.background ? { background: { ...media.background } } : {}),
+    slideshow,
+  };
+}

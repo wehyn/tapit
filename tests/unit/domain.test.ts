@@ -98,6 +98,56 @@ describe("profile publication and public projection", () => {
     ).toBe(true);
   });
 
+  it("compares and projects only published media", () => {
+    const media = {
+      heroHeight: 360,
+      autoplay: true,
+      background: {
+        assetId: "background",
+        altText: "Published backdrop",
+        positionX: 50,
+        positionY: 50,
+        url: "https://cdn.test/published.jpg",
+      },
+      slideshow: [],
+    };
+    const published = publishProfile({ ...profile(), draft: { ...draft, media } }, "first");
+    const changed = {
+      ...published,
+      draft: {
+        ...published.draft,
+        media: { ...media, heroHeight: 420 },
+      },
+    };
+
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(hasUnpublishedChanges(changed.draft, published.published)).toBe(true);
+    expect(projectPublicProfile(changed)?.media).toEqual({
+      ...media,
+      background: {
+        assetId: "background",
+        altText: "Published backdrop",
+        positionX: 50,
+        positionY: 50,
+      },
+    });
+
+    const draftOnly = {
+      ...published,
+      draft: {
+        ...published.draft,
+        media: {
+          ...media,
+          background: { ...media.background, url: "https://cdn.test/draft-only.jpg" },
+        },
+      },
+    };
+    expect(projectPublicProfile(draftOnly)?.media).toEqual(published.published?.media);
+    expect(
+      projectPublicProfile({ ...profile(), draft: { ...draft, media } })?.media,
+    ).toBeUndefined();
+  });
+
   it("deeply isolates nested customization data in the published snapshot", () => {
     const customization = {
       ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,

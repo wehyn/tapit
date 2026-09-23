@@ -6,6 +6,12 @@ import {
   type ProfileCustomization,
   validateProfileCustomization,
 } from "../profile-customization";
+import {
+  normalizeProfileMedia,
+  stripProfileMediaUrls,
+  validateProfileMedia,
+  type ProfileMediaPresentation,
+} from "../profile-media";
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
@@ -45,6 +51,7 @@ export interface ProfileContent {
   website?: string;
   theme?: ProfileTheme;
   customization?: ProfileCustomization;
+  media?: ProfileMediaPresentation;
   redirect?: ProfileRedirect;
   links: ProfileLink[];
 }
@@ -73,6 +80,7 @@ export interface PublicProfileProjection {
   website?: string;
   theme: ProfileTheme;
   customization?: ProfileCustomization;
+  media?: ProfileMediaPresentation;
   links: ProfileLink[];
 }
 
@@ -296,6 +304,7 @@ export function validatePublication(
   const websiteError = validateWebsite(draft.website);
   if (websiteError !== null) errors.push(websiteError);
   errors.push(...validateProfileCustomization(draft.customization, draft.links));
+  errors.push(...validateProfileMedia(draft.media));
   return errors;
 }
 
@@ -315,6 +324,9 @@ export function publishProfile(
     ...(profile.draft.customization === undefined
       ? {}
       : { customization: structuredClone(profile.draft.customization) }),
+    ...(profile.draft.media === undefined
+      ? {}
+      : { media: stripProfileMediaUrls(structuredClone(profile.draft.media)) }),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
@@ -337,6 +349,7 @@ function canonicalizeRedirect(content: ProfileContent): ProfileContent {
   return {
     ...content,
     redirect: content.redirect ?? { enabled: false, destination: "" },
+    ...(content.media === undefined ? {} : { media: stripProfileMediaUrls(content.media) }),
   };
 }
 
@@ -371,6 +384,9 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(normalizeProfileCustomization(snapshot.customization) === undefined
       ? {}
       : { customization: normalizeProfileCustomization(snapshot.customization) }),
+    ...(normalizeProfileMedia(snapshot.media) === undefined
+      ? {}
+      : { media: normalizeProfileMedia(snapshot.media) }),
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }
