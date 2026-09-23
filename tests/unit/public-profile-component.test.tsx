@@ -62,4 +62,30 @@ describe("public profile preview behavior", () => {
 
     expect(screen.getByRole("link", { name: "Malformed icon" })).toBeVisible();
   });
+
+  it("lets the browser select a published image variant by rendered size", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          imageUrl: "https://images.example/large.png",
+          imageSrcSet:
+            "https://images.example/small.png 192w, https://images.example/large.png 384w",
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const image = screen.getByRole("img", { name: `${projection.name} profile` });
+    expect(image).toHaveAttribute(
+      "srcset",
+      "https://images.example/small.png 192w, https://images.example/large.png 384w",
+    );
+    expect(image).toHaveAttribute("sizes", "(min-width: 640px) 96px, 80px");
+    expect(image).toHaveAttribute("src", "https://images.example/large.png");
+  });
 });

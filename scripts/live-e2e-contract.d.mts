@@ -14,11 +14,16 @@ export function validateLiveContract(
 
 export function validateObservedLiveApp(
   expected: Record<string, string | undefined>,
-  observed: { mode?: string; appEnvironment?: string; convexUrl?: string },
+  observed: { mode?: string; appEnvironment?: string; convexUrl?: string; convexSiteUrl?: string },
 ): string | null;
 
 export function readLiveAppContract(
   env: Record<string, string | undefined>,
+): Promise<string | null>;
+
+export function verifyProfileImageCors(
+  env: Record<string, string | undefined>,
+  fetchImpl?: typeof fetch,
 ): Promise<string | null>;
 
 export function readLiveVerificationCode(

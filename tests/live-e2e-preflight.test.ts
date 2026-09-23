@@ -36,6 +36,79 @@ describe("live E2E deployment preflight", () => {
     ).toContain("does not match the selected live Convex URL");
   });
 
+  it("rejects a live app whose upload site belongs to another Convex deployment", async () => {
+    const { validateLiveContract, validateObservedLiveApp } =
+      await import("../scripts/live-e2e-contract.mjs");
+    const expected = {
+      TAPIT_LIVE_APP_ENV: "preview",
+      TAPIT_LIVE_BASE_URL: "https://preview.tapit.example",
+      TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud",
+      TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview/tapit",
+      NEXT_PUBLIC_CONVEX_SITE_URL: "https://other-456.convex.site",
+      TAPIT_LIVE_EMAIL_DOMAIN: "example.test",
+      TAPIT_LIVE_EMAIL_CODE_URL: "https://mailbox.example.test/code",
+      TAPIT_LIVE_EMAIL_CODE_TOKEN: "sink-token",
+    };
+    expect(validateLiveContract(expected, { requireConfirmation: false })).toContain(
+      "site URL does not match",
+    );
+    expect(
+      validateObservedLiveApp(
+        { ...expected, NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site" },
+        {
+          mode: "live",
+          appEnvironment: "preview",
+          convexUrl: "https://preview-123.convex.cloud",
+          convexSiteUrl: "https://other-456.convex.site",
+        },
+      ),
+    ).toContain("site URL does not match");
+  });
+
+  it("accepts equivalent Convex origins with a trailing slash", async () => {
+    const { validateObservedLiveApp } = await import("../scripts/live-e2e-contract.mjs");
+    expect(
+      validateObservedLiveApp(
+        {
+          TAPIT_LIVE_APP_ENV: "preview",
+          TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud/",
+          NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site/",
+        },
+        {
+          mode: "live",
+          appEnvironment: "preview",
+          convexUrl: "https://preview-123.convex.cloud",
+          convexSiteUrl: "https://preview-123.convex.site",
+        },
+      ),
+    ).toBeNull();
+  });
+
+  it("verifies the app origin is present in the upload CORS policy", async () => {
+    const { verifyProfileImageCors } = await import("../scripts/live-e2e-contract.mjs");
+    const env = {
+      TAPIT_LIVE_BASE_URL: "https://preview.tapit.example/path",
+      NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site/",
+    };
+    const denied = vi.fn().mockResolvedValue(new Response("Origin not allowed", { status: 403 }));
+    await expect(verifyProfileImageCors(env, denied)).resolves.toContain("not allowed");
+
+    const allowed = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 204,
+        headers: { "Access-Control-Allow-Origin": "https://preview.tapit.example" },
+      }),
+    );
+    await expect(verifyProfileImageCors(env, allowed)).resolves.toBeNull();
+    expect(allowed).toHaveBeenCalledWith(
+      "https://preview-123.convex.site/profile-image-upload",
+      expect.objectContaining({
+        method: "OPTIONS",
+        headers: expect.objectContaining({ Origin: "https://preview.tapit.example" }),
+      }),
+    );
+  });
+
   it("requires a protected verification-code sink for live email flows", async () => {
     const { liveContractEnvNames, missingLiveContract, validateLiveContract } =
       await import("../scripts/live-e2e-contract.mjs");
@@ -43,6 +116,7 @@ describe("live E2E deployment preflight", () => {
       TAPIT_LIVE_BASE_URL: "https://preview.tapit.example",
       TAPIT_LIVE_APP_ENV: "preview",
       TAPIT_LIVE_CONVEX_URL: "https://preview.convex.cloud",
+      NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview.convex.site",
       TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview/tapit",
       TAPIT_LIVE_PROVISION_CONFIRM: "I_UNDERSTAND_NON_PRODUCTION",
     };
@@ -113,6 +187,7 @@ describe("live E2E deployment preflight", () => {
           TAPIT_LIVE_BASE_URL: "https://non-production-app.example",
           TAPIT_LIVE_APP_ENV: "preview",
           TAPIT_LIVE_CONVEX_URL: "https://preview.convex.cloud",
+          NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview.convex.site",
           TAPIT_LIVE_ADMIN_EMAIL: "admin@example.test",
           TAPIT_LIVE_ADMIN_PASSWORD: "not-a-real-password",
           TAPIT_LIVE_CUSTOMER_EMAIL: "customer@example.test",

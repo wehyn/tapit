@@ -59,7 +59,7 @@ The scope guard remains unchanged: requests for rich content, custom domains, te
 - **Deployment:** Vercel for the Next.js application, with separate Convex development and production deployments.
 - **CI:** GitHub Actions for pull-request and main-branch checks.
 - **Testing:** Vitest for unit/domain tests, React Testing Library for component behavior, Playwright for browser workflows, and Playwright accessibility checks with an axe integration where practical.
-- **Image storage:** Convex file storage, with server-side validation, crop/preview, resizing, and optimized responsive variants.
+- **Image storage:** Convex file storage, with server-side validation, a browser-produced 384×384 square crop, a 192×192 derivative, JPEG for opaque output, alpha-preserving PNG for transparent output, and a 5 MiB combined output cap. Abandoned unreferenced upload blobs receive a bounded 24-hour cleanup grace period; account-deletion retention remains a separate TBD launch decision.
 - **QR generation:** use a small maintained QR library capable of deterministic SVG and PNG output. The exact package is a plan-time implementation choice; recommendation is a package that can run in Node/server actions and browser preview without shipping unnecessary weight to public pages.
 - **Validation:** use one shared schema/validation layer for profile fields, link destinations, card URLs, and administrative inputs. The exact validation package is TBD; recommendation is a small TypeScript schema library compatible with Convex and server/client reuse.
 
@@ -329,14 +329,14 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Provide copy-to-clipboard feedback for the stable URL with a usable fallback when clipboard access is unavailable.
 - Open external destinations in a new tab where supported, preserve the profile in the original tab, and give external-link actions clear accessible names.
 - Provide an explicit keyboard-accessible Move up/Move down path for link ordering. No feature may depend on precise dragging, hover, color recognition, or pointer precision.
-- Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a failed upload and explain accepted formats and the 5 MB limit.
+- Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a cancelled, invalid, authorization, service, or failed upload; explain accepted JPG/PNG/WebP formats, the 5 MiB source limit, and the 5 MiB combined output limit.
 
 ### Visual system and asset plan
 
 - Establish a neutral application base, restrained accent, typography hierarchy, spacing scale, controlled theme tokens, status tokens, focus ring, reduced-motion utilities, and consistent border/radius/shadow rules. Exact logo, colors, typeface, radius, shadows, and theme catalog remain TBD until a design gate resolves them.
 - Create or select a small, approved Tapit brand asset set: logo/wordmark, state-page mark, favicon/app icon, and any metadata/preview image required by the final branding. Store repository-owned static assets under `public/brand/`; do not invent final brand decisions while those values are TBD.
 - Provide a small preset service/icon set for link rows and public buttons, plus external-link, Save contact, status, and feedback icons. Every icon must have an accessible name or be explicitly decorative; social destinations remain ordinary links with no social API integration.
-- Treat uploaded profile images/logos as user data: validate JPG/PNG/WebP and 5 MB server-side, offer crop/preview, store references in Convex, and generate optimized responsive variants. Define deletion/retention behavior with the account-deletion policy.
+- Treat uploaded profile images/logos as private user data: validate actual JPG/PNG/WebP bytes and dimensions server-side, offer a 1:1 crop/preview, store references in Convex, and generate exactly 384×384 and 192×192 variants. Preserve alpha as PNG, enforce 5 MiB source and combined-output limits, expose only published URLs publicly, and never expose storage IDs or upload-job records. Clean only unreferenced abandoned blobs after 24 hours; account-deletion retention remains a separate TBD decision.
 - Generate QR PNG/SVG outputs at runtime or through the selected QR module; do not commit user-specific QR files. Keep the configured generic support/contact destination in environment/application settings rather than hard-coded content.
 
 ### Responsive and accessibility implementation
@@ -358,7 +358,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Turn the screen, state, responsive, accessibility, and proof contracts in `DESIGN.md` into implementation tickets linked to the relevant FR/AC references in this plan.
 - Define how development setup links are captured safely.
 - Record the email provider as TBD with an implementation adapter.
-- Record hosting capacity, budget, launch jurisdiction, data-retention period, analytics unique-view method, and password recovery as explicit gates.
+- Record hosting capacity, budget, launch jurisdiction, account-deletion data-retention period, analytics unique-view method, and password recovery as explicit gates. The 24-hour abandoned-upload cleanup window is an operational orphan rule, not the account-deletion retention period.
 
 ### 1. Create the repository foundation
 

@@ -38,9 +38,14 @@ export function detectProfileImageContentType(bytes: Uint8Array): ProfileImageCo
 }
 
 export async function getProfileImageMapping(ctx: StorageDbContext, storageId: Id<"_storage">) {
-  return await ctx.db
+  const direct = await ctx.db
     .query("profileImages")
     .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
+    .unique();
+  if (direct !== null) return direct;
+  return await ctx.db
+    .query("profileImages")
+    .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
     .unique();
 }
 
@@ -101,6 +106,8 @@ export async function removeIfUnreferenced(
   if (mapping === null || mapping.profileId !== profileId) return;
   await ctx.db.delete(mapping._id);
   await ctx.storage.delete(storageId);
+  if (mapping.smallStorageId !== undefined && mapping.smallStorageId !== storageId)
+    await ctx.storage.delete(mapping.smallStorageId);
 }
 
 /** Deletes all mapped files for an approved profile deletion. */
@@ -115,6 +122,7 @@ export async function deleteProfileImages(ctx: MutationCtx, profileId: Id<"profi
   for (const mapping of mappings) {
     await ctx.db.delete(mapping._id);
     await ctx.storage.delete(mapping.storageId);
+    if (mapping.smallStorageId !== undefined) await ctx.storage.delete(mapping.smallStorageId);
   }
 }
 
@@ -126,6 +134,7 @@ export const getMapping = internalQuery({
       _id: v.id("profileImages"),
       _creationTime: v.number(),
       storageId: v.id("_storage"),
+      smallStorageId: v.optional(v.id("_storage")),
       profileId: v.id("profiles"),
       ownerId: v.id("customers"),
       contentType: profileImageContentTypeValidator,

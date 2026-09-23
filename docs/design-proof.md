@@ -14,7 +14,7 @@ seeded demo account and contains no real customer data.
 | Customer Profile/Links | `/app/profile`, `/app/links` | Playwright Chromium desktop | `e2e/customer.spec.ts` |
 | Customer analytics/account | `/app/analytics`, `/app/account` | Playwright Chromium desktop | `e2e/customer.spec.ts` |
 | Administrator operations | `/admin/*` | Playwright Chromium desktop | `e2e/admin.spec.ts` |
-| Live Convex profile/image journey | `/app/profile` → `/<slug>` | Playwright Chromium desktop | `e2e/live.spec.ts`, `npm run test:e2e:live` (4/4 passed against non-production Convex) |
+| Live Convex profile/image journey | `/app/profile` → `/<slug>` | Playwright Chromium desktop | `e2e/live.spec.ts`; hardened upload rerun pending an explicitly selected non-production target |
 | Automated accessibility | public, customer, administrator success states | Playwright Chromium desktop | `e2e/accessibility.spec.ts` with axe 4.13.0 |
 
 The browser suite also proves draft privacy, slug immutability in the profile UI, unsafe-link rejection,
@@ -41,12 +41,14 @@ approved.
 
 - `NEXT_PUBLIC_DEMO_MODE=true` is the acceptance surface: data, sessions, invitations, analytics, and
   image previews are browser-local and deterministic.
-- Convex/Auth functions and schema are implemented and type-checked. Live profile images use an owned
-  `profileImages` mapping, signature/size validation, draft/publication URL resolution, and cleanup on
-  replacement or approved deletion. The demo path remains browser-local. The current implementation creates
-  one bounded 1200px JPEG display image; responsive variants, abandoned-upload retention, and production
-  deployment evidence remain release gates. The live path, including the owned image slice, has been
-  exercised against a non-production deployment, so this proof does not claim production readiness.
+- Convex/Auth functions and schema implement an owned 384px image plus 192px derivative, decoded
+  signature/dimension/combined-size validation, revision-aware Save/Publish/Remove, draft/publication URL
+  resolution, and reference-aware cleanup. Opaque crops use JPEG quality 0.82; alpha-bearing crops remain PNG.
+  A daily bounded reconciler waits 24 hours, verifies job hashes and references, skips ambiguous matches, and
+  emits count-only logs. Local crop previews were inspected at 390px and 1440px and the demo crop E2E passed.
+  The hardened HTTP/CORS path, actual browser candidate selection, cleanup dry run, upload bytes/latency, and
+  current-device Safari/Chrome behavior remain non-production evidence gates; this record makes no production
+  readiness claim.
 - NFC hardware, current iPhone/Android scans, production email delivery, password recovery, email
   verification, unique-view method, deletion retention, and 4G performance measurements remain release
   gates rather than desktop-browser claims.

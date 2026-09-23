@@ -187,6 +187,11 @@ test.describe("live Convex vertical slice", () => {
     const draftBio = `Live E2E draft ${Date.now()}`;
     await page.getByLabel("Bio or role").fill(draftBio);
     await page.locator("#profile-image").setInputFiles("public/images/tapit-demo-mara-avatar.png");
+    await expect(page.getByRole("dialog", { name: "Adjust profile photo" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByRole("dialog", { name: "Adjust profile photo" })).toHaveCount(0);
+    await page.locator("#profile-image").setInputFiles("public/images/tapit-demo-mara-avatar.png");
+    await page.getByRole("button", { name: "Apply crop" }).click();
     const profileIdentity = page.getByRole("heading", { name: "Profile identity" }).locator("..");
     await expect(profileIdentity.getByRole("img", { name: /profile$/ })).toBeVisible();
     await page.getByRole("button", { name: "Save draft" }).click();
@@ -206,7 +211,10 @@ test.describe("live Convex vertical slice", () => {
 
       await visitor.reload();
       await expect(visitor.getByText(draftBio)).toBeVisible();
-      await expect(visitor.locator('img[alt$="profile"]')).toBeVisible();
+      const publicImage = visitor.locator('img[alt$="profile"]');
+      await expect(publicImage).toBeVisible();
+      await expect(publicImage).toHaveAttribute("srcset", /192w, .*384w/);
+      await expect(publicImage).toHaveAttribute("sizes", "(min-width: 640px) 96px, 80px");
       await expect(visitor.locator("main")).toHaveClass(/bg-\[#17211f\]/);
     } finally {
       await visitorContext.close();
