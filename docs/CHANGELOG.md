@@ -1,5 +1,10 @@
 # Change log
 
+## 2026-09-24 — Public profile customization
+
+- Added the guided Warm Studio customization flow for public profiles, including accent, type scale, link treatment, content order, featured links, automatic contact actions, and one optional About or Services disclosure.
+- Legacy profiles keep their existing appearance until an explicit Warm Studio opt-in is published; direct profile URLs, active card paths, previews, and vCards continue to use the published projection.
+
 ## 2026-09-17 — Hosted demo and card registry fixes
 
 - Hosted demo authentication now stays client-authenticated when the app is opened from another device on a LAN or tailnet. This avoids secure-cookie redirects over plain HTTP while preserving the production Next.js auth-proxy path.
