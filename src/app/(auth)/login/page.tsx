@@ -9,6 +9,7 @@ export default async function LoginPage({
     next?: string | string[];
     mode?: string | string[];
     error?: string | string[];
+    reason?: string | string[];
   }>;
 }) {
   const { next, mode, error, reason } = await searchParams;

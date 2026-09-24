@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
-import { isLocalDemoMode } from "@/lib/demo/mode";
+import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
@@ -35,8 +35,88 @@ export function SetupForm({ token }: { token: string }) {
       : setupReturnPath(new URLSearchParams(window.location.search).get("next"));
   return isLocalDemoMode() ? (
     <DemoSetupForm token={token} nextPath={nextPath} />
+  ) : isHostedDemoMode() ? (
+    <HostedDemoSetupForm nextPath={nextPath} />
   ) : (
     <LiveSetupForm token={token} nextPath={nextPath} />
+  );
+}
+
+function HostedDemoSetupForm({ nextPath }: { nextPath?: string }) {
+  const router = useRouter();
+  const { signIn } = useAuthActions();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (password.length < 8) return setError("Password must be at least 8 characters.");
+    if (password !== confirmation) return setError("Passwords do not match.");
+    setSubmitting(true);
+    setError("");
+    try {
+      await signIn("password", { flow: "signUp", email: email.trim().toLowerCase(), password });
+      router.replace(nextPath || "/app/profile");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Setup could not be completed.");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
+      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-2xl flex-col">
+        <Brand />
+        <section className="grid flex-1 items-center gap-8 py-14">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
+              Hosted demo setup
+            </p>
+            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+              Choose a password
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-tapit-muted">
+              This isolated hosted demo uses its password flow for demonstration only.
+            </p>
+          </div>
+          <form className="grid gap-5" onSubmit={submit}>
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            <Field
+              autoComplete="email"
+              id="hosted-setup-email"
+              label="Email"
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              value={email}
+            />
+            <Field
+              autoComplete="new-password"
+              id="hosted-setup-password"
+              label="Password"
+              minLength={8}
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              value={password}
+            />
+            <Field
+              autoComplete="new-password"
+              id="hosted-setup-confirmation"
+              label="Confirm password"
+              minLength={8}
+              onChange={(event) => setConfirmation(event.target.value)}
+              type="password"
+              value={confirmation}
+            />
+            <Button disabled={submitting} type="submit">
+              {submitting ? "Saving password" : "Set password"}
+            </Button>
+          </form>
+        </section>
+      </div>
+    </main>
   );
 }
 
@@ -154,24 +234,11 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   const router = useRouter();
   const { signIn } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
-  const completeSetup = useMutation(api.customers.completeSetup);
+  const acceptInvitation = useMutation(api.customers.acceptInvitation);
   const [tokenHash, setTokenHash] = useState<string>();
-  const [password, setPassword] = useState("");
-  const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
-  const [complete, setComplete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [setupFailed, setSetupFailed] = useState(false);
-  const [awaitingAuthentication, setAwaitingAuthentication] = useState(false);
-  const [awaitingVerification, setAwaitingVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [now, setNow] = useState(() => Date.now());
-  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash, now } : "skip");
-
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash } : "skip");
 
   useEffect(() => {
     let cancelled = false;
@@ -184,141 +251,45 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   }, [token]);
 
   useEffect(() => {
-    if (!awaitingAuthentication || !isAuthenticated || tokenHash === undefined) return;
+    if (!isAuthenticated || tokenHash === undefined || invitation?.state !== "valid") return;
     let cancelled = false;
-    void completeSetup({ tokenHash })
+    void acceptInvitation({ tokenHash })
       .then(() => {
         if (cancelled) return;
-        setComplete(true);
-        setSetupFailed(false);
-        setAwaitingAuthentication(false);
         window.setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
       })
       .catch((cause) => {
         if (cancelled) return;
-        setError(
-          cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",
-        );
-        setAwaitingAuthentication(false);
+        setError(invitationErrorCopy(cause));
         setSubmitting(false);
-        setSetupFailed(true);
       });
     return () => {
       cancelled = true;
     };
-  }, [awaitingAuthentication, completeSetup, isAuthenticated, nextPath, router, tokenHash]);
+  }, [acceptInvitation, invitation?.state, isAuthenticated, nextPath, router, tokenHash]);
 
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    if (invitation?.valid !== true || tokenHash === undefined || !("email" in invitation)) {
-      setError("This setup link is invalid, expired, or already used.");
-      return;
-    }
-    const email = invitation.email;
-    if (email === undefined) {
-      setError("This setup link is invalid, expired, or already used.");
-      return;
-    }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
-      return;
-    }
-    if (password !== confirmation) {
-      setError("Passwords do not match.");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const result = await signIn("password", { flow: "signUp", email, password });
-      setPassword("");
-      setConfirmation("");
-      setSetupFailed(false);
-      if (result.signingIn) {
-        setAwaitingAuthentication(true);
-      } else {
-        setAwaitingVerification(true);
-        setSubmitting(false);
-      }
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",
-      );
-      setSubmitting(false);
-    }
-  }
-
-  async function verifySetup(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (
-      !verificationCode.trim() ||
-      tokenHash === undefined ||
-      invitation?.valid !== true ||
-      !("email" in invitation) ||
-      invitation.email === undefined
-    ) {
-      setError("Enter the verification code from your email.");
-      return;
-    }
-    const email = invitation.email;
+  async function continueWithGoogle() {
     setSubmitting(true);
     setError("");
     try {
-      const result = await signIn("password", {
-        flow: "email-verification",
-        email,
-        code: verificationCode.trim(),
-      });
-      if (!result.signingIn) throw new Error("Email verification did not complete.");
-      setVerificationCode("");
-      setAwaitingVerification(false);
-      setAwaitingAuthentication(true);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "That code is invalid or expired. Try again.",
-      );
-      setSubmitting(false);
-    }
-  }
-
-  async function resendVerification() {
-    if (invitation?.valid !== true || !("email" in invitation) || invitation.email === undefined) {
-      setError("This setup link is invalid, expired, or already used.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      await signIn("password", { flow: "email-verification", email: invitation.email });
+      await signIn("google", { redirectTo: `/setup/${token}` });
     } catch {
-      setError("The email service is unavailable. Try again.");
-    } finally {
+      setError("Google sign-in could not be completed. Try again.");
       setSubmitting(false);
-    }
-  }
-
-  async function retrySetup() {
-    if (tokenHash === undefined) {
-      setError("This setup link is invalid, expired, or already used.");
-      return;
-    }
-    setSubmitting(true);
-    setError("");
-    try {
-      await completeSetup({ tokenHash });
-      setComplete(true);
-      setSetupFailed(false);
-      setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "The setup service is unavailable. Try again.",
-      );
-      setSubmitting(false);
-      setSetupFailed(true);
     }
   }
 
   const loading = authLoading || tokenHash === undefined || invitation === undefined;
+  const state = invitation?.state;
+  const stateCopy =
+    state === "missing"
+      ? "This invitation could not be found."
+      : state === "revoked"
+        ? "This invitation has been revoked."
+        : state === "expired"
+          ? "This invitation has expired."
+          : undefined;
+
   return (
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
@@ -335,84 +306,39 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               Set up your account
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
-              Choose a password
+              Join Tapit with Google
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
-              This one-time link gives you access to your Tapit profile workspace.
+              Your invitation stays reusable until an administrator revokes it.
             </p>
           </div>
           <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
             {loading ? (
-              <p className="text-sm text-tapit-muted">Checking your setup link…</p>
-            ) : invitation?.valid !== true ? (
-              <Notice tone="error">This setup link is invalid, expired, or already used.</Notice>
-            ) : awaitingVerification ? (
-              <form className="mt-6 grid gap-5" onSubmit={verifySetup}>
-                {error ? <Notice tone="error">{error}</Notice> : null}
-                <Notice tone="success">Check your email for a verification code.</Notice>
-                <Field
-                  autoComplete="one-time-code"
-                  id="live-setup-verification-code"
-                  autoFocus
-                  inputMode="text"
-                  label="Verification code"
-                  onChange={(event) => setVerificationCode(event.target.value)}
-                  value={verificationCode}
-                />
-                <Button disabled={submitting} type="submit">
-                  {submitting ? "Verifying code" : "Verify email"}
-                </Button>
-                <Button
-                  disabled={submitting}
-                  onClick={resendVerification}
-                  type="button"
-                  variant="quiet"
-                >
-                  {submitting ? "Sending code" : "Resend code"}
-                </Button>
-              </form>
-            ) : setupFailed ? (
-              <div className="mt-6 grid gap-5">
-                {error ? <Notice tone="error">{error}</Notice> : null}
-                <p className="text-sm leading-6 text-tapit-muted">
-                  Your email is verified, but setup could not finish yet.
-                </p>
-                <Button disabled={submitting} onClick={retrySetup} type="button">
-                  {submitting ? "Saving account" : "Retry setup"}
-                </Button>
-              </div>
+              <p className="text-sm text-tapit-muted">Checking your invitation…</p>
+            ) : stateCopy ? (
+              <Notice tone="error">{stateCopy}</Notice>
+            ) : invitation?.state !== "valid" ? (
+              <Notice tone="error">This invitation is not available.</Notice>
             ) : (
-              <form className="mt-6 grid gap-5" onSubmit={submit}>
+              <div className="mt-6 grid gap-5">
                 <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                  Account email: <strong className="text-tapit-ink">{invitation.email}</strong>
+                  Invitation for <strong className="text-tapit-ink">{invitation.email}</strong>
+                  {invitation.profileName ? (
+                    <>
+                      {" "}
+                      to <strong className="text-tapit-ink">{invitation.profileName}</strong>
+                    </>
+                  ) : null}
                 </p>
                 {error ? <Notice tone="error">{error}</Notice> : null}
-                {complete ? (
-                  <Notice tone="success">Password saved. Taking you to your profile.</Notice>
-                ) : null}
-                <Field
-                  autoComplete="new-password"
-                  help="Use at least 8 characters."
-                  id="live-setup-password"
-                  label="Password"
-                  minLength={8}
-                  onChange={(event) => setPassword(event.target.value)}
-                  type="password"
-                  value={password}
-                />
-                <Field
-                  autoComplete="new-password"
-                  id="live-setup-confirmation"
-                  label="Confirm password"
-                  minLength={8}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  type="password"
-                  value={confirmation}
-                />
-                <Button disabled={complete || submitting} type="submit">
-                  {submitting ? "Saving password" : "Set password"}
-                </Button>
-              </form>
+                {isAuthenticated ? (
+                  <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
+                ) : (
+                  <Button disabled={submitting} onClick={continueWithGoogle} type="button">
+                    {submitting ? "Opening Google" : "Continue with Google"}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </section>
@@ -422,4 +348,19 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
       </div>
     </main>
   );
+}
+
+function invitationErrorCopy(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message.toLowerCase() : "";
+  if (message.includes("does not match"))
+    return "This Google account does not match the invitation email.";
+  if (message.includes("linked to another") || message.includes("already linked"))
+    return "This invitation is already linked to another Google account.";
+  if (
+    message.includes("invitation") &&
+    (message.includes("invalid") || message.includes("expired"))
+  )
+    return "This invitation is invalid or expired.";
+  if (message.includes("link context")) return "Open the invitation link again to finish setup.";
+  return "This invitation could not be accepted. Try again.";
 }
