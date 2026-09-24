@@ -30,11 +30,13 @@ export function LoginForm({
   initialMode = "signin",
   resetEmail,
   oauthError,
+  reason,
 }: {
   nextPath?: string;
   initialMode?: AuthMode;
   resetEmail?: string;
   oauthError?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   if (isLocalDemoMode()) {
@@ -47,7 +49,7 @@ export function LoginForm({
       <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
     );
   }
-  return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} />;
+  return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} reason={reason} />;
 }
 
 function DemoLoginForm({

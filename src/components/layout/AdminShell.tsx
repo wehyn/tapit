@@ -103,14 +103,14 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;
-    if (!isAuthenticated || access?.authenticated !== true) {
-      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    } else if (access.accountStatus === "pending") {
+    if (access?.accountStatus === "pending") {
       router.replace("/onboarding");
-    } else if (access.accountStatus === "invited") {
+    } else if (access?.accountStatus === "invited") {
       router.replace("/login?reason=invitation-required");
-    } else if (access.accountStatus === "deleted" || access.accountStatus === "unprovisioned") {
+    } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
       router.replace("/login?reason=account-inactive");
+    } else if (!isAuthenticated || access?.authenticated !== true) {
+      router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     } else if (access.role !== "admin") {
       router.replace(access.role === "customer" ? "/app/profile" : "/login");
     }

@@ -43,6 +43,15 @@ async function loadProviders() {
   return (await import("../../src/components/providers/LiveProviders")).LiveProviders;
 }
 
+async function loadShells() {
+  vi.resetModules();
+  const [{ AdminShell }, { CustomerShell }] = await Promise.all([
+    import("../../src/components/layout/AdminShell"),
+    import("../../src/components/layout/CustomerShell"),
+  ]);
+  return { AdminShell, CustomerShell };
+}
+
 beforeEach(() => {
   vi.unstubAllEnvs();
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
@@ -98,6 +107,18 @@ describe("Google OAuth login", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled());
     expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
   });
+
+  it.each([
+    ["invitation-required", /use your invitation link/i],
+    ["account-inactive", /account is inactive/i],
+  ])("explains the %s login reason without creating a redirect loop", async (reason, copy) => {
+    const LoginForm = await loadLogin();
+
+    render(<LoginForm reason={reason} />);
+
+    expect(screen.getByRole("alert")).toHaveTextContent(copy);
+    expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
+  });
 });
 
 describe("demo auth isolation", () => {
@@ -145,6 +166,40 @@ describe("state-aware live redirects", () => {
 
     render(<LiveProviders><div>content</div></LiveProviders>);
 
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
+});
+
+describe("non-active workspace shells", () => {
+  it.each([
+    ["pending", "/onboarding"],
+    ["invited", "/login?reason=invitation-required"],
+    ["deleted", "/login?reason=account-inactive"],
+  ])("routes an admin %s account before rendering workspace content", async (accountStatus, destination) => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({ authenticated: false, accountStatus, role: null });
+    const { AdminShell } = await loadShells();
+
+    render(<AdminShell><div>admin content</div></AdminShell>);
+
+    expect(screen.queryByText("admin content")).not.toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
+
+  it.each([
+    ["pending", "/onboarding"],
+    ["invited", "/login?reason=invitation-required"],
+    ["deleted", "/login?reason=account-inactive"],
+  ])("routes a customer %s account before rendering workspace content", async (accountStatus, destination) => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({ authenticated: false, accountStatus, role: null });
+    const { CustomerShell } = await loadShells();
+
+    render(<CustomerShell><div>customer content</div></CustomerShell>);
+
+    expect(screen.queryByText("customer content")).not.toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
   });
 });

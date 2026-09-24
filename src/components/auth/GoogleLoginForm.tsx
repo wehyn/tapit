@@ -11,9 +11,11 @@ import { sanitizeReturnPath } from "@/lib/auth/return-path";
 export function GoogleLoginForm({
   nextPath,
   oauthError,
+  reason,
 }: {
   nextPath?: string;
   oauthError?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const { signIn } = useAuthActions();
   const [pending, setPending] = useState(false);
@@ -34,7 +36,13 @@ export function GoogleLoginForm({
   return (
     <AuthShell mode="signin" variant="google" onModeChange={() => undefined}>
       <div className="grid gap-5">
-        {error ? <Notice tone="error">{error}</Notice> : null}
+        {reason === "invitation-required" ? (
+          <Notice tone="error">Use your invitation link to continue with Google.</Notice>
+        ) : reason === "account-inactive" ? (
+          <Notice tone="error">Your account is inactive. Contact support for access.</Notice>
+        ) : error ? (
+          <Notice tone="error">{error}</Notice>
+        ) : null}
         <Button
           aria-busy={pending}
           disabled={pending}
