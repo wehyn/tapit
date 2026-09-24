@@ -1,3 +1,5 @@
+import { generateKeyPairSync } from "node:crypto";
+
 import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import { describe, expect, it } from "vitest";
@@ -6,6 +8,10 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+const testJWTPrivateKey = generateKeyPairSync("rsa", { modulusLength: 2048 })
+  .privateKey.export({ type: "pkcs8", format: "pem" })
+  .toString()
+  .replace(/\n/g, " ");
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
   subject: userId,
@@ -13,6 +19,90 @@ const identity = (userId: Id<"users">) => ({
 });
 
 describe("hosted-demo scope boundaries", () => {
+  it("rejects Google sign-in without provisioning an application account", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    const previousSiteUrl = process.env.SITE_URL;
+    const previousConvexSiteUrl = process.env.CONVEX_SITE_URL;
+    const previousJWTPrivateKey = process.env.JWT_PRIVATE_KEY;
+    process.env.SITE_URL = "https://tapit.example.test";
+    process.env.CONVEX_SITE_URL = "https://tapit.test";
+    process.env.JWT_PRIVATE_KEY = testJWTPrivateKey;
+    try {
+      const authModule = (await import("../auth")) as unknown as {
+        authProviders?: Array<{ id: string }>;
+      };
+      expect(authModule.authProviders?.map((provider) => provider.id)).toEqual(["password"]);
+
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+
+      await expect(
+        t.action(api.auth.signIn, {
+          provider: "google",
+        }),
+      ).rejects.toThrow("Only password authentication is available.");
+
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("customers").take(10)).toHaveLength(0);
+      });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+      if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+      else process.env.SITE_URL = previousSiteUrl;
+      if (previousConvexSiteUrl === undefined) delete process.env.CONVEX_SITE_URL;
+      else process.env.CONVEX_SITE_URL = previousConvexSiteUrl;
+      if (previousJWTPrivateKey === undefined) delete process.env.JWT_PRIVATE_KEY;
+      else process.env.JWT_PRIVATE_KEY = previousJWTPrivateKey;
+    }
+  });
+
+  it("keeps hosted-demo password rules and normalized account email", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    const previousSiteUrl = process.env.SITE_URL;
+    const previousConvexSiteUrl = process.env.CONVEX_SITE_URL;
+    const previousJWTPrivateKey = process.env.JWT_PRIVATE_KEY;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    process.env.SITE_URL = "https://tapit.example.test";
+    process.env.CONVEX_SITE_URL = "https://tapit.test";
+    process.env.JWT_PRIVATE_KEY = testJWTPrivateKey;
+    try {
+      const t = convexTest(schema, modules);
+
+      await expect(
+        t.action(api.auth.signIn, {
+          provider: "password",
+          params: { flow: "signUp", email: "Mixed@Example.test", password: "short" },
+        }),
+      ).rejects.toThrow("Password must be at least 8 characters.");
+
+      const result = await t.action(api.auth.signIn, {
+        provider: "password",
+        params: { flow: "signUp", email: "Mixed@Example.test", password: "safe-password" },
+      });
+      expect(result.tokens).toBeTypeOf("object");
+      await t.run(async (ctx) => {
+        expect(
+          await ctx.db
+            .query("users")
+            .withIndex("email", (q) => q.eq("email", "mixed@example.test"))
+            .unique(),
+        ).not.toBeNull();
+        expect(await ctx.db.query("customers").take(10)).toHaveLength(0);
+      });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+      if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+      else process.env.SITE_URL = previousSiteUrl;
+      if (previousConvexSiteUrl === undefined) delete process.env.CONVEX_SITE_URL;
+      else process.env.CONVEX_SITE_URL = previousConvexSiteUrl;
+      if (previousJWTPrivateKey === undefined) delete process.env.JWT_PRIVATE_KEY;
+      else process.env.JWT_PRIVATE_KEY = previousJWTPrivateKey;
+    }
+  });
+
   it("initializes idempotently without returning or storing a plaintext claim code", async () => {
     const previous = process.env.TAPIT_DEMO_AUTH_MODE;
     process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";

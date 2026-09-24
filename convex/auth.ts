@@ -5,7 +5,11 @@ import { action, env } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { v } from "convex/values";
 
-import { ensureGoogleApplicationAccount, parseAdminEmails } from "./authIdentity";
+import {
+  ensureGoogleApplicationAccount,
+  normalizeAuthEmail,
+  parseAdminEmails,
+} from "./authIdentity";
 
 const hostedDemo = env.TAPIT_DEMO_AUTH_MODE === "hosted-demo";
 const adminEmails = (env as typeof env & { TAPIT_ADMIN_EMAILS?: string }).TAPIT_ADMIN_EMAILS;
@@ -23,11 +27,24 @@ const googleProvider = Google<GoogleProfile>({
   },
 });
 
+const hostedDemoPasswordProvider = Password({
+  profile(params) {
+    return { email: normalizeAuthEmail(String(params.email ?? "")) };
+  },
+  validatePasswordRequirements(password) {
+    if (password.length < 8) {
+      throw new Error("Password must be at least 8 characters.");
+    }
+  },
+});
+
+export const authProviders = hostedDemo ? [hostedDemoPasswordProvider] : [googleProvider];
+
 const authConfig = convexAuth({
-  providers: hostedDemo ? [googleProvider, Password()] : [googleProvider],
+  providers: authProviders,
   callbacks: {
     async afterUserCreatedOrUpdated(ctx, args) {
-      if (args.type !== "oauth" || args.provider.id !== "google") return;
+      if (hostedDemo || args.type !== "oauth" || args.provider.id !== "google") return;
       const profile = args.profile;
       await ensureGoogleApplicationAccount(ctx, {
         userId: args.userId,
@@ -76,8 +93,13 @@ const authSignInArgs = {
 export const signIn = action({
   args: authSignInArgs,
   handler: async (ctx, args) => {
-    if (!hostedDemo && args.provider !== undefined && args.provider !== "google") {
-      throw new Error("Only Google authentication is available.");
+    const allowedProvider = hostedDemo ? "password" : "google";
+    if (args.provider !== undefined && args.provider !== allowedProvider) {
+      throw new Error(
+        hostedDemo
+          ? "Only password authentication is available."
+          : "Only Google authentication is available.",
+      );
     }
     return await runAuthSignIn(ctx, args);
   },

@@ -54,7 +54,7 @@ export async function ensureGoogleApplicationAccount(
 ): Promise<ApplicationAccountState> {
   if (args.provider !== "google") throw new Error("Google authentication is required.");
   if (args.emailVerified !== true) throw new Error("A verified Google email is required.");
-  const displayName = args.displayName ?? args.name;
+  const displayName = (args.displayName ?? args.name)?.trim().slice(0, 120);
 
   const email = normalizeAuthEmail(args.email ?? "");
   if (!emailPattern.test(email)) throw new Error("A valid authenticated email is required.");
@@ -78,13 +78,19 @@ export async function ensureGoogleApplicationAccount(
     .query("customers")
     .withIndex("by_email", (q) => q.eq("email", email))
     .take(2);
+  if (byEmail.length > 1) {
+    throw new Error("That email is already linked to another customer account.");
+  }
+  const emailAccount = byEmail[0] ?? null;
   if (
-    byEmail.some(
-      (customer) =>
-        customer.userId !== args.userId &&
-        !(customer.userId === undefined && customer.status === "invited"),
-    )
+    emailAccount !== null &&
+    existing === null &&
+    emailAccount.userId === undefined &&
+    emailAccount.status === "invited"
   ) {
+    return accountState(emailAccount);
+  }
+  if (emailAccount !== null && emailAccount._id !== existing?._id) {
     throw new Error("That email is already linked to another customer account.");
   }
 
@@ -96,8 +102,8 @@ export async function ensureGoogleApplicationAccount(
         status: "pending",
         deletionStatus: "active",
         updatedAt: now,
-        ...(existing.onboardingName === undefined && displayName?.trim()
-          ? { onboardingName: displayName.trim().slice(0, 120) }
+        ...(existing.onboardingName === undefined && displayName
+          ? { onboardingName: displayName }
           : {}),
       });
       await ctx.db.insert("auditLogs", {
@@ -122,11 +128,7 @@ export async function ensureGoogleApplicationAccount(
     role: isAdmin ? "admin" : "customer",
     status: isAdmin ? "active" : "pending",
     deletionStatus: "active",
-    ...(isAdmin
-      ? {}
-      : args.displayName?.trim()
-        ? { onboardingName: displayName.trim().slice(0, 120) }
-        : {}),
+    ...(!isAdmin && displayName ? { onboardingName: displayName } : {}),
     createdAt: now,
     updatedAt: now,
   });
