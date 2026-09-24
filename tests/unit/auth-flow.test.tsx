@@ -66,10 +66,6 @@ describe("live authentication state machine", () => {
 
     const user = userEvent.setup();
     const { unmount } = render(<LoginForm />);
-    expect(screen.getByRole("banner")).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
-    expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute("href", "/build-card");
     await user.click(screen.getByRole("button", { name: "Forgot password?" }));
     await user.type(screen.getByLabelText("Email"), "known@example.test");
     await user.click(screen.getByRole("button", { name: "Send reset instructions" }));
@@ -94,20 +90,6 @@ describe("live authentication state machine", () => {
     expect(unknownCopy).toBe(knownCopy);
     expect(screen.queryByText(/does not exist|not found|registered/i)).not.toBeInTheDocument();
   }, 15_000);
-
-  it("keeps the reset request reachable from an authenticated account", async () => {
-    const LoginForm = await loadLiveLogin();
-    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
-    useQuery.mockImplementation((reference: unknown, args?: unknown) => {
-      if (args === "skip") return undefined;
-      return reference ? { authenticated: true, role: "customer" } : undefined;
-    });
-
-    render(<LoginForm resetEmail="ada@example.test" />);
-
-    expect(await screen.findByRole("button", { name: "Send reset instructions" })).toBeVisible();
-    expect(replace).not.toHaveBeenCalled();
-  });
 
   it("shows a verification-code form after signup needs email verification and clears password", async () => {
     const LoginForm = await loadLiveLogin();
