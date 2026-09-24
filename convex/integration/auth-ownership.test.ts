@@ -119,6 +119,64 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("Convex authentication and ownership", () => {
+  it("exposes pending access and completes onboarding from the server identity", async () => {
+    const t = testConvex();
+    const userId = await t.run(async (ctx) =>
+      ctx.db.insert("users", {
+        email: "Pending@Example.COM",
+        emailVerificationTime: 1,
+      }),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert("customers", {
+        userId,
+        email: "pending@example.com",
+        role: "customer",
+        status: "pending",
+        onboardingName: "Google Name",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    });
+    const user = t.withIdentity(identity(userId));
+
+    await expect(user.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      authenticated: false,
+      accountStatus: "pending",
+      role: null,
+      profileId: null,
+      onboardingName: "Google Name",
+    });
+
+    const completed = await user.mutation(api.customers.completeSelfServiceOnboarding, {
+      name: "  Pending Person  ",
+    });
+    expect(completed.slug).toBe("pending-person");
+    await expect(user.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      accountId: completed.customerId,
+      profileId: completed.profileId,
+    });
+  });
+
+  it("keeps invitation status reusable after acceptance and reports explicit states", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.invitationId, { acceptedAt: 10 });
+    });
+
+    await expect(t.query(api.invitations.status, { tokenHash: "owner-token" })).resolves.toEqual({
+      state: "valid",
+      email: "owner@example.com",
+      profileName: "Owner Draft",
+      acceptedAt: 10,
+    });
+  });
+
   it("rejects unauthenticated private reads and writes", async () => {
     const t = testConvex();
     const data = await seed(t);
