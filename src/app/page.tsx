@@ -137,7 +137,7 @@ export default function HomePage() {
         id="teams"
       >
         <div className="mx-auto w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)]">
-          <h2 className="max-w-3xl text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
+          <h2 className="mx-auto max-w-3xl text-center text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
             Everyone gets one clear way to be found.
           </h2>
         </div>

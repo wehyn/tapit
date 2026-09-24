@@ -10,6 +10,18 @@ test("landing page keeps the core sections without placeholder copy or pricing",
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "View demo profile", exact: true })).toHaveCount(0);
 
+  await expect(
+    page.getByRole("heading", { name: "One place for the things people need next." }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Links that stay useful." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "A better first hello." })).toBeVisible();
+  for (const step of ["Create your profile", "Add what comes next", "Share it anywhere"]) {
+    await expect(page.getByRole("heading", { name: step })).toBeVisible();
+  }
+  await expect(page.locator("main > footer")).toContainText(
+    "Built for quick, human introductions.",
+  );
+
   await expect(page.getByText("A smarter way to connect", { exact: true })).toHaveCount(0);
   await expect(page.locator("#product").getByText("The profile", { exact: true })).toHaveCount(0);
   await expect(
@@ -40,6 +52,22 @@ test("landing page keeps the core sections without placeholder copy or pricing",
   await expect(
     page.getByRole("heading", { name: "Everyone gets one clear way to be found." }),
   ).toBeVisible();
+  const teamsContainer = page.locator("#teams > div");
+  const teamsHeading = page.locator("#teams > div > h2");
+  const [teamsContainerBox, teamsHeadingBox] = await Promise.all([
+    teamsContainer.boundingBox(),
+    teamsHeading.boundingBox(),
+  ]);
+  if (!teamsContainerBox || !teamsHeadingBox) {
+    throw new Error("Could not measure the teams section alignment");
+  }
+  expect(
+    Math.abs(
+      teamsHeadingBox.x +
+        teamsHeadingBox.width / 2 -
+        (teamsContainerBox.x + teamsContainerBox.width / 2),
+    ),
+  ).toBeLessThanOrEqual(2);
   expect(
     await page.locator("main > footer").evaluate((footer) => footer.previousElementSibling?.id),
   ).toBe("teams");
