@@ -3,45 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, Buildings, LinkSimple, UserPlus } from "@phosphor-icons/react";
-import { isLocalDemoMode } from "@/lib/demo/mode";
+import { LinkSimple, UserPlus } from "@phosphor-icons/react";
 import { PublicBrand, PublicHeader } from "@/components/layout/PublicHeader";
-
-const pricingPlans = [
-  {
-    name: "Pre-order",
-    descriptor: "Founding 25",
-    price: "₱250",
-    description:
-      "Get your custom Tapit card at our launch price. Limited to the first 25 customers.",
-    cta: "Pre-order your Tapit",
-    featured: true,
-  },
-  {
-    name: "Student",
-    descriptor: "25% Discount",
-    price: "₱375",
-    description: "Valid student ID required. Same features, made more accessible for students.",
-    cta: "Get student pricing",
-    featured: false,
-  },
-  {
-    name: "Regular",
-    descriptor: "Your Tapit",
-    price: "₱500",
-    description: "One custom NFC + QR card with your Tapit profile. No monthly fees.",
-    cta: "Get your Tapit",
-    featured: false,
-  },
-  {
-    name: "Teams",
-    descriptor: "10-card Batch",
-    price: "₱4,000",
-    description: "₱400 per card. Made for teams, organizations, and groups.",
-    cta: "Order for your team",
-    featured: false,
-  },
-] as const;
 
 function ProfileCard() {
   return (
@@ -63,15 +26,11 @@ function ProfileCard() {
 }
 
 function FeatureSection({
-  eyebrow,
   title,
-  description,
   children,
   id,
 }: {
-  eyebrow: string;
   title: string;
-  description: string;
   children: ReactNode;
   id: string;
 }) {
@@ -79,15 +38,9 @@ function FeatureSection({
     <section className="border-t border-tapit-line py-24 sm:py-32" id={id}>
       <div className="mx-auto grid w-full max-w-[95rem] gap-12 px-[clamp(1.25rem,5vw,5.25rem)] lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:gap-24">
         <div className="max-w-lg">
-          <p className="text-xs font-semibold tracking-[0.24em] text-tapit-accent uppercase">
-            {eyebrow}
-          </p>
-          <h2 className="mt-5 text-4xl font-normal tracking-[-0.055em] text-tapit-ink sm:text-6xl">
+          <h2 className="text-4xl font-normal tracking-[-0.055em] text-tapit-ink sm:text-6xl">
             {title}
           </h2>
-          <p className="mt-6 max-w-md text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
-            {description}
-          </p>
         </div>
         <div>{children}</div>
       </div>
@@ -96,8 +49,6 @@ function FeatureSection({
 }
 
 export default function HomePage() {
-  const isDemoMode = isLocalDemoMode();
-
   return (
     <main className="bg-tapit-paper text-tapit-ink">
       <PublicHeader />
@@ -118,11 +69,7 @@ export default function HomePage() {
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
           <div className="grid flex-1 items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
-              <p className="flex items-center gap-4 text-xs font-semibold tracking-[0.28em] text-tapit-muted uppercase">
-                <span aria-hidden="true" className="h-px w-12 bg-tapit-muted/70" /> A smarter way to
-                connect
-              </p>
-              <h1 className="mt-7 max-w-[40rem] text-[clamp(3.5rem,5.6vw,6rem)] leading-[0.93] font-normal tracking-[-0.075em] text-balance">
+              <h1 className="max-w-[40rem] text-[clamp(3.5rem,5.6vw,6rem)] leading-[0.93] font-normal tracking-[-0.075em] text-balance">
                 <span className="block">Share one profile.</span>
                 <span className="block">Update it anytime.</span>
               </h1>
@@ -139,12 +86,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <FeatureSection
-        description="Keep your contact details, work, and next step together in a profile that is easy to share and easy to keep current."
-        eyebrow="The profile"
-        id="product"
-        title="One place for the things people need next."
-      >
+      <FeatureSection id="product" title="One place for the things people need next.">
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="rounded-[1.5rem] bg-tapit-ink p-7 text-tapit-paper sm:p-9">
             <LinkSimple aria-hidden="true" className="text-tapit-accent-soft" size={28} />
@@ -163,12 +105,7 @@ export default function HomePage() {
         </div>
       </FeatureSection>
 
-      <FeatureSection
-        description="Build once, then update your links and contact details whenever your work changes. The public profile stays stable while your story keeps moving."
-        eyebrow="How it works"
-        id="how-it-works"
-        title="Share once. Stay current."
-      >
+      <FeatureSection id="how-it-works" title="Share once. Stay current.">
         <ol className="grid gap-0 border-t border-tapit-line">
           {[
             ["01", "Create your profile", "Add the details you want people to find."],
@@ -199,114 +136,10 @@ export default function HomePage() {
         className="border-t border-tapit-line bg-tapit-soft-surface py-24 sm:py-32"
         id="teams"
       >
-        <div className="mx-auto grid w-full max-w-[95rem] gap-12 px-[clamp(1.25rem,5vw,5.25rem)] lg:grid-cols-[1.1fr_0.9fr] lg:items-end lg:gap-24">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.24em] text-tapit-accent uppercase">
-              For teams
-            </p>
-            <h2 className="mt-5 max-w-3xl text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
-              Everyone gets one clear way to be found.
-            </h2>
-          </div>
-          <p className="max-w-md text-lg leading-8 text-tapit-muted">
-            Give people a polished, updateable profile for events, introductions, and the moments in
-            between.
-          </p>
-        </div>
-      </section>
-
-      <section
-        aria-labelledby="pricing-heading"
-        className="border-t border-tapit-line py-24 sm:py-32"
-        id="pricing"
-      >
         <div className="mx-auto w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)]">
-          <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold tracking-[0.24em] text-tapit-accent uppercase">
-                Pricing
-              </p>
-              <h2
-                className="mt-5 text-5xl font-normal tracking-[-0.06em] sm:text-7xl"
-                id="pricing-heading"
-              >
-                Start with a profile that feels like you.
-              </h2>
-            </div>
-            <Link
-              className="inline-flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-accent transition hover:text-tapit-accent-strong"
-              href="/login"
-            >
-              Open your workspace <ArrowUpRight aria-hidden="true" size={18} />
-            </Link>
-          </div>
-
-          <div className="mt-12 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {pricingPlans.map((plan) => (
-              <article
-                className={`flex min-w-0 flex-col rounded-[1.5rem] border p-6 sm:p-7 ${
-                  plan.featured
-                    ? "border-tapit-accent/60 bg-tapit-accent-soft shadow-[0_18px_50px_rgba(21,25,24,0.07)]"
-                    : "border-tapit-line bg-tapit-surface"
-                }`}
-                key={plan.name}
-              >
-                {plan.featured ? (
-                  <span className="mb-4 self-start rounded-full bg-tapit-accent px-3 py-1.5 text-[0.65rem] font-semibold tracking-[0.14em] text-white uppercase">
-                    Limited to first 25
-                  </span>
-                ) : null}
-                <h3 className="text-2xl font-medium tracking-[-0.05em]">{plan.name}</h3>
-                <p className="mt-2 text-sm text-tapit-muted">{plan.descriptor}</p>
-                <p className="mt-5 text-4xl font-medium tracking-[-0.08em] text-tapit-ink">
-                  {plan.price}
-                </p>
-                <p className="mt-5 max-w-xs text-sm leading-6 text-tapit-muted">
-                  {plan.description}
-                </p>
-                <div className="mt-auto pt-8">
-                  <Link
-                    className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl px-5 text-sm font-semibold transition hover:-translate-y-px ${
-                      plan.featured
-                        ? "bg-tapit-accent text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)] hover:bg-tapit-accent-strong"
-                        : "border border-tapit-line text-tapit-ink hover:border-tapit-ink/30 hover:bg-tapit-paper"
-                    }`}
-                    href="/login"
-                  >
-                    {plan.cta} <ArrowRight aria-hidden="true" size={18} weight="bold" />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          <div className="mt-5 flex flex-col gap-4 rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-            <div className="flex min-w-0 items-center gap-4">
-              <span className="grid size-12 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent">
-                <Buildings aria-hidden="true" size={24} weight="regular" />
-              </span>
-              <div>
-                <h3 className="text-lg font-medium tracking-[-0.04em]">Need more than 10?</h3>
-                <p className="mt-1 text-sm text-tapit-muted">
-                  Custom and bulk orders are available with volume pricing.
-                </p>
-              </div>
-            </div>
-            <Link
-              className="inline-flex min-h-12 shrink-0 items-center justify-center gap-3 rounded-2xl border border-tapit-line px-5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-ink/30 hover:bg-tapit-paper"
-              href="/login"
-            >
-              Request a quote <ArrowRight aria-hidden="true" size={18} weight="bold" />
-            </Link>
-          </div>
-          <div className="mt-5 flex">
-            <Link
-              className="inline-flex min-h-16 min-w-[17.5rem] items-center justify-between gap-8 rounded-2xl bg-tapit-accent px-7 text-base font-semibold text-white shadow-[0_16px_36px_rgba(24,116,97,0.2)] transition hover:-translate-y-px hover:bg-tapit-accent-strong"
-              href={isDemoMode ? "/mara-velasquez" : "/login?mode=signup"}
-            >
-              Get Started <ArrowRight aria-hidden="true" size={22} weight="bold" />
-            </Link>
-          </div>
+          <h2 className="max-w-3xl text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
+            Everyone gets one clear way to be found.
+          </h2>
         </div>
       </section>
 

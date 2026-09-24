@@ -245,7 +245,7 @@ describe("PublicHeader responsive navigation", () => {
       within(mobileNavigation)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Product", "How it works", "Pricing", "Build card", "Demo Profile"]);
+    ).toEqual(["Product", "How it works", "Build card", "Demo Profile"]);
     expect(within(mobileNavigation).queryByText("For teams")).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");
