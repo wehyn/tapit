@@ -5,7 +5,7 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ChartLineIcon, ShieldCheckIcon, TrendUpIcon } from "@phosphor-icons/react";
+import { ShieldCheckIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -63,21 +63,19 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
           <dd className="mt-2 text-xl font-semibold text-tapit-ink">
             {totals[source].toLocaleString()}
           </dd>
-          <p className="mt-1 text-xs text-tapit-muted">Aggregate events</p>
         </div>
       ))}
     </div>
   );
 }
 
-function Metric({ label, value, detail }: { label: string; value: number; detail: string }) {
+function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
       <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
         {value.toLocaleString()}
       </dd>
-      <p className="mt-2 text-xs leading-5 text-tapit-muted">{detail}</p>
     </div>
   );
 }
@@ -115,10 +113,7 @@ function DemoCustomerAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel
-        description="Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history."
-        title="Profile analytics"
-      >
+      <Panel title="Profile analytics">
         <div className="mt-6 max-w-xs">
           <SelectField
             id="analytics-range"
@@ -135,18 +130,9 @@ function DemoCustomerAnalytics() {
         </div>
       </Panel>
 
-      <Panel
-        description="Each column is one aggregate time bucket. Views and clicks are shown together to make momentum easy to read."
-        title="Engagement trend"
-      >
-        <div className="mt-6 flex items-center gap-2 text-sm text-tapit-muted">
-          <ChartLineIcon aria-hidden="true" size={18} weight="bold" />
-          {trend.length > 0
-            ? `${trend.length} aggregate buckets in this range`
-            : "No aggregate activity in this range"}
-        </div>
+      <Panel title="Engagement trend">
         <div
-          className="mt-5 flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
+          className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
           aria-label="Aggregate engagement trend"
         >
           {trend.length > 0 ? (
@@ -184,24 +170,13 @@ function DemoCustomerAnalytics() {
 
       <Panel title="Engagement summary">
         <dl className="mt-5 grid gap-5 sm:grid-cols-3">
-          <Metric detail="All profile entry paths" label="Profile views" value={totals.views} />
-          <Metric
-            detail="Privacy-preserving estimate"
-            label="Unique views"
-            value={totals.uniqueViews}
-          />
-          <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
+          <Metric label="Profile views" value={totals.views} />
+          <Metric label="Unique views" value={totals.uniqueViews} />
+          <Metric label="Link clicks" value={totals.clicks} />
         </dl>
-        <p className="mt-5 flex items-center gap-2 text-sm text-tapit-muted">
-          <TrendUpIcon aria-hidden="true" size={17} weight="bold" />
-          Aggregate totals for the selected range
-        </p>
       </Panel>
 
-      <Panel
-        description="Aggregate events by entry path. Historical rows without attribution appear as unknown."
-        title="Traffic sources"
-      >
+      <Panel title="Traffic sources">
         <SourceBreakdown totals={sourceTotals} />
       </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
@@ -211,10 +186,7 @@ function DemoCustomerAnalytics() {
         </Notice>
       ) : null}
 
-      <Panel
-        description="Clicks are grouped by the link label you chose. Disabled links remain visible here only when they have historical activity."
-        title="Link results"
-      >
+      <Panel title="Link results">
         <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
           {linkResults.length === 0 ? (
             <div className="p-5 text-sm text-tapit-muted">
@@ -315,10 +287,7 @@ function LiveCustomerAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel
-        description="Aggregate activity for your profile only. Visitor identities are never exposed."
-        title="Profile analytics"
-      >
+      <Panel title="Profile analytics">
         <div className="mt-6 max-w-xs">
           <SelectField
             id="analytics-range"
@@ -334,7 +303,7 @@ function LiveCustomerAnalytics() {
           </SelectField>
         </div>
       </Panel>
-      <Panel description="Each column is one aggregate time bucket." title="Engagement trend">
+      <Panel title="Engagement trend">
         {pages.status !== "Exhausted" ? (
           <Notice>Loading the complete analytics range…</Notice>
         ) : null}
@@ -373,25 +342,18 @@ function LiveCustomerAnalytics() {
       </Panel>
       <Panel title="Engagement summary">
         <dl className="mt-5 grid gap-5 sm:grid-cols-3">
-          <Metric detail="All profile entry paths" label="Profile views" value={totals.views} />
-          <Metric
-            detail="Privacy-preserving estimate"
-            label="Unique views"
-            value={totals.uniqueViews}
-          />
-          <Metric detail="Destination selections" label="Link clicks" value={totals.clicks} />
+          <Metric label="Profile views" value={totals.views} />
+          <Metric label="Unique views" value={totals.uniqueViews} />
+          <Metric label="Link clicks" value={totals.clicks} />
         </dl>
       </Panel>
-      <Panel
-        description="Aggregate events by entry path. Historical rows without attribution appear as unknown."
-        title="Traffic sources"
-      >
+      <Panel title="Traffic sources">
         <SourceBreakdown totals={sourceTotals} />
       </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No activity in this range yet.</Notice>
       ) : null}
-      <Panel description="Clicks are grouped by the link label you chose." title="Link results">
+      <Panel title="Link results">
         <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
           {linkResults.length === 0 ? (
             <div className="p-5 text-sm text-tapit-muted">

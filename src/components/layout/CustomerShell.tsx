@@ -94,7 +94,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       beforeNavigate={beforeNavigate}
-      eyebrow="Customer workspace"
+      eyebrow=""
       navGroups={customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
@@ -150,12 +150,11 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       beforeNavigate={beforeNavigate}
-      eyebrow="Customer workspace"
+      eyebrow=""
       navGroups={customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
-          <p className="px-1 text-sm text-tapit-muted">Customer workspace</p>
           <Button
             onClick={() => {
               void signOut().finally(() => router.replace("/login"));

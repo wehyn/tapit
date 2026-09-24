@@ -52,7 +52,7 @@ describe("LinksWorkspace", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Your links" })).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Your links" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add link" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveValue("LinkedIn");
     expect(screen.getByRole("region", { name: "Live profile preview" })).toBeVisible();
