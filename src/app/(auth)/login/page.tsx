@@ -1,5 +1,6 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 import type { AuthMode } from "@/components/auth/AuthShell";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 
 export default async function LoginPage({
   searchParams,
@@ -7,17 +8,16 @@ export default async function LoginPage({
   searchParams: Promise<{
     next?: string | string[];
     mode?: string | string[];
-    reset?: string | string[];
-    email?: string | string[];
+    error?: string | string[];
   }>;
 }) {
-  const { next, mode, reset, email } = await searchParams;
-  const initialMode: AuthMode = mode === "signup" ? "signup" : "signin";
+  const { next, mode, error } = await searchParams;
+  const initialMode: AuthMode = isLocalDemoMode() && mode === "signup" ? "signup" : "signin";
   return (
     <LoginForm
       initialMode={initialMode}
       nextPath={typeof next === "string" ? next : undefined}
-      resetEmail={reset === "1" && typeof email === "string" ? email : undefined}
+      oauthError={typeof error === "string" ? error : undefined}
     />
   );
 }

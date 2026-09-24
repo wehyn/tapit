@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const replace = vi.fn();
 const signIn = vi.fn();
 const signOut = vi.fn();
-const createAccount = vi.fn();
 const useQuery = vi.fn();
 const useConvexAuth = vi.fn();
+let currentPath = "/login";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  usePathname: () => "/login",
+  usePathname: () => currentPath,
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 vi.mock("@convex-dev/auth/react", () => ({
@@ -19,236 +20,131 @@ vi.mock("@convex-dev/auth/react", () => ({
   useConvexAuth: () => useConvexAuth(),
 }));
 
-vi.mock("convex/react", () => ({
-  useMutation: () => createAccount,
-  useQuery: (...args: unknown[]) => useQuery(...args),
+vi.mock("@convex-dev/auth/nextjs", () => ({
+  ConvexAuthNextjsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-async function loadLiveLogin() {
+vi.mock("convex/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("convex/react")>();
+  return {
+    ...actual,
+    useMutation: () => vi.fn(),
+    useQuery: (...args: unknown[]) => useQuery(...args),
+  };
+});
+
+async function loadLogin() {
   vi.resetModules();
-  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   return (await import("../../src/components/auth/LoginForm")).LoginForm;
 }
 
-async function loadLiveSetup() {
+async function loadProviders() {
   vi.resetModules();
-  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
-  return (await import("../../src/components/auth/SetupForm")).SetupForm;
-}
-
-function configureLiveHooks() {
-  useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-  useQuery.mockImplementation((reference: unknown, args?: unknown) => {
-    if (args === "skip") return undefined;
-    return reference ? { authenticated: false } : undefined;
-  });
-  createAccount.mockResolvedValue(undefined);
+  return (await import("../../src/components/providers/LiveProviders")).LiveProviders;
 }
 
 beforeEach(() => {
+  vi.unstubAllEnvs();
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   replace.mockReset();
   signIn.mockReset();
   signOut.mockReset();
-  createAccount.mockReset();
   useQuery.mockReset();
+  currentPath = "/login";
   useConvexAuth.mockReset();
-  configureLiveHooks();
+  useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+  useQuery.mockReturnValue(undefined);
 });
 
-describe("live authentication state machine", () => {
-  it("uses identical generic reset copy for known and unknown emails and disables pending submit", async () => {
-    const LoginForm = await loadLiveLogin();
-    let resolveKnown!: (value: { signingIn: false }) => void;
-    const pending = new Promise<{ signingIn: false }>((resolve) => {
-      resolveKnown = resolve;
-    });
-    signIn.mockReturnValue(pending);
-
-    const user = userEvent.setup();
-    const { unmount } = render(<LoginForm />);
-    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
-    await user.type(screen.getByLabelText("Email"), "known@example.test");
-    await user.click(screen.getByRole("button", { name: "Send reset instructions" }));
-    expect(screen.getByRole("button", { name: "Sending reset instructions" })).toBeDisabled();
-
-    resolveKnown({ signingIn: false });
-    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
-    const knownCopy = screen.getByRole("status").textContent;
-    unmount();
-
-    signIn.mockResolvedValue({ signingIn: false });
+describe("Google OAuth login", () => {
+  it("renders one Google action and no password or email controls in live mode", async () => {
+    const LoginForm = await loadLogin();
     render(<LoginForm />);
-    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
-    await user.type(screen.getByLabelText("Email"), "unknown@example.test");
-    await user.click(screen.getByRole("button", { name: "Send reset instructions" }));
-    await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
 
-    const unknownCopy = screen.getByRole("status").textContent;
-    expect(unknownCopy).toBe(
-      "If an account matches that email, reset instructions are on the way.",
-    );
-    expect(unknownCopy).toBe(knownCopy);
-    expect(screen.queryByText(/does not exist|not found|registered/i)).not.toBeInTheDocument();
-  }, 15_000);
-
-  it("shows a verification-code form after signup needs email verification and clears password", async () => {
-    const LoginForm = await loadLiveLogin();
-    signIn.mockResolvedValue({ signingIn: false });
-    const user = userEvent.setup();
-    render(<LoginForm initialMode="signup" />);
-
-    await user.type(screen.getByLabelText("Display name"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Profile link"), "ada-lovelace");
-    await user.type(screen.getByLabelText("Email"), " Ada@Example.com ");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.type(screen.getByLabelText("Confirm password"), "password");
-    await user.click(screen.getByRole("button", { name: "Create your profile" }));
-
-    expect(await screen.findByLabelText("Verification code")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Continue with Google" })).toHaveLength(1);
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
-    expect(screen.getByText(/check your email/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Verify email" })).toBeEnabled();
+    expect(screen.queryByText(/verification|resend|reset|sign up/i)).not.toBeInTheDocument();
   });
 
-  it("shows a verification-code form when password sign-in starts email verification", async () => {
-    const LoginForm = await loadLiveLogin();
+  it.each([
+    [undefined, "/app/profile"],
+    ["/setup/token-value", "/setup/token-value"],
+    ["https://evil.example/setup", "/app/profile"],
+    ["//evil.example/setup", "/app/profile"],
+    ["/\\\\evil.example/setup", "/app/profile"],
+    ["/%zz", "/app/profile"],
+  ])("passes a safe OAuth return path (%s)", async (nextPath, redirectTo) => {
+    const LoginForm = await loadLogin();
     signIn.mockResolvedValue({ signingIn: false });
     const user = userEvent.setup();
+
+    render(<LoginForm nextPath={nextPath} />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    expect(signIn).toHaveBeenCalledWith("google", { redirectTo });
+  });
+
+  it("shows generic OAuth rejection copy and restores a retry action", async () => {
+    const LoginForm = await loadLogin();
+    signIn.mockRejectedValue(new Error("provider_secret=do-not-render"));
+    const user = userEvent.setup();
+
     render(<LoginForm />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
 
-    await user.type(screen.getByLabelText("Email"), "ada@example.test");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.click(screen.getByRole("button", { name: "Sign in" }));
-
-    expect(await screen.findByLabelText("Verification code")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
-    expect(screen.getByText(/check your email/i)).toBeInTheDocument();
-  });
-
-  it("completes reset, clears reset fields, and routes back to sign-in", async () => {
-    const LoginForm = await loadLiveLogin();
-    signIn.mockResolvedValueOnce({ signingIn: false }).mockResolvedValueOnce({ signingIn: true });
-    const user = userEvent.setup();
-    render(<LoginForm />);
-
-    await user.click(screen.getByRole("button", { name: "Forgot password?" }));
-    await user.type(screen.getByLabelText("Email"), "ada@example.test");
-    await user.click(screen.getByRole("button", { name: "Send reset instructions" }));
-    await screen.findByLabelText("Verification code");
-    await user.type(screen.getByLabelText("Verification code"), "123456");
-    await user.type(screen.getByLabelText("New password"), "new-password");
-    await user.type(screen.getByLabelText("Confirm new password"), "new-password");
-    await user.click(screen.getByRole("button", { name: "Reset password" }));
-
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
-    expect(signOut).toHaveBeenCalledOnce();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Verification code")).not.toBeInTheDocument();
-    expect(screen.queryByDisplayValue("new-password")).not.toBeInTheDocument();
-  });
-
-  it("abandons a pending verification when switching auth modes", async () => {
-    const LoginForm = await loadLiveLogin();
-    signIn.mockResolvedValue({ signingIn: false });
-    const user = userEvent.setup();
-    render(<LoginForm initialMode="signup" />);
-
-    await user.type(screen.getByLabelText("Display name"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Profile link"), "ada-lovelace");
-    await user.type(screen.getByLabelText("Email"), "ada@example.test");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.type(screen.getByLabelText("Confirm password"), "password");
-    await user.click(screen.getByRole("button", { name: "Create your profile" }));
-    await screen.findByLabelText("Verification code");
-
-    await user.click(screen.getByRole("button", { name: "Already have an account? Sign in" }));
-
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Verification code")).not.toBeInTheDocument();
-  });
-
-  it("offers a retry when verified signup profile provisioning fails", async () => {
-    const LoginForm = await loadLiveLogin();
-    const authState = { isAuthenticated: false, isLoading: false };
-    useConvexAuth.mockImplementation(() => authState);
-    signIn.mockResolvedValueOnce({ signingIn: false }).mockImplementationOnce(async () => {
-      authState.isAuthenticated = true;
-      return { signingIn: true };
-    });
-    createAccount
-      .mockRejectedValueOnce(new Error("That profile link is already in use."))
-      .mockResolvedValueOnce(undefined);
-    const user = userEvent.setup();
-    render(<LoginForm initialMode="signup" />);
-
-    await user.type(screen.getByLabelText("Display name"), "Ada Lovelace");
-    await user.type(screen.getByLabelText("Profile link"), "ada-lovelace");
-    await user.type(screen.getByLabelText("Email"), "ada@example.test");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.type(screen.getByLabelText("Confirm password"), "password");
-    await user.click(screen.getByRole("button", { name: "Create your profile" }));
-    await user.type(await screen.findByLabelText("Verification code"), "123456");
-    await user.click(screen.getByRole("button", { name: "Verify email" }));
-
-    await screen.findByText("That profile link is already in use.");
-    await user.click(screen.getByRole("button", { name: "Retry profile creation" }));
-
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
-    expect(createAccount).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be completed/i);
+    expect(screen.getByRole("alert")).not.toHaveTextContent("provider_secret");
+    await waitFor(() => expect(screen.getByRole("button", { name: "Continue with Google" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: /cancel/i })).toBeInTheDocument();
   });
 });
 
-describe("live invitation setup state machine", () => {
-  function configureInvitation() {
-    useQuery.mockImplementation((_reference: unknown, args?: unknown) => {
-      if (args === "skip") return undefined;
-      return { valid: true, email: "invite@example.test" };
-    });
-  }
+describe("demo auth isolation", () => {
+  it("keeps the local deterministic email and password form", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    const LoginForm = await loadLogin();
 
-  it("enables verification and resend after the signup request starts", async () => {
-    const SetupForm = await loadLiveSetup();
-    configureInvitation();
-    signIn.mockResolvedValue({ signingIn: false });
-    const user = userEvent.setup();
-    render(<SetupForm token="setup-token" />);
+    render(<LoginForm />);
 
-    await screen.findByText("invite@example.test");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.type(screen.getByLabelText("Confirm password"), "password");
-    await user.click(screen.getByRole("button", { name: "Set password" }));
-
-    await screen.findByLabelText("Verification code");
-    expect(screen.getByRole("button", { name: "Verify email" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Resend code" })).toBeEnabled();
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
   });
 
-  it("offers a retry when completing an already-verified invitation fails", async () => {
-    const SetupForm = await loadLiveSetup();
-    configureInvitation();
-    const authState = { isAuthenticated: false, isLoading: false };
-    useConvexAuth.mockImplementation(() => authState);
-    signIn.mockResolvedValueOnce({ signingIn: false }).mockImplementationOnce(async () => {
-      authState.isAuthenticated = true;
-      return { signingIn: true };
-    });
-    createAccount
-      .mockRejectedValueOnce(new Error("The invitation could not be completed."))
-      .mockResolvedValueOnce(undefined);
-    const user = userEvent.setup();
-    render(<SetupForm token="setup-token" />);
+  it("keeps hosted demo on its isolated password form", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
+    useQuery.mockReturnValue({ authenticated: false, accountStatus: "unauthenticated", role: null });
+    const LoginForm = await loadLogin();
 
-    await screen.findByText("invite@example.test");
-    await user.type(screen.getByLabelText("Password"), "password");
-    await user.type(screen.getByLabelText("Confirm password"), "password");
-    await user.click(screen.getByRole("button", { name: "Set password" }));
-    await user.type(await screen.findByLabelText("Verification code"), "123456");
-    await user.click(screen.getByRole("button", { name: "Verify email" }));
+    render(<LoginForm />);
 
-    await screen.findByRole("button", { name: "Retry setup" });
-    await user.click(screen.getByRole("button", { name: "Retry setup" }));
+    expect(screen.getByLabelText("Email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+  });
+});
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
-    expect(createAccount).toHaveBeenCalledTimes(2);
+describe("state-aware live redirects", () => {
+  it.each([
+    [{ authenticated: false, accountStatus: "pending", role: null }, "/onboarding"],
+    [{ authenticated: false, accountStatus: "invited", role: null }, "/login?reason=invitation-required"],
+    [{ authenticated: false, accountStatus: "deleted", role: null }, "/login?reason=account-inactive"],
+    [{ authenticated: true, accountStatus: "active", role: "admin" }, "/admin"],
+    [{ authenticated: true, accountStatus: "active", role: "customer" }, "/app/profile"],
+  ])("routes %j to %s", async (access, destination) => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    if (access.accountStatus === "invited" || access.accountStatus === "deleted") {
+      currentPath = "/app/profile";
+    }
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue(access);
+    const LiveProviders = await loadProviders();
+
+    render(<LiveProviders><div>content</div></LiveProviders>);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
   });
 });
