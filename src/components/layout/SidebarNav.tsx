@@ -106,9 +106,11 @@ export function SidebarNav({
     <>
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[285px] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-7 lg:flex">
         <Brand />
-        <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-          {eyebrow}
-        </p>
+        {eyebrow ? (
+          <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
+            {eyebrow}
+          </p>
+        ) : null}
         <div className="mt-6 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
         {sidebarFooter ? (
           <div className="mt-8 border-t border-tapit-line pt-5">{sidebarFooter}</div>
@@ -162,9 +164,11 @@ export function SidebarNav({
                 ×
               </button>
             </div>
-            <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              {eyebrow}
-            </p>
+            {eyebrow ? (
+              <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
+                {eyebrow}
+              </p>
+            ) : null}
             <div className="mt-6 flex-1 overflow-y-auto">{renderGroups("mobile")}</div>
             {sidebarFooter ? (
               <div className="mt-8 border-t border-tapit-line pt-5">{sidebarFooter}</div>

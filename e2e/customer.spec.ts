@@ -28,6 +28,7 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
     name: "Your Tapit profile navigation",
   });
   await expect(desktopNavigation).toBeVisible();
+  await expect(page.getByText("Customer workspace", { exact: true })).toHaveCount(0);
   await expect(desktopNavigation.getByRole("heading", { name: "Workspace" })).toBeVisible();
   await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
   for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
@@ -88,6 +89,15 @@ test("customer drafts stay private until link and profile publication", async ({
     "/app/profile",
   );
   await page.goto("/app/profile");
+  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText("Edit your details and see how your profile looks to others.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("These controls stay deliberately small so every theme remains readable.", {
+      exact: true,
+    }),
+  ).toHaveCount(0);
   await page.getByLabel("Bio or role").fill("A private draft bio");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -98,7 +108,19 @@ test("customer drafts stay private until link and profile publication", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/links");
-  await expect(page.getByRole("heading", { name: "Your links" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your links", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links; email and phone actions can use mailto: or tel:.",
+      { exact: true },
+    ),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "When enabled and published, active NFC and QR card visits are counted, then sent to your destination.",
+      { exact: true },
+    ),
+  ).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
   await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "desktop" })).toBeVisible();
@@ -193,6 +215,19 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await page.getByRole("link", { name: "Analytics" }).click();
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
   await expect(page.getByText("Profile views")).toBeVisible();
+  for (const copy of [
+    "Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history.",
+    "Each column is one aggregate time bucket. Views and clicks are shown together to make momentum easy to read.",
+    "Aggregate totals for the selected range",
+    "All profile entry paths",
+    "Privacy-preserving estimate",
+    "Destination selections",
+    "Aggregate events by entry path. Historical rows without attribution appear as unknown.",
+    "Aggregate events",
+    "Clicks are grouped by the link label you chose. Disabled links remain visible here only when they have historical activity.",
+  ]) {
+    await expect(page.getByText(copy, { exact: true })).toHaveCount(0);
+  }
   await page.getByLabel("Time range").selectOption("7d");
   await expect(page.getByLabel("Time range")).toHaveValue("7d");
 

@@ -116,20 +116,9 @@ export function LinksWorkspace({
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
-        <section aria-labelledby="links-workspace-title">
-          <div className="flex flex-wrap items-end justify-between gap-5">
-            <div>
-              <h1
-                className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl"
-                id="links-workspace-title"
-              >
-                Your links
-              </h1>
-              <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-                Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links;
-                email and phone actions can use mailto: or tel:.
-              </p>
-            </div>
+        <section aria-label="Profile links">
+          <h1 className="sr-only">Links</h1>
+          <div className="flex flex-wrap items-end justify-end gap-5">
             <Button onClick={onAddLink} type="button">
               <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
               Add link
@@ -147,10 +136,6 @@ export function LinksWorkspace({
                 >
                   Redirect card taps and scans
                 </h2>
-                <p className="mt-1.5 text-sm leading-6 text-tapit-muted">
-                  When enabled and published, active NFC and QR card visits are counted, then sent
-                  to your destination.
-                </p>
               </div>
               <label className="flex min-h-11 shrink-0 items-center gap-2 text-sm font-medium text-tapit-ink">
                 <input

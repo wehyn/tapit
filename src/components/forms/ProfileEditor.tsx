@@ -313,17 +313,8 @@ function DemoProfileEditor() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
+      <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
-        <div className="pb-1">
-          <div>
-            <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-              Your profile
-            </h1>
-            <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-              Edit your details and see how your profile looks to others.
-            </p>
-          </div>
-        </div>
         <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
@@ -454,11 +445,7 @@ function DemoProfileEditor() {
           </div>
         </Panel>
 
-        <Panel
-          className="shadow-none"
-          description="These controls stay deliberately small so every theme remains readable."
-          title="Profile style"
-        >
+        <Panel className="shadow-none" title="Profile style">
           <div className="mt-6 grid gap-5 sm:grid-cols-3">
             {(["paper", "moss", "night"] as const).map((themeOption) => (
               <button
@@ -847,15 +834,8 @@ function LiveProfileEditorContent({
 
   return (
     <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
+      <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
-        <div className="pb-1">
-          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-            Your profile
-          </h1>
-          <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-            Edit your details and see how your profile looks to others.
-          </p>
-        </div>
         <Panel className="shadow-none" title="Profile identity">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
