@@ -24,6 +24,12 @@ Convex agent skills for common tasks can be installed by running
 
 # Tapit project guidance
 
+## Testing policy
+
+- Never write unit tests after you write code.
+- Highly prefer E2E tests as the sole testing mechanism. Use them to verify complex features work. At the end of E2E tests, produce a verifiable and repeatable artifact.
+- If you must test a system in isolation, first write down all the ways it could fail, then write the code.
+
 - Preserve unrelated worktree changes and untracked assets; inspect `git status` before changing files.
 - Keep `NEXT_PUBLIC_DEMO_MODE=true` locally. Separate demo, hosted demo, development, Preview, and Production; never use Production for E2E or provisioning.
 - Use `npm run test:e2e:demo` locally. Run live E2E only through `npm run test:e2e:live` and its non-production safety gate.
