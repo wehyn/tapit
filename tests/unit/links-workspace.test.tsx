@@ -61,10 +61,10 @@ describe("LinksWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "Add link" }));
     expect(onAddLink).toHaveBeenCalledOnce();
     expect(screen.getByRole("heading", { name: "Redirect card taps and scans" })).toBeVisible();
-    expect(screen.getByText("Use the full address, including https://.")).toBeVisible();
+    expect(screen.queryByText("Use the full address, including https://.")).not.toBeInTheDocument();
     const redirectInput = screen.getByRole("textbox", { name: "HTTPS destination URL" });
     expect(redirectInput).toHaveAttribute("placeholder", "https://www.harleystudio.com");
-    expect(redirectInput).toHaveAttribute("aria-describedby", "profile-redirect-help");
+    expect(redirectInput).not.toHaveAttribute("aria-describedby");
     await user.click(screen.getByRole("checkbox", { name: "Enable card tap and scan redirect" }));
     expect(onUpdateRedirect).toHaveBeenCalledWith({ enabled: true });
     fireEvent.change(screen.getByRole("textbox", { name: "HTTPS destination URL" }), {
@@ -125,7 +125,7 @@ describe("LinksWorkspace", () => {
     );
     expect(screen.getByRole("textbox", { name: "HTTPS destination URL" })).toHaveAttribute(
       "aria-describedby",
-      "profile-redirect-help profile-redirect-feedback",
+      "profile-redirect-feedback",
     );
     expect(screen.getByText("Add a label so visitors know where this link goes.")).toBeVisible();
   });

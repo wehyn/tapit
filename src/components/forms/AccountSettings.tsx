@@ -147,10 +147,7 @@ function DemoAccountSettings() {
         </dl>
       </Panel>
 
-      <Panel
-        description="Password recovery and email verification are not part of the local MVP. Contact support if you lose access."
-        title="Change password"
-      >
+      <Panel title="Change password">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
           <KeyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
           Keep your workspace access secure.
