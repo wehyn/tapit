@@ -1,4 +1,3 @@
-import { randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
 
 import { chromium } from "@playwright/test";
@@ -34,10 +33,8 @@ let localServer;
 
 async function startLocalServer() {
   const baseURL = process.env.TAPIT_LIVE_BASE_URL;
-  const isLocalURL =
-    baseURL.startsWith("http://127.0.0.1") || baseURL.startsWith("http://localhost");
+  const isLocalURL = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/.test(baseURL);
   if (!isLocalURL || process.env.TAPIT_LIVE_LOCAL_SERVER !== "true") return;
-
   localServer = spawn("npm", ["run", "dev", "--", "--hostname", "127.0.0.1"], {
     detached: true,
     env: process.env,
@@ -45,9 +42,8 @@ async function startLocalServer() {
   });
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (localServer.exitCode !== null) {
-      fail("the local Next.js server exited before live provisioning was ready.");
-    }
+    if (localServer.exitCode !== null)
+      fail("the local Next.js server exited before live E2E was ready");
     try {
       const response = await fetch(`${baseURL}/login`);
       if (response.ok) return;
@@ -56,7 +52,7 @@ async function startLocalServer() {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  fail("the local Next.js server did not become ready within 30 seconds.");
+  fail("the local Next.js server did not become ready within 30 seconds");
 }
 
 function stopLocalServer() {
@@ -64,68 +60,35 @@ function stopLocalServer() {
   try {
     process.kill(-localServer.pid, "SIGTERM");
   } catch {
-    // The process may already have exited.
+    /* already stopped */
   }
   localServer = undefined;
 }
 
 process.on("exit", stopLocalServer);
 
-async function provision() {
-  const cardToken = `live-e2e-${Date.now()}-${randomBytes(4).toString("hex")}`;
-  const bootstrapArgs = [
-    "convex",
-    "run",
-    "bootstrap:bootstrap",
-    JSON.stringify({
-      adminUserId: process.env.TAPIT_LIVE_ADMIN_USER_ID,
-      customerUserId: process.env.TAPIT_LIVE_CUSTOMER_USER_ID,
-      adminEmail: process.env.TAPIT_LIVE_ADMIN_EMAIL,
-      customerEmail: process.env.TAPIT_LIVE_CUSTOMER_EMAIL,
-      customerSlug: process.env.TAPIT_LIVE_PROFILE_SLUG,
-      publishedBio: process.env.TAPIT_LIVE_PUBLISHED_BIO,
-      cardUrl: `https://tapit.test/c/${cardToken}`,
-      cardToken,
-    }),
-    "--deployment",
-    process.env.TAPIT_LIVE_CONVEX_DEPLOYMENT,
-  ];
-  const bootstrap = await run("npx", bootstrapArgs);
-  if (bootstrap.code !== 0) {
-    fail(
-      "bootstrap:bootstrap could not run against the selected deployment. " +
-        "The CLI needs existing Convex Auth user IDs; it cannot create Password-provider identities. " +
-        "Provision those two users through the supported auth flow, set TAPIT_LIVE_ADMIN_USER_ID and " +
-        "TAPIT_LIVE_CUSTOMER_USER_ID, and ensure the deployment is non-production. No command output or secret was printed.",
-    );
-  }
-
-  const setupEmail = `live-e2e-${Date.now()}@${process.env.TAPIT_LIVE_EMAIL_DOMAIN}`;
-  const setupPassword = randomBytes(18).toString("base64url");
-  const browser = await chromium.launch();
-  const context = await browser.newContext({ baseURL: process.env.TAPIT_LIVE_BASE_URL });
+async function createInvitationThroughAdmin() {
+  const browser = await chromium.launch({ headless: false });
+  const context = await browser.newContext({
+    baseURL: process.env.TAPIT_LIVE_BASE_URL,
+    storageState: process.env.TAPIT_LIVE_ADMIN_GOOGLE_STATE,
+  });
   const page = await context.newPage();
   try {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(process.env.TAPIT_LIVE_ADMIN_EMAIL);
-    await page.getByLabel("Password", { exact: true }).fill(process.env.TAPIT_LIVE_ADMIN_PASSWORD);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await page.waitForURL(/\/admin\/customers(?:\?.*)?$/);
     await page.goto("/admin/customers");
-    await page.getByLabel("Customer email").fill(setupEmail);
-    await page.getByRole("button", { name: "Create and invite" }).click();
-    const linkText = await page
-      .locator("p")
-      .filter({ hasText: /One-time setup link:/ })
-      .textContent();
-    const setupToken = linkText?.match(/\/setup\/([A-Za-z0-9_-]+)/)?.[1];
-    if (!setupToken) fail("admin customer creation did not return a setup link.");
-    return { setupEmail, setupPassword, setupToken };
+    await page.getByLabel("Customer email").fill(process.env.TAPIT_LIVE_INVITED_EMAIL);
+    await page.getByLabel("Initial profile name").fill("Live invited customer");
+    await page.getByRole("button", { name: "Create and invite", exact: true }).click();
+    const link = page
+      .locator("a")
+      .filter({ hasText: /\/setup\// })
+      .last();
+    const href = await link.getAttribute("href");
+    const token = href?.match(/\/setup\/([A-Za-z0-9_-]+)/)?.[1];
+    if (!token) fail("admin invitation creation did not return a setup link");
+    return token;
   } catch {
-    fail(
-      "admin customer creation could not provision a fresh setup token. Confirm the admin credentials, " +
-        "live deployment, and Convex deployment are aligned. The setup token and password were not printed.",
-    );
+    fail("admin invitation creation failed; confirm the dedicated Google admin state and target");
   } finally {
     await context.close();
     await browser.close();
@@ -135,27 +98,26 @@ async function provision() {
 const missing = missingLiveContract(process.env);
 if (missing.length > 0)
   fail(`missing ${missing.join(", ")}. See docs/live-e2e.md for the complete contract.`);
-const preflightError = validateLiveContract(process.env);
-if (preflightError) fail(preflightError);
+const contractError = validateLiveContract(process.env, { requireWrapper: true });
+if (contractError) fail(contractError);
 
 await startLocalServer();
 const appContractError = await readLiveAppContract(process.env);
 if (appContractError) fail(appContractError);
 const imageCorsError = await verifyProfileImageCors(process.env);
 if (imageCorsError) fail(imageCorsError);
-let exitCode = 0;
+
+let setupToken;
 try {
-  const setup = await provision();
-  Object.assign(process.env, {
-    TAPIT_LIVE_SETUP_EMAIL: setup.setupEmail,
-    TAPIT_LIVE_SETUP_PASSWORD: setup.setupPassword,
-    TAPIT_LIVE_SETUP_TOKEN: setup.setupToken,
-  });
+  setupToken = await createInvitationThroughAdmin();
+  // Keep the raw token in this process only. Playwright reads it through the test's URL fixture.
+  process.env.TAPIT_LIVE_SETUP_PATH = `/setup/${setupToken}`;
   const result = await run("npx", ["playwright", "test", "--project", "live-chromium"]);
   process.stdout.write(result.stdout);
   process.stderr.write(result.stderr);
-  exitCode = result.code;
+  if (result.code !== 0) process.exitCode = result.code;
 } finally {
+  setupToken = undefined;
+  delete process.env.TAPIT_LIVE_SETUP_PATH;
   stopLocalServer();
 }
-if (exitCode !== 0) process.exit(exitCode);

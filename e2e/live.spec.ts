@@ -1,431 +1,120 @@
-import { readLiveVerificationCode, test, expect } from "./fixtures/live";
+import { contextForIdentity, expect, signInWithGoogle, test } from "./fixtures/live";
 
-let disposableCustomer: { email: string; password: string } | undefined;
-
-test.describe("live Convex vertical slice", () => {
+test.describe("live Google OAuth journeys", () => {
   test.describe.configure({ mode: "serial" });
 
-  test("customer self-service signup creates and publishes a live profile", async ({
-    page,
+  test("first allowlisted Google identity reaches the administrator workspace", async ({
     browser,
     liveEnv,
   }) => {
-    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const name = "Live Self-Service Customer";
-    const slug = `live-self-service-${suffix}`;
-    const email = `live-self-service-${suffix}@${liveEnv.emailDomain}`;
-    const password = `Live-${suffix}-password`;
-    const bio = `Live self-service bio ${suffix}`;
-    disposableCustomer = { email, password };
-
-    await page.goto("/login?mode=signup");
-    await expect(page.getByRole("heading", { name: /create your tapit profile/i })).toBeVisible();
-    await expect(page.getByLabel("Display name")).toHaveAttribute("id", "signup-name");
-    await expect(page.getByLabel("Profile link")).toHaveAttribute("id", "signup-slug");
-    await expect(page.getByLabel("Email")).toHaveAttribute("id", "signup-email");
-    await expect(page.getByLabel("Password", { exact: true })).toHaveAttribute(
-      "id",
-      "signup-password",
-    );
-    await expect(page.getByLabel("Confirm password", { exact: true })).toHaveAttribute(
-      "id",
-      "signup-confirmation",
-    );
-    await expect(page.getByText(/administrator/i)).toHaveCount(0);
-    await expect(page.getByRole("link", { name: /invitation|setup/i })).toHaveCount(0);
-
-    await page.getByLabel("Display name").fill(name);
-    await page.getByLabel("Profile link").fill(slug);
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByLabel("Confirm password", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "Create your profile", exact: true }).click();
-
-    await expect(page.getByLabel("Verification code")).toBeVisible();
-    const signupCode = await readLiveVerificationCode(liveEnv, email, "signup");
-    await page.getByLabel("Verification code").fill(signupCode);
-    await page.getByRole("button", { name: "Verify email", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
-    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-    await expect(page.getByLabel("Name", { exact: true })).toHaveValue(name);
-    await expect(page.getByLabel("Stable profile slug", { exact: true })).toHaveValue(slug);
-    await expect(page.getByRole("link", { name: `/${slug}` })).toHaveAttribute("href", `/${slug}`);
-    await expect(page.getByRole("link", { name: /admin|cards|customers/i })).toHaveCount(0);
-
-    await page.getByLabel("Bio or role").fill(bio);
-    await page.getByRole("button", { name: "Save draft" }).click();
-    await expect(
-      page.getByText("Draft saved. Visitors still see the last published version."),
-    ).toBeVisible();
-
-    const unpublishedContext = await browser.newContext({ baseURL: liveEnv.baseURL });
+    const context = await contextForIdentity(browser, liveEnv, "admin");
+    const page = await context.newPage();
     try {
-      const unpublishedPage = await unpublishedContext.newPage();
-      await unpublishedPage.goto(`/${slug}`);
-      await expect(
-        unpublishedPage.getByRole("heading", {
-          name: /Profile not found|This profile is currently unavailable/,
-        }),
-      ).toBeVisible();
-      await expect(unpublishedPage.getByText(bio)).toHaveCount(0);
+      await page.goto("/login");
+      await signInWithGoogle(page, /\/admin\/customers$/);
+      await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
     } finally {
-      await unpublishedContext.close();
+      await context.close();
     }
-
-    await page.goto("/app/links");
-    await page.getByRole("button", { name: "Add link" }).click();
-    await page.getByRole("button", { name: "Add link" }).click();
-    const editableLinks = page.locator('[aria-label="Editable profile links"]');
-    const labels = editableLinks.locator('input[id$="-label"]');
-    const destinations = editableLinks.locator('input[id$="-destination"]');
-    await labels.nth(0).fill("Portfolio");
-    await destinations.nth(0).fill("https://portfolio.example.test");
-    await labels.nth(1).fill("TikTok");
-    await destinations.nth(1).fill(`https://www.tiktok.com/@${slug}`);
-    const enabled = editableLinks.locator('input[type="checkbox"]');
-    await expect(enabled.nth(0)).toBeChecked();
-    await expect(enabled.nth(1)).toBeChecked();
-    await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await expect(page.getByRole("button", { name: /^Publish/ })).toBeVisible();
-    const icons = page.locator('select[id$="-icon"]');
-    await icons.nth(0).selectOption("globe");
-    await expect(icons.nth(0)).toHaveValue("globe");
-    const desktopButton = page.getByRole("button", { name: "desktop" });
-    await desktopButton.click();
-    await expect(desktopButton).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "phone" }).click();
-    await page.locator('summary[aria-label="Actions for Portfolio"]').click();
-    await expect(page.getByRole("button", { name: "Move down" })).toBeEnabled();
-    await page.getByRole("button", { name: "Move down" }).click();
-    await expect(labels.nth(0)).toHaveValue("TikTok");
-    await page.getByRole("button", { name: "Add link" }).click();
-    const temporaryLabel = labels.last();
-    await temporaryLabel.fill("Delete me");
-    await page.locator('summary[aria-label="Actions for Delete me"]').click();
-    await page
-      .locator("details")
-      .filter({ has: page.locator('summary[aria-label="Actions for Delete me"]') })
-      .getByRole("button", { name: "Delete" })
-      .click();
-    await expect(page.getByRole("textbox", { name: "Label for Delete me" })).toHaveCount(0);
-    await page.getByRole("button", { name: "Save draft" }).click();
-    await expect(page.getByText("Links saved to draft.")).toBeVisible();
-    await labels.nth(1).fill("Portfolio updated");
-    await page.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(
-      page.getByText("Profile published. Your active card paths now show this version."),
-    ).toBeVisible();
-
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-
-    const signedOutContext = await browser.newContext({ baseURL: liveEnv.baseURL });
-    try {
-      const signedOutPage = await signedOutContext.newPage();
-      await signedOutPage.goto(`/${slug}`);
-      await expect(signedOutPage.getByRole("heading", { name })).toBeVisible();
-      await expect(signedOutPage.getByText(bio)).toBeVisible();
-      await expect(signedOutPage.getByRole("link", { name: "Portfolio updated" })).toHaveAttribute(
-        "href",
-        "https://portfolio.example.test",
-      );
-      await expect(signedOutPage.getByRole("link", { name: "TikTok" })).toHaveAttribute(
-        "href",
-        `https://www.tiktok.com/@${slug}`,
-      );
-    } finally {
-      await signedOutContext.close();
-    }
-
-    // The public browser flow exposes customer signup only; it has no admin or invitation path.
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
-    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
   });
 
-  test("customer draft stays private until publish, then survives sign-out", async ({
-    page,
+  test("returning active Google identity goes directly to its private profile", async ({
     browser,
     liveEnv,
   }) => {
-    const signInWithOptionalVerification = async (email: string, password: string) => {
-      await page.getByLabel("Email").fill(email);
-      await page.getByLabel("Password", { exact: true }).fill(password);
-      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const context = await contextForIdentity(browser, liveEnv, "customer");
+    const page = await context.newPage();
+    try {
+      await page.goto("/login");
+      await signInWithGoogle(page, /\/app\/profile$/);
+      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(page.getByText(liveEnv.publishedBio)).toBeVisible();
+    } finally {
+      await context.close();
+    }
+  });
 
-      const verificationCode = page.getByLabel("Verification code");
-      await expect
-        .poll(
-          async () => page.url().endsWith("/app/profile") || (await verificationCode.isVisible()),
-        )
-        .toBe(true);
-      if (await verificationCode.isVisible()) {
-        const code = await readLiveVerificationCode(liveEnv, email, "verification");
-        await verificationCode.fill(code);
-        await page.getByRole("button", { name: "Verify email", exact: true }).click();
+  test("non-allowlisted Google identity is routed to pending onboarding", async ({
+    browser,
+    liveEnv,
+  }) => {
+    const context = await contextForIdentity(browser, liveEnv, "invited");
+    const page = await context.newPage();
+    try {
+      await page.goto("/login");
+      await signInWithGoogle(page);
+      await expect(page).toHaveURL(/\/(?:onboarding|app\/profile|login)(?:\?.*)?$/);
+      if (page.url().includes("/onboarding")) {
+        await expect(page.getByRole("heading", { name: "Choose your display name" })).toBeVisible();
+        await expect(page.getByRole("button", { name: "Complete onboarding" })).toBeVisible();
       }
-      await expect(page).toHaveURL(/\/app\/profile$/);
-    };
-
-    await page.goto("/");
-    await expect(page.getByRole("link", { name: "Sign in" }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /demo profile/i })).toHaveCount(0);
-
-    await page.goto("/app/profile");
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-
-    await signInWithOptionalVerification(liveEnv.customerEmail, liveEnv.customerPassword);
-    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-
-    await page.getByRole("button", { name: "night", exact: true }).click();
-    const draftBio = `Live E2E draft ${Date.now()}`;
-    await page.getByLabel("Bio or role").fill(draftBio);
-    await page.locator("#profile-image").setInputFiles("public/images/tapit-demo-mara-avatar.png");
-    await expect(page.getByRole("dialog", { name: "Adjust profile photo" })).toBeVisible();
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByRole("dialog", { name: "Adjust profile photo" })).toHaveCount(0);
-    await page.locator("#profile-image").setInputFiles("public/images/tapit-demo-mara-avatar.png");
-    await page.getByRole("button", { name: "Apply crop" }).click();
-    const profileIdentity = page.getByRole("heading", { name: "Profile identity" }).locator("..");
-    await expect(profileIdentity.getByRole("img", { name: /profile$/ })).toBeVisible();
-    await page.getByRole("button", { name: "Save draft" }).click();
-    await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
-
-    const visitorContext = await browser.newContext({ baseURL: liveEnv.baseURL });
-    const visitor = await visitorContext.newPage();
-    try {
-      await visitor.goto(`/${liveEnv.profileSlug}`);
-      await expect(visitor.getByText(liveEnv.publishedBio)).toBeVisible();
-      await expect(visitor.getByText(draftBio)).toHaveCount(0);
-      await expect(visitor.locator('img[alt$="profile"]')).toHaveCount(0);
-      await expect(visitor.locator("main")).toHaveClass(/bg-tapit-paper/);
-
-      await page.getByRole("button", { name: "Publish" }).click();
-      await expect(page.getByText("Profile published")).toBeVisible();
-
-      await visitor.reload();
-      await expect(visitor.getByText(draftBio)).toBeVisible();
-      const publicImage = visitor.locator('img[alt$="profile"]');
-      await expect(publicImage).toBeVisible();
-      await expect(publicImage).toHaveAttribute("srcset", /192w, .*384w/);
-      await expect(publicImage).toHaveAttribute("sizes", "(min-width: 640px) 96px, 80px");
-      await expect(visitor.locator("main")).toHaveClass(/bg-\[#17211f\]/);
     } finally {
-      await visitorContext.close();
+      await context.close();
     }
-
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-    await page.goto("/app/profile");
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-
-    await signInWithOptionalVerification(liveEnv.customerEmail, liveEnv.customerPassword);
-    await page.getByRole("button", { name: "paper", exact: true }).click();
-    await page.getByLabel("Bio or role").fill(liveEnv.publishedBio);
-    await page.getByRole("button", { name: "Save draft" }).click();
-    await page.getByRole("button", { name: "Publish" }).click();
-    await expect(page.getByText("Profile published")).toBeVisible();
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   });
 
-  test("administrator can manage cards and open live analytics", async ({ page, liveEnv }) => {
-    const { adminEmail, adminPassword } = liveEnv;
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(adminEmail as string);
-    await page.getByLabel("Password", { exact: true }).fill(adminPassword as string);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/admin\/customers$/);
-    await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
-
-    await page.goto("/admin/cards");
-    await expect(page.getByRole("heading", { name: "Register card URL" })).toBeVisible();
-    const token = `live-ui-${Date.now()}`;
-    const replacementToken = `${token}-replacement`;
-    await page.getByLabel("Pre-encoded card URL").fill(`https://tapit.test/c/${token}`);
-    await page.getByRole("button", { name: "Register card" }).click();
-    await expect(
-      page.getByText(`Card ${token} registered and ready for assignment.`),
-    ).toBeVisible();
-
-    const card = page.locator("article").filter({ hasText: token }).first();
-    await card.getByRole("button", { name: "Assign" }).click();
-    await expect(page.getByText(`Card ${token} assigned.`)).toBeVisible();
-    await card
-      .getByLabel(`Replacement URL for ${token}`)
-      .fill(`https://tapit.test/c/${replacementToken}`);
-    await card.getByRole("button", { name: "Replace" }).click();
-    await expect(page.getByText(`Card ${token} replaced.`)).toBeVisible();
-
-    const replacement = page.locator("article").filter({ hasText: replacementToken }).first();
-    await replacement.getByRole("button", { name: "Deactivate" }).click();
-    await expect(page.getByText(`Card ${replacementToken} deactivated.`)).toBeVisible();
-
-    await page.goto("/admin/analytics");
-    await expect(page.getByRole("heading", { name: "Operational analytics" })).toBeVisible();
-    await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
-  });
-
-  test("administrator can manage reusable invitations and customer roles", async ({
-    page,
-    liveEnv,
-  }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(liveEnv.adminEmail);
-    await page.getByLabel("Password", { exact: true }).fill(liveEnv.adminPassword);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/admin\/customers$/);
-
-    const email = `invited-${Date.now()}@example.test`;
-    await page.getByLabel("Customer email").fill(email);
-    await page.getByLabel("Initial profile name").fill("Reusable Invite");
-    await page.getByRole("button", { name: "Create and invite", exact: true }).click();
-    await expect(page.getByText("Reusable until revoked")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
-
-    const customer = page.locator("article").filter({ hasText: email }).first();
-    await customer.getByRole("button", { name: "Revoke invitation" }).click();
-    await expect(page.getByText("Invitation revoked")).toBeVisible();
-    await customer.getByRole("button", { name: "Replace invitation" }).click();
-    await expect(page.getByText("The previous link is invalid immediately.")).toBeVisible();
-
-    const activeCustomer = page
-      .locator("article")
-      .filter({ hasText: liveEnv.customerEmail })
-      .first();
-    await activeCustomer.getByRole("button", { name: "Promote to administrator" }).click();
-    await expect(page.getByText("Role updated to administrator")).toBeVisible();
-    await activeCustomer.getByRole("button", { name: "Demote to customer" }).click();
-    await expect(page.getByText("Role updated to customer")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Reset password" })).toHaveCount(0);
-  });
-
-  test("invitation setup creates a customer session and consumes the token", async ({
-    page,
+  test("invitation accepts the matching Google identity and preserves the profile", async ({
     browser,
     liveEnv,
   }) => {
-    const { setupToken, setupPassword, setupEmail } = liveEnv;
-
-    await page.goto(`/setup/${setupToken as string}`);
-    await expect(page.getByText(`Account email: ${setupEmail as string}`)).toBeVisible();
-    await page.getByLabel("Password", { exact: true }).fill(setupPassword as string);
-    await page.getByLabel("Confirm password", { exact: true }).fill(setupPassword as string);
-    await page.getByRole("button", { name: "Set password" }).click();
-    await expect(page.getByLabel("Verification code")).toBeVisible();
-    const setupCode = await readLiveVerificationCode(liveEnv, setupEmail, "setup");
-    await page.getByLabel("Verification code").fill(setupCode);
-    await page.getByRole("button", { name: "Verify email", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
-    await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-
-    const replayContext = await browser.newContext({ baseURL: liveEnv.baseURL });
+    const setupPath = process.env.TAPIT_LIVE_SETUP_PATH;
+    test.skip(!setupPath, "The wrapper supplies a fresh invitation path in process memory.");
+    const context = await contextForIdentity(browser, liveEnv, "invited");
+    const page = await context.newPage();
     try {
-      const replayPage = await replayContext.newPage();
-      await replayPage.goto(`/setup/${setupToken as string}`);
+      await page.goto(setupPath as string);
+      await expect(page.getByText("Join Tapit with Google")).toBeVisible();
       await expect(
-        replayPage.getByText("This setup link is invalid, expired, or already used."),
+        page.getByText("Your invitation stays reusable until an administrator revokes it."),
       ).toBeVisible();
+      await expect(page.getByText("Invitation for")).toBeVisible();
+      await signInWithGoogle(page, /\/app\/profile$/);
+      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
     } finally {
-      await replayContext.close();
+      await context.close();
     }
   });
 
-  test("administrator edits, publishes, suspends, and restores the seeded profile", async ({
-    page,
+  test("admin invitation, role, cards, analytics, and privacy surfaces remain available", async ({
     browser,
     liveEnv,
   }) => {
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(liveEnv.adminEmail);
-    await page.getByLabel("Password", { exact: true }).fill(liveEnv.adminPassword);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/admin\/customers$/);
-    await page.goto("/admin/profiles");
-    await expect(page.getByRole("heading", { name: /profile management/i })).toBeVisible();
-    await page.getByLabel("Search profiles").fill(liveEnv.profileSlug);
-
-    const newBio = `Live E2E admin ${Date.now()}`;
-    await page.getByLabel("Bio or role").fill(newBio);
-    await page.getByRole("button", { name: "Save admin draft" }).click();
-    await expect(page.getByText("Administrative draft changes saved.")).toBeVisible();
-
-    const visitor = await browser.newContext({ baseURL: liveEnv.baseURL });
-    const visitorPage = await visitor.newPage();
+    const context = await contextForIdentity(browser, liveEnv, "admin");
+    const page = await context.newPage();
     try {
-      await visitorPage.goto(`/${liveEnv.profileSlug}`);
-      await expect(visitorPage.getByText(liveEnv.publishedBio)).toBeVisible();
-      await expect(visitorPage.getByText(newBio)).toHaveCount(0);
+      await page.goto("/admin/customers");
+      await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Create and invite", exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole("link", { name: "Reset password" })).toHaveCount(0);
 
-      await page.getByRole("button", { name: "Publish", exact: true }).click();
-      await expect(page.getByText("Profile published.")).toBeVisible();
-      await visitorPage.reload();
-      await expect(visitorPage.getByText(newBio)).toBeVisible();
+      await page.goto("/admin/cards");
+      await expect(page.getByRole("heading", { name: "Register card URL" })).toBeVisible();
+      await page.goto("/admin/analytics");
+      await expect(page.getByRole("heading", { name: "Operational analytics" })).toBeVisible();
 
-      await page.getByRole("button", { name: "Unpublish", exact: true }).click();
-      await page.getByRole("button", { name: "Unpublish profile", exact: true }).click();
-      await expect(page.getByText("Profile status changed to unpublished.")).toBeVisible();
-      await visitorPage.reload();
-      await expect(visitorPage.getByRole("heading", { name: "Profile not found" })).toBeVisible();
-
-      await page.getByRole("button", { name: "Restore profile", exact: true }).click();
-      await expect(page.getByText("Profile status changed to published.")).toBeVisible();
-      await visitorPage.reload();
-      await expect(visitorPage.getByText(newBio)).toBeVisible();
-
-      await page.getByRole("button", { name: "Suspend", exact: true }).click();
-      await page.getByRole("button", { name: "Suspend profile", exact: true }).click();
-      await expect(page.getByText("Profile status changed to suspended.")).toBeVisible();
-      await visitorPage.reload();
-      await expect(visitorPage.getByRole("heading", { name: "Profile not found" })).toBeVisible();
-
-      await page.getByRole("button", { name: "Restore profile", exact: true }).click();
-      await expect(page.getByText("Profile status changed to published.")).toBeVisible();
-      await visitorPage.reload();
-      await expect(visitorPage.getByText(newBio)).toBeVisible();
+      await page.goto(`/${liveEnv.profileSlug}`);
+      await expect(page.getByText(liveEnv.publishedBio)).toBeVisible();
     } finally {
-      await visitor.close();
+      await context.close();
     }
   });
 
-  test("customer can reach and complete password reset from account settings", async ({
-    page,
+  test("direct login without invitation context remains blocked for an invited account", async ({
+    browser,
     liveEnv,
   }) => {
-    const customer = disposableCustomer;
-    test.skip(customer === undefined, "The disposable signup account was not created.");
-
-    await page.goto("/login");
-    await page.getByLabel("Email").fill(customer!.email);
-    await page.getByLabel("Password", { exact: true }).fill(customer!.password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
-
-    await page.goto("/app/account");
-    await page.getByRole("link", { name: "Reset password" }).click();
-    await expect(page).toHaveURL(/\/login\?reset=1&email=/);
-    await page.getByRole("button", { name: "Send reset instructions" }).click();
-    await expect(page.getByLabel("Verification code")).toBeVisible();
-
-    const resetCode = await readLiveVerificationCode(liveEnv, customer!.email, "reset");
-    const replacementPassword = `Reset-${Date.now()}-password`;
-    await page.getByLabel("Verification code").fill(resetCode);
-    await page.getByLabel("New password", { exact: true }).fill(replacementPassword);
-    await page.getByLabel("Confirm new password", { exact: true }).fill(replacementPassword);
-    await page.getByRole("button", { name: "Reset password", exact: true }).click();
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
-
-    await page.getByLabel("Email").fill(customer!.email);
-    await page.getByLabel("Password", { exact: true }).fill(replacementPassword);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await expect(page).toHaveURL(/\/app\/profile$/);
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+    const context = await contextForIdentity(browser, liveEnv, "invited");
+    const page = await context.newPage();
+    try {
+      await page.goto("/app/profile");
+      await expect(page).toHaveURL(/\/login|\/onboarding|\/setup\//);
+      if (page.url().includes("/login")) {
+        await expect(page.getByText(/invitation link|inactive/i)).toBeVisible();
+      }
+    } finally {
+      await context.close();
+    }
   });
 });

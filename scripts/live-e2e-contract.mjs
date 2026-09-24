@@ -1,3 +1,5 @@
+import { existsSync, statSync } from "node:fs";
+
 export const LIVE_PROVISION_CONFIRMATION = "I_UNDERSTAND_NON_PRODUCTION";
 
 export const liveContractEnvNames = {
@@ -7,45 +9,24 @@ export const liveContractEnvNames = {
   convexSiteURL: "NEXT_PUBLIC_CONVEX_SITE_URL",
   convexDeployment: "TAPIT_LIVE_CONVEX_DEPLOYMENT",
   adminEmail: "TAPIT_LIVE_ADMIN_EMAIL",
-  adminPassword: "TAPIT_LIVE_ADMIN_PASSWORD",
+  adminGoogleState: "TAPIT_LIVE_ADMIN_GOOGLE_STATE",
   customerEmail: "TAPIT_LIVE_CUSTOMER_EMAIL",
-  customerPassword: "TAPIT_LIVE_CUSTOMER_PASSWORD",
+  customerGoogleState: "TAPIT_LIVE_CUSTOMER_GOOGLE_STATE",
+  invitedEmail: "TAPIT_LIVE_INVITED_EMAIL",
+  invitedGoogleState: "TAPIT_LIVE_INVITED_GOOGLE_STATE",
   profileSlug: "TAPIT_LIVE_PROFILE_SLUG",
   publishedBio: "TAPIT_LIVE_PUBLISHED_BIO",
-  emailDomain: "TAPIT_LIVE_EMAIL_DOMAIN",
-  emailCodeURL: "TAPIT_LIVE_EMAIL_CODE_URL",
-  emailCodeToken: "TAPIT_LIVE_EMAIL_CODE_TOKEN",
-  adminUserId: "TAPIT_LIVE_ADMIN_USER_ID",
-  customerUserId: "TAPIT_LIVE_CUSTOMER_USER_ID",
-  setupEmail: "TAPIT_LIVE_SETUP_EMAIL",
-  setupPassword: "TAPIT_LIVE_SETUP_PASSWORD",
-  setupToken: "TAPIT_LIVE_SETUP_TOKEN",
+  provisionConfirm: "TAPIT_LIVE_PROVISION_CONFIRM",
 };
 
-const coreContractNames = [
-  "baseURL",
-  "appEnvironment",
-  "convexURL",
-  "convexSiteURL",
-  "convexDeployment",
-  "adminEmail",
-  "adminPassword",
-  "customerEmail",
-  "customerPassword",
-  "profileSlug",
-  "publishedBio",
-  "emailDomain",
-  "emailCodeURL",
-  "emailCodeToken",
-  "adminUserId",
-  "customerUserId",
-];
+const requiredNames = Object.keys(liveContractEnvNames).filter(
+  (name) => name !== "provisionConfirm",
+);
 
-export function missingLiveContract(env, { includeSetup = false } = {}) {
-  const names = includeSetup
-    ? [...coreContractNames, "setupEmail", "setupPassword", "setupToken"]
-    : coreContractNames;
-  return names.map((name) => liveContractEnvNames[name]).filter((name) => !env[name]);
+export function missingLiveContract(env) {
+  return requiredNames
+    .filter((name) => !env[liveContractEnvNames[name]])
+    .map((name) => liveContractEnvNames[name]);
 }
 
 export function validateLiveContract(
@@ -55,78 +36,55 @@ export function validateLiveContract(
   if (requireWrapper && env.TAPIT_E2E_MODE !== "live") {
     return "run live E2E through npm run test:e2e:live so the fail-closed preflight runs";
   }
-  if (!env.TAPIT_LIVE_BASE_URL || !env.TAPIT_LIVE_APP_ENV || !env.TAPIT_LIVE_CONVEX_URL) {
-    return "the live app URL, app environment, and Convex URL are required";
-  }
+  const missing = missingLiveContract(env);
+  if (missing.length > 0) return `missing ${missing.join(", ")}`;
   if (!/^(development|preview)$/i.test(env.TAPIT_LIVE_APP_ENV)) {
     return "production app targets are not permitted";
   }
-  if (
-    !env.TAPIT_LIVE_EMAIL_DOMAIN ||
-    !env.TAPIT_LIVE_EMAIL_CODE_URL ||
-    !env.TAPIT_LIVE_EMAIL_CODE_TOKEN
-  ) {
-    return "the live email domain, verification-code URL, and code-sink token are required";
-  }
-  if (
-    !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(
-      env.TAPIT_LIVE_EMAIL_DOMAIN,
-    )
-  ) {
-    return "TAPIT_LIVE_EMAIL_DOMAIN must be a hostname such as example.test";
-  }
-  if (!/^(?:dev|preview)(?::|\/|$)/i.test(env.TAPIT_LIVE_CONVEX_DEPLOYMENT ?? "")) {
-    return "TAPIT_LIVE_CONVEX_DEPLOYMENT must reference a dev or preview deployment; production deployments are not permitted.";
+  if (!/^(?:dev|preview)(?::|\/|$)/i.test(env.TAPIT_LIVE_CONVEX_DEPLOYMENT)) {
+    return "production deployments are not permitted";
   }
   let baseURL;
   let convexURL;
-  let emailCodeURL;
+  let siteURL;
   try {
     baseURL = new URL(env.TAPIT_LIVE_BASE_URL);
     convexURL = new URL(env.TAPIT_LIVE_CONVEX_URL);
-    emailCodeURL = new URL(env.TAPIT_LIVE_EMAIL_CODE_URL);
+    siteURL = new URL(env.NEXT_PUBLIC_CONVEX_SITE_URL);
   } catch {
-    return "TAPIT_LIVE_BASE_URL, TAPIT_LIVE_CONVEX_URL, and TAPIT_LIVE_EMAIL_CODE_URL must be valid URLs";
-  }
-  const localBase = baseURL.hostname === "127.0.0.1" || baseURL.hostname === "localhost";
-  if (!localBase && baseURL.protocol !== "https:") {
-    return "remote live E2E requires an HTTPS app URL";
-  }
-  if (convexURL.protocol !== "https:") {
-    return "the selected live Convex URL must use HTTPS";
-  }
-  if (!env.NEXT_PUBLIC_CONVEX_SITE_URL) {
-    return "NEXT_PUBLIC_CONVEX_SITE_URL is required for live image upload verification";
-  }
-  let convexSiteURL;
-  try {
-    convexSiteURL = new URL(env.NEXT_PUBLIC_CONVEX_SITE_URL);
-  } catch {
-    return "the Convex site URL must be a valid URL";
+    return "TAPIT_LIVE_BASE_URL, TAPIT_LIVE_CONVEX_URL, and NEXT_PUBLIC_CONVEX_SITE_URL must be valid URLs";
   }
   if (
-    !convexURL.hostname.endsWith(".convex.cloud") ||
-    convexSiteURL.protocol !== "https:" ||
-    convexSiteURL.hostname !== convexURL.hostname.replace(/\.convex\.cloud$/, ".convex.site") ||
-    convexSiteURL.port ||
-    convexSiteURL.pathname !== "/" ||
-    convexSiteURL.search ||
-    convexSiteURL.hash ||
-    convexSiteURL.username ||
-    convexSiteURL.password
+    baseURL.username ||
+    baseURL.password ||
+    convexURL.username ||
+    convexURL.password ||
+    siteURL.username ||
+    siteURL.password
+  ) {
+    return "live URLs must not contain URL credentials";
+  }
+  const localBase = baseURL.hostname === "127.0.0.1" || baseURL.hostname === "localhost";
+  if (!localBase && baseURL.protocol !== "https:")
+    return "remote live E2E requires an HTTPS app URL";
+  if (convexURL.protocol !== "https:" || !convexURL.hostname.endsWith(".convex.cloud")) {
+    return "the selected live Convex URL must use HTTPS and a convex.cloud origin";
+  }
+  if (
+    siteURL.protocol !== "https:" ||
+    siteURL.hostname !== convexURL.hostname.replace(/\.convex\.cloud$/, ".convex.site") ||
+    siteURL.port ||
+    siteURL.pathname !== "/" ||
+    siteURL.search ||
+    siteURL.hash
   ) {
     return "the Convex site URL does not match the selected live Convex deployment";
   }
-  const localEmailCodeSink =
-    emailCodeURL.hostname === "127.0.0.1" || emailCodeURL.hostname === "localhost";
-  if (!localEmailCodeSink && emailCodeURL.protocol !== "https:") {
-    return "remote live E2E verification-code sinks require HTTPS";
-  }
-  if (localEmailCodeSink && !["http:", "https:"].includes(emailCodeURL.protocol)) {
-    return "local live E2E verification-code sinks must use HTTP or HTTPS";
-  }
-  if (emailCodeURL.username || emailCodeURL.password) {
-    return "TAPIT_LIVE_EMAIL_CODE_URL must not contain URL credentials";
+  for (const name of ["adminGoogleState", "customerGoogleState", "invitedGoogleState"]) {
+    const statePath = env[liveContractEnvNames[name]];
+    if (!existsSync(statePath) || !statSync(statePath).isFile()) {
+      return `${liveContractEnvNames[name]} must point to an existing Google storage-state file`;
+    }
   }
   if (env.TAPIT_LIVE_PRODUCTION_BASE_URL) {
     try {
@@ -147,15 +105,12 @@ export function validateLiveContract(
 }
 
 export function validateObservedLiveApp(expected, observed) {
-  if (observed?.mode !== "live") {
-    return "the selected app is not running in live mode";
-  }
+  if (observed?.mode !== "live") return "the selected app is not running in live mode";
+  if (observed.authProvider !== "google") return "the live app must use Google authentication";
   if (observed.appEnvironment !== expected.TAPIT_LIVE_APP_ENV) {
     return "the app environment does not match the selected live target";
   }
-  if (observed.appEnvironment === "production") {
-    return "production app targets are not permitted";
-  }
+  if (observed.appEnvironment === "production") return "production app targets are not permitted";
   if (!sameOrigin(observed.convexUrl, expected.TAPIT_LIVE_CONVEX_URL)) {
     return "the app's Convex URL does not match the selected live Convex URL";
   }
@@ -183,8 +138,7 @@ export async function readLiveAppContract(env) {
       },
     );
     if (!response.ok) return "the live app contract endpoint was not available";
-    const observed = await response.json();
-    return validateObservedLiveApp(env, observed);
+    return validateObservedLiveApp(env, await response.json());
   } catch {
     return "the live app contract could not be verified";
   }
@@ -218,46 +172,4 @@ export async function verifyProfileImageCors(env, fetchImpl = fetch) {
   } catch {
     return "the Convex profile-image upload CORS preflight could not be verified";
   }
-}
-
-const liveVerificationKinds = new Set(["signup", "setup", "reset", "verification"]);
-const liveVerificationCodePattern = /^[A-Za-z0-9_-]{8,128}$/;
-
-export async function readLiveVerificationCode(
-  env,
-  recipient,
-  kind,
-  { timeoutMs = 30_000, pollIntervalMs = 500 } = {},
-) {
-  if (!liveVerificationKinds.has(kind)) {
-    throw new Error("the live E2E email code kind is invalid");
-  }
-  const deadline = Date.now() + Math.max(0, timeoutMs);
-  const endpoint = new URL(env.emailCodeURL);
-  endpoint.searchParams.set("email", recipient);
-  endpoint.searchParams.set("kind", kind);
-  const requestOptions = {
-    headers: {
-      Accept: "application/json",
-      Authorization: `Bearer ${env.emailCodeToken}`,
-    },
-    redirect: "error",
-  };
-
-  while (Date.now() <= deadline) {
-    try {
-      const response = await fetch(endpoint, requestOptions);
-      if (response.ok) {
-        const payload = await response.json();
-        const code = typeof payload?.code === "string" ? payload.code.trim() : "";
-        if (liveVerificationCodePattern.test(code)) return code;
-      }
-    } catch {
-      // The adapter may not have observed the provider message yet.
-    }
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) break;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(pollIntervalMs, remaining)));
-  }
-  throw new Error("the live E2E email code sink did not return a verification code");
 }
