@@ -1,9 +1,9 @@
 "use client";
 
-import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -451,7 +451,6 @@ function DemoCustomersManager() {
 }
 
 function LiveCustomersManager() {
-  const hostedDemo = isHostedDemoMode();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -463,44 +462,49 @@ function LiveCustomersManager() {
   const [pending, setPending] = useState(false);
   const customers = useQuery(api.customers.list, { search: query.trim() || undefined });
   const requests = useQuery(api.customers.listDeletionRequests);
+  const invitations = useQuery(api.invitations.listForAdmin);
   const create = useMutation(api.customers.createCustomer);
   const approve = useMutation(api.customers.approveDeletion);
-  const requestPasswordReset = useAction(api.auth.adminRequestPasswordReset);
-  if (customers === undefined || requests === undefined)
+  const revokeInvitation = useMutation(api.invitations.revoke);
+  const replaceInvitation = useMutation(api.invitations.replace);
+  const setRole = useMutation(api.customers.setRole);
+  const invitationByCustomer = useMemo(
+    () => new Map((invitations ?? []).map((invitation) => [invitation.customerId, invitation])),
+    [invitations],
+  );
+  if (customers === undefined || requests === undefined || invitations === undefined)
     return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
 
   async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setSetupLink("");
+    setCopiedSetupLink(false);
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setMessage({ tone: "error", text: "Enter a valid customer email address." });
       return;
     }
-    const baseSlug =
-      (profileSlug.trim() || normalizedEmail)
-        .split("@")[0]
-        ?.replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "profile";
-    const suffix = crypto.randomUUID().slice(0, 8);
-    const requestedSlug = profileSlug.trim() ? baseSlug : `${baseSlug}-${suffix}`;
-    const token = crypto.randomUUID().replaceAll("-", "");
+    const tokenBytes = new Uint8Array(32);
+    crypto.getRandomValues(tokenBytes);
+    const token = btoa(String.fromCharCode(...tokenBytes))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
     setPending(true);
     try {
-      await (create as unknown as (args: Record<string, unknown>) => Promise<unknown>)({
+      await create({
         email: normalizedEmail,
-        slug: requestedSlug,
+        ...(profileSlug.trim() ? { slug: profileSlug.trim() } : {}),
         name: profileName.trim(),
         theme,
         tokenHash: await hashSetupToken(token),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
       setEmail("");
       setSetupLink(`/setup/${token}`);
       setMessage({
         tone: "success",
-        text: `Customer account created for ${normalizedEmail}. Share the one-time setup link through a controlled channel.`,
+        text: `Customer account created for ${normalizedEmail}. Reusable until revoked.`,
       });
     } catch (error) {
       setMessage({
@@ -528,25 +532,67 @@ function LiveCustomersManager() {
     }
   }
 
-  async function resetPassword(customerId: Id<"customers">, email: string) {
+  async function revoke(customerId: Id<"invitations">) {
     setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
     try {
-      await requestPasswordReset({ customerId });
+      await revokeInvitation({ invitationId: customerId });
       setMessage({
         tone: "success",
-        text: `A secure password setup/reset email was queued for ${email}.`,
+        text: "Invitation revoked.",
       });
     } catch (error) {
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "The password reset could not be queued.",
+        text: error instanceof Error ? error.message : "The invitation could not be revoked.",
+      });
+    }
+  }
+
+  async function replace(customerId: Id<"customers">) {
+    setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
+    const tokenBytes = new Uint8Array(32);
+    crypto.getRandomValues(tokenBytes);
+    const token = btoa(String.fromCharCode(...tokenBytes))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
+    try {
+      await replaceInvitation({ customerId, tokenHash: await hashSetupToken(token) });
+      setSetupLink(`/setup/${token}`);
+      setMessage({ tone: "success", text: "The previous link is invalid immediately." });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The invitation could not be replaced.",
+      });
+    }
+  }
+
+  async function changeRole(customerId: Id<"customers">, role: "customer" | "admin") {
+    setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
+    try {
+      await setRole({ customerId, role });
+      setMessage({
+        tone: "success",
+        text: `Role updated to ${role === "admin" ? "administrator" : "customer"}.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The customer role could not be updated.",
       });
     }
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
-        description="Create invited customer accounts. The one-time setup link is shown once for controlled handoff."
+        description="Create invited customer accounts. The reusable setup link is shown after creation for controlled handoff."
         title="Create customer"
       >
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
@@ -610,7 +656,7 @@ function LiveCustomersManager() {
         {setupLink ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
             <span className="break-all">
-              One-time setup link: <strong className="text-tapit-accent">{setupLink}</strong>
+              Reusable until revoked: <strong className="text-tapit-accent">{setupLink}</strong>
             </span>
             <Button
               onClick={() => {
@@ -656,20 +702,59 @@ function LiveCustomersManager() {
                 </p>
               </div>
               <StatusBadge status={customer.status} />
-              {customer.status !== "deleted" && !hostedDemo ? (
-                <Button
-                  onClick={() => void resetPassword(customer._id, customer.email)}
-                  type="button"
-                  variant="quiet"
-                >
-                  Send password setup/reset
-                </Button>
-              ) : null}
-              {customer.status !== "deleted" && hostedDemo ? (
-                <p className="text-sm text-tapit-muted">
-                  Password reset email delivery is disabled in hosted demo mode.
-                </p>
-              ) : null}
+              {(() => {
+                const invitation = invitationByCustomer.get(customer._id);
+                const invitationActive = invitation?.invalidatedAt === null;
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {invitation && invitationActive ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Revoke this invitation?"))
+                            void revoke(invitation.invitationId);
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Revoke invitation
+                      </Button>
+                    ) : null}
+                    {customer.status === "invited" && !customer.userId ? (
+                      <Button
+                        onClick={() => void replace(customer._id)}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Replace invitation
+                      </Button>
+                    ) : null}
+                    {customer.status === "active" && customer.role === "customer" ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Promote this customer to administrator?"))
+                            void changeRole(customer._id, "admin");
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Promote to administrator
+                      </Button>
+                    ) : null}
+                    {customer.status === "active" && customer.role === "admin" ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Demote this administrator to customer?"))
+                            void changeRole(customer._id, "customer");
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Demote to customer
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </article>
           ))}
         </div>

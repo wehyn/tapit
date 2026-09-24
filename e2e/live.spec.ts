@@ -272,6 +272,40 @@ test.describe("live Convex vertical slice", () => {
     await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
   });
 
+  test("administrator can manage reusable invitations and customer roles", async ({
+    page,
+    liveEnv,
+  }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill(liveEnv.adminEmail);
+    await page.getByLabel("Password", { exact: true }).fill(liveEnv.adminPassword);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/customers$/);
+
+    const email = `invited-${Date.now()}@example.test`;
+    await page.getByLabel("Customer email").fill(email);
+    await page.getByLabel("Initial profile name").fill("Reusable Invite");
+    await page.getByRole("button", { name: "Create and invite", exact: true }).click();
+    await expect(page.getByText("Reusable until revoked")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Copy link" })).toBeVisible();
+
+    const customer = page.locator("article").filter({ hasText: email }).first();
+    await customer.getByRole("button", { name: "Revoke invitation" }).click();
+    await expect(page.getByText("Invitation revoked")).toBeVisible();
+    await customer.getByRole("button", { name: "Replace invitation" }).click();
+    await expect(page.getByText("The previous link is invalid immediately.")).toBeVisible();
+
+    const activeCustomer = page
+      .locator("article")
+      .filter({ hasText: liveEnv.customerEmail })
+      .first();
+    await activeCustomer.getByRole("button", { name: "Promote to administrator" }).click();
+    await expect(page.getByText("Role updated to administrator")).toBeVisible();
+    await activeCustomer.getByRole("button", { name: "Demote to customer" }).click();
+    await expect(page.getByText("Role updated to customer")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Reset password" })).toHaveCount(0);
+  });
+
   test("invitation setup creates a customer session and consumes the token", async ({
     page,
     browser,
