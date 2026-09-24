@@ -383,7 +383,6 @@ function DemoProfileEditor() {
               <TextareaField
                 id="profile-bio"
                 label="Bio or role"
-                help="A short introduction people can scan quickly."
                 maxLength={140}
                 onChange={(event) => updateField("bio", event.target.value)}
                 placeholder="e.g. Designer helping small teams"
@@ -393,7 +392,6 @@ function DemoProfileEditor() {
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
                 id="profile-email"
-                help="This appears as a contact option on your published profile."
                 label="Email"
                 onChange={(event) => updateField("email", event.target.value || undefined)}
                 placeholder="you@example.com"
@@ -418,11 +416,7 @@ function DemoProfileEditor() {
               />
               <Field
                 disabled={slugLocked}
-                help={
-                  slugLocked
-                    ? "The slug is immutable after first publication."
-                    : "Use lowercase letters, numbers, and hyphens."
-                }
+                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}
@@ -914,7 +908,6 @@ function LiveProfileEditorContent({
               <TextareaField
                 id="profile-bio"
                 label="Bio or role"
-                help="A short introduction people can scan quickly."
                 maxLength={140}
                 onChange={(event) => updateField("bio", event.target.value || undefined)}
                 placeholder="e.g. Designer helping small teams"
@@ -922,7 +915,6 @@ function LiveProfileEditorContent({
               />
               <Field
                 id="profile-email"
-                help="This appears as a contact option on your published profile."
                 label="Email"
                 onChange={(event) => updateField("email", event.target.value || undefined)}
                 placeholder="you@example.com"
@@ -947,11 +939,7 @@ function LiveProfileEditorContent({
               />
               <Field
                 disabled={slugLocked}
-                help={
-                  slugLocked
-                    ? "The slug is immutable after first publication."
-                    : "Use lowercase letters, numbers, and hyphens."
-                }
+                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}

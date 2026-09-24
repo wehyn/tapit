@@ -108,10 +108,8 @@ export function LinksWorkspace({
   const hasValidRedirectDestination =
     redirect.destination.trim().length > 0 &&
     validateRedirectDestination(redirect.destination) === null;
-  const redirectDescribedBy = [
-    "profile-redirect-help",
-    ...(redirectError || hasValidRedirectDestination ? ["profile-redirect-feedback"] : []),
-  ].join(" ");
+  const redirectDescribedBy =
+    redirectError || hasValidRedirectDestination ? "profile-redirect-feedback" : undefined;
 
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
@@ -169,9 +167,6 @@ export function LinksWorkspace({
                 type="url"
                 value={redirect.destination}
               />
-              <p className="mt-2 text-xs leading-5 text-tapit-muted" id="profile-redirect-help">
-                Use the full address, including https://.
-              </p>
               {redirectError ? (
                 <p
                   className="mt-2 text-xs font-medium text-tapit-danger"
