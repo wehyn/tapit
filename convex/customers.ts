@@ -29,13 +29,13 @@ const emptyProfile = (slug: string) => ({
 const signupLimiter = new RateLimiter(components.rateLimiter, {
   selfServiceSignup: { kind: "fixed window", rate: 3, period: HOUR },
 });
+const authEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const createCustomer = mutation({
   args: {
     email: v.string(),
     slug: v.optional(v.string()),
     tokenHash: v.string(),
-    expiresAt: v.optional(v.number()),
     name: v.optional(v.string()),
     bio: v.optional(v.string()),
     theme: v.optional(profileThemeValidator),
@@ -221,7 +221,9 @@ export const completeSelfServiceOnboarding = mutation({
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
     const email = user?.email?.trim().toLowerCase();
-    if (email === undefined || !email.includes("@"))
+    if (user?.emailVerificationTime === undefined)
+      throw new Error("A server-verified Google email is required.");
+    if (email === undefined || !authEmailPattern.test(email))
       throw new Error("A valid authenticated email is required.");
     const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
       key: `onboarding:${userId}`,
@@ -311,6 +313,10 @@ export const acceptInvitation = mutation({
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
     const email = user?.email?.trim().toLowerCase();
+    if (user?.emailVerificationTime === undefined)
+      throw new Error("A server-verified Google email is required.");
+    if (email === undefined || !authEmailPattern.test(email))
+      throw new Error("A valid authenticated email is required.");
     const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
       key: `invitation:${userId}:${args.tokenHash}`,
     });
@@ -328,7 +334,14 @@ export const acceptInvitation = mutation({
     if (email === undefined || email !== invitation.email.trim().toLowerCase())
       throw new Error("This authenticated account does not match the invitation email.");
     const customer = await ctx.db.get(invitation.customerId);
-    if (customer === null || customer.status === "deleted")
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.deletionStatus !== "active" ||
+      !sameScope(customer, invitation)
+    )
+      throw new Error("Customer account unavailable.");
+    if (customer.status !== "invited" && customer.status !== "active")
       throw new Error("Customer account unavailable.");
     if (customer.userId !== undefined && customer.userId !== userId)
       throw new Error("This invitation is linked to another user.");
@@ -369,7 +382,7 @@ export const setRole = mutation({
       const admins = await ctx.db
         .query("customers")
         .withIndex("by_scope_and_role", (q) => q.eq("scope", account.scope).eq("role", "admin"))
-        .collect();
+        .take(200);
       if (admins.filter(isActiveCustomer).length <= 1)
         throw new Error("Cannot remove the last active administrator.");
     }
@@ -397,6 +410,7 @@ export const completeSetup = mutation({
   },
   returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
   handler: async (ctx, args) => {
+    if (!isHostedDemo()) throw new Error("Legacy setup is available only in hosted demo.");
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
     if (!isHostedDemo() && user?.emailVerificationTime === undefined)
@@ -407,7 +421,6 @@ export const completeSetup = mutation({
       .unique();
     if (
       invitation === null ||
-      invitation.usedAt !== undefined ||
       invitation.invalidatedAt !== undefined ||
       (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
     ) {
@@ -435,7 +448,6 @@ export const completeSetup = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(invitation._id, { usedAt: now });
     await ctx.db.patch(customer._id, {
       userId,
       scope: invitation.scope,

@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 
 type AuthContext = QueryCtx | MutationCtx;
+const authEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isActiveCustomer(account: Doc<"customers"> | null | undefined): boolean {
   return account?.status === "active" && account.deletionStatus === "active";
@@ -90,11 +91,17 @@ export const currentAccess = query({
       .unique();
 
     const user = await ctx.db.get(userId);
+    const verifiedEmail =
+      user?.emailVerificationTime !== undefined &&
+      user?.email &&
+      authEmailPattern.test(user.email.trim().toLowerCase())
+        ? user.email.trim().toLowerCase()
+        : null;
     const invited =
-      account === null && user?.email
+      account === null && verifiedEmail
         ? await ctx.db
             .query("customers")
-            .withIndex("by_email", (q) => q.eq("email", user.email!.trim().toLowerCase()))
+            .withIndex("by_email", (q) => q.eq("email", verifiedEmail))
             .filter((q) => q.eq(q.field("status"), "invited"))
             .first()
         : null;
@@ -142,14 +149,29 @@ export const currentAccessInternal = internalQuery({
       };
     const account = await customerForAuthUser(ctx, userId);
     const active = isActiveCustomer(account);
+    const user = await ctx.db.get(userId);
+    const verifiedEmail =
+      user?.emailVerificationTime !== undefined &&
+      user?.email &&
+      authEmailPattern.test(user.email.trim().toLowerCase())
+        ? user.email.trim().toLowerCase()
+        : null;
+    const invited =
+      account === null && verifiedEmail
+        ? await ctx.db
+            .query("customers")
+            .withIndex("by_email", (q) => q.eq("email", verifiedEmail))
+            .filter((q) => q.eq(q.field("status"), "invited"))
+            .first()
+        : null;
     const accountStatus: "pending" | "invited" | "active" | "deleted" | "unprovisioned" =
-      account?.status ?? "unprovisioned";
+      account?.status ?? (invited !== null ? "invited" : "unprovisioned");
     return {
       authenticated: active,
       accountStatus,
       role: active ? (account?.role ?? null) : null,
-      accountId: account?._id ?? null,
-      profileId: account?.profileId ?? null,
+      accountId: active ? (account?._id ?? null) : null,
+      profileId: active ? (account?.profileId ?? null) : null,
       onboardingName: account?.onboardingName ?? null,
     };
   },

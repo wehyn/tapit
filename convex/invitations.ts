@@ -3,7 +3,7 @@ import { mutation, query } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
 
 export const status = query({
-  args: { tokenHash: v.string(), now: v.optional(v.number()) },
+  args: { tokenHash: v.string() },
   returns: v.object({
     state: v.union(
       v.literal("missing"),
@@ -55,7 +55,7 @@ export const listForAdmin = query({
     const rows = await ctx.db
       .query("invitations")
       .withIndex("by_scope", (q) => q.eq("scope", account.scope))
-      .collect();
+      .take(200);
     return await Promise.all(
       rows.map(async (row) => {
         const customer = await ctx.db.get(row.customerId);
@@ -107,7 +107,14 @@ export const replace = mutation({
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const customer = await ctx.db.get(args.customerId);
-    if (customer === null || !sameScope(account, customer) || customer.userId !== undefined)
+    if (
+      customer === null ||
+      !sameScope(account, customer) ||
+      customer.role !== "customer" ||
+      customer.status !== "invited" ||
+      customer.deletionStatus !== "active" ||
+      customer.userId !== undefined
+    )
       throw new Error("Customer account unavailable.");
     const duplicate = await ctx.db
       .query("invitations")
@@ -118,7 +125,7 @@ export const replace = mutation({
     const existing = await ctx.db
       .query("invitations")
       .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
-      .collect();
+      .take(200);
     for (const invitation of existing)
       if (invitation.invalidatedAt === undefined)
         await ctx.db.patch(invitation._id, { invalidatedAt: now });
