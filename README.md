@@ -24,8 +24,8 @@ For a hosted demo backed by shared, non-production Convex data, set
 `NEXT_PUBLIC_CONVEX_URL`, and set `TAPIT_DEMO_AUTH_MODE=hosted-demo` on that Convex deployment.
 Hosted demo data is shared across users and devices; never point it at production.
 
-After an operator provisions a Convex Auth Password identity, initialize the fixed Mara demo seed with
-the identity's user ID (the command does not accept or print a password or claim code):
+After an operator provisions the isolated hosted-demo administrator through its supported Auth setup flow,
+initialize the fixed Mara demo seed with the identity's user ID:
 
 ```bash
 npx convex run --deployment dev:your-deployment demo:initialize '{"operatorUserId":"USER_ID"}'
@@ -45,29 +45,29 @@ When opening the dev server from another device, use the machine's LAN or Tailsc
 `npm run dev` after changing it; this keeps Next.js dev resources and the demo sign-in handler available to
 that browser origin.
 
-For the non-production live Convex workflow, use the explicitly opted-in command below after aligning
+For non-production live Google OAuth development, use the explicitly opted-in command below after aligning
 `CONVEX_DEPLOYMENT` and `NEXT_PUBLIC_CONVEX_URL` to the same development deployment:
 
 ```bash
 NEXT_PUBLIC_DEMO_MODE=false npx convex dev --start "npm run dev -- --hostname 127.0.0.1"
 ```
 
-This command is not a production workflow. Live E2E requires an operator-provisioned first administrator and
-uses the public customer signup mode to generate a unique disposable customer at runtime; it does not create
-accounts through the Convex CLI. See the complete [live E2E runbook](docs/live-e2e.md) before opting in.
+This command is not a production workflow. Live E2E requires dedicated non-production Google accounts for the
+allowlisted first administrator, a customer, and an invited customer. It never creates Auth identities through
+the Convex CLI. See the complete [live E2E runbook](docs/live-e2e.md) before opting in.
 
-After filling an ignored `.env.live.local` with the complete live contract, load it into the shell and run the
-browser gate with an explicit development target:
+After filling an ignored `.env.live.local` with the complete Google storage-state contract, load it into the
+shell and run the browser gate with an explicit development or Preview target:
 
 ```bash
 set -a
 source .env.live.local
 set +a
-TAPIT_LIVE_CONVEX_DEPLOYMENT=dev npm run test:e2e:live
+npm run test:e2e:live
 ```
 
-Here `dev` resolves the development deployment selected by `CONVEX_DEPLOYMENT`; keep that value and
-`NEXT_PUBLIC_CONVEX_URL` aligned, and never substitute `prod` for this workflow.
+The contract rejects Production URLs and deployments. Keep the selected development or stable Preview app,
+Convex cloud URL, Convex site URL, and deployment reference aligned, and never use Production for E2E.
 
 See the [launch-readiness contract](docs/launch-readiness.md) for preview/production release targets,
 go/no-go gates, and evidence requirements.
@@ -86,9 +86,9 @@ go/no-go gates, and evidence requirements.
 
 ## Environment and data safety
 
-Local demo mode never sends invitations and does not point at production data. Use separate Convex
-development, preview, and production deployments. Real secrets, setup tokens, customer data, production
-domains, and email credentials belong in the environment manager, never in the repository.
+Local demo mode never sends invitations or uses OAuth and does not point at production data. Use separate
+Convex development, Preview, and Production deployments. Real secrets, Google browser storage states, setup
+tokens, customer data, and deployment identifiers belong in ignored environment storage, never in the repository.
 
 Demo credentials are `mara@example.test` and `admin@tapit.local`, both using `tapit-demo`. A visitor can create
 a browser-local customer through `/login?mode=signup`; the admin can still create a browser-local invitation,
@@ -96,16 +96,17 @@ and the generated setup link is shown only in the admin success state.
 The customer shell intentionally exposes Profile, Links, Analytics, and Account only; card operations
 remain administrator-only.
 
-Never point the live workflow at production. Keep live credentials, deployment identifiers, and user IDs in
-ignored environment storage; do not add them to `.env.example` or this repository. The live signup test generates
-a unique email and slug at runtime, but the complete live contract also requires an authenticated non-production
-mail adapter so verification remains a real browser flow.
+Never point the live workflow at Production. Live and Preview use one auth action, `Continue with Google`, with
+provider ID `google`, scopes `openid email profile`, and callback
+`<CONVEX_SITE_URL>/api/auth/callback/google`. Register separate Google OAuth clients and exact app origins
+for live development, the stable Preview origin, and Production. Set `TAPIT_ADMIN_EMAILS` on each deployment;
+only an allowlisted first Google identity becomes an administrator. Customer invitations are created by an
+administrator and handed off manually as reusable links until revoked. Live authentication has no transactional
+email dependency.
 
-The provider-neutral email adapter, verification, password recovery, and server-side signup/email rate limits are
-implemented for isolated environments. Transactional-provider selection and sender verification, setup-link
-policy, edge abuse rules, unique-view method, deleted-data retention, launch jurisdiction, monitoring ownership,
-production domain, and final brand assets remain documented launch gates. See `docs/launch-readiness.md` and
-`docs/plan.md` before a real pilot or production deployment.
+Production must start with a fresh deployment and controlled first-admin allowlist; never seed it from live E2E
+or hosted-demo data. See [docs/live-e2e.md](docs/live-e2e.md) and [docs/launch-readiness.md](docs/launch-readiness.md)
+for required configuration, `npm run verify`, and approved non-production evidence gates.
 
 ## Acceptance and device proof
 
