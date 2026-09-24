@@ -1,5 +1,6 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
@@ -379,11 +380,16 @@ export const setRole = mutation({
       throw new Error("Customer account unavailable.");
     if (target.role === args.role) return null;
     if (target.role === "admin" && args.role === "customer") {
-      const admins = await ctx.db
+      let anotherActiveAdministrator = false;
+      for await (const admin of ctx.db
         .query("customers")
-        .withIndex("by_scope_and_role", (q) => q.eq("scope", account.scope).eq("role", "admin"))
-        .take(200);
-      if (admins.filter(isActiveCustomer).length <= 1)
+        .withIndex("by_scope_and_role", (q) => q.eq("scope", account.scope).eq("role", "admin"))) {
+        if (admin._id !== target._id && isActiveCustomer(admin)) {
+          anotherActiveAdministrator = true;
+          break;
+        }
+      }
+      if (!anotherActiveAdministrator)
         throw new Error("Cannot remove the last active administrator.");
     }
     const now = Date.now();
@@ -448,22 +454,29 @@ export const completeSetup = mutation({
     }
 
     const now = Date.now();
+    const shouldRecordAcceptance = invitation.acceptedAt == null;
+    const shouldRecordLink = customer.userId !== userId || customer.status !== "active";
     await ctx.db.patch(customer._id, {
       userId,
       scope: invitation.scope,
       status: "active",
       updatedAt: now,
     });
-    await ctx.db.insert("auditLogs", {
-      scope: customer.scope,
-      actorUserId: userId,
-      actorLabel: customer.email,
-      action: "customer.setup_completed",
-      accountId: customer._id,
-      profileId: customer.profileId,
-      occurredAt: now,
-      after: "active",
-    });
+    if (shouldRecordAcceptance) {
+      await ctx.db.patch(invitation._id, { acceptedAt: now });
+    }
+    if (shouldRecordLink || shouldRecordAcceptance) {
+      await ctx.db.insert("auditLogs", {
+        scope: customer.scope,
+        actorUserId: userId,
+        actorLabel: customer.email,
+        action: "customer.setup_completed",
+        accountId: customer._id,
+        profileId: customer.profileId,
+        occurredAt: now,
+        after: "active",
+      });
+    }
     return { profileId: customer.profileId ?? null };
   },
 });
@@ -494,18 +507,22 @@ export const byIdForAdmin = internalQuery({
 });
 
 export const list = query({
-  args: { search: v.optional(v.string()) },
-  returns: v.array(schema.doc("customers")),
+  args: { search: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("customers")),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const search = args.search?.trim().toLowerCase();
     const customers = await ctx.db
       .query("customers")
       .withIndex("by_scope", (query) => query.eq("scope", account.scope))
-      .take(100);
-    return search === undefined || search.length === 0
-      ? customers
-      : customers.filter((customer) => customer.email.includes(search));
+      .paginate(args.paginationOpts);
+    return {
+      ...customers,
+      page:
+        search === undefined || search.length === 0
+          ? customers.page
+          : customers.page.filter((customer) => customer.email.includes(search)),
+    };
   },
 });
 
@@ -581,26 +598,29 @@ export const requestDeletion = mutation({
 });
 
 export const listDeletionRequests = query({
-  args: {},
-  returns: v.array(
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
     v.object({
       request: schema.doc("deletionRequests"),
       customer: v.union(v.null(), schema.doc("customers")),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const requests = await ctx.db
       .query("deletionRequests")
       .withIndex("by_scope", (query) => query.eq("scope", account.scope))
       .order("desc")
-      .take(100);
-    return await Promise.all(
-      requests.map(async (request) => ({
-        request,
-        customer: await ctx.db.get(request.customerId),
-      })),
-    );
+      .paginate(args.paginationOpts);
+    return {
+      ...requests,
+      page: await Promise.all(
+        requests.page.map(async (request) => ({
+          request,
+          customer: await ctx.db.get(request.customerId),
+        })),
+      ),
+    };
   },
 });
 

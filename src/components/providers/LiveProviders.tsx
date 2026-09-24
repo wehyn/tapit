@@ -47,7 +47,9 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     getServerHydrationSnapshot,
   );
   const isProtectedPage =
-    pathname.startsWith("/app") || pathname.startsWith("/admin") || pathname.startsWith("/onboarding");
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/onboarding");
   const isSetupPage = pathname.startsWith("/setup/");
   const accessLoading = isAuthenticated && access === undefined;
   let redirectPath: string | null = null;
@@ -61,10 +63,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
       redirectPath = pathname === "/onboarding" ? null : "/onboarding";
     } else if (access?.accountStatus === "invited") {
       redirectPath = pathname === "/login" ? null : "/login?reason=invitation-required";
-    } else if (
-      access?.accountStatus === "deleted" ||
-      access?.accountStatus === "unprovisioned"
-    ) {
+    } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
       redirectPath = pathname === "/login" ? null : "/login?reason=account-inactive";
     } else if (isProtectedPage && access?.authenticated !== true) {
       redirectPath = `/login?next=${encodeURIComponent(pathname)}`;

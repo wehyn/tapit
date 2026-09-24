@@ -1,12 +1,10 @@
 import type { Browser, Page } from "@playwright/test";
 import { test as base, expect } from "@playwright/test";
 
-import {
-  liveContractEnvNames,
-  missingLiveContract,
-  readLiveAppContract,
-  validateLiveContract,
-} from "../../scripts/live-e2e-contract.mjs";
+import liveContract from "../../scripts/live-e2e-contract.cjs";
+
+const { liveContractEnvNames, missingLiveContract, readLiveAppContract, validateLiveContract } =
+  liveContract;
 
 export type LiveIdentity = "admin" | "customer" | "invited";
 
@@ -68,12 +66,12 @@ export async function contextForIdentity(
 
 export async function signInWithGoogle(page: Page, expectedPath?: RegExp) {
   const button = page.getByRole("button", { name: "Continue with Google", exact: true });
-  if (await button.count()) {
-    await Promise.all([
-      page.waitForURL(/\/api\/auth\/callback\/google(?:\?.*)?$/, { timeout: 30_000 }),
-      button.click(),
-    ]);
-  }
+  if ((await button.count()) !== 1)
+    throw new Error("Google sign-in control is unavailable; refusing to skip OAuth.");
+  await Promise.all([
+    page.waitForURL(/\/api\/auth\/callback\/google(?:\?.*)?$/, { timeout: 30_000 }),
+    button.click(),
+  ]);
   if (expectedPath) await expect(page).toHaveURL(expectedPath);
 }
 

@@ -73,21 +73,33 @@ OAuth credentials, or customer data.
 
 ## Run the approved non-production suite
 
-1. Select and announce the exact development or stable Preview app, Convex cloud URL, Convex site URL, and
-   deployment reference. Confirm the Google client callback and registered origin match that target.
-2. Confirm `TAPIT_ADMIN_EMAILS` contains the controlled first admin and that all three dedicated states belong to
-   the declared emails.
+The full live matrix is a one-shot lifecycle run for the three declared identities on a fresh dedicated
+non-production Convex deployment. It creates the first admin, onboards and publishes the customer, accepts and
+revokes an invitation, and leaves those app accounts in their resulting states. The wrapper cannot recreate an
+invitation for an already-active invited identity. Use a fresh dedicated deployment for another full run; do not
+reset Convex Auth tables or mutate the database directly. For a deployment that already has these accounts, use
+new dedicated customer and invited Google identities, states, and an unused `TAPIT_LIVE_PROFILE_SLUG`. The
+first-admin creation case is established only on a fresh deployment.
+
+1. Select the exact development or stable Preview app, Convex cloud URL, Convex site URL, and deployment
+   reference. Confirm the Google client callback and registered origin match that target.
+2. Confirm `TAPIT_ADMIN_EMAILS` contains the controlled admin email and excludes the dedicated customer email.
+   Confirm each state belongs to its declared email. `TAPIT_LIVE_PROFILE_SLUG` is used as the onboarding
+   display-name seed; choose a valid, unused slug-like value for the fresh deployment.
 3. Keep the repository default at `NEXT_PUBLIC_DEMO_MODE=true`; load the ignored live contract only in the run
    shell.
 4. Run `npm run test:e2e:live`. The wrapper verifies `/api/live-contract`, auth provider, origin matching, and
-   image CORS before it creates an invitation through the admin UI. The raw setup token remains process memory.
-5. Remove disposable application records with supported customer/admin flows after the run. Never write Convex
-   Auth tables directly and never run this workflow against Production.
+   image CORS, signs the admin identity in through Google when needed, and creates an invitation through the
+   admin UI. The raw setup token remains process memory.
+5. Do not use Production or write Convex Auth tables directly. The run intentionally creates non-production
+   application records that are not reusable for a second full lifecycle run.
 
 The live matrix covers first allowlisted admin sign-in, pending Google onboarding with an editable prefilled name,
 private profile creation, returning active access, pending deletion and restart, matching invitation setup,
-missing-link and wrong-email rejection, invitation replay until revocation, allowlist non-promotion, manual role
-changes, and admin profile/card/analytics behavior. It also proves public profile privacy before publication.
+missing-link and wrong-email rejection, invitation replacement and replay until revocation, manual role changes,
+and admin profile/card/analytics behavior. It proves public profile privacy before publication and visibility
+after publication. The initial-admin allowlist non-promotion rule is verified in Convex integration tests because
+the browser harness does not change deployment environment variables during a run.
 
 Live E2E evidence is valid only when the target, Google client configuration, three state paths, declared emails,
 and confirmation are recorded without exposing secrets. Until a dedicated non-production target is provisioned,

@@ -76,6 +76,20 @@ async function createInvitationThroughAdmin() {
   const page = await context.newPage();
   try {
     await page.goto("/admin/customers");
+    if (!new URL(page.url()).pathname.startsWith("/admin/")) {
+      const googleButton = page.getByRole("button", {
+        name: "Continue with Google",
+        exact: true,
+      });
+      if (!(await googleButton.count())) fail("the admin Google identity could not reach sign-in");
+      await Promise.all([
+        page.waitForURL(/\/api\/auth\/callback\/google(?:\?.*)?$/, { timeout: 30_000 }),
+        googleButton.click(),
+      ]);
+      await page.goto("/admin/customers");
+    }
+    if (!new URL(page.url()).pathname.startsWith("/admin/"))
+      fail("the configured Google identity is not an administrator on the selected target");
     await page.getByLabel("Customer email").fill(process.env.TAPIT_LIVE_INVITED_EMAIL);
     await page.getByLabel("Initial profile name").fill("Live invited customer");
     await page.getByRole("button", { name: "Create and invite", exact: true }).click();

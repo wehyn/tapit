@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -460,19 +460,42 @@ function LiveCustomersManager() {
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
-  const customers = useQuery(api.customers.list, { search: query.trim() || undefined });
-  const requests = useQuery(api.customers.listDeletionRequests);
-  const invitations = useQuery(api.invitations.listForAdmin);
+  const {
+    results: customers,
+    status: customersStatus,
+    loadMore: loadMoreCustomers,
+  } = usePaginatedQuery(
+    api.customers.list,
+    { search: query.trim() || undefined },
+    { initialNumItems: 50 },
+  );
+  const {
+    results: requests,
+    status: requestsStatus,
+    loadMore: loadMoreRequests,
+  } = usePaginatedQuery(api.customers.listDeletionRequests, {}, { initialNumItems: 50 });
+  const {
+    results: invitations,
+    status: invitationsStatus,
+    loadMore: loadMoreInvitations,
+  } = usePaginatedQuery(api.invitations.listForAdmin, {}, { initialNumItems: 50 });
   const create = useMutation(api.customers.createCustomer);
   const approve = useMutation(api.customers.approveDeletion);
   const revokeInvitation = useMutation(api.invitations.revoke);
   const replaceInvitation = useMutation(api.invitations.replace);
   const setRole = useMutation(api.customers.setRole);
-  const invitationByCustomer = useMemo(
-    () => new Map((invitations ?? []).map((invitation) => [invitation.customerId, invitation])),
-    [invitations],
-  );
-  if (customers === undefined || requests === undefined || invitations === undefined)
+  const invitationByCustomer = useMemo(() => {
+    const byCustomer = new Map<string, (typeof invitations)[number]>();
+    for (const invitation of invitations) {
+      if (!byCustomer.has(invitation.customerId)) byCustomer.set(invitation.customerId, invitation);
+    }
+    return byCustomer;
+  }, [invitations]);
+  if (
+    customersStatus === "LoadingFirstPage" ||
+    requestsStatus === "LoadingFirstPage" ||
+    invitationsStatus === "LoadingFirstPage"
+  )
     return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
 
   async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
@@ -675,7 +698,7 @@ function LiveCustomersManager() {
         ) : null}
       </Panel>
       <Panel
-        description="Search the first 100 customer accounts returned by the administrator query."
+        description="Search the loaded customer pages and load older accounts when needed."
         title="Customer accounts"
       >
         <div className="mt-6 max-w-md">
@@ -689,7 +712,13 @@ function LiveCustomersManager() {
           />
         </div>
         <div className="mt-6 grid gap-2">
-          {customers.length === 0 ? <Notice>No customer accounts match this search.</Notice> : null}
+          {customers.length === 0 ? (
+            <Notice>
+              {customersStatus === "CanLoadMore"
+                ? "No matching accounts are in the loaded pages. Load older accounts to continue."
+                : "No customer accounts match this search."}
+            </Notice>
+          ) : null}
           {customers.map((customer) => (
             <article
               className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
@@ -700,6 +729,27 @@ function LiveCustomersManager() {
                 <p className="mt-1 text-sm text-tapit-muted">
                   {customer.role} · {customer.status} · {customer.deletionStatus}
                 </p>
+                {(() => {
+                  const invitation = invitationByCustomer.get(customer._id);
+                  if (!invitation) return null;
+                  const status =
+                    invitation.invalidatedAt !== null
+                      ? "revoked"
+                      : invitation.acceptedAt !== null
+                        ? "accepted"
+                        : "pending";
+                  return (
+                    <>
+                      <p className="mt-1 text-sm text-tapit-muted">Invitation: {status}</p>
+                      {invitation.profileName !== null || invitation.slug !== null ? (
+                        <p className="mt-1 text-sm text-tapit-muted">
+                          Profile: {invitation.profileName ?? "Unnamed profile"}
+                          {invitation.slug === null ? "" : ` · /${invitation.slug}`}
+                        </p>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
               <StatusBadge status={customer.status} />
               {(() => {
@@ -758,6 +808,30 @@ function LiveCustomersManager() {
             </article>
           ))}
         </div>
+        {customersStatus === "CanLoadMore" || customersStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={customersStatus === "LoadingMore"}
+            onClick={() => loadMoreCustomers(50)}
+            type="button"
+            variant="secondary"
+          >
+            {customersStatus === "LoadingMore" ? "Loading accounts…" : "Load more accounts"}
+          </Button>
+        ) : null}
+        {invitationsStatus === "CanLoadMore" || invitationsStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={invitationsStatus === "LoadingMore"}
+            onClick={() => loadMoreInvitations(50)}
+            type="button"
+            variant="secondary"
+          >
+            {invitationsStatus === "LoadingMore"
+              ? "Loading invitations…"
+              : "Load more invitation history"}
+          </Button>
+        ) : null}
       </Panel>
       <Panel title="Deletion requests">
         <div className="mt-5 grid gap-2">
@@ -792,6 +866,17 @@ function LiveCustomersManager() {
             ))
           )}
         </div>
+        {requestsStatus === "CanLoadMore" || requestsStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={requestsStatus === "LoadingMore"}
+            onClick={() => loadMoreRequests(50)}
+            type="button"
+            variant="secondary"
+          >
+            {requestsStatus === "LoadingMore" ? "Loading requests…" : "Load more requests"}
+          </Button>
+        ) : null}
       </Panel>
     </div>
   );

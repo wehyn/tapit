@@ -19,7 +19,9 @@ export function GoogleLoginForm({
 }) {
   const { signIn } = useAuthActions();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState(oauthError ? "Google sign-in could not be completed. Try again." : "");
+  const [error, setError] = useState(
+    oauthError ? "Google sign-in could not be completed. Try again." : "",
+  );
   const safeNextPath = sanitizeReturnPath(nextPath);
 
   async function continueWithGoogle() {
@@ -51,7 +53,14 @@ export function GoogleLoginForm({
         >
           {pending ? "Connecting to Google" : "Continue with Google"}
         </Button>
-        <Button onClick={() => { setPending(false); setError(""); }} type="button" variant="quiet">
+        <Button
+          onClick={() => {
+            setPending(false);
+            setError("");
+          }}
+          type="button"
+          variant="quiet"
+        >
           Cancel
         </Button>
       </div>

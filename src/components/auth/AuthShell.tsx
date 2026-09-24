@@ -37,38 +37,48 @@ export function AuthShell({
                 weight="light"
               />
               <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-                {variant === "google" ? "Welcome back" : mode === "signup" ? "Make it yours" : "Welcome back"}
+                {variant === "google"
+                  ? "Welcome back"
+                  : mode === "signup"
+                    ? "Make it yours"
+                    : "Welcome back"}
               </p>
               <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-tapit-ink sm:text-6xl">
-                {variant === "google" ? "Sign in to Tapit" : mode === "signup" ? "Create your Tapit profile" : "Sign in to Tapit"}
+                {variant === "google"
+                  ? "Sign in to Tapit"
+                  : mode === "signup"
+                    ? "Create your Tapit profile"
+                    : "Sign in to Tapit"}
               </h1>
               <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
                 {variant === "google"
                   ? "Use your Google account to manage your profile, links, and publication state."
                   : mode === "signup"
-                  ? "Create a shareable profile for your bio, portfolio, socials, and contact links."
-                  : "Manage your profile, links, and publication state from one calm workspace."}
+                    ? "Create a shareable profile for your bio, portfolio, socials, and contact links."
+                    : "Manage your profile, links, and publication state from one calm workspace."}
               </p>
             </div>
             <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
-              {variant === "google" ? null : <div className="mb-6 grid gap-2 sm:grid-cols-2">
-                <button
-                  className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signup" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
-                  disabled={modeChangeDisabled}
-                  onClick={() => onModeChange("signup")}
-                  type="button"
-                >
-                  New to Tapit? Create your profile
-                </button>
-                <button
-                  className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signin" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
-                  disabled={modeChangeDisabled}
-                  onClick={() => onModeChange("signin")}
-                  type="button"
-                >
-                  Already have an account? Sign in
-                </button>
-              </div>}
+              {variant === "google" ? null : (
+                <div className="mb-6 grid gap-2 sm:grid-cols-2">
+                  <button
+                    className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signup" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                    disabled={modeChangeDisabled}
+                    onClick={() => onModeChange("signup")}
+                    type="button"
+                  >
+                    New to Tapit? Create your profile
+                  </button>
+                  <button
+                    className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signin" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                    disabled={modeChangeDisabled}
+                    onClick={() => onModeChange("signin")}
+                    type="button"
+                  >
+                    Already have an account? Sign in
+                  </button>
+                </div>
+              )}
               {children}
               {supportUrl ? (
                 <p className="mt-6 text-center text-xs leading-5 text-tapit-muted">

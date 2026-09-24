@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
 
@@ -37,8 +38,8 @@ export const status = query({
 });
 
 export const listForAdmin = query({
-  args: {},
-  returns: v.array(
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
     v.object({
       invitationId: v.id("invitations"),
       customerId: v.id("customers"),
@@ -50,29 +51,33 @@ export const listForAdmin = query({
       invalidatedAt: v.union(v.number(), v.null()),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const rows = await ctx.db
       .query("invitations")
       .withIndex("by_scope", (q) => q.eq("scope", account.scope))
-      .take(200);
-    return await Promise.all(
-      rows.map(async (row) => {
-        const customer = await ctx.db.get(row.customerId);
-        const profile =
-          customer?.profileId === undefined ? null : await ctx.db.get(customer.profileId);
-        return {
-          invitationId: row._id,
-          customerId: row.customerId,
-          email: row.email,
-          profileName: profile?.draft.name ?? null,
-          slug: profile?.slug ?? null,
-          expiresAt: row.expiresAt ?? null,
-          acceptedAt: row.acceptedAt ?? null,
-          invalidatedAt: row.invalidatedAt ?? null,
-        };
-      }),
-    );
+      .order("desc")
+      .paginate(args.paginationOpts);
+    return {
+      ...rows,
+      page: await Promise.all(
+        rows.page.map(async (row) => {
+          const customer = await ctx.db.get(row.customerId);
+          const profile =
+            customer?.profileId === undefined ? null : await ctx.db.get(customer.profileId);
+          return {
+            invitationId: row._id,
+            customerId: row.customerId,
+            email: row.email,
+            profileName: profile?.draft.name ?? null,
+            slug: profile?.slug ?? null,
+            expiresAt: row.expiresAt ?? null,
+            acceptedAt: row.acceptedAt ?? null,
+            invalidatedAt: row.invalidatedAt ?? null,
+          };
+        }),
+      ),
+    };
   },
 });
 
@@ -122,13 +127,12 @@ export const replace = mutation({
       .unique();
     if (duplicate !== null) throw new Error("That invitation token is already registered.");
     const now = Date.now();
-    const existing = await ctx.db
+    for await (const invitation of ctx.db
       .query("invitations")
-      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
-      .take(200);
-    for (const invitation of existing)
+      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))) {
       if (invitation.invalidatedAt === undefined)
         await ctx.db.patch(invitation._id, { invalidatedAt: now });
+    }
     const invitationId = await ctx.db.insert("invitations", {
       ...(customer.scope !== undefined ? { scope: customer.scope } : {}),
       customerId: customer._id,

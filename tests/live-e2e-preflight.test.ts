@@ -1,14 +1,17 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
+import type { Page } from "@playwright/test";
+import { signInWithGoogle } from "../e2e/fixtures/live";
 
 const confirmation = "I_UNDERSTAND_NON_PRODUCTION";
 
-function stateFiles() {
-  const directory = mkdtempSync(path.join(tmpdir(), "tapit-google-state-"));
+function stateFiles(parent = path.join(process.cwd(), ".secrets")) {
+  mkdirSync(parent, { recursive: true });
+  const directory = mkdtempSync(path.join(parent, "tapit-google-state-"));
   const paths = ["admin", "customer", "invited"].map((name) => {
     const statePath = path.join(directory, `${name}-google.json`);
     writeFileSync(statePath, JSON.stringify({ cookies: [], origins: [] }));
@@ -91,6 +94,51 @@ describe("live Google E2E deployment preflight", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+
+  it("rejects Google state files that are not ignored by Git", async () => {
+    const { directory, paths } = stateFiles(tmpdir());
+    try {
+      const { validateLiveContract } = await import("../scripts/live-e2e-contract.mjs");
+      expect(validateLiveContract(validEnv(paths))).toContain("ignored by Git");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to start Google sign-in when the storage-state output is not ignored", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "tapit-unignored-google-state-"));
+    try {
+      const output = path.join(directory, "google-state.json");
+      const result = spawnSync(process.execPath, ["scripts/live-google-state.mjs", output], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("must be ignored by Git");
+      expect(result.stderr).not.toContain("Complete Google sign-in");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("lets Playwright discover the live Google suite without starting a browser", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["node_modules/@playwright/test/cli.js", "test", "--project", "live-chromium", "--list"],
+      { cwd: process.cwd(), encoding: "utf8", timeout: 15_000 },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("live Google OAuth journeys");
+  });
+
+  it("fails a live journey when the Google sign-in action is missing", async () => {
+    const page = {
+      getByRole: () => ({ count: async () => 0 }),
+    } as unknown as Page;
+
+    await expect(signInWithGoogle(page)).rejects.toThrow("Google sign-in control is unavailable");
   });
 
   it("requires Google as the observed live auth provider", async () => {

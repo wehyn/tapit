@@ -103,6 +103,95 @@ describe("hosted-demo scope boundaries", () => {
     }
   });
 
+  it("completes an administrator invitation with the matching hosted-demo password identity", async () => {
+    const previousMode = process.env.TAPIT_DEMO_AUTH_MODE;
+    const previousSiteUrl = process.env.SITE_URL;
+    const previousConvexSiteUrl = process.env.CONVEX_SITE_URL;
+    const previousJWTPrivateKey = process.env.JWT_PRIVATE_KEY;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    process.env.SITE_URL = "https://tapit.example.test";
+    process.env.CONVEX_SITE_URL = "https://tapit.test";
+    process.env.JWT_PRIVATE_KEY = testJWTPrivateKey;
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const adminUserId = await t.run(async (ctx) => {
+        const userId = await ctx.db.insert("users", { email: "admin@example.test" });
+        await ctx.db.insert("customers", {
+          userId,
+          email: "admin@example.test",
+          role: "admin",
+          status: "active",
+          deletionStatus: "active",
+          scope: "demo",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        return userId;
+      });
+      const administrator = t.withIdentity(identity(adminUserId));
+      const invite = await administrator.mutation(api.customers.createCustomer, {
+        email: "invite@example.test",
+        slug: "hosted-invite",
+        name: "Hosted Invite",
+        theme: "paper",
+        tokenHash: "hosted-invite-hash",
+      });
+
+      await t.action(api.auth.signIn, {
+        provider: "password",
+        params: {
+          flow: "signUp",
+          email: "INVITE@example.test",
+          password: "safe-password",
+        },
+      });
+      const invitedUserId = await t.run(async (ctx) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("email", (query) => query.eq("email", "invite@example.test"))
+          .unique();
+        expect(user).not.toBeNull();
+        return user!._id;
+      });
+      const invited = t.withIdentity(identity(invitedUserId));
+      await invited.mutation(api.customers.completeSetup, { tokenHash: "hosted-invite-hash" });
+      const acceptedAt = await t.run(
+        async (ctx) => (await ctx.db.get(invite.invitationId))?.acceptedAt,
+      );
+      expect(acceptedAt).toEqual(expect.any(Number));
+      await invited.mutation(api.customers.completeSetup, { tokenHash: "hosted-invite-hash" });
+      await expect(
+        administrator.query(api.invitations.listForAdmin, {
+          paginationOpts: { numItems: 10, cursor: null },
+        }),
+      ).resolves.toMatchObject({ page: [expect.objectContaining({ acceptedAt })] });
+      await t.run(async (ctx) => {
+        expect((await ctx.db.get(invite.invitationId))?.acceptedAt).toBe(acceptedAt);
+      });
+
+      await expect(invited.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+        authenticated: true,
+        accountStatus: "active",
+        role: "customer",
+        profileId: invite.profileId,
+      });
+      await expect(invited.query(api.profiles.mine, {})).resolves.toMatchObject({
+        _id: invite.profileId,
+        draft: { name: "Hosted Invite" },
+      });
+    } finally {
+      if (previousMode === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previousMode;
+      if (previousSiteUrl === undefined) delete process.env.SITE_URL;
+      else process.env.SITE_URL = previousSiteUrl;
+      if (previousConvexSiteUrl === undefined) delete process.env.CONVEX_SITE_URL;
+      else process.env.CONVEX_SITE_URL = previousConvexSiteUrl;
+      if (previousJWTPrivateKey === undefined) delete process.env.JWT_PRIVATE_KEY;
+      else process.env.JWT_PRIVATE_KEY = previousJWTPrivateKey;
+    }
+  });
+
   it("initializes idempotently without returning or storing a plaintext claim code", async () => {
     const previous = process.env.TAPIT_DEMO_AUTH_MODE;
     process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
@@ -215,12 +304,14 @@ describe("hosted-demo scope boundaries", () => {
     });
     const live = t.withIdentity(identity(ids.liveUser));
     const demo = t.withIdentity(identity(ids.demoUser));
-    expect((await live.query(api.customers.list, {})).map((row) => row._id)).not.toContain(
-      ids.demo,
-    );
-    expect((await demo.query(api.customers.list, {})).map((row) => row._id)).not.toContain(
-      ids.live,
-    );
+    const liveCustomers = await live.query(api.customers.list, {
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    const demoCustomers = await demo.query(api.customers.list, {
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(liveCustomers.page.map((row) => row._id)).not.toContain(ids.demo);
+    expect(demoCustomers.page.map((row) => row._id)).not.toContain(ids.live);
   });
 
   it("does not lose scoped rows when other scopes fill the read limit", async () => {
@@ -294,7 +385,21 @@ describe("hosted-demo scope boundaries", () => {
       return { demoUser };
     });
     const admin = t.withIdentity(identity(ids.demoUser));
-    expect((await admin.query(api.customers.list, {})).length).toBe(100);
+    const firstCustomersPage = await admin.query(api.customers.list, {
+      paginationOpts: { numItems: 50, cursor: null },
+    });
+    const secondCustomersPage = await admin.query(api.customers.list, {
+      paginationOpts: { numItems: 50, cursor: firstCustomersPage.continueCursor },
+    });
+    const finalCustomersPage = await admin.query(api.customers.list, {
+      paginationOpts: { numItems: 50, cursor: secondCustomersPage.continueCursor },
+    });
+    expect(firstCustomersPage.page).toHaveLength(50);
+    expect(firstCustomersPage.isDone).toBe(false);
+    expect(secondCustomersPage.page).toHaveLength(50);
+    expect(secondCustomersPage.isDone).toBe(false);
+    expect(finalCustomersPage.page).toHaveLength(2);
+    expect(finalCustomersPage.isDone).toBe(true);
     expect((await admin.query(api.profiles.adminList, {})).length).toBe(100);
     expect((await admin.query(api.cards.adminList, {})).length).toBe(100);
   });

@@ -1,4 +1,5 @@
-import { mkdirSync, chmodSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync } from "node:fs";
+import { isGitIgnoredPath } from "./live-e2e-contract.mjs";
 import path from "node:path";
 import readline from "node:readline/promises";
 
@@ -11,7 +12,13 @@ if (!outputPath || process.argv.length !== 3) {
 }
 
 const resolvedPath = path.resolve(outputPath);
+if (!isGitIgnoredPath(resolvedPath)) {
+  console.error("Google storage-state output paths must be ignored by Git; use .secrets/.");
+  process.exit(2);
+}
+process.umask(0o077);
 mkdirSync(path.dirname(resolvedPath), { recursive: true, mode: 0o700 });
+if (existsSync(resolvedPath)) chmodSync(resolvedPath, 0o600);
 
 const browser = await chromium.launch({ headless: false });
 const context = await browser.newContext();

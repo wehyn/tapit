@@ -4,6 +4,7 @@ import rateLimiter from "@convex-dev/rate-limiter/test";
 
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { ensureGoogleApplicationAccount } from "../authIdentity";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
@@ -180,6 +181,54 @@ describe("Convex authentication and ownership", () => {
     });
   });
 
+  it("keeps an approved deleted customer deleted when Google signs in again", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const admin = t.withIdentity(identity(data.adminUserId));
+
+    const { requestId } = await owner.mutation(api.customers.requestDeletion, {});
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      authenticated: false,
+      accountStatus: "deleted",
+    });
+    await admin.mutation(api.customers.approveDeletion, { requestId });
+
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      authenticated: false,
+      accountStatus: "deleted",
+    });
+    const callbackResult = await t.run((ctx) =>
+      ensureGoogleApplicationAccount(ctx, {
+        userId: data.ownerUserId,
+        provider: "google",
+        email: "owner@example.com",
+        emailVerified: true,
+        adminEmails: [],
+      }),
+    );
+
+    expect(callbackResult.status).toBe("deleted");
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      authenticated: false,
+      accountStatus: "deleted",
+    });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(data.ownerCustomerId)).toMatchObject({
+        status: "deleted",
+        deletionStatus: "deleted",
+        profileId: data.ownerProfileId,
+      });
+      expect(
+        await ctx.db
+          .query("auditLogs")
+          .withIndex("by_accountId", (q) => q.eq("accountId", data.ownerCustomerId))
+          .filter((q) => q.eq(q.field("action"), "auth.google_account_restarted"))
+          .take(10),
+      ).toHaveLength(0);
+    });
+  });
+
   it("allocates deterministic onboarding slugs with bounded suffixes", async () => {
     const t = testConvex();
     const users = await t.run(async (ctx) =>
@@ -277,6 +326,70 @@ describe("Convex authentication and ownership", () => {
       t.query(api.invitations.status, { tokenHash: "replacement-hash" }),
     ).resolves.toMatchObject({ state: "valid", acceptedAt: null });
     expect(replacement.invitationId).not.toBe(created.invitationId);
+  });
+
+  it("revokes an active invitation beyond the former replacement read limit", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const created = await admin.mutation(api.customers.createCustomer, {
+      email: "many-links@example.com",
+      tokenHash: "initial-many-links-hash",
+      name: "Many Links",
+    });
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 201; index += 1) {
+        await ctx.db.insert("invitations", {
+          customerId: created.customerId,
+          email: "many-links@example.com",
+          tokenHash: `history-${index}`,
+          createdByUserId: data.adminUserId,
+          createdAt: index + 1,
+          ...(index < 200 ? { invalidatedAt: 1 } : {}),
+        });
+      }
+    });
+
+    await admin.mutation(api.invitations.replace, {
+      customerId: created.customerId,
+      tokenHash: "after-history-hash",
+    });
+
+    await expect(
+      t.query(api.invitations.status, { tokenHash: "history-200" }),
+    ).resolves.toMatchObject({
+      state: "revoked",
+    });
+  });
+
+  it("paginates sanitized invitation management results without exposing token hashes", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 201; index += 1) {
+        await ctx.db.insert("invitations", {
+          customerId: data.ownerCustomerId,
+          email: "owner@example.com",
+          tokenHash: `listed-${index}`,
+          createdByUserId: data.adminUserId,
+          createdAt: index + 1,
+        });
+      }
+    });
+
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const first = await admin.query(api.invitations.listForAdmin, {
+      paginationOpts: { numItems: 200, cursor: null },
+    });
+    const second = await admin.query(api.invitations.listForAdmin, {
+      paginationOpts: { numItems: 200, cursor: first.continueCursor },
+    });
+
+    expect(first.page).toHaveLength(200);
+    expect(first.isDone).toBe(false);
+    expect(second.page).toHaveLength(2);
+    expect(second.isDone).toBe(true);
+    expect(JSON.stringify([...first.page, ...second.page])).not.toContain("tokenHash");
   });
 
   it("accepts an invitation repeatedly for the same verified identity and records acceptedAt once", async () => {

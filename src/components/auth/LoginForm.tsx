@@ -40,13 +40,16 @@ export function LoginForm({
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   if (isLocalDemoMode()) {
-    return (
-    <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
-    );
+    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />;
   }
   if (isHostedDemoMode()) {
     return (
-      <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
+      <LiveLoginForm
+        mode={mode}
+        onModeChange={setMode}
+        nextPath={nextPath}
+        resetEmail={resetEmail}
+      />
     );
   }
   return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} reason={reason} />;
@@ -509,7 +512,12 @@ function LiveLoginForm({
     mode === "signup" && slug ? { slug } : "skip",
   );
   return (
-    <AuthShell mode={mode} modeChangeDisabled={submitting} onModeChange={changeMode} variant="hosted-demo">
+    <AuthShell
+      mode={mode}
+      modeChangeDisabled={submitting}
+      onModeChange={changeMode}
+      variant="hosted-demo"
+    >
       {loading && mode === "signin" && authStep === "form" ? (
         <p className="text-sm text-tapit-muted">Checking your session…</p>
       ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (

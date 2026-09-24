@@ -56,6 +56,17 @@ export async function customerForAuthUser(
     .unique();
 }
 
+type AccountAccessStatus = "pending" | "invited" | "active" | "deleted" | "unprovisioned";
+
+function accountAccessStatus(
+  account: Doc<"customers"> | null,
+  invited: Doc<"customers"> | null,
+): AccountAccessStatus {
+  if (account === null) return invited === null ? "unprovisioned" : "invited";
+  if (account.status === "deleted" || account.deletionStatus !== "active") return "deleted";
+  return account.status;
+}
+
 export const currentAccess = query({
   args: {},
   returns: v.object({
@@ -105,8 +116,7 @@ export const currentAccess = query({
             .filter((q) => q.eq(q.field("status"), "invited"))
             .first()
         : null;
-    const status: "pending" | "invited" | "active" | "deleted" | "unprovisioned" =
-      account?.status ?? (invited !== null ? "invited" : "unprovisioned");
+    const status = accountAccessStatus(account, invited);
     const active = isActiveCustomer(account);
     return {
       authenticated: active,
@@ -164,8 +174,7 @@ export const currentAccessInternal = internalQuery({
             .filter((q) => q.eq(q.field("status"), "invited"))
             .first()
         : null;
-    const accountStatus: "pending" | "invited" | "active" | "deleted" | "unprovisioned" =
-      account?.status ?? (invited !== null ? "invited" : "unprovisioned");
+    const accountStatus = accountAccessStatus(account, invited);
     return {
       authenticated: active,
       accountStatus,

@@ -305,8 +305,9 @@ describe("pending Google onboarding", () => {
     await user.click(screen.getByRole("button", { name: /complete onboarding/i }));
 
     expect(mutation).toHaveBeenCalledWith({ name: "Updated Name" });
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
     expect(screen.getByText(/google-display-name/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Continue to your profile" }));
+    expect(replace).toHaveBeenCalledWith("/app/profile");
   });
 
   it("requires confirmation before deleting a pending account and signs out", async () => {
@@ -411,5 +412,95 @@ describe("reusable Google invitation setup", () => {
     render(<SetupForm token="raw-secret-token" />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  });
+});
+
+describe("hosted-demo invitation setup", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
+  });
+
+  it("uses the invitation email and completes setup with the hashed token", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue({
+      state: "valid",
+      email: "invite@example.test",
+      profileName: "Invited Profile",
+      acceptedAt: null,
+    });
+    signIn.mockResolvedValue({ signingIn: false });
+    mutation.mockResolvedValue({ profileId: "profile_1" });
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="hosted-demo-raw-token" />);
+
+    expect(await screen.findByText("invite@example.test")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Password"), "safe-password");
+    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    await waitFor(() =>
+      expect(signIn).toHaveBeenCalledWith("password", {
+        flow: "signUp",
+        email: "invite@example.test",
+        password: "safe-password",
+      }),
+    );
+    await waitFor(() => expect(mutation).toHaveBeenCalledWith({ tokenHash: expect.any(String) }));
+    expect(mutation.mock.calls[0]?.[0]).not.toEqual({ tokenHash: "hosted-demo-raw-token" });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
+  });
+
+  it("does not allow password signup for an invalid invitation", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue({ state: "revoked", email: "invite@example.test" });
+    const SetupForm = await loadSetup();
+
+    render(<SetupForm token="revoked-hosted-demo-token" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/revoked/i);
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(signIn).not.toHaveBeenCalled();
+  });
+
+  it("retries setup with password sign-in when invitation linking fails after signup", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue({
+      state: "valid",
+      email: "invite@example.test",
+      profileName: "Invited Profile",
+      acceptedAt: null,
+    });
+    signIn.mockResolvedValue({ signingIn: false });
+    mutation
+      .mockRejectedValueOnce(new Error("temporary setup failure"))
+      .mockResolvedValueOnce({ profileId: "profile_1" });
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="hosted-demo-raw-token" />);
+    await user.type(await screen.findByLabelText("Password"), "safe-password");
+    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/setup could not be completed/i);
+
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    await waitFor(() => {
+      expect(signIn).toHaveBeenNthCalledWith(1, "password", {
+        flow: "signUp",
+        email: "invite@example.test",
+        password: "safe-password",
+      });
+      expect(signIn).toHaveBeenNthCalledWith(2, "password", {
+        flow: "signIn",
+        email: "invite@example.test",
+        password: "safe-password",
+      });
+    });
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
   });
 });

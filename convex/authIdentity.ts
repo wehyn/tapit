@@ -95,7 +95,12 @@ export async function ensureGoogleApplicationAccount(
   }
 
   if (existing !== null) {
-    if (existing.status === "deleted" && existing.role === "customer") {
+    if (
+      existing.status === "deleted" &&
+      existing.role === "customer" &&
+      existing.deletionStatus === "deleted" &&
+      existing.profileId === undefined
+    ) {
       const now = Date.now();
       await ctx.db.patch(existing._id, {
         email,

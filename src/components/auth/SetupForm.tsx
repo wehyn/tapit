@@ -36,35 +36,72 @@ export function SetupForm({ token }: { token: string }) {
   return isLocalDemoMode() ? (
     <DemoSetupForm token={token} nextPath={nextPath} />
   ) : isHostedDemoMode() ? (
-    <HostedDemoSetupForm nextPath={nextPath} />
+    <HostedDemoSetupForm token={token} nextPath={nextPath} />
   ) : (
     <LiveSetupForm token={token} nextPath={nextPath} />
   );
 }
 
-function HostedDemoSetupForm({ nextPath }: { nextPath?: string }) {
+function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
   const router = useRouter();
   const { signIn } = useAuthActions();
-  const [email, setEmail] = useState("");
+  const { isAuthenticated } = useConvexAuth();
+  const completeSetup = useMutation(api.customers.completeSetup);
+  const [tokenHash, setTokenHash] = useState<string>();
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [authFlow, setAuthFlow] = useState<"signUp" | "signIn">("signUp");
+  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash } : "skip");
+
+  useEffect(() => {
+    let cancelled = false;
+    void hashSetupToken(token).then((hash) => {
+      if (!cancelled) setTokenHash(hash);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (tokenHash === undefined || invitation?.state !== "valid" || invitation.email === null) {
+      setError("This setup link is invalid, expired, or revoked.");
+      return;
+    }
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     if (password !== confirmation) return setError("Passwords do not match.");
     setSubmitting(true);
     setError("");
     try {
-      await signIn("password", { flow: "signUp", email: email.trim().toLowerCase(), password });
+      await signIn("password", {
+        flow: isAuthenticated ? "signIn" : authFlow,
+        email: invitation.email,
+        password,
+      });
+      setAuthFlow("signIn");
+      await completeSetup({ tokenHash });
       router.replace(nextPath || "/app/profile");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Setup could not be completed.");
+      if (cause instanceof Error && /already exists|already registered/i.test(cause.message)) {
+        setAuthFlow("signIn");
+      }
+      setError(hostedInvitationErrorCopy(cause));
       setSubmitting(false);
     }
   }
+
+  const loading = tokenHash === undefined || invitation === undefined;
+  const stateCopy =
+    invitation?.state === "missing"
+      ? "This setup link could not be found."
+      : invitation?.state === "revoked"
+        ? "This setup link has been revoked."
+        : invitation?.state === "expired"
+          ? "This setup link has expired."
+          : undefined;
 
   return (
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
@@ -82,42 +119,68 @@ function HostedDemoSetupForm({ nextPath }: { nextPath?: string }) {
               This isolated hosted demo uses its password flow for demonstration only.
             </p>
           </div>
-          <form className="grid gap-5" onSubmit={submit}>
-            {error ? <Notice tone="error">{error}</Notice> : null}
-            <Field
-              autoComplete="email"
-              id="hosted-setup-email"
-              label="Email"
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-              value={email}
-            />
-            <Field
-              autoComplete="new-password"
-              id="hosted-setup-password"
-              label="Password"
-              minLength={8}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-              value={password}
-            />
-            <Field
-              autoComplete="new-password"
-              id="hosted-setup-confirmation"
-              label="Confirm password"
-              minLength={8}
-              onChange={(event) => setConfirmation(event.target.value)}
-              type="password"
-              value={confirmation}
-            />
-            <Button disabled={submitting} type="submit">
-              {submitting ? "Saving password" : "Set password"}
-            </Button>
-          </form>
+          <div className="grid gap-5">
+            {loading ? (
+              <p className="text-sm text-tapit-muted">Checking your setup link…</p>
+            ) : stateCopy ? (
+              <Notice tone="error">{stateCopy}</Notice>
+            ) : invitation?.state !== "valid" || invitation.email === null ? (
+              <Notice tone="error">This setup link is not available.</Notice>
+            ) : (
+              <>
+                <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+                  Invitation for <strong className="text-tapit-ink">{invitation.email}</strong>
+                  {invitation.profileName ? (
+                    <>
+                      {" "}
+                      to <strong className="text-tapit-ink">{invitation.profileName}</strong>
+                    </>
+                  ) : null}
+                </p>
+                <form className="grid gap-5" onSubmit={submit}>
+                  {error ? <Notice tone="error">{error}</Notice> : null}
+                  <Field
+                    autoComplete="new-password"
+                    id="hosted-setup-password"
+                    label="Password"
+                    minLength={8}
+                    onChange={(event) => setPassword(event.target.value)}
+                    type="password"
+                    value={password}
+                  />
+                  <Field
+                    autoComplete="new-password"
+                    id="hosted-setup-confirmation"
+                    label="Confirm password"
+                    minLength={8}
+                    onChange={(event) => setConfirmation(event.target.value)}
+                    type="password"
+                    value={confirmation}
+                  />
+                  <Button disabled={submitting} type="submit">
+                    {submitting ? "Saving password" : "Set password"}
+                  </Button>
+                </form>
+              </>
+            )}
+          </div>
         </section>
       </div>
     </main>
   );
+}
+
+function hostedInvitationErrorCopy(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message.toLowerCase() : "";
+  if (message.includes("already exists") || message.includes("already registered"))
+    return "An account already exists for this invitation. Use its password and try again.";
+  if (message.includes("does not match"))
+    return "This password account does not match the invitation email.";
+  if (message.includes("already linked") || message.includes("already used"))
+    return "This setup link is already connected to another account.";
+  if (message.includes("invalid") || message.includes("expired"))
+    return "This setup link is invalid or expired.";
+  return "Setup could not be completed. Check the invitation details and try again.";
 }
 
 function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {

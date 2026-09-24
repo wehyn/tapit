@@ -23,6 +23,7 @@ export function OnboardingForm() {
   const [error, setError] = useState("");
   const [slug, setSlug] = useState<string>();
   const initializedName = useRef(false);
+  const completingOnboarding = useRef(false);
 
   useEffect(() => {
     if (access !== undefined && !initializedName.current) {
@@ -32,7 +33,8 @@ export function OnboardingForm() {
   }, [access]);
 
   useEffect(() => {
-    if (access?.accountStatus === "active") router.replace("/app/profile");
+    if (access?.accountStatus === "active" && !completingOnboarding.current)
+      router.replace("/app/profile");
   }, [access?.accountStatus, router]);
 
   async function complete(event: React.FormEvent<HTMLFormElement>) {
@@ -44,11 +46,13 @@ export function OnboardingForm() {
     }
     setSubmitting(true);
     setError("");
+    completingOnboarding.current = true;
     try {
       const result = await completeOnboarding({ name: trimmedName });
       setSlug(result.slug);
-      window.setTimeout(() => router.replace("/app/profile"), 250);
+      setSubmitting(false);
     } catch (cause) {
+      completingOnboarding.current = false;
       setError(cause instanceof Error ? cause.message : "Onboarding could not be completed.");
       setSubmitting(false);
     }
@@ -84,7 +88,7 @@ export function OnboardingForm() {
     );
   }
 
-  if (access.accountStatus !== "pending") {
+  if (access.accountStatus !== "pending" && slug === undefined) {
     return (
       <main className="mx-auto max-w-2xl px-5 py-16">
         <Notice tone="error">This account cannot be onboarded in its current state.</Notice>
@@ -116,10 +120,19 @@ export function OnboardingForm() {
             value={name}
           />
           <Button disabled={submitting || slug !== undefined} type="submit">
-            {submitting ? "Creating your profile" : "Complete onboarding"}
+            {submitting
+              ? "Creating your profile"
+              : slug
+                ? "Profile created"
+                : "Complete onboarding"}
           </Button>
+          {slug ? (
+            <Button onClick={() => router.replace("/app/profile")} type="button">
+              Continue to your profile
+            </Button>
+          ) : null}
         </form>
-        {confirmingDelete ? (
+        {slug !== undefined ? null : confirmingDelete ? (
           <div className="grid gap-3 rounded-tapit border border-tapit-line p-4">
             <p className="text-sm text-tapit-muted">
               Delete this pending account? Your Google identity will remain available to start again
