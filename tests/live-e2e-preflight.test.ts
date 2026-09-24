@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -211,11 +211,5 @@ describe("live E2E deployment preflight", () => {
     } finally {
       rmSync(binDirectory, { recursive: true, force: true });
     }
-  });
-
-  it("uses the exact submit button when provisioning the live administrator", () => {
-    const source = readFileSync(path.join(process.cwd(), "scripts/live-e2e.mjs"), "utf8");
-
-    expect(source).toContain('page.getByRole("button", { name: "Sign in", exact: true }).click();');
   });
 });

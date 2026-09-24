@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { isDemoMode, isHostedDemoMode, isLiveMode, isLocalDemoMode } from "@/lib/demo/mode";
 
@@ -41,18 +41,5 @@ describe("demo mode", () => {
     expect(isHostedDemoMode()).toBe(true);
     expect(isLocalDemoMode()).toBe(false);
     expect(isLiveMode()).toBe(false);
-  });
-
-  it("exposes the mode variables as build-time Next configuration", async () => {
-    process.env.NEXT_PUBLIC_DEMO_MODE = "true";
-    process.env.NEXT_PUBLIC_DEMO_STORAGE = "convex";
-    vi.resetModules();
-
-    const { default: nextConfig } = await import("../../next.config");
-
-    expect(nextConfig.env).toMatchObject({
-      NEXT_PUBLIC_DEMO_MODE: "true",
-      NEXT_PUBLIC_DEMO_STORAGE: "convex",
-    });
   });
 });

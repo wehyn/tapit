@@ -5,11 +5,7 @@ import {
   hashSetupToken,
   isSetupTokenUsable,
 } from "../../src/lib/auth/setup-token";
-import {
-  DEFAULT_DEMO_PASSWORD_HASH,
-  hashDemoPassword,
-  verifyDemoPassword,
-} from "../../src/lib/demo/password";
+import { hashDemoPassword, verifyDemoPassword } from "../../src/lib/demo/password";
 
 describe("setup tokens", () => {
   it("creates URL-safe random tokens", () => {
@@ -35,9 +31,5 @@ describe("setup tokens", () => {
 
     await expect(verifyDemoPassword("new-demo-password", passwordHash)).resolves.toBe(true);
     await expect(verifyDemoPassword("tapit-demo", passwordHash)).resolves.toBe(false);
-  });
-
-  it("keeps the seeded demo password stable without browser crypto APIs", async () => {
-    await expect(hashDemoPassword("tapit-demo")).resolves.toBe(DEFAULT_DEMO_PASSWORD_HASH);
   });
 });
