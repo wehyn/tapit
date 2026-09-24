@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { validateProfileCustomization } from "../src/lib/profile-customization";
+import { validateProfileMedia } from "../src/lib/profile-media";
 
 export const MAX_PROFILE_LINKS = 100;
 export const CLAIM_CODE_LENGTH = 8;
@@ -74,6 +75,54 @@ export const profileRedirectValidator = v.object({
   destination: v.string(),
 });
 
+const profileMediaPersistedImageValidator = v.object({
+  assetId: v.id("profileMediaAssets"),
+  altText: v.string(),
+});
+export const profileMediaPersistedValidator = v.object({
+  background: v.optional(
+    v.object({
+      assetId: v.id("profileMediaAssets"),
+      altText: v.string(),
+      positionX: v.number(),
+      positionY: v.number(),
+    }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(profileMediaPersistedImageValidator),
+  autoplay: v.boolean(),
+});
+const profileMediaOwnerImageValidator = v.object({
+  assetId: v.id("profileMediaAssets"),
+  altText: v.string(),
+  url: v.optional(v.string()),
+  previewUrl: v.optional(v.string()),
+});
+export const profileMediaValidator = v.object({
+  background: v.optional(
+    v.object({
+      assetId: v.id("profileMediaAssets"),
+      altText: v.string(),
+      positionX: v.number(),
+      positionY: v.number(),
+      url: v.optional(v.string()),
+      previewUrl: v.optional(v.string()),
+    }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(profileMediaOwnerImageValidator),
+  autoplay: v.boolean(),
+});
+const publicProfileMediaImageValidator = v.object({ src: v.string(), alt: v.string() });
+export const publicProfileMediaValidator = v.object({
+  background: v.optional(
+    publicProfileMediaImageValidator.extend({ positionX: v.number(), positionY: v.number() }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(publicProfileMediaImageValidator),
+  autoplay: v.boolean(),
+});
+
 export const profileContentValidator = v.object({
   name: v.string(),
   slug: v.string(),
@@ -85,8 +134,15 @@ export const profileContentValidator = v.object({
   website: v.optional(v.string()),
   theme: v.optional(profileThemeValidator),
   customization: v.optional(profileCustomizationValidator),
+  media: v.optional(profileMediaValidator),
   redirect: v.optional(profileRedirectValidator),
   links: v.array(linkValidator),
+});
+
+// Save-draft callers may explicitly clear media with null. Persisted profile
+// content remains URL-free and represents absence by omitting this field.
+export const saveDraftContentValidator = profileContentValidator.extend({
+  media: v.optional(v.union(v.null(), profileMediaValidator)),
 });
 
 export const profileStatusValidator = v.union(
@@ -103,6 +159,7 @@ export const publicProfileValidator = v.object({
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
   imageSrcSet: v.optional(v.string()),
+  media: v.optional(publicProfileMediaValidator),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
@@ -199,6 +256,7 @@ export function validateDraftSafety(content: {
   website?: string;
   redirect?: { enabled: boolean; destination: string };
   customization?: unknown;
+  media?: unknown;
   links: Array<{
     id: string;
     label: string;
@@ -230,6 +288,7 @@ export function validateDraftSafety(content: {
       content.customization as Parameters<typeof validateProfileCustomization>[0],
     ),
   );
+  errors.push(...validateProfileMedia(content.media));
   const seenIds = new Set<string>();
   for (const link of content.links) {
     if (!link.id.trim()) errors.push("Every link needs a valid ID.");

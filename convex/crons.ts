@@ -10,5 +10,11 @@ crons.interval(
   internal.profileImageCleanup.reconcileExpired,
   {},
 );
+crons.interval(
+  "reconcile abandoned profile media uploads",
+  { hours: 24 },
+  internal.profileMediaCleanup.reconcileExpired,
+  {},
+);
 
 export default crons;

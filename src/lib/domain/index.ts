@@ -365,10 +365,12 @@ function projectPublicProfileMedia(value: unknown): PublicProfileMediaPresentati
 
   const projectImage = (
     image: ProfileMediaPresentation["slideshow"][number],
-  ): PublicProfileMediaImage | undefined =>
-    typeof image.url === "string" && image.url.trim().length > 0
-      ? { src: image.url.trim(), alt: image.altText }
+  ): PublicProfileMediaImage | undefined => {
+    const src = image.previewUrl ?? image.url;
+    return typeof src === "string" && src.trim().length > 0
+      ? { src: src.trim(), alt: image.altText }
       : undefined;
+  };
   const slideshow = normalized.slideshow.flatMap((image) => {
     const projected = projectImage(image);
     return projected === undefined ? [] : [projected];

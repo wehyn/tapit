@@ -260,6 +260,47 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
   await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
 });
 
+test("customer can configure bounded profile media and publish it", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+
+  await page.getByRole("button", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await page.getByLabel("Hero height: 320px").fill("420");
+  await page.getByLabel("Crop horizontal position: 50%").fill("30");
+  await page.getByLabel("Crop vertical position: 50%").fill("65");
+
+  const slideshowInput = page.getByLabel("Upload slideshow images");
+  await slideshowInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
+  await slideshowInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await page.getByLabel("Slideshow image 2 description").fill("Studio detail two");
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(path);
+    await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
+    await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+  }
+});
+
 test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/app/profile");

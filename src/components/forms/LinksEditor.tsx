@@ -584,6 +584,7 @@ export function LiveLinksEditorContent({
       await publishMutation({
         profileId: profile._id,
         expectedImageRevision: profile.imageRevision ?? 0,
+        expectedMediaRevision: profile.mediaRevision ?? 0,
       });
       setMessage({
         tone: "success",

@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -134,6 +134,7 @@ describe("ProfileEditor customization seam", () => {
 
     expect(mocks.saveDraft).toHaveBeenCalledWith({
       expectedImageRevision: 0,
+      expectedMediaRevision: 0,
       profileId: "live-profile",
       draft: expect.objectContaining({
         customization: expect.objectContaining({
@@ -155,6 +156,7 @@ describe("ProfileEditor customization seam", () => {
 
     expect(mocks.saveDraft).toHaveBeenCalledWith({
       expectedImageRevision: 0,
+      expectedMediaRevision: 0,
       profileId: "live-profile",
       draft: expect.objectContaining({ bio: undefined }),
     });
@@ -198,5 +200,31 @@ describe("ProfileEditor customization seam", () => {
     expect(screen.getByRole("heading", { name: "Legacy appearance" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
     expect(screen.queryByRole("radio", { name: "Jade" })).not.toBeInTheDocument();
+  });
+
+  it("uploads demo media as a data URL, updates the preview, and saves the draft", async () => {
+    const user = userEvent.setup();
+    mocks.localMode = true;
+    render(<ProfileEditor />);
+
+    await user.click(screen.getByRole("button", { name: "Media" }));
+    fireEvent.change(screen.getByLabelText("Upload background image"), {
+      target: { files: [new File(["demo-image"], "background.png", { type: "image/png" })] },
+    });
+
+    const altField = await screen.findByLabelText("Background image description");
+    fireEvent.change(altField, { target: { value: "Demo backdrop" } });
+    await waitFor(() => {
+      expect(
+        screen
+          .getAllByRole("img", { name: "Demo backdrop" })
+          .some((image) => image.getAttribute("style")?.includes("data:image/png")),
+      ).toBe(true);
+    });
+
+    const save = screen.getByRole("button", { name: "Save draft" });
+    expect(save).toBeEnabled();
+    await user.click(save);
+    expect(mocks.updateDemoState).toHaveBeenCalledOnce();
   });
 });

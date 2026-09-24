@@ -1,8 +1,15 @@
 import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { getProfileImageMapping, resolveProfileImageUrl } from "./profileImages";
+import { resolveOwnedProfileMedia, resolvePublishedProfileMedia } from "./profileMedia";
 
 type ProjectionContext = Pick<QueryCtx, "db" | "storage">;
+
+function replaceProjectedMedia<T extends { media?: unknown }>(content: T, media: unknown) {
+  const withoutMedia = { ...content };
+  delete withoutMedia.media;
+  return media === undefined ? withoutMedia : { ...withoutMedia, media };
+}
 
 export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<"profiles">) {
   if (profile.status !== "published" || profile.published === undefined) return null;
@@ -19,6 +26,7 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
       if (smallUrl !== null) imageSrcSet = `${smallUrl} 192w, ${imageUrl} 384w`;
     }
   }
+  const media = await resolvePublishedProfileMedia(ctx, profile, profile.published.media);
   return {
     id: profile._id,
     slug: profile.published.slug,
@@ -33,6 +41,7 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
     ...(profile.published.customization === undefined
       ? {}
       : { customization: profile.published.customization }),
+    ...(media === undefined ? {} : { media }),
     links: profile.published.links.filter((link) => link.enabled),
   };
 }
@@ -43,19 +52,30 @@ export async function projectOwnedProfile(ctx: ProjectionContext, profile: Doc<"
     profile.published === undefined
       ? undefined
       : await resolveProfileImageUrl(ctx, profile, profile.published);
+  const draftMedia = await resolveOwnedProfileMedia(ctx, profile, profile.draft.media);
+  const publishedMedia =
+    profile.published === undefined
+      ? undefined
+      : await resolveOwnedProfileMedia(ctx, profile, profile.published.media);
   return {
     ...profile,
-    draft: {
-      ...profile.draft,
-      ...(draftImageUrl === undefined ? {} : { imageUrl: draftImageUrl }),
-    },
+    draft: replaceProjectedMedia(
+      {
+        ...profile.draft,
+        ...(draftImageUrl === undefined ? {} : { imageUrl: draftImageUrl }),
+      },
+      draftMedia,
+    ),
     ...(profile.published === undefined
       ? {}
       : {
-          published: {
-            ...profile.published,
-            ...(publishedImageUrl === undefined ? {} : { imageUrl: publishedImageUrl }),
-          },
+          published: replaceProjectedMedia(
+            {
+              ...profile.published,
+              ...(publishedImageUrl === undefined ? {} : { imageUrl: publishedImageUrl }),
+            },
+            publishedMedia,
+          ),
         }),
   };
 }

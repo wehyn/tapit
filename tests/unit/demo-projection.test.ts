@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Id } from "../../convex/_generated/dataModel";
 
 import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
 import { getDemoProfileById, getDemoTheme, updateDemoProfile } from "../../src/lib/demo/store";
@@ -52,5 +53,46 @@ describe("demo public projection", () => {
 
     expect(updated.themes[profile.id]).toBe("moss");
     expect(updated.profiles.find((candidate) => candidate.id === profile.id)?.theme).toBe("night");
+  });
+
+  it("projects demo-published media URLs for the public profile", () => {
+    const state = createDefaultDemoState();
+    const profile = state.profiles[0];
+    if (profile === undefined || profile.published === null)
+      throw new Error("Expected demo profile");
+
+    profile.published = {
+      ...profile.published,
+      media: {
+        heroHeight: 360,
+        autoplay: false,
+        background: {
+          assetId: "demo-background" as Id<"profileMediaAssets">,
+          altText: "Published demo backdrop",
+          positionX: 40,
+          positionY: 60,
+          url: "data:image/png;base64,background",
+        },
+        slideshow: [
+          {
+            assetId: "demo-slide" as Id<"profileMediaAssets">,
+            altText: "Published demo slide",
+            url: "data:image/png;base64,slide",
+          },
+        ],
+      },
+    };
+
+    expect(projectDemoPublicProfile(profile)?.media).toEqual({
+      heroHeight: 360,
+      autoplay: false,
+      background: {
+        src: "data:image/png;base64,background",
+        alt: "Published demo backdrop",
+        positionX: 40,
+        positionY: 60,
+      },
+      slideshow: [{ src: "data:image/png;base64,slide", alt: "Published demo slide" }],
+    });
   });
 });

@@ -30,6 +30,11 @@ import {
 } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
+import {
+  stripProfileMediaUrls,
+  type ProfileMediaImage,
+  type ProfileMediaPresentation,
+} from "@/lib/profile-media";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -75,6 +80,22 @@ type ProfileFieldChange = <K extends keyof ProfileContent>(
   field: K,
   value: ProfileContent[K],
 ) => void;
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("That image could not be read. Try again."));
+    reader.onload = () =>
+      typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error("That image could not be converted. Try again."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function demoMediaAssetId(requestId: number): ProfileMediaImage["assetId"] {
+  return `demo-media-${Date.now()}-${requestId}` as ProfileMediaImage["assetId"];
+}
 
 function ProfileIdentityForm({
   draft,
@@ -209,15 +230,19 @@ function DemoProfileEditor() {
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
+  const mediaRequestRef = useRef(0);
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
+      mediaRequestRef.current += 1;
     },
     [],
   );
-  const errors = useMemo(() => {
+  const errors = (() => {
     const customer =
       session?.role === "customer"
         ? state.customers.find((candidate) => candidate.email === session.email)
@@ -246,7 +271,7 @@ function DemoProfileEditor() {
         ? ["Claim the attached card before publishing this profile."]
         : []),
     ];
-  }, [draft, profile, session, state]);
+  })();
   const preview = profileForPreview(draft, theme);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
@@ -279,8 +304,8 @@ function DemoProfileEditor() {
     }
   }
 
-  const saveDraft = useCallback(async () => {
-    if (cropFile !== null || imagePending) return false;
+  async function saveDraft() {
+    if (cropFile !== null || imagePending || mediaBusy) return false;
     if (!isDirty) return true;
     try {
       updateDemoState((current) =>
@@ -298,26 +323,34 @@ function DemoProfileEditor() {
       });
       return false;
     }
-  }, [cropFile, draft, imagePending, isDirty, profile.id]);
+  }
 
   useDraftSaveRegistration(saveDraft);
 
   function publish() {
-    if (cropFile !== null || imagePending) return;
+    if (cropFile !== null || imagePending || mediaBusy) return;
     if (errors.length > 0) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
     }
     try {
+      const publishedProfile = publishProfile({ ...profile, draft }, new Date().toISOString(), {
+        existingSlugs: getDemoProfiles(state)
+          .filter((candidate) => candidate.id !== profile.id)
+          .flatMap((candidate) => [
+            candidate.draft.slug,
+            ...(candidate.published === null ? [] : [candidate.published.slug]),
+          ]),
+      });
       const nextProfile = {
-        ...publishProfile({ ...profile, draft }, new Date().toISOString(), {
-          existingSlugs: getDemoProfiles(state)
-            .filter((candidate) => candidate.id !== profile.id)
-            .flatMap((candidate) => [
-              candidate.draft.slug,
-              ...(candidate.published === null ? [] : [candidate.published.slug]),
-            ]),
-        }),
+        ...publishedProfile,
+        published:
+          publishedProfile.published === null
+            ? null
+            : {
+                ...publishedProfile.published,
+                ...(draft.media === undefined ? {} : { media: structuredClone(draft.media) }),
+              },
         theme: profile.theme,
       };
       updateDemoState((current) => ({
@@ -412,15 +445,9 @@ function DemoProfileEditor() {
     setImagePending(true);
     try {
       const prepared = await prepareProfileImageCrop(cropFile, crop);
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("That image could not be read. Try again."));
-        reader.onload = () =>
-          typeof reader.result === "string"
-            ? resolve(reader.result)
-            : reject(new Error("That image could not be converted. Try again."));
-        reader.readAsDataURL(prepared.blob);
-      });
+      const dataUrl = await readFileAsDataUrl(
+        new File([prepared.blob], cropFile.name, { type: prepared.contentType }),
+      );
       if (requestId !== imageRequestRef.current) return;
       updateField("imageUrl", dataUrl);
       setCropFile(null);
@@ -429,6 +456,23 @@ function DemoProfileEditor() {
         setImageError(error instanceof Error ? error.message : "The image crop failed. Try again.");
     } finally {
       if (requestId === imageRequestRef.current) setImagePending(false);
+    }
+  }
+
+  async function uploadDemoMedia(file: File): Promise<ProfileMediaImage> {
+    const requestId = ++mediaRequestRef.current;
+    setMediaBusy(true);
+    setMediaError("");
+    try {
+      const url = await readFileAsDataUrl(file);
+      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
+      return { assetId: demoMediaAssetId(requestId), altText: "", url, previewUrl: url };
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "The media upload failed. Try again.";
+      if (requestId === mediaRequestRef.current) setMediaError(text);
+      throw error;
+    } finally {
+      if (requestId === mediaRequestRef.current) setMediaBusy(false);
     }
   }
 
@@ -519,6 +563,11 @@ function DemoProfileEditor() {
             />
           }
           links={draft.links}
+          media={draft.media}
+          mediaBusy={mediaBusy}
+          mediaError={mediaError}
+          onMediaChange={(media) => updateField("media", media)}
+          onMediaUpload={uploadDemoMedia}
           onChange={(customization) => updateField("customization", customization)}
         />
         {!draft.customization ? (
@@ -616,7 +665,7 @@ function DemoProfileEditor() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={!isDirty || cropFile !== null || imagePending}
+              disabled={!isDirty || cropFile !== null || imagePending || mediaBusy}
               onClick={() => void saveDraft()}
               type="button"
               variant="secondary"
@@ -629,7 +678,8 @@ function DemoProfileEditor() {
                 errors.length > 0 ||
                 publicationLabel === "Published" ||
                 cropFile !== null ||
-                imagePending
+                imagePending ||
+                mediaBusy
               }
               onClick={publish}
               type="button"
@@ -682,17 +732,25 @@ function LiveProfileEditorContent({
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [mediaBusy, setMediaBusy] = useState(false);
+  const [mediaError, setMediaError] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
   const imageRequestRef = useRef(0);
-  const liveProfile = profile;
+  const liveProfile = profile as typeof profile & {
+    draft: ProfileContent;
+    published?: ProfileContent & { publishedAt: number };
+  };
   const imageRevisionRef = useRef(liveProfile.imageRevision ?? 0);
+  const mediaRevisionRef = useRef(liveProfile.mediaRevision ?? 0);
+  const mediaRequestRef = useRef(0);
 
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
+      mediaRequestRef.current += 1;
     },
     [],
   );
@@ -845,14 +903,74 @@ function LiveProfileEditorContent({
     }
   }
 
-  function draftForPersistence(content: ProfileContent) {
+  async function uploadLiveMedia(
+    file: File,
+    target: "background" | "slideshow",
+  ): Promise<ProfileMediaImage> {
+    void target;
+    const requestId = ++mediaRequestRef.current;
+    setMediaBusy(true);
+    setMediaError("");
+    try {
+      if (authToken === null) throw new Error("Authentication is required to upload media.");
+      const siteUrl = requirePairedConvexSiteUrl(
+        process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
+        process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
+      );
+      const response = await fetch(`${siteUrl}/profile-media-upload`, {
+        method: "POST",
+        body: file,
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": file.type,
+          "X-Media-Revision": String(mediaRevisionRef.current),
+          "X-Profile-Id": liveProfile._id,
+        },
+      });
+      if (!response.ok)
+        throw new Error((await response.text()) || "The media upload failed. Choose another file.");
+      const uploaded = parseMediaUploadResponse(await response.json());
+      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
+      mediaRevisionRef.current = uploaded.mediaRevision;
+      return uploaded;
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "The media upload failed. Try again.";
+      if (requestId === mediaRequestRef.current) setMediaError(text);
+      throw error;
+    } finally {
+      if (requestId === mediaRequestRef.current) setMediaBusy(false);
+    }
+  }
+
+  function draftForPersistence(
+    content: ProfileContent,
+  ): ProfileContent & { media?: ProfileMediaPresentation | null } {
     const persistedDraft = { ...content };
     delete persistedDraft.imageUrl;
+    if (content.media === undefined) {
+      if (liveProfile.draft.media !== undefined) {
+        return { ...persistedDraft, media: null } as unknown as ProfileContent & {
+          media?: ProfileMediaPresentation | null;
+        };
+      }
+      delete persistedDraft.media;
+    } else {
+      const strippedMedia = stripProfileMediaUrls(content.media);
+      if (strippedMedia === undefined) {
+        if (liveProfile.draft.media !== undefined)
+          return { ...persistedDraft, media: null } as unknown as ProfileContent & {
+            media?: ProfileMediaPresentation | null;
+          };
+        delete persistedDraft.media;
+      } else {
+        persistedDraft.media = strippedMedia;
+      }
+    }
     return persistedDraft;
   }
 
   async function saveDraft(keepPublishPending = false): Promise<boolean> {
-    if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
+    if (!keepPublishPending && (pending !== null || cropFile !== null || mediaBusy)) return false;
     if (!isDirty) return true;
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
@@ -864,6 +982,7 @@ function LiveProfileEditorContent({
           profileId: liveProfile._id,
           draft: draftForPersistence(draftToSave),
           expectedImageRevision: imageRevisionRef.current,
+          expectedMediaRevision: mediaRevisionRef.current,
         });
         imageRevisionRef.current = result.imageRevision;
         const latestDraft = latestDraftRef.current;
@@ -897,7 +1016,7 @@ function LiveProfileEditorContent({
   });
 
   async function publish() {
-    if (errors.length > 0 || pending !== null || cropFile !== null) {
+    if (errors.length > 0 || pending !== null || cropFile !== null || mediaBusy) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
     }
@@ -908,6 +1027,7 @@ function LiveProfileEditorContent({
       await publishMutation({
         profileId: liveProfile._id,
         expectedImageRevision: imageRevisionRef.current,
+        expectedMediaRevision: mediaRevisionRef.current,
       });
       setDraft(null);
       setMessage({
@@ -1019,6 +1139,11 @@ function LiveProfileEditorContent({
             />
           }
           links={currentDraft.links}
+          media={currentDraft.media}
+          mediaBusy={mediaBusy}
+          mediaError={mediaError}
+          onMediaChange={(media) => updateField("media", media)}
+          onMediaUpload={uploadLiveMedia}
           onChange={(customization) => updateField("customization", customization)}
         />
         {!currentDraft.customization ? (
@@ -1097,7 +1222,7 @@ function LiveProfileEditorContent({
           </span>
           <div className="flex flex-wrap gap-3">
             <Button
-              disabled={!isDirty || pending !== null || cropFile !== null}
+              disabled={!isDirty || pending !== null || cropFile !== null || mediaBusy}
               loading={pending === "save"}
               onClick={() => void saveDraft()}
               type="button"
@@ -1111,7 +1236,8 @@ function LiveProfileEditorContent({
                 errors.length > 0 ||
                 publicationLabel === "Published" ||
                 pending !== null ||
-                cropFile !== null
+                cropFile !== null ||
+                mediaBusy
               }
               loading={pending === "publish"}
               onClick={publish}
@@ -1163,6 +1289,35 @@ function parseImageUploadResponse(value: unknown): {
     storageId: response.storageId as Id<"_storage">,
     imageUrl: response.imageUrl,
     imageRevision: response.imageRevision as number,
+  };
+}
+
+function parseMediaUploadResponse(value: unknown): ProfileMediaImage & { mediaRevision: number } {
+  if (typeof value !== "object" || value === null)
+    throw new Error("The media service returned an invalid response.");
+  const response = value as {
+    assetId?: unknown;
+    url?: unknown;
+    previewUrl?: unknown;
+    mediaRevision?: unknown;
+  };
+  if (
+    typeof response.assetId !== "string" ||
+    response.assetId.length === 0 ||
+    typeof response.url !== "string" ||
+    response.url.length === 0 ||
+    typeof response.previewUrl !== "string" ||
+    response.previewUrl.length === 0 ||
+    !Number.isSafeInteger(response.mediaRevision) ||
+    (response.mediaRevision as number) < 0
+  )
+    throw new Error("The media service returned an invalid response.");
+  return {
+    assetId: response.assetId as ProfileMediaImage["assetId"],
+    altText: "",
+    url: response.url,
+    previewUrl: response.previewUrl,
+    mediaRevision: response.mediaRevision as number,
   };
 }
 

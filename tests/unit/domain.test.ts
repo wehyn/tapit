@@ -16,6 +16,9 @@ import {
   validateRedirectDestination,
 } from "../../src/lib/domain";
 import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
+import type { Id } from "../../convex/_generated/dataModel";
+
+const assetId = (value: string) => value as Id<"profileMediaAssets">;
 
 const websiteLink = {
   id: "one",
@@ -103,17 +106,19 @@ describe("profile publication and public projection", () => {
       heroHeight: 360,
       autoplay: true,
       background: {
-        assetId: "background",
+        assetId: assetId("background"),
         altText: "Published backdrop",
         positionX: 50,
         positionY: 50,
         url: "https://cdn.test/published.jpg",
+        previewUrl: "https://cdn.test/published-preview.jpg",
       },
       slideshow: [
         {
-          assetId: "slide",
+          assetId: assetId("slide"),
           altText: "Published slide",
           url: "https://cdn.test/slide.jpg",
+          previewUrl: "https://cdn.test/slide-preview.jpg",
         },
       ],
     };
@@ -136,14 +141,14 @@ describe("profile publication and public projection", () => {
       heroHeight: 360,
       autoplay: true,
       background: {
-        src: "https://cdn.test/published.jpg",
+        src: "https://cdn.test/published-preview.jpg",
         alt: "Published backdrop",
         positionX: 50,
         positionY: 50,
       },
       slideshow: [
         {
-          src: "https://cdn.test/slide.jpg",
+          src: "https://cdn.test/slide-preview.jpg",
           alt: "Published slide",
         },
       ],

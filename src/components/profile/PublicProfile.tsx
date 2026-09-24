@@ -23,6 +23,8 @@ import {
   resolveProfileAppearance,
 } from "@/lib/profile-customization";
 import { ProfileContactStrip } from "./ProfileContactStrip";
+import { ProfileMediaSurface } from "./ProfileMediaSurface";
+import { ProfileSlideshow } from "./ProfileSlideshow";
 import { ProfileSectionDisclosure } from "./ProfileSectionDisclosure";
 
 const linkIcons = {
@@ -199,8 +201,22 @@ export function PublicProfile({
         <section
           className={`rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)] ${preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-10 sm:py-10"} ${panelClasses}`}
         >
+          {profile.media?.background ? (
+            <ProfileMediaSurface
+              background={profile.media.background}
+              heroHeight={profile.media.heroHeight}
+            />
+          ) : null}
+          {profile.media && profile.media.slideshow.length > 0 ? (
+            <div className={profile.media.background ? "mt-5" : ""}>
+              <ProfileSlideshow
+                autoplay={profile.media.autoplay}
+                images={profile.media.slideshow}
+              />
+            </div>
+          ) : null}
           <div
-            className={`flex flex-col ${preview ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
+            className={`${profile.media?.background || profile.media?.slideshow.length ? "mt-6" : ""} flex flex-col ${preview ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
           >
             {profile.imageUrl ? (
               <img

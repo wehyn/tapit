@@ -153,6 +153,22 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.getByLabelText("About copy")).toHaveAttribute("maxlength", "280");
   });
 
+  it("places optional Media after Style and keeps it collapsed by default", () => {
+    render(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        links={[]}
+        onChange={vi.fn()}
+        onMediaChange={vi.fn()}
+        onMediaUpload={vi.fn()}
+      />,
+    );
+    const labels = screen.getAllByRole("button").map((button) => button.textContent?.trim());
+    expect(labels.indexOf("Media")).toBeGreaterThan(labels.indexOf("Style"));
+    expect(labels.indexOf("Media")).toBeLessThan(labels.indexOf("Review and publish"));
+    expect(screen.getByRole("button", { name: "Media" })).toHaveAttribute("aria-expanded", "false");
+  });
+
   it("keeps collapsed panels mounted and supports keyboard activation", async () => {
     const user = userEvent.setup();
     render(<ControlledEditor links={[]} onChange={vi.fn()} />);

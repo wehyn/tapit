@@ -9,6 +9,8 @@ import type { ProfileLink } from "@/lib/domain";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
+import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
 
 export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
@@ -16,15 +18,21 @@ export type ProfileCustomizationEditorProps = {
   onChange: (next: ProfileCustomization | undefined) => void;
   errors?: readonly string[];
   identityContent?: ReactNode;
+  media?: ProfileMediaPresentation;
+  onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
+  onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
+  mediaBusy?: boolean;
+  mediaError?: string;
 };
 
-type SectionName = "identity" | "contact" | "about" | "style" | "review";
+type SectionName = "identity" | "contact" | "about" | "style" | "media" | "review";
 
 const sectionLabels: Record<SectionName, string> = {
   identity: "Identity",
   contact: "Contact and links",
   about: "About or Services",
   style: "Style",
+  media: "Media",
   review: "Review and publish",
 };
 
@@ -141,6 +149,11 @@ export function ProfileCustomizationEditor({
   links,
   onChange,
   identityContent,
+  media,
+  onMediaChange,
+  onMediaUpload,
+  mediaBusy,
+  mediaError,
 }: ProfileCustomizationEditorProps) {
   const baseId = useId();
   const [openSections, setOpenSections] = useState<Record<SectionName, boolean>>({
@@ -148,6 +161,7 @@ export function ProfileCustomizationEditor({
     contact: true,
     about: true,
     style: true,
+    media: false,
     review: true,
   });
 
@@ -179,7 +193,7 @@ export function ProfileCustomizationEditor({
         <div className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
           <Notice>
             This profile still uses its legacy appearance. Choose Warm Studio when you are ready to
-            use the guided customization controls.
+            use the guided customization controls. Media controls appear after you opt in.
           </Notice>
           <Button
             onClick={() => onChange(copyCustomization(DEFAULT_WARM_STUDIO_CUSTOMIZATION))}
@@ -469,6 +483,24 @@ export function ProfileCustomizationEditor({
           />
         </div>
       </SectionRow>
+
+      {onMediaChange && onMediaUpload ? (
+        <SectionRow
+          id={`${baseId}-media`}
+          name="media"
+          onToggle={() => toggle("media")}
+          open={openSections.media}
+          panelDescription={`${baseId}-media-guidance`}
+        >
+          <ProfileMediaEditor
+            busy={mediaBusy}
+            error={mediaError}
+            media={media}
+            onChange={onMediaChange}
+            onUpload={onMediaUpload}
+          />
+        </SectionRow>
+      ) : null}
 
       <SectionRow
         id={`${baseId}-review`}

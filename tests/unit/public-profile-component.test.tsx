@@ -157,6 +157,79 @@ describe("public profile preview behavior", () => {
     expect(image).toHaveAttribute("src", "https://images.example/large.png");
   });
 
+  it("keeps public media inside the Warm Studio panel and bounds the hero", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          media: {
+            heroHeight: 999,
+            autoplay: false,
+            background: {
+              src: "https://images.example/hero.jpg",
+              alt: "A warm studio wall",
+              positionX: 25,
+              positionY: 75,
+            },
+            slideshow: [],
+          },
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const hero = screen.getByRole("region", { name: "Profile hero" });
+    expect(hero).toHaveStyle({ height: "520px" });
+    expect(hero).toHaveTextContent("A warm studio wall");
+    const surface = hero.querySelector("div");
+    expect(surface).toHaveStyle({
+      backgroundImage: 'url("https://images.example/hero.jpg")',
+      backgroundPosition: "25% 75%",
+    });
+    expect(screen.queryByRole("region", { name: "Profile slideshow" })).not.toBeInTheDocument();
+  });
+
+  it("renders projected media for a legacy themed profile", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          theme: "night",
+          customization: undefined,
+          media: {
+            heroHeight: 320,
+            autoplay: false,
+            background: {
+              src: "https://images.example/legacy-hero.jpg",
+              alt: "A legacy profile hero",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [{ src: "https://images.example/legacy-slide.jpg", alt: "Legacy slide" }],
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("region", { name: "Profile hero" })).toBeVisible();
+    expect(screen.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
+    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+  });
+
   it.each([
     ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "bg-[#3e806d]"],
     ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "bg-[#2c2420]"],

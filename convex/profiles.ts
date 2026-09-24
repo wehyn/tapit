@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
 
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
@@ -7,12 +8,21 @@ import { profileAccess } from "./profileAccess";
 import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
 import {
+  assertOwnedProfileMediaSet,
+  MEDIA_REVISION_CONFLICT,
+  MEDIA_UPLOAD_PENDING,
+  profileMediaAssetIds,
+  removeIfMediaUnreferenced,
+} from "./profileMedia";
+import {
   profileContentValidator,
   profileRedirectValidator,
   profileStatusValidator,
   publicProfileValidator,
   profileThemeValidator,
   profileCustomizationValidator,
+  profileMediaValidator,
+  saveDraftContentValidator,
   validateDraftSafety,
   validateProfileContent,
   normalizeProfileSlug,
@@ -20,6 +30,18 @@ import {
 } from "./validators";
 import { replaceProfileLinks } from "./links";
 import { IMAGE_REVISION_CONFLICT, IMAGE_UPLOAD_PENDING } from "./storage";
+
+const ownedProfileValidator = schema
+  .doc("profiles")
+  .omit("draft", "published")
+  .extend({
+    draft: profileContentValidator,
+    published: v.optional(
+      profileContentValidator.extend({
+        publishedAt: v.number(),
+      }),
+    ),
+  });
 
 export const publicBySlug = query({
   args: { slug: v.string() },
@@ -60,7 +82,7 @@ export const checkSlugAvailability = query({
 
 export const mine = query({
   args: {},
-  returns: v.union(v.null(), schema.doc("profiles")),
+  returns: v.union(v.null(), ownedProfileValidator),
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
     const customer = await ctx.db
@@ -80,7 +102,7 @@ export const current = query({
     v.null(),
     v.object({
       account: schema.doc("customers"),
-      profile: schema.doc("profiles"),
+      profile: ownedProfileValidator,
     }),
   ),
   handler: async (ctx) => {
@@ -111,21 +133,36 @@ export const adminList = query({
 export const saveDraft = mutation({
   args: {
     profileId: v.id("profiles"),
-    draft: profileContentValidator,
+    draft: saveDraftContentValidator,
     expectedImageRevision: v.optional(v.number()),
+    expectedMediaRevision: v.optional(v.number()),
   },
   returns: v.object({
     updatedAt: v.number(),
     imageRevision: v.number(),
     customization: v.optional(profileCustomizationValidator),
+    mediaRevision: v.number(),
   }),
   handler: async (ctx, args) => {
     const { profile } = await profileAccess(ctx, args.profileId);
     const imageRevision = profile.imageRevision ?? 0;
+    const mediaRevision = profile.mediaRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
       throw new Error(IMAGE_REVISION_CONFLICT);
+    if (
+      args.draft.media !== undefined &&
+      (args.expectedMediaRevision === undefined || args.expectedMediaRevision !== mediaRevision)
+    )
+      throw new Error(MEDIA_REVISION_CONFLICT);
     const normalizedSlug = normalizeProfileSlug(args.draft.slug);
     const draft = { ...args.draft, slug: normalizedSlug };
+    const oldDraftMediaIds = profileMediaAssetIds(profile.draft.media);
+    if (args.draft.media === undefined) {
+      if (profile.draft.media === undefined) delete draft.media;
+      else draft.media = profile.draft.media;
+    } else if (args.draft.media === null) {
+      delete draft.media;
+    }
     if (profile.published !== undefined && profile.published.slug !== normalizedSlug) {
       throw new Error("The profile slug cannot change after first publication.");
     }
@@ -141,6 +178,12 @@ export const saveDraft = mutation({
       .unique();
     if (duplicate !== null && duplicate._id !== profile._id)
       throw new Error("That profile slug is already in use.");
+    await assertOwnedProfileMediaSet(
+      ctx,
+      profile._id,
+      profile.ownerId,
+      draft.media as Doc<"profiles">["draft"]["media"],
+    );
     const now = Date.now();
     delete draft.imageUrl;
     if (
@@ -149,18 +192,47 @@ export const saveDraft = mutation({
     )
       await assertOwnedProfileImage(ctx, profile._id, profile.ownerId, args.draft.imageStorageId);
     draft.imageStorageId = profile.draft.imageStorageId;
-    await ctx.db.patch(profile._id, { slug: normalizedSlug, draft, updatedAt: now });
+    if (draft.media !== undefined) {
+      draft.media = {
+        ...draft.media,
+        ...(draft.media.background === undefined
+          ? {}
+          : {
+              background: {
+                assetId: draft.media.background.assetId as Id<"profileMediaAssets">,
+                altText: draft.media.background.altText,
+                positionX: draft.media.background.positionX,
+                positionY: draft.media.background.positionY,
+              },
+            }),
+        slideshow: draft.media.slideshow.map(({ assetId, altText }) => ({ assetId, altText })),
+      };
+    }
+    await ctx.db.patch(profile._id, {
+      slug: normalizedSlug,
+      draft: draft as Doc<"profiles">["draft"],
+      updatedAt: now,
+    });
     await replaceProfileLinks(ctx, profile._id, draft.links, now);
+    const nextDraftMediaIds = profileMediaAssetIds((draft as Doc<"profiles">["draft"]).media);
+    for (const assetId of oldDraftMediaIds)
+      if (!nextDraftMediaIds.includes(assetId))
+        await removeIfMediaUnreferenced(ctx, profile._id, assetId);
     return {
       updatedAt: now,
       imageRevision,
+      mediaRevision,
       ...(draft.customization === undefined ? {} : { customization: draft.customization }),
     };
   },
 });
 
 export const publish = mutation({
-  args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
+  args: {
+    profileId: v.id("profiles"),
+    expectedImageRevision: v.optional(v.number()),
+    expectedMediaRevision: v.optional(v.number()),
+  },
   returns: v.object({
     name: v.string(),
     slug: v.string(),
@@ -172,6 +244,7 @@ export const publish = mutation({
     website: v.optional(v.string()),
     theme: v.optional(profileThemeValidator),
     customization: v.optional(profileCustomizationValidator),
+    media: v.optional(profileMediaValidator),
     redirect: v.optional(profileRedirectValidator),
     links: v.array(
       v.object({
@@ -187,8 +260,14 @@ export const publish = mutation({
   handler: async (ctx, args) => {
     const { profile, userId } = await profileAccess(ctx, args.profileId);
     const imageRevision = profile.imageRevision ?? 0;
+    const mediaRevision = profile.mediaRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
       throw new Error(IMAGE_REVISION_CONFLICT);
+    if (
+      (profile.draft.media !== undefined || mediaRevision !== 0) &&
+      (args.expectedMediaRevision === undefined || args.expectedMediaRevision !== mediaRevision)
+    )
+      throw new Error(MEDIA_REVISION_CONFLICT);
     const pendingUpload = await ctx.db
       .query("profileImageUploadJobs")
       .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (query) =>
@@ -199,6 +278,16 @@ export const publish = mutation({
       )
       .first();
     if (pendingUpload !== null) throw new Error(IMAGE_UPLOAD_PENDING);
+    const pendingMediaUpload = await ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (query) =>
+        query
+          .eq("profileId", profile._id)
+          .eq("status", "pending")
+          .gt("uploadWindowEndsAt", Date.now()),
+      )
+      .first();
+    if (pendingMediaUpload !== null) throw new Error(MEDIA_UPLOAD_PENDING);
     const owner = await ctx.db.get(profile.ownerId);
     if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
     if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");
@@ -219,6 +308,7 @@ export const publish = mutation({
         profile.ownerId,
         profile.draft.imageStorageId,
       );
+    await assertOwnedProfileMediaSet(ctx, profile._id, profile.ownerId, profile.draft.media);
     const attachedCards = await ctx.db
       .query("cards")
       .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
@@ -235,8 +325,28 @@ export const publish = mutation({
     const now = Date.now();
     const publishedContent = { ...profile.draft };
     delete publishedContent.imageUrl;
+    if (publishedContent.media !== undefined) {
+      publishedContent.media = {
+        ...publishedContent.media,
+        ...(publishedContent.media.background === undefined
+          ? {}
+          : {
+              background: {
+                assetId: publishedContent.media.background.assetId as Id<"profileMediaAssets">,
+                altText: publishedContent.media.background.altText,
+                positionX: publishedContent.media.background.positionX,
+                positionY: publishedContent.media.background.positionY,
+              },
+            }),
+        slideshow: publishedContent.media.slideshow.map(({ assetId, altText }) => ({
+          assetId,
+          altText,
+        })),
+      };
+    }
     const published = { ...publishedContent, publishedAt: now };
     const oldPublishedStorageId = profile.published?.imageStorageId;
+    const oldPublishedMediaIds = profileMediaAssetIds(profile.published?.media);
     await ctx.db.patch(profile._id, {
       slug: profile.draft.slug,
       status: "published",
@@ -251,6 +361,9 @@ export const publish = mutation({
     );
     if (oldPublishedStorageId !== undefined && oldPublishedStorageId !== published.imageStorageId)
       await removeIfUnreferenced(ctx, oldPublishedStorageId, profile._id);
+    for (const assetId of oldPublishedMediaIds)
+      if (!profileMediaAssetIds(published.media).includes(assetId))
+        await removeIfMediaUnreferenced(ctx, profile._id, assetId);
     await ctx.db.insert("auditLogs", {
       scope: profile.scope,
       actorUserId: userId,
@@ -278,6 +391,16 @@ export const setStatus = mutation({
         throw new Error(
           "A valid published snapshot and published content are required before publishing.",
         );
+      const pendingMediaUpload = await ctx.db
+        .query("profileMediaUploadJobs")
+        .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (query) =>
+          query
+            .eq("profileId", profile._id)
+            .eq("status", "pending")
+            .gt("uploadWindowEndsAt", Date.now()),
+        )
+        .first();
+      if (pendingMediaUpload !== null) throw new Error(MEDIA_UPLOAD_PENDING);
       const errors = validateProfileContent(profile.published);
       if (errors.length > 0)
         throw new Error(`A valid published snapshot is required. ${errors.join(" ")}`);
@@ -288,6 +411,7 @@ export const setStatus = mutation({
           profile.ownerId,
           profile.published.imageStorageId,
         );
+      await assertOwnedProfileMediaSet(ctx, profile._id, profile.ownerId, profile.published.media);
       const attachedCards = await ctx.db
         .query("cards")
         .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))

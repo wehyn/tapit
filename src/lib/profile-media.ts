@@ -1,3 +1,5 @@
+import type { Id } from "../../convex/_generated/dataModel";
+
 export const MAX_PROFILE_SLIDESHOW_IMAGES = 10;
 export const MIN_PROFILE_HERO_HEIGHT = 220;
 export const MAX_PROFILE_HERO_HEIGHT = 520;
@@ -5,9 +7,10 @@ export const DEFAULT_PROFILE_HERO_HEIGHT = 320;
 export const MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH = 160;
 
 export interface ProfileMediaImage {
-  assetId: string;
+  assetId: Id<"profileMediaAssets">;
   altText: string;
   url?: string;
+  previewUrl?: string;
 }
 
 export interface ProfileMediaBackground extends ProfileMediaImage {
@@ -55,7 +58,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
-function validAssetId(value: unknown): value is string {
+function validAssetId(value: unknown): value is Id<"profileMediaAssets"> {
   return typeof value === "string" && value.trim().length > 0;
 }
 
@@ -142,9 +145,10 @@ function normalizeImage(value: unknown): ProfileMediaImage | undefined {
   if (!isRecord(value) || !validAssetId(value.assetId) || !validAltText(value.altText))
     return undefined;
   return {
-    assetId: value.assetId.trim(),
+    assetId: value.assetId.trim() as Id<"profileMediaAssets">,
     altText: value.altText.trim(),
     ...(validUrl(value.url) ? { url: value.url.trim() } : {}),
+    ...(validUrl(value.previewUrl) ? { previewUrl: value.previewUrl.trim() } : {}),
   };
 }
 
@@ -170,7 +174,6 @@ export function normalizeProfileMedia(value: unknown): ProfileMediaPresentation 
       if (slideshow.length === MAX_PROFILE_SLIDESHOW_IMAGES) break;
     }
   }
-  if (background === undefined && slideshow.length === 0) return undefined;
   const heroHeight = isFiniteNumber(value.heroHeight)
     ? clamp(value.heroHeight, MIN_PROFILE_HERO_HEIGHT, MAX_PROFILE_HERO_HEIGHT)
     : DEFAULT_PROFILE_HERO_HEIGHT;

@@ -68,6 +68,30 @@ body {
   color: var(--tapit-ink);
 }
 
+@keyframes tapit-profile-slideshow-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.tapit-profile-slideshow-image {
+  animation: tapit-profile-slideshow-fade-in 350ms ease-out both;
+}
+
+.tapit-profile-slideshow-image--reduced {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tapit-profile-slideshow-image {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-transparency: reduce) {
   .tapit-glass {
     background: var(--tapit-surface) !important;

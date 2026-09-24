@@ -6,6 +6,7 @@ import { internalQuery, mutation, query } from "./_generated/server";
 import { isHostedDemo, requireAdministrator, requireUser, sameScope } from "./admin";
 import schema from "./schema";
 import { deleteProfileImages } from "./profileImages";
+import { deleteProfileMedia } from "./profileMedia";
 import {
   normalizeProfileSlug,
   profileThemeValidator,
@@ -459,6 +460,7 @@ export const approveDeletion = mutation({
         ),
     );
     await deleteProfileImages(ctx, profile._id);
+    await deleteProfileMedia(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,

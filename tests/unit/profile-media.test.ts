@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Id } from "../../convex/_generated/dataModel";
 import {
   DEFAULT_PROFILE_MEDIA,
   MAX_PROFILE_SLIDESHOW_IMAGES,
@@ -9,6 +10,8 @@ import {
   validateProfileMedia,
   type ProfileMediaPresentation,
 } from "../../src/lib/profile-media";
+
+const assetId = (value: string) => value as Id<"profileMediaAssets">;
 
 describe("profile media contract", () => {
   it("defaults autoplay on with no media regions", () => {
@@ -24,7 +27,7 @@ describe("profile media contract", () => {
     expect(Object.isFrozen(DEFAULT_PROFILE_MEDIA.slideshow)).toBe(true);
     expect(() =>
       (DEFAULT_PROFILE_MEDIA.slideshow as unknown as ProfileMediaPresentation["slideshow"]).push({
-        assetId: "mutated",
+        assetId: assetId("mutated"),
         altText: "Mutated",
       }),
     ).toThrow();
@@ -141,7 +144,11 @@ describe("profile media contract", () => {
     expect(() => validateProfileMedia([null, { slideshow: "nope" }] as unknown)).not.toThrow();
     expect(() => normalizeProfileMedia({ slideshow: [null, 42, { assetId: null }] })).not.toThrow();
     expect(stripProfileMediaUrls(null)).toBeUndefined();
-    expect(stripProfileMediaUrls({ heroHeight: 320, autoplay: true })).toBeUndefined();
+    expect(stripProfileMediaUrls({ heroHeight: 320, autoplay: true })).toEqual({
+      heroHeight: 320,
+      autoplay: true,
+      slideshow: [],
+    });
   });
 
   it("strips owner-only URLs before persistence", () => {
@@ -181,9 +188,9 @@ describe("profile media contract", () => {
     const media: ProfileMediaPresentation = {
       ...DEFAULT_PROFILE_MEDIA,
       slideshow: [
-        { assetId: "one", altText: "One" },
-        { assetId: "two", altText: "Two" },
-        { assetId: "three", altText: "Three" },
+        { assetId: assetId("one"), altText: "One" },
+        { assetId: assetId("two"), altText: "Two" },
+        { assetId: assetId("three"), altText: "Three" },
       ],
     };
 

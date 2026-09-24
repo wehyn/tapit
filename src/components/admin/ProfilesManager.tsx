@@ -383,6 +383,7 @@ function LiveProfilesManager() {
         profileId,
         draft: draftToSave,
         expectedImageRevision: profile.imageRevision ?? 0,
+        expectedMediaRevision: profile.mediaRevision ?? 0,
       });
       setMessage({ tone: "success", text: "Administrative draft changes saved." });
     } catch (error) {
@@ -415,9 +416,14 @@ function LiveProfilesManager() {
           profileId,
           draft: draftToPublish,
           expectedImageRevision: profile.imageRevision ?? 0,
+          expectedMediaRevision: profile.mediaRevision ?? 0,
         });
       }
-      await publish({ profileId, expectedImageRevision: profile.imageRevision ?? 0 });
+      await publish({
+        profileId,
+        expectedImageRevision: profile.imageRevision ?? 0,
+        expectedMediaRevision: profile.mediaRevision ?? 0,
+      });
       setMessage({ tone: "success", text: "Profile published." });
     } catch (error) {
       setMessage({

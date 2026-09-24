@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Id } from "../../convex/_generated/dataModel";
 import type { DemoProfile, DemoState } from "../../src/lib/demo/fixtures";
 
 const pathMocks = vi.hoisted(() => ({
@@ -62,6 +63,24 @@ describe("published demo profile paths", () => {
         featuredLinkId: "booking",
         section: { kind: "about", body: "A published studio introduction." },
       };
+      published.media = {
+        heroHeight: 360,
+        autoplay: false,
+        background: {
+          assetId: "demo-background" as Id<"profileMediaAssets">,
+          altText: "Published demo backdrop",
+          positionX: 40,
+          positionY: 60,
+          url: "data:image/png;base64,background",
+        },
+        slideshow: [
+          {
+            assetId: "demo-slide" as Id<"profileMediaAssets">,
+            altText: "Published demo slide",
+            url: "data:image/png;base64,slide",
+          },
+        ],
+      };
     }
     pathMocks.recordLinkClick.mockReset();
     pathMocks.recordProfileView.mockReset();
@@ -75,12 +94,16 @@ describe("published demo profile paths", () => {
         .querySelector('a[href="mailto:mara@example.test"]') as HTMLAnchorElement | null;
       if (contact === null) throw new Error("The published email action is missing.");
       const featured = screen.getByRole("link", { name: "Book a conversation" });
+      const background = screen.getByRole("region", { name: "Profile hero" });
+      const slide = screen.getByRole("img", { name: "Published demo slide" });
       const disclosure = screen.getByText("About").closest("summary");
       if (disclosure === null) throw new Error("The published disclosure is missing.");
       const marker = screen.getByRole("main");
       const projection = {
         contact: contact.getAttribute("href"),
         featured: featured.getAttribute("data-featured"),
+        background: background.querySelector("p")?.textContent,
+        slide: slide.getAttribute("alt") ?? slide.getAttribute("aria-label"),
         marker: marker.className,
         disclosure: disclosure.getAttribute("aria-expanded"),
       };
@@ -92,6 +115,8 @@ describe("published demo profile paths", () => {
     expect(paths[0]).toMatchObject({
       contact: "mailto:mara@example.test",
       featured: "true",
+      background: "Published demo backdrop",
+      slide: "Published demo slide",
       disclosure: "false",
     });
     expect(paths[0]?.marker).toContain("bg-[#fbf6ef]");
