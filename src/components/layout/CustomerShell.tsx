@@ -214,7 +214,7 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
     >
       <div
         aria-label="Account options"
-        className="absolute inset-x-0 bottom-full z-30 mb-3 rounded-tapit border border-tapit-line bg-tapit-surface p-2 shadow-lg"
+        className="absolute bottom-full left-0 z-30 mb-3 min-w-56 rounded-tapit border border-tapit-line bg-tapit-surface p-2 shadow-lg lg:left-0 xl:inset-x-0 xl:min-w-0"
         hidden={!open}
         id={menuId}
         role="group"
@@ -242,8 +242,8 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
         <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-tapit-accent text-[0.65rem] font-semibold text-white">
           {initials}
         </span>
-        <span className="min-w-0 flex-1 truncate">{email}</span>
-        <span aria-hidden="true" className="px-1 text-base leading-none">
+        <span className="min-w-0 flex-1 truncate lg:sr-only xl:not-sr-only">{email}</span>
+        <span aria-hidden="true" className="px-1 text-base leading-none lg:hidden xl:inline">
           {open ? "⌃" : "⌄"}
         </span>
       </button>

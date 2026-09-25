@@ -70,7 +70,7 @@ test.describe("live Google OAuth journeys", () => {
       await expect(page.getByRole("button", { name: "Continue to your profile" })).toBeVisible();
       await page.getByRole("button", { name: "Continue to your profile" }).click();
       await expect(page).toHaveURL(/\/app\/profile$/);
-      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
 
       const publicContext = await browser.newContext({ baseURL: liveEnv.baseURL });
       try {
@@ -117,7 +117,7 @@ test.describe("live Google OAuth journeys", () => {
     try {
       await page.goto("/login");
       await signInWithGoogle(page, /\/app\/profile$/);
-      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
       await expect(
         page.getByRole("button", { name: `Account menu for ${liveEnv.customerEmail}` }),
       ).toBeVisible();
@@ -212,7 +212,7 @@ test.describe("live Google OAuth journeys", () => {
       await expect(page.getByText(liveEnv.invitedEmail)).toBeVisible();
       await expect(page.getByText("Live invited customer")).toBeVisible();
       await signInWithGoogle(page, /\/app\/profile$/);
-      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
       await expect(page.getByLabel("Name")).toHaveValue("Live invited customer");
       await expect(page.getByLabel("Stable profile slug")).not.toHaveValue("");
     } finally {
@@ -230,7 +230,7 @@ test.describe("live Google OAuth journeys", () => {
     try {
       await page.goto(setupPath as string);
       await signInWithGoogle(page, /\/app\/profile$/);
-      await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
     } finally {
       await context.close();
     }

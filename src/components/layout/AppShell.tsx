@@ -72,7 +72,7 @@ export function AppShell({
         sidebarFooter={sidebarFooter}
         title={title}
       />
-      <main className="lg:ml-[285px] lg:[&_.fixed.inset-x-0]:left-[285px]">
+      <main className="lg:ml-[92px] lg:[&_.fixed.inset-x-0]:left-[92px] xl:ml-[260px] xl:[&_.fixed.inset-x-0]:left-[260px]">
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
             <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">

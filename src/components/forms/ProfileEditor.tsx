@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
-import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
   hasUnpublishedChanges,
@@ -85,7 +85,6 @@ function DemoProfileEditor() {
   }));
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
@@ -264,16 +263,6 @@ function DemoProfileEditor() {
     }
   }
 
-  function copyUrl() {
-    const url = `${window.location.origin}/${draft.slug}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(
-        () => setCopyMessage("Copied"),
-        () => setCopyMessage(url),
-      );
-    } else setCopyMessage(url);
-  }
-
   function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -317,7 +306,7 @@ function DemoProfileEditor() {
     <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
       <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
-        <Panel className="shadow-none" title="Profile identity">
+        <Panel className="shadow-none" title="Profile details">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
             {needsLinkOnboarding(draft, profile.published) ? (
@@ -401,75 +390,71 @@ function DemoProfileEditor() {
                 value={draft.bio ?? ""}
               />
             </div>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                id="profile-email"
-                label="Email"
-                onChange={(event) => updateField("email", event.target.value || undefined)}
-                placeholder="you@example.com"
-                type="email"
-                value={draft.email ?? ""}
-              />
-              <Field
-                id="profile-phone"
-                label="Phone"
-                onChange={(event) => updateField("phone", event.target.value || undefined)}
-                placeholder="+63 917 555 0184"
-                type="tel"
-                value={draft.phone ?? ""}
-              />
-              <Field
-                id="profile-website"
-                label="Website"
-                onChange={(event) => updateField("website", event.target.value || undefined)}
-                placeholder="https://yourwebsite.com"
-                type="url"
-                value={draft.website ?? ""}
-              />
-              <Field
-                disabled={slugLocked}
-                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
-                id="profile-slug"
-                label="Stable profile slug"
-                onChange={(event) => updateField("slug", event.target.value)}
-                placeholder="alex-morgan"
-                value={draft.slug}
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
-              <span className="font-semibold text-tapit-ink">Public URL</span>
-              <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
-                {typeof window === "undefined"
-                  ? `/${draft.slug}`
-                  : `${window.location.origin}/${draft.slug}`}
-              </code>
-              <Button onClick={copyUrl} type="button" variant="secondary">
-                <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
-                {copyMessage || "Copy"}
-              </Button>
-            </div>
-          </div>
-        </Panel>
-
-        <Panel className="shadow-none" title="Profile style">
-          <div className="mt-6 grid gap-5 sm:grid-cols-3">
-            {(["paper", "moss", "night"] as const).map((themeOption) => (
-              <button
-                aria-pressed={theme === themeOption}
-                className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                key={themeOption}
-                onClick={() => chooseTheme(themeOption)}
-                type="button"
+            <section
+              aria-labelledby="contact-details-heading"
+              className="border-t border-tapit-line/70 pt-6"
+            >
+              <h2
+                id="contact-details-heading"
+                className="mb-5 text-lg font-semibold text-tapit-ink"
               >
-                <span
-                  className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                Contact details
+              </h2>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  id="profile-email"
+                  label="Email"
+                  onChange={(event) => updateField("email", event.target.value || undefined)}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={draft.email ?? ""}
                 />
-                <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                  {themeOption}
-                </span>
-              </button>
-            ))}
+                <Field
+                  id="profile-phone"
+                  label="Phone"
+                  onChange={(event) => updateField("phone", event.target.value || undefined)}
+                  placeholder="+63 917 555 0184"
+                  type="tel"
+                  value={draft.phone ?? ""}
+                />
+                <Field
+                  disabled={slugLocked}
+                  help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
+                  id="profile-slug"
+                  label="Stable profile slug"
+                  onChange={(event) => updateField("slug", event.target.value)}
+                  placeholder="alex-morgan"
+                  value={draft.slug}
+                />
+              </div>
+            </section>
           </div>
+          <section
+            aria-labelledby="profile-style-heading"
+            className="mt-7 border-t border-tapit-line/70 pt-6"
+          >
+            <h2 id="profile-style-heading" className="text-lg font-semibold text-tapit-ink">
+              Profile style
+            </h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-3">
+              {(["paper", "moss", "night"] as const).map((themeOption) => (
+                <button
+                  aria-pressed={theme === themeOption}
+                  className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                  key={themeOption}
+                  onClick={() => chooseTheme(themeOption)}
+                  type="button"
+                >
+                  <span
+                    className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                  />
+                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
+                    {themeOption}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
         </Panel>
 
         <Panel className="shadow-none" title="Publication">
@@ -847,7 +832,7 @@ function LiveProfileEditorContent({
     <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
       <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
-        <Panel className="shadow-none" title="Profile identity">
+        <Panel className="shadow-none" title="Profile details">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
             {needsLinkOnboarding(currentDraft, publishedForValidation) ? (
@@ -940,61 +925,72 @@ function LiveProfileEditorContent({
                 placeholder="e.g. Designer helping small teams"
                 value={currentDraft.bio ?? ""}
               />
-              <Field
-                id="profile-email"
-                label="Email"
-                onChange={(event) => updateField("email", event.target.value || undefined)}
-                placeholder="you@example.com"
-                type="email"
-                value={currentDraft.email ?? ""}
-              />
-              <Field
-                id="profile-phone"
-                label="Phone"
-                onChange={(event) => updateField("phone", event.target.value || undefined)}
-                placeholder="+63 917 555 0184"
-                type="tel"
-                value={currentDraft.phone ?? ""}
-              />
-              <Field
-                id="profile-website"
-                label="Website"
-                onChange={(event) => updateField("website", event.target.value || undefined)}
-                placeholder="https://yourwebsite.com"
-                type="url"
-                value={currentDraft.website ?? ""}
-              />
-              <Field
-                disabled={slugLocked}
-                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
-                id="profile-slug"
-                label="Stable profile slug"
-                onChange={(event) => updateField("slug", event.target.value)}
-                placeholder="alex-morgan"
-                value={currentDraft.slug}
-              />
             </div>
-          </div>
-        </Panel>
-        <Panel className="shadow-none" title="Profile style">
-          <div className="mt-6 grid gap-5 sm:grid-cols-3">
-            {(["paper", "moss", "night"] as const).map((option) => (
-              <button
-                aria-pressed={theme === option}
-                className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                key={option}
-                onClick={() => updateField("theme", option)}
-                type="button"
+            <section
+              aria-labelledby="contact-details-heading"
+              className="border-t border-tapit-line/70 pt-6"
+            >
+              <h2
+                id="contact-details-heading"
+                className="mb-5 text-lg font-semibold text-tapit-ink"
               >
-                <span
-                  className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                Contact details
+              </h2>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  id="profile-email"
+                  label="Email"
+                  onChange={(event) => updateField("email", event.target.value || undefined)}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={currentDraft.email ?? ""}
                 />
-                <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                  {option}
-                </span>
-              </button>
-            ))}
+                <Field
+                  id="profile-phone"
+                  label="Phone"
+                  onChange={(event) => updateField("phone", event.target.value || undefined)}
+                  placeholder="+63 917 555 0184"
+                  type="tel"
+                  value={currentDraft.phone ?? ""}
+                />
+                <Field
+                  disabled={slugLocked}
+                  help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
+                  id="profile-slug"
+                  label="Stable profile slug"
+                  onChange={(event) => updateField("slug", event.target.value)}
+                  placeholder="alex-morgan"
+                  value={currentDraft.slug}
+                />
+              </div>
+            </section>
           </div>
+          <section
+            aria-labelledby="profile-style-heading"
+            className="mt-7 border-t border-tapit-line/70 pt-6"
+          >
+            <h2 id="profile-style-heading" className="text-lg font-semibold text-tapit-ink">
+              Profile style
+            </h2>
+            <div className="mt-5 grid gap-5 sm:grid-cols-3">
+              {(["paper", "moss", "night"] as const).map((option) => (
+                <button
+                  aria-pressed={theme === option}
+                  className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+                  key={option}
+                  onClick={() => updateField("theme", option)}
+                  type="button"
+                >
+                  <span
+                    className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
+                  />
+                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
+                    {option}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
         </Panel>
         <Panel className="shadow-none" title="Publication">
           <div className="mt-5 flex flex-wrap items-center gap-3">
