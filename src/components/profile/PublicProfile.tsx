@@ -207,7 +207,7 @@ export function PublicProfile({
           className={`rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)] ${preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-10 sm:py-10"} ${themeClasses.panel}`}
         >
           <div
-            className={`flex flex-col ${preview ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
+            className={`flex flex-col ${preview ? "items-center text-center" : "items-center text-center sm:flex-row sm:items-center sm:gap-6 sm:text-left"}`}
           >
             {profile.imageUrl ? (
               <img
@@ -237,7 +237,7 @@ export function PublicProfile({
               )}
               {profile.bio ? (
                 <p
-                  className={`${preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} ${themeClasses.muted}`}
+                  className={`${preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 mx-auto max-w-sm text-base leading-7 sm:mx-0"} ${themeClasses.muted}`}
                 >
                   {profile.bio}
                 </p>
