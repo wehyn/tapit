@@ -16,6 +16,11 @@ async function signInAsCustomer(page: Page) {
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
 
+async function openMaraProfileDetails(page: Page) {
+  await page.getByRole("button", { name: "Mara Velasquez /mara-velasquez" }).click();
+  await expect(page.getByRole("dialog", { name: "Mara Velasquez profile" })).toBeVisible();
+}
+
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
   await signInAsAdmin(page);
 
@@ -354,6 +359,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
 test("administrator moderation hides a profile and can restore it", async ({ page }) => {
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
   await page.getByRole("button", { name: "Suspend" }).click();
   await expect(page.getByRole("dialog", { name: "Suspend this profile?" })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Suspend profile" }).click();
@@ -364,10 +370,76 @@ test("administrator moderation hides a profile and can restore it", async ({ pag
   ).toBeVisible();
 
   await page.goto("/admin/profiles");
+  await openMaraProfileDetails(page);
   await page.getByRole("button", { name: "Restore profile" }).click();
   await expect(page.getByText("Profile status changed to published.")).toBeVisible();
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+});
+
+test("administrator changes a slug without publishing drafts, keeps card URLs stable, and frees the old slug", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const maraDialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  const editTab = maraDialog.getByRole("tab", { name: "Edit profile" });
+  const detailsTab = maraDialog.getByRole("tab", { name: "Details & slug" });
+  await expect(editTab).toHaveAttribute("aria-selected", "true");
+  await editTab.focus();
+  await editTab.press("ArrowRight");
+  await expect(detailsTab).toHaveAttribute("aria-selected", "true");
+  await expect(detailsTab).toBeFocused();
+  await detailsTab.press("ArrowLeft");
+  await expect(editTab).toHaveAttribute("aria-selected", "true");
+  await expect(editTab).toBeFocused();
+  await maraDialog.getByRole("textbox", { name: "Bio or role" }).fill("Draft-only bio update.");
+  await editTab.press("ArrowRight");
+  await expect(detailsTab).toHaveAttribute("aria-selected", "true");
+
+  const savedDraft = maraDialog.getByRole("region", { name: "Saved draft content" });
+  const publishedSnapshot = maraDialog.getByRole("region", { name: "Published snapshot content" });
+  await maraDialog.getByLabel("Profile slug").fill("mara-renamed-e2e");
+  await maraDialog.getByRole("button", { name: "Save slug" }).click();
+  await expect(maraDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
+  await expect(savedDraft.getByText("Draft-only bio update.", { exact: true })).toBeVisible();
+  await expect(
+    publishedSnapshot.getByText("Brand systems for independent teams.", { exact: true }),
+  ).toBeVisible();
+  await expect(publishedSnapshot.getByText("Draft-only bio update.", { exact: true })).toHaveCount(
+    0,
+  );
+  await maraDialog.getByRole("button", { name: "Close profile details" }).click();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Profile not found" })).toBeVisible();
+  await page.goto("/mara-renamed-e2e");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(
+    page.getByText("Brand systems for independent teams.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Draft-only bio update.", { exact: true })).toHaveCount(0);
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+
+  await page.goto("/admin/audit-log");
+  const slugAudit = page.locator("details").filter({ hasText: "Profile slug changed" }).first();
+  await expect(slugAudit).toBeVisible();
+  await slugAudit.locator("summary").click();
+  await expect(
+    slugAudit.getByText("mara-velasquez → mara-renamed-e2e", { exact: true }),
+  ).toBeVisible();
+
+  await page.goto("/admin/profiles");
+  await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
+  const adminDialog = page.getByRole("dialog", { name: "Tapit Admin profile" });
+  await adminDialog.getByRole("tab", { name: "Details & slug" }).click();
+  await adminDialog.getByLabel("Profile slug").fill("mara-velasquez");
+  await adminDialog.getByRole("button", { name: "Save slug" }).click();
+  await expect(adminDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
+  await expect(adminDialog.getByText("/mara-velasquez", { exact: true })).toBeVisible();
 });
 
 test("administrator approves a customer deletion request", async ({ page }) => {
@@ -379,12 +451,17 @@ test("administrator approves a customer deletion request", async ({ page }) => {
 
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
   await page.getByRole("button", { name: "Publish" }).click();
   await expect(
     page.getByText(
       "Your customer account is inactive or pending deletion. Contact support before publishing.",
     ),
   ).toBeVisible();
+  await page
+    .getByRole("dialog", { name: "Mara Velasquez profile" })
+    .getByRole("button", { name: "Close profile details" })
+    .click();
   await page.getByRole("link", { name: "Customers" }).click();
   const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
   await customer.getByRole("button", { name: "Approve deletion" }).click();
