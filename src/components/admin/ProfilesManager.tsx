@@ -2,7 +2,14 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { ArrowRightIcon, CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
@@ -33,6 +40,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type Confirmation = "unpublish" | "suspend" | null;
+type ProfileDialogTab = "edit" | "details";
 type LiveAdminProfileDetails = NonNullable<
   ReturnType<typeof useQuery<typeof api.profiles.adminDetails>>
 >;
@@ -87,20 +95,44 @@ function toAdminProfileDetailsView(details: LiveAdminProfileDetails): AdminProfi
 
 function ProfileDialog({
   active,
-  children,
+  details,
   description,
+  editor,
   onClose,
   title,
 }: {
   active: boolean;
-  children: ReactNode;
+  details: ReactNode;
   description?: string;
+  editor: ReactNode;
   onClose: () => void;
   title: string;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
+  const editTabRef = useRef<HTMLButtonElement>(null);
+  const detailsTabRef = useRef<HTMLButtonElement>(null);
+  const [selectedTab, setSelectedTab] = useState<ProfileDialogTab>("edit");
+
+  function handleTabKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentTab: ProfileDialogTab,
+  ) {
+    let nextTab: ProfileDialogTab | null = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+      nextTab = currentTab === "edit" ? "details" : "edit";
+    } else if (event.key === "Home") {
+      nextTab = "edit";
+    } else if (event.key === "End") {
+      nextTab = "details";
+    }
+    if (nextTab === null) return;
+
+    event.preventDefault();
+    setSelectedTab(nextTab);
+    (nextTab === "edit" ? editTabRef : detailsTabRef).current?.focus();
+  }
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -123,7 +155,9 @@ function ProfileDialog({
         dialogRef.current.querySelectorAll<HTMLElement>(
           'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
         ),
-      ).filter((element) => !element.hasAttribute("disabled"));
+      ).filter(
+        (element) => !element.hasAttribute("disabled") && element.closest("[hidden]") === null,
+      );
       const first = focusable[0];
       const last = focusable.at(-1);
       if (first === undefined || last === undefined) return;
@@ -154,27 +188,27 @@ function ProfileDialog({
   }, [active]);
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-tapit-ink/70 px-4 py-5 sm:px-6">
+    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-tapit-ink/70 px-3 py-3 sm:px-6 sm:py-6">
       <div
         aria-labelledby="admin-profile-dialog-title"
         aria-hidden={!active}
         aria-modal={active}
-        className="max-h-[calc(100dvh-2.5rem)] w-full max-w-4xl overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:max-h-[calc(100dvh-3rem)]"
         id="admin-profile-dialog"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-tapit-line pb-4">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-tapit-line px-5 py-5 sm:px-8 sm:py-6">
           <div className="min-w-0">
             <h2
-              className="text-xl font-semibold tracking-tight text-tapit-ink"
+              className="text-2xl font-semibold tracking-tight text-tapit-ink"
               id="admin-profile-dialog-title"
             >
               {title}
             </h2>
             {description ? (
-              <p className="mt-2 text-sm leading-6 text-tapit-muted">{description}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-tapit-muted">{description}</p>
             ) : null}
           </div>
           <Button
@@ -187,7 +221,58 @@ function ProfileDialog({
             <span aria-hidden="true">×</span>
           </Button>
         </div>
-        {children}
+        <div className="shrink-0 border-b border-tapit-line px-5 sm:px-8">
+          <div aria-label="Profile sections" className="flex gap-6" role="tablist">
+            <button
+              aria-controls="admin-profile-editor-panel"
+              aria-selected={selectedTab === "edit"}
+              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "edit" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
+              id="admin-profile-editor-tab"
+              onClick={() => setSelectedTab("edit")}
+              onKeyDown={(event) => handleTabKeyDown(event, "edit")}
+              ref={editTabRef}
+              role="tab"
+              tabIndex={selectedTab === "edit" ? 0 : -1}
+              type="button"
+            >
+              Edit profile
+            </button>
+            <button
+              aria-controls="admin-profile-details-panel"
+              aria-selected={selectedTab === "details"}
+              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "details" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
+              id="admin-profile-details-tab"
+              onClick={() => setSelectedTab("details")}
+              onKeyDown={(event) => handleTabKeyDown(event, "details")}
+              ref={detailsTabRef}
+              role="tab"
+              tabIndex={selectedTab === "details" ? 0 : -1}
+              type="button"
+            >
+              Details &amp; slug
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+          <div
+            aria-labelledby="admin-profile-editor-tab"
+            hidden={selectedTab !== "edit"}
+            id="admin-profile-editor-panel"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            {editor}
+          </div>
+          <div
+            aria-labelledby="admin-profile-details-tab"
+            hidden={selectedTab !== "details"}
+            id="admin-profile-details-panel"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            {details}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -483,113 +568,122 @@ function DemoProfilesManager() {
             setSlugSuccess(null);
           }}
           title={`${profile.draft.name || "Unnamed"} profile`}
-        >
-          {message ? (
-            <div className="mt-5">
-              <Notice tone={message.tone}>{message.text}</Notice>
-            </div>
-          ) : null}
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <StatusBadge status={profile.status} />
-            {profile.status === "published" ? (
-              <span className="inline-flex items-center gap-1 text-sm text-tapit-accent-strong">
-                <CheckCircleIcon aria-hidden="true" size={17} weight="fill" /> Public
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-sm text-tapit-muted">
-                <WarningCircleIcon aria-hidden="true" size={17} /> Needs review
-              </span>
-            )}
-            <span className="text-sm text-tapit-muted">
-              Stable slug: <code>{profile.draft.slug}</code>
-            </span>
-          </div>
-          <div className="mt-6 grid gap-5 sm:max-w-lg">
-            <Field
-              disabled={profile.published !== null}
-              help={profile.published ? "Immutable after first publication." : undefined}
-              id="admin-profile-name"
-              label="Name"
-              onChange={(event) => updateDraft("name", event.target.value)}
-              value={profile.draft.name}
-            />
-          </div>
-          <div className="mt-5">
-            <TextareaField
-              id="admin-profile-bio"
-              label="Bio or role"
-              maxLength={140}
-              onChange={(event) => updateDraft("bio", event.target.value)}
-              value={profile.draft.bio ?? ""}
-            />
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button onClick={saveDraft} type="button" variant="secondary">
-              Save admin draft
-            </Button>
-            <Button
-              disabled={
-                profile.status === "published" &&
-                profile.published?.name === profile.draft.name &&
-                profile.published?.bio === profile.draft.bio
-              }
-              onClick={publish}
-              type="button"
-            >
-              Publish
-            </Button>
-            {profile.status === "published" || profile.status === "draft" ? (
-              <Button onClick={() => setConfirmation("unpublish")} type="button" variant="quiet">
-                Unpublish
-              </Button>
-            ) : null}
-            {profile.status === "unpublished" ? (
-              <Button
-                onClick={() => updateStatus("published", "profile.restored")}
-                type="button"
-                variant="secondary"
-              >
-                Restore profile
-              </Button>
-            ) : profile.status !== "suspended" ? (
-              <Button onClick={() => setConfirmation("suspend")} type="button" variant="danger">
-                Suspend
-              </Button>
-            ) : (
-              <Button
-                onClick={() =>
-                  updateStatus(profile.published ? "published" : "draft", "profile.restored")
-                }
-                type="button"
-                variant="secondary"
-              >
-                Restore profile
-              </Button>
-            )}
-          </div>
-          {detailsView ? (
-            <div className="mt-8 border-t border-tapit-line pt-6">
-              <ProfileDetails
-                isSubmitting={false}
-                onSlugChange={(value) => {
-                  setSlugValue(value);
-                  setSlugError(null);
-                  setSlugSuccess(null);
-                }}
-                onSlugSubmit={saveSlug}
-                slugError={slugError}
-                slugSuccess={slugSuccess}
-                slugValue={slugValue}
-                view={detailsView}
-              />
-            </div>
-          ) : null}
-          <div className="mt-6">
-            <ButtonLink href="/admin/audit-log" variant="quiet">
-              View audit history
-            </ButtonLink>
-          </div>
-        </ProfileDialog>
+          editor={
+            <>
+              {message ? (
+                <div className="mt-5">
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                </div>
+              ) : null}
+              <div className="mt-5 flex flex-wrap items-center gap-3">
+                <StatusBadge status={profile.status} />
+                {profile.status === "published" ? (
+                  <span className="inline-flex items-center gap-1 text-sm text-tapit-accent-strong">
+                    <CheckCircleIcon aria-hidden="true" size={17} weight="fill" /> Public
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-sm text-tapit-muted">
+                    <WarningCircleIcon aria-hidden="true" size={17} /> Needs review
+                  </span>
+                )}
+                <span className="text-sm text-tapit-muted">
+                  Current slug: <code>{profile.draft.slug}</code>
+                </span>
+              </div>
+              <div className="mt-6 grid gap-5 sm:max-w-lg">
+                <Field
+                  disabled={profile.published !== null}
+                  help={profile.published ? "Immutable after first publication." : undefined}
+                  id="admin-profile-name"
+                  label="Name"
+                  onChange={(event) => updateDraft("name", event.target.value)}
+                  value={profile.draft.name}
+                />
+              </div>
+              <div className="mt-5">
+                <TextareaField
+                  id="admin-profile-bio"
+                  label="Bio or role"
+                  maxLength={140}
+                  onChange={(event) => updateDraft("bio", event.target.value)}
+                  value={profile.draft.bio ?? ""}
+                />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button onClick={saveDraft} type="button" variant="secondary">
+                  Save admin draft
+                </Button>
+                <Button
+                  disabled={
+                    profile.status === "published" &&
+                    profile.published?.name === profile.draft.name &&
+                    profile.published?.bio === profile.draft.bio
+                  }
+                  onClick={publish}
+                  type="button"
+                >
+                  Publish
+                </Button>
+                {profile.status === "published" || profile.status === "draft" ? (
+                  <Button
+                    onClick={() => setConfirmation("unpublish")}
+                    type="button"
+                    variant="quiet"
+                  >
+                    Unpublish
+                  </Button>
+                ) : null}
+                {profile.status === "unpublished" ? (
+                  <Button
+                    onClick={() => updateStatus("published", "profile.restored")}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Restore profile
+                  </Button>
+                ) : profile.status !== "suspended" ? (
+                  <Button onClick={() => setConfirmation("suspend")} type="button" variant="danger">
+                    Suspend
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() =>
+                      updateStatus(profile.published ? "published" : "draft", "profile.restored")
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    Restore profile
+                  </Button>
+                )}
+              </div>
+            </>
+          }
+          details={
+            <>
+              {detailsView ? (
+                <ProfileDetails
+                  isSubmitting={false}
+                  onSlugChange={(value) => {
+                    setSlugValue(value);
+                    setSlugError(null);
+                    setSlugSuccess(null);
+                  }}
+                  onSlugSubmit={saveSlug}
+                  slugError={slugError}
+                  slugSuccess={slugSuccess}
+                  slugValue={slugValue}
+                  view={detailsView}
+                />
+              ) : null}
+              <div className="mt-8 border-t border-tapit-line pt-6">
+                <ButtonLink href="/admin/audit-log" variant="quiet">
+                  View audit history
+                </ButtonLink>
+              </div>
+            </>
+          }
+        />
       ) : null}
 
       <ConfirmDialog
@@ -878,103 +972,108 @@ function LiveProfilesManager() {
             setDetailsFailure(null);
           }}
           title={`${currentDraft.name || "Unnamed"} profile`}
-        >
-          {message ? (
-            <div className="mt-5">
-              <Notice tone={message.tone}>{message.text}</Notice>
-            </div>
-          ) : null}
-          <div className="mt-6 grid gap-5 sm:max-w-lg">
-            <Field
-              id="admin-profile-name"
-              label="Name"
-              onChange={(event) => updateDraft("name", event.target.value)}
-              value={currentDraft.name}
-            />
-          </div>
-          <div className="mt-5">
-            <TextareaField
-              id="admin-profile-bio"
-              label="Bio or role"
-              maxLength={140}
-              onChange={(event) => updateDraft("bio", event.target.value)}
-              value={currentDraft.bio ?? ""}
-            />
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Button onClick={saveDraft} type="button" variant="secondary">
-              Save admin draft
-            </Button>
-            <Button
-              disabled={
-                profile.status === "suspended" ||
-                (profile.status === "published" &&
-                  profile.published?.name === currentDraft.name &&
-                  profile.published?.bio === currentDraft.bio)
-              }
-              onClick={publishProfile}
-              type="button"
-            >
-              Publish
-            </Button>
-            {profile.status === "published" || profile.status === "draft" ? (
-              <Button onClick={() => setConfirmation("unpublish")} type="button" variant="quiet">
-                Unpublish
-              </Button>
-            ) : null}
-            {profile.status === "unpublished" ? (
-              <Button
-                onClick={() => void changeStatus("published")}
-                type="button"
-                variant="secondary"
-              >
-                Restore profile
-              </Button>
-            ) : (
-              <Button
-                onClick={() =>
-                  profile.status === "suspended"
-                    ? changeStatus(profile.published ? "published" : "draft")
-                    : setConfirmation("suspend")
-                }
-                type="button"
-                variant={profile.status === "suspended" ? "secondary" : "danger"}
-              >
-                {profile.status === "suspended" ? "Restore profile" : "Suspend"}
-              </Button>
-            )}
-          </div>
-          {detailsLoading ? (
-            <div className="mt-8 border-t border-tapit-line pt-6">
-              <Notice>Loading profile details…</Notice>
-            </div>
-          ) : detailsError !== null ? (
-            <div className="mt-8 border-t border-tapit-line pt-6">
-              <Notice tone="error">{detailsError}</Notice>
-            </div>
-          ) : detailsView !== null ? (
-            <div className="mt-8 border-t border-tapit-line pt-6">
-              <ProfileDetails
-                isSubmitting={slugSubmittingFor === selectedId}
-                onSlugChange={(value) => {
-                  setSlugValue(value);
-                  setSlugError(null);
-                  setSlugSuccess(null);
-                }}
-                onSlugSubmit={saveSlug}
-                slugError={slugError}
-                slugSuccess={slugSuccess}
-                slugValue={slugValue}
-                view={detailsView}
-              />
-            </div>
-          ) : null}
-          <div className="mt-6">
-            <ButtonLink href="/admin/audit-log" variant="quiet">
-              View audit history
-            </ButtonLink>
-          </div>
-        </ProfileDialog>
+          editor={
+            <>
+              {message ? (
+                <div className="mt-5">
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                </div>
+              ) : null}
+              <div className="mt-6 grid gap-5 sm:max-w-lg">
+                <Field
+                  id="admin-profile-name"
+                  label="Name"
+                  onChange={(event) => updateDraft("name", event.target.value)}
+                  value={currentDraft.name}
+                />
+              </div>
+              <div className="mt-5">
+                <TextareaField
+                  id="admin-profile-bio"
+                  label="Bio or role"
+                  maxLength={140}
+                  onChange={(event) => updateDraft("bio", event.target.value)}
+                  value={currentDraft.bio ?? ""}
+                />
+              </div>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button onClick={saveDraft} type="button" variant="secondary">
+                  Save admin draft
+                </Button>
+                <Button
+                  disabled={
+                    profile.status === "suspended" ||
+                    (profile.status === "published" &&
+                      profile.published?.name === currentDraft.name &&
+                      profile.published?.bio === currentDraft.bio)
+                  }
+                  onClick={publishProfile}
+                  type="button"
+                >
+                  Publish
+                </Button>
+                {profile.status === "published" || profile.status === "draft" ? (
+                  <Button
+                    onClick={() => setConfirmation("unpublish")}
+                    type="button"
+                    variant="quiet"
+                  >
+                    Unpublish
+                  </Button>
+                ) : null}
+                {profile.status === "unpublished" ? (
+                  <Button
+                    onClick={() => void changeStatus("published")}
+                    type="button"
+                    variant="secondary"
+                  >
+                    Restore profile
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() =>
+                      profile.status === "suspended"
+                        ? changeStatus(profile.published ? "published" : "draft")
+                        : setConfirmation("suspend")
+                    }
+                    type="button"
+                    variant={profile.status === "suspended" ? "secondary" : "danger"}
+                  >
+                    {profile.status === "suspended" ? "Restore profile" : "Suspend"}
+                  </Button>
+                )}
+              </div>
+            </>
+          }
+          details={
+            <>
+              {detailsLoading ? (
+                <Notice>Loading profile details…</Notice>
+              ) : detailsError !== null ? (
+                <Notice tone="error">{detailsError}</Notice>
+              ) : detailsView !== null ? (
+                <ProfileDetails
+                  isSubmitting={slugSubmittingFor === selectedId}
+                  onSlugChange={(value) => {
+                    setSlugValue(value);
+                    setSlugError(null);
+                    setSlugSuccess(null);
+                  }}
+                  onSlugSubmit={saveSlug}
+                  slugError={slugError}
+                  slugSuccess={slugSuccess}
+                  slugValue={slugValue}
+                  view={detailsView}
+                />
+              ) : null}
+              <div className="mt-8 border-t border-tapit-line pt-6">
+                <ButtonLink href="/admin/audit-log" variant="quiet">
+                  View audit history
+                </ButtonLink>
+              </div>
+            </>
+          }
+        />
       ) : null}
       <ConfirmDialog
         confirmLabel={confirmation === "suspend" ? "Suspend profile" : "Unpublish profile"}

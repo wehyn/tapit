@@ -222,11 +222,11 @@ Actions: create account, send or resend setup invitation when supported, open pr
 
 Purpose: support and govern customer profiles.
 
-Content: searchable profile registry showing customer, current slug, publication state, last update, and suspension/unavailability state. Selecting a row opens a popup with draft and published values for all profile fields, image, contacts, theme, redirect, links and enabled state, status, and profile timestamps.
+Content: searchable profile registry showing customer, current slug, publication state, last update, and suspension/unavailability state. Selecting a row opens a spacious popup with accessible **Edit profile** and **Details & slug** tabs. The details tab shows the profile overview, lifecycle timestamps, and the complete draft and published values for profile fields, image, contacts, theme, redirect, links, and enabled state.
 
-Actions: inspect all profile details, change the slug, edit and publish profile content, unpublish, suspend, restore where allowed, and view audit history.
+Actions: inspect all profile details and change the slug in **Details & slug**; edit and publish profile content, unpublish, suspend, and restore where allowed in **Edit profile**; and view audit history.
 
-Rules: only administrators can change an existing slug. A slug change is applied immediately to the current public URL; the old direct URL stops resolving without a redirect and becomes available for reuse. If reused later, it resolves to the newly assigned profile. Active card URLs continue resolving to the original profile. Administrative edits are auditable and never expose unpublished content publicly.
+Rules: open the popup on **Edit profile**. Keep each tab keyboard-operable and usable on narrow screens. Only administrators can change an existing slug. A slug change is applied immediately to the current public URL; the old direct URL stops resolving without a redirect and becomes available for reuse. If reused later, it resolves to the newly assigned profile. Active card URLs continue resolving to the original profile. Administrative edits are auditable and never expose unpublished content publicly.
 
 ### Administrator Cards page
 

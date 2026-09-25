@@ -385,9 +385,22 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   await openMaraProfileDetails(page);
 
   const maraDialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  const editTab = maraDialog.getByRole("tab", { name: "Edit profile" });
+  const detailsTab = maraDialog.getByRole("tab", { name: "Details & slug" });
+  await expect(editTab).toHaveAttribute("aria-selected", "true");
+  await editTab.focus();
+  await editTab.press("ArrowRight");
+  await expect(detailsTab).toHaveAttribute("aria-selected", "true");
+  await expect(detailsTab).toBeFocused();
+  await detailsTab.press("ArrowLeft");
+  await expect(editTab).toHaveAttribute("aria-selected", "true");
+  await expect(editTab).toBeFocused();
+  await maraDialog.getByRole("textbox", { name: "Bio or role" }).fill("Draft-only bio update.");
+  await editTab.press("ArrowRight");
+  await expect(detailsTab).toHaveAttribute("aria-selected", "true");
+
   const savedDraft = maraDialog.getByRole("region", { name: "Saved draft content" });
   const publishedSnapshot = maraDialog.getByRole("region", { name: "Published snapshot content" });
-  await maraDialog.getByRole("textbox", { name: "Bio or role" }).fill("Draft-only bio update.");
   await maraDialog.getByLabel("Profile slug").fill("mara-renamed-e2e");
   await maraDialog.getByRole("button", { name: "Save slug" }).click();
   await expect(maraDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
@@ -422,6 +435,7 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   await page.goto("/admin/profiles");
   await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
   const adminDialog = page.getByRole("dialog", { name: "Tapit Admin profile" });
+  await adminDialog.getByRole("tab", { name: "Details & slug" }).click();
   await adminDialog.getByLabel("Profile slug").fill("mara-velasquez");
   await adminDialog.getByRole("button", { name: "Save slug" }).click();
   await expect(adminDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
