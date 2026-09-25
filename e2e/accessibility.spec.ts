@@ -18,7 +18,7 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await page.getByLabel("Password").fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
   await expectNoA11yViolations(page);
 
   await page.goto("/app/links");
@@ -28,7 +28,7 @@ test("customer workspace has no automated accessibility violations", async ({ pa
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(
     page.getByRole("navigation", { name: "Your Tapit profile navigation" }),
