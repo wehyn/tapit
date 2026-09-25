@@ -8,6 +8,7 @@ import type { Crop } from "@/lib/profile-image";
 
 type ProfileImageCropDialogProps = {
   busy?: boolean;
+  error?: string;
   file: File;
   onApply: (crop: Crop) => void;
   onCancel: () => void;
@@ -15,6 +16,7 @@ type ProfileImageCropDialogProps = {
 
 export function ProfileImageCropDialog({
   busy = false,
+  error: uploadError = "",
   file,
   onApply,
   onCancel,
@@ -203,9 +205,9 @@ export function ProfileImageCropDialog({
           </button>
         </div>
 
-        {error ? (
+        {error || uploadError ? (
           <p aria-live="assertive" className="mt-3 text-sm text-tapit-danger" role="alert">
-            {error}
+            {error || uploadError}
           </p>
         ) : null}
         <div className="mt-6 flex justify-end gap-3">
@@ -229,7 +231,17 @@ export function ProfileImageCropDialog({
             }}
             type="button"
           >
-            Apply crop
+            {busy ? (
+              <span className="inline-flex items-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none"
+                />
+                Applying...
+              </span>
+            ) : (
+              "Apply"
+            )}
           </button>
         </div>
       </div>

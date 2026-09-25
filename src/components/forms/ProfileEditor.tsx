@@ -87,6 +87,7 @@ function DemoProfileEditor() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
+  const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
@@ -280,6 +281,7 @@ function DemoProfileEditor() {
     const validationError = validateProfileImageFile(file);
     if (validationError) return setImageError(validationError);
     setImageError("");
+    setImageApplied(false);
     imageRequestRef.current += 1;
     setCropFile(file);
   }
@@ -302,6 +304,7 @@ function DemoProfileEditor() {
       if (requestId !== imageRequestRef.current) return;
       updateField("imageUrl", dataUrl);
       setCropFile(null);
+      setImageApplied(true);
     } catch (error) {
       if (requestId === imageRequestRef.current)
         setImageError(error instanceof Error ? error.message : "The image crop failed. Try again.");
@@ -368,6 +371,16 @@ function DemoProfileEditor() {
               {imageError ? (
                 <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
                   {imageError}
+                </p>
+              ) : null}
+              {imageApplied ? (
+                <p
+                  className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#17352b]"
+                  role="status"
+                  aria-label="Photo applied"
+                >
+                  <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
+                  Photo applied
                 </p>
               ) : null}
             </div>
@@ -555,6 +568,7 @@ function DemoProfileEditor() {
       {cropFile !== null ? (
         <ProfileImageCropDialog
           busy={imagePending}
+          error={imageError}
           file={cropFile}
           onApply={(crop) => void applyDemoCrop(crop)}
           onCancel={() => {
@@ -592,6 +606,7 @@ function LiveProfileEditorContent({
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
+  const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
@@ -669,6 +684,7 @@ function LiveProfileEditorContent({
       return;
     }
     setImageError("");
+    setImageApplied(false);
     imageRequestRef.current += 1;
     setCropFile(file);
   }
@@ -710,6 +726,7 @@ function LiveProfileEditorContent({
         };
       });
       setCropFile(null);
+      setImageApplied(true);
     } catch (error) {
       if (requestId === imageRequestRef.current)
         setImageError(
@@ -724,6 +741,7 @@ function LiveProfileEditorContent({
     if (pending !== null) return;
     setPending("image");
     setImageError("");
+    setImageApplied(false);
     try {
       const result = await removeImage({
         profileId: liveProfile._id,
@@ -895,6 +913,16 @@ function LiveProfileEditorContent({
                   {imageError}
                 </p>
               ) : null}
+              {imageApplied ? (
+                <p
+                  className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#17352b]"
+                  role="status"
+                  aria-label="Photo applied"
+                >
+                  <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
+                  Photo applied
+                </p>
+              ) : null}
             </div>
             <div className="grid gap-5 sm:grid-cols-2">
               <Field
@@ -1049,6 +1077,7 @@ function LiveProfileEditorContent({
       {cropFile !== null ? (
         <ProfileImageCropDialog
           busy={pending === "image"}
+          error={imageError}
           file={cropFile}
           onApply={(crop) => void applyImageCrop(crop)}
           onCancel={() => {

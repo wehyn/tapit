@@ -200,13 +200,14 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
 
   await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await expect(cropDialog).toBeVisible();
-  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
+  await expect(page.getByRole("status", { name: "Photo applied" })).toBeVisible();
 
   await imageInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(cropDialog).toBeVisible();
-  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
 });
