@@ -12,7 +12,7 @@ import {
   sameScope,
 } from "./admin";
 import schema from "./schema";
-import { deleteProfileImages } from "./profileImages";
+import { internal } from "./_generated/api";
 import {
   normalizeProfileSlug,
   profileThemeValidator,
@@ -603,6 +603,7 @@ export const listDeletionRequests = query({
     v.object({
       request: schema.doc("deletionRequests"),
       customer: v.union(v.null(), schema.doc("customers")),
+      overdue: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -618,9 +619,30 @@ export const listDeletionRequests = query({
         requests.page.map(async (request) => ({
           request,
           customer: await ctx.db.get(request.customerId),
+          overdue:
+            request.status === "requested" &&
+            request.requestedAt < Date.now() - 30 * 24 * 60 * 60 * 1000,
         })),
       ),
     };
+  },
+});
+
+export const hasOverdueDeletionRequests = query({
+  args: {},
+  returns: v.boolean(),
+  handler: async (ctx) => {
+    const { account } = await requireAdministrator(ctx);
+    const oldest = await ctx.db
+      .query("deletionRequests")
+      .withIndex("by_scope_and_status_and_requestedAt", (q) =>
+        q
+          .eq("scope", account.scope)
+          .eq("status", "requested")
+          .lt("requestedAt", Date.now() - 30 * 24 * 60 * 60 * 1000),
+      )
+      .first();
+    return oldest !== null;
   },
 });
 
@@ -672,7 +694,6 @@ export const approveDeletion = mutation({
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),
     );
-    await deleteProfileImages(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,
@@ -683,6 +704,9 @@ export const approveDeletion = mutation({
       occurredAt: now,
       before: "requested",
       after: "deleted; profile unpublished; cards inactive",
+    });
+    await ctx.scheduler.runAfter(0, internal.accountErasure.eraseAccountPass, {
+      customerId: customer._id,
     });
     return { status: "deleted" as const };
   },

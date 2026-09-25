@@ -48,6 +48,7 @@ const publishedProfile = v.object({
 
 export default defineSchema({
   ...authTables,
+  authVerifiers: authTables.authVerifiers.index("by_sessionId", ["sessionId"]),
   customers: defineTable({
     scope: v.optional(v.literal("demo")),
     userId: v.optional(v.id("users")),
@@ -71,7 +72,8 @@ export default defineSchema({
     .index("by_role", ["role"])
     .index("by_scope", ["scope"])
     .index("by_scope_and_role", ["scope", "role"])
-    .index("by_scope_and_status", ["scope", "status"]),
+    .index("by_scope_and_status", ["scope", "status"])
+    .index("by_deletionStatus_and_deletionRequestedAt", ["deletionStatus", "deletionRequestedAt"]),
   profiles: defineTable({
     scope: v.optional(v.literal("demo")),
     ownerId: v.id("customers"),
@@ -134,7 +136,9 @@ export default defineSchema({
       "uploadWindowEndsAt",
     ])
     .index("by_status_and_uploadWindowEndsAt", ["status", "uploadWindowEndsAt"])
-    .index("by_status_and_createdAt", ["status", "createdAt"]),
+    .index("by_status_and_createdAt", ["status", "createdAt"])
+    .index("by_largeStorageId", ["largeStorageId"])
+    .index("by_smallStorageId", ["smallStorageId"]),
   uploadAssets: defineTable({
     kind: v.union(v.literal("profile-photo"), v.literal("card-design")),
     policyVersion: v.string(),
@@ -196,6 +200,7 @@ export default defineSchema({
   })
     .index("by_ownerId_and_status", ["ownerId", "status"])
     .index("by_sourceStorageId", ["sourceStorageId"])
+    .index("by_quarantineStorageId", ["quarantineStorageId"])
     .index("by_domainType_and_domainRecordId", ["domainType", "domainRecordId"])
     .index("by_status_and_deletionEligibleAt", ["status", "deletionEligibleAt"]),
   uploadAssetVariants: defineTable({
@@ -311,6 +316,7 @@ export default defineSchema({
     firstSeenAt: v.number(),
   })
     .index("by_profile_session", ["profileId", "sessionKey"])
+    .index("by_firstSeenAt", ["firstSeenAt"])
     .index("by_scope", ["scope"]),
   cardClaimChallenges: defineTable({
     scope: v.optional(v.literal("demo")),
@@ -323,6 +329,7 @@ export default defineSchema({
   })
     .index("by_challengeHash", ["challengeHash"])
     .index("by_cardId", ["cardId"])
+    .index("by_expiresAt", ["expiresAt"])
     .index("by_scope", ["scope"]),
   auditLogs: defineTable({
     scope: v.optional(v.literal("demo")),
@@ -338,6 +345,7 @@ export default defineSchema({
   })
     .index("by_occurredAt", ["occurredAt"])
     .index("by_accountId", ["accountId"])
+    .index("by_actorUserId", ["actorUserId"])
     .index("by_profileId", ["profileId"])
     .index("by_cardId", ["cardId"])
     .index("by_scope", ["scope"])
@@ -356,6 +364,10 @@ export default defineSchema({
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_customerId", ["customerId"])
+    .index("by_expiresAt", ["expiresAt"])
+    .index("by_acceptedAt", ["acceptedAt"])
+    .index("by_invalidatedAt", ["invalidatedAt"])
+    .index("by_usedAt", ["usedAt"])
     .index("by_scope", ["scope"]),
   deletionRequests: defineTable({
     scope: v.optional(v.literal("demo")),
@@ -366,8 +378,10 @@ export default defineSchema({
     status: v.union(v.literal("requested"), v.literal("approved"), v.literal("rejected")),
   })
     .index("by_customerId", ["customerId"])
+    .index("by_customerId_and_status", ["customerId", "status"])
     .index("by_scope", ["scope"])
-    .index("by_scope_and_status", ["scope", "status"]),
+    .index("by_scope_and_status", ["scope", "status"])
+    .index("by_scope_and_status_and_requestedAt", ["scope", "status", "requestedAt"]),
   settings: defineTable({
     scope: v.optional(v.literal("demo")),
     key: v.string(),
