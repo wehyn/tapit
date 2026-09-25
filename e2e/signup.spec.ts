@@ -101,7 +101,10 @@ test("customer signup starts from the public login page", async ({ page }) => {
     page.getByText("Links published. The public profile now uses this order and enabled state."),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page
+    .getByRole("button", { name: "Account menu for new-tapit-customer@example.test" })
+    .click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.goto("/new-tapit-customer");
   await expect(page.getByRole("heading", { name: "New Tapit Customer" })).toBeVisible();

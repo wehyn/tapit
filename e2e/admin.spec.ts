@@ -113,7 +113,8 @@ test("administrator publishes only after editing their own draft", async ({ page
   await page.goto("/app/account");
   await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Request deletion" })).toBeDisabled();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await signInAsCustomer(page);
   await expect(page.getByLabel("Name")).toHaveValue("Mara Velasquez");
   await page.goto("/admin/customers");

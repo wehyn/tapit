@@ -198,7 +198,8 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
     page.getByText("Claim the attached card before publishing this profile."),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for owner@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await page.goto("/c/claimable-card-demo");
   await expect(

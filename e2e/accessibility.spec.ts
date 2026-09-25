@@ -28,6 +28,7 @@ test("customer workspace has no automated accessibility violations", async ({ pa
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
+  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
   await page.getByRole("button", { name: "Open navigation" }).click();
   await expect(
     page.getByRole("navigation", { name: "Your Tapit profile navigation" }),

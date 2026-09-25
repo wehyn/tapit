@@ -92,6 +92,7 @@ export const currentAccess = query({
     accountId: v.union(v.id("customers"), v.null()),
     profileId: v.union(v.id("profiles"), v.null()),
     onboardingName: v.union(v.string(), v.null()),
+    email: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -103,6 +104,7 @@ export const currentAccess = query({
         accountId: null,
         profileId: null,
         onboardingName: null,
+        email: null,
       };
 
     const account = await ctx.db
@@ -135,6 +137,7 @@ export const currentAccess = query({
       accountId: active ? (account?._id ?? null) : null,
       profileId,
       onboardingName: account?.onboardingName ?? null,
+      email: active && account !== null ? account.email : null,
     };
   },
 });

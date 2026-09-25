@@ -23,6 +23,7 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
 
 test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
   await signInAsCustomer(page);
+  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
 
   const desktopNavigation = page.getByRole("navigation", {
     name: "Your Tapit profile navigation",
@@ -36,6 +37,26 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   }
   await expect(desktopNavigation.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
+  const desktopAccountMenu = page.getByRole("button", {
+    name: "Account menu for mara@example.test",
+  });
+  const signOutButton = page.getByRole("button", { name: "Sign out", exact: true });
+  await expect(desktopAccountMenu).toBeVisible();
+  await expect(signOutButton).toHaveCount(0);
+  await desktopAccountMenu.click();
+  await expect(signOutButton).toBeVisible();
+  const nextDevPortal = page.locator("nextjs-portal");
+  if (await nextDevPortal.count()) {
+    await nextDevPortal.evaluate((portal) => {
+      (portal as HTMLElement).style.display = "none";
+    });
+  }
+  await page.screenshot({
+    path: "test-results/customer-account-menu.png",
+    fullPage: false,
+  });
+  await page.keyboard.press("Escape");
+  await expect(signOutButton).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
@@ -49,7 +70,20 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   await expect(
     drawerNavigation.getByRole("link", { name: "Build card", exact: true }),
   ).toBeVisible();
+  const mobileAccountMenu = page.getByRole("button", {
+    name: "Account menu for mara@example.test",
+  });
+  await expect(mobileAccountMenu).toBeVisible();
+  await mobileAccountMenu.click();
+  await expect(signOutButton).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(signOutButton).toHaveCount(0);
+  await expect(drawerNavigation).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(drawerNavigation).toBeHidden();
   await expect(openNavigation).toBeFocused();
   await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -74,7 +108,8 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await expect(page.getByRole("link", { name: "Links" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("new-demo-password");
