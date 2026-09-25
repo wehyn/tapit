@@ -287,6 +287,7 @@ test("administrator can expand audit entries to read account changes", async ({ 
         actor: "admin@example.test",
         action: "customer.role_changed",
         target: "harley-albert-buendia",
+        targetAccountEmail: "harley@example.test",
         occurredAt: "2026-09-25T08:56:00.000Z",
         before: "customer",
         after: "admin",
@@ -313,6 +314,9 @@ test("administrator can expand audit entries to read account changes", async ({ 
   await expect(onboarding.getByText(/Not recorded → harley-albert-buendia/)).toBeVisible();
 
   const roleChange = page.locator("details").filter({ hasText: "Customer role changed" });
+  await expect(
+    roleChange.getByText("By admin@example.test · Account: harley@example.test"),
+  ).toBeVisible();
   await roleChange.getByText("View details").click();
   await expect(roleChange.getByText(/Customer → Administrator/)).toBeVisible();
 });
