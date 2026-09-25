@@ -39,6 +39,9 @@ does not change the live or Production Google-only contract.
 - [ ] `npm run verify` passes from a worktree containing only intended files.
 - [ ] `npm run test:e2e:demo` passes with the repository demo defaults.
 - [ ] Auth state, ownership, invitation, role, and rate-limit tests pass.
+- [ ] Admin personal profile evidence includes the local demo navigation/publication/isolation journey and
+      focused Convex provisioning/repair checks. A named non-Production live target separately proves Google
+      admin profile creation and retains the internal repair report; local tests alone do not satisfy this gate.
 - [ ] Preview has `NEXT_PUBLIC_DEMO_MODE=false`, matching Convex URLs, a stable origin, and the correct Google
       callback/client configuration.
 - [ ] The approved `npm run test:e2e:live` run passes against a dedicated development or stable Preview target,
