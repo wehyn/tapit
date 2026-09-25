@@ -41,6 +41,7 @@ import {
   updateDemoState,
 } from "../../src/lib/demo/store";
 import { CardResolverClient } from "../../src/components/profile/CardResolverClient";
+import { PublicProfileScreen } from "../../src/components/profile/PublicProfileScreen";
 
 const activeResult = {
   status: "active" as const,
@@ -52,6 +53,54 @@ const activeResult = {
     links: [],
   },
 };
+
+describe("live public profile analytics controls", () => {
+  beforeEach(() => {
+    resolverMocks.demoMode = false;
+    resolverMocks.result = {
+      id: "profile-live",
+      slug: "live-profile",
+      name: "Live profile",
+      theme: "paper",
+      links: [],
+    };
+    resolverMocks.recordView.mockReset();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it.each([
+    ["unset", undefined, undefined],
+    ["allow", "allow", "returning-session"],
+    ["decline", "decline", undefined],
+  ] as const)(
+    "hides analytics choices with a %s preference and keeps view tracking",
+    (preference, storedChoice, sessionKey) => {
+      if (storedChoice !== undefined) {
+        localStorage.setItem("tapit:analytics-consent", storedChoice);
+      }
+      if (sessionKey !== undefined) {
+        sessionStorage.setItem("tapit:analytics-session", sessionKey);
+      }
+
+      render(createElement(PublicProfileScreen, { slug: "live-profile" }));
+
+      expect(screen.getByTestId("public-profile")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Analytics choices" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Allow unique views" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Count visits only" })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("public-profile"));
+      expect(resolverMocks.recordView).toHaveBeenCalledWith(
+        expect.objectContaining({
+          profileId: "profile-live",
+          sessionKey,
+          source: "direct",
+        }),
+      );
+    },
+  );
+});
 
 describe("demo state persistence", () => {
   beforeEach(() => {

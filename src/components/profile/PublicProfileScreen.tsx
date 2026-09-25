@@ -19,7 +19,6 @@ import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
-import { AnalyticsConsent } from "./AnalyticsConsent";
 
 export function PublicProfileScreen({ slug }: { slug: string }) {
   return isLocalDemoMode() ? (
@@ -91,16 +90,13 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
     })),
   };
   return (
-    <>
-      <PublicProfile
-        onLinkClick={onLinkClick}
-        onView={onView}
-        profile={projection}
-        profileId={profile.id}
-        theme={projection.theme}
-      />
-      <AnalyticsConsent />
-    </>
+    <PublicProfile
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={projection}
+      profileId={profile.id}
+      theme={projection.theme}
+    />
   );
 }
 
