@@ -10,8 +10,9 @@ URL, Production Convex deployment reference, release owner, and incident contact
 - Live development, stable Preview, and Production each use a separate Google OAuth client.
 - Each client registers the exact app origin and the matching callback
   `<CONVEX_SITE_URL>/api/auth/callback/google` with provider ID `google` and scopes `openid email profile`.
-- `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `CONVEX_SITE_URL`, `NEXT_PUBLIC_CONVEX_URL`, and the deployment
-  reference belong to the same environment.
+- `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, platform `CONVEX_SITE_URL`, `NEXT_PUBLIC_CONVEX_URL`, and the deployment
+  reference belong to the same environment. Set Convex `SITE_URL` to that environment's public app origin;
+  Convex Auth uses it for the post-OAuth redirect, and it is distinct from `CONVEX_SITE_URL`.
 - `TAPIT_ADMIN_EMAILS` is configured on the deployment. Only a new verified Google identity in that allowlist
   can become the first administrator; allowlist changes do not promote existing accounts.
 - Administrators create invitations and hand off links manually to the matching verified Google email. There is

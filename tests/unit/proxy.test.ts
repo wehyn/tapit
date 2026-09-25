@@ -28,7 +28,7 @@ describe("proxy mode selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
 
-    const { proxy } = await import("../../proxy");
+    const { proxy } = await import("../../src/proxy");
     const request = {} as Parameters<typeof proxy>[0];
 
     expect(proxy(request, {} as Parameters<typeof proxy>[1])).toEqual({
@@ -41,7 +41,7 @@ describe("proxy mode selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
 
-    const { proxy } = await import("../../proxy");
+    const { proxy } = await import("../../src/proxy");
     const request = {} as Parameters<typeof proxy>[0];
 
     expect(proxy(request, {} as Parameters<typeof proxy>[1])).toEqual({
@@ -54,7 +54,7 @@ describe("proxy mode selection", () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
 
-    const { proxy } = await import("../../proxy");
+    const { proxy } = await import("../../src/proxy");
     const request = {} as Parameters<typeof proxy>[0];
 
     expect(proxy(request, {} as Parameters<typeof proxy>[1])).toBe("auth-proxy");
@@ -62,7 +62,7 @@ describe("proxy mode selection", () => {
 
   it("redirects unauthenticated protected requests in the auth callback", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
-    const { proxy } = await import("../../proxy");
+    const { proxy } = await import("../../src/proxy");
     const { convexAuthNextjsMiddleware } = await import("@convex-dev/auth/nextjs/server");
     const callback = vi.mocked(convexAuthNextjsMiddleware).mock.calls[0]?.[0] as (
       request: Parameters<typeof proxy>[0],
