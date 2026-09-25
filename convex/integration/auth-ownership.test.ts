@@ -775,12 +775,35 @@ describe("Convex authentication and ownership", () => {
     const first = await t.mutation(internal.bootstrap.bootstrap, args);
     const second = await t.mutation(internal.bootstrap.bootstrap, args);
     expect(second).toEqual(first);
+    const adminCustomer = await t.run(async (ctx) => await ctx.db.get(first.adminCustomerId));
+    expect(adminCustomer?.profileId).toBeDefined();
+    const adminProfileId = adminCustomer?.profileId;
+    expect(adminProfileId).toBeDefined();
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(adminProfileId!);
+      expect(profile).toMatchObject({
+        ownerId: first.adminCustomerId,
+        status: "draft",
+        draft: { email: "admin@example.com", links: [] },
+      });
+      expect(profile?.published).toBeUndefined();
+      await ctx.db.patch(adminProfileId!, {
+        draft: { ...profile!.draft, name: "Edited Bootstrap Admin" },
+      });
+    });
+    await t.mutation(internal.bootstrap.bootstrap, args);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(adminProfileId!)).toMatchObject({
+        status: "draft",
+        draft: { name: "Edited Bootstrap Admin" },
+      });
+    });
     const counts = await t.run(async (ctx) => ({
       customers: (await ctx.db.query("customers").collect()).length,
       profiles: (await ctx.db.query("profiles").collect()).length,
       cards: (await ctx.db.query("cards").collect()).length,
     }));
-    expect(counts).toEqual({ customers: 3, profiles: 2, cards: 1 });
+    expect(counts).toEqual({ customers: 3, profiles: 3, cards: 1 });
   });
 
   it("seeds the configured published bio during bootstrap", async () => {
@@ -800,6 +823,44 @@ describe("Convex authentication and ownership", () => {
     expect(profile).toMatchObject({
       draft: { bio: "Configured live bio" },
       published: { bio: "Configured live bio" },
+    });
+  });
+
+  it("exposes an active admin profile only when it is owned in the same scope", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    await expect(admin.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      role: "admin",
+      profileId: null,
+    });
+    const ownProfileId = await t.run(async (ctx) => {
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: data.adminCustomerId,
+        slug: "admin-own",
+        status: "draft",
+        draft: draft("admin-own", "Admin"),
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(data.adminCustomerId, { profileId });
+      return profileId;
+    });
+    await expect(admin.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      role: "admin",
+      profileId: ownProfileId,
+    });
+    await expect(admin.mutation(api.customers.requestDeletion, {})).rejects.toThrow(
+      "Only an active customer can request deletion.",
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.adminCustomerId, { profileId: data.ownerProfileId });
+    });
+    await expect(admin.query(api.profiles.mine, {})).resolves.toBeNull();
+    await expect(admin.query(api.profiles.current, {})).resolves.toBeNull();
+    await expect(admin.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      role: "admin",
+      profileId: null,
     });
   });
 

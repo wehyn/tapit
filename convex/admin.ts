@@ -67,6 +67,15 @@ function accountAccessStatus(
   return account.status;
 }
 
+async function ownedProfileId(ctx: AuthContext, account: Doc<"customers"> | null) {
+  if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
+    return null;
+  const profile = await ctx.db.get(account.profileId);
+  if (profile === null || profile.ownerId !== account._id || !sameScope(account, profile))
+    return null;
+  return profile._id;
+}
+
 export const currentAccess = query({
   args: {},
   returns: v.object({
@@ -118,12 +127,13 @@ export const currentAccess = query({
         : null;
     const status = accountAccessStatus(account, invited);
     const active = isActiveCustomer(account);
+    const profileId = await ownedProfileId(ctx, account);
     return {
       authenticated: active,
       accountStatus: status,
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
-      profileId: active ? (account?.profileId ?? null) : null,
+      profileId,
       onboardingName: account?.onboardingName ?? null,
     };
   },
@@ -159,6 +169,7 @@ export const currentAccessInternal = internalQuery({
       };
     const account = await customerForAuthUser(ctx, userId);
     const active = isActiveCustomer(account);
+    const profileId = await ownedProfileId(ctx, account);
     const user = await ctx.db.get(userId);
     const verifiedEmail =
       user?.emailVerificationTime !== undefined &&
@@ -180,7 +191,7 @@ export const currentAccessInternal = internalQuery({
       accountStatus,
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
-      profileId: active ? (account?.profileId ?? null) : null,
+      profileId,
       onboardingName: account?.onboardingName ?? null,
     };
   },

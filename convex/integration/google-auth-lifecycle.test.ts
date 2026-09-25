@@ -77,7 +77,7 @@ describe("Google application account provisioning", () => {
     });
   });
 
-  it("provisions the first allowlisted identity as an active admin without a profile", async () => {
+  it("provisions an allowlisted admin with a private owned draft profile", async () => {
     const t = testConvex();
     const userId = await seedUser(t, { email: "Admin@Example.test", emailVerificationTime: 1 });
 
@@ -87,20 +87,143 @@ describe("Google application account provisioning", () => {
         provider: "google",
         email: "Admin@Example.test",
         emailVerified: true,
+        displayName: "Admin Example",
         adminEmails: parseAdminEmails(" Admin@Example.test,second@example.test "),
       }),
     );
 
-    expect(result).toMatchObject({ role: "admin", status: "active", profileId: null });
+    expect(result).toMatchObject({ role: "admin", status: "active" });
+    expect(result.profileId).not.toBeNull();
     await t.run(async (ctx) => {
-      expect(await ctx.db.get(result.customerId)).toMatchObject({
+      const customer = await ctx.db.get(result.customerId);
+      const profile = result.profileId === null ? null : await ctx.db.get(result.profileId);
+      expect(customer).toMatchObject({
         userId,
         email: "admin@example.test",
         role: "admin",
         status: "active",
         deletionStatus: "active",
       });
-      expect((await ctx.db.get(result.customerId))?.profileId).toBeUndefined();
+      expect(customer?.profileId).toBe(result.profileId);
+      expect(profile).toMatchObject({
+        ownerId: result.customerId,
+        status: "draft",
+        draft: {
+          name: "Admin Example",
+          email: "admin@example.test",
+          links: [],
+        },
+      });
+      expect(profile?.published).toBeUndefined();
+      expect(await ctx.db.query("profiles").collect()).toHaveLength(1);
+      expect(
+        await ctx.db
+          .query("auditLogs")
+          .withIndex("by_accountId", (q) => q.eq("accountId", result.customerId))
+          .filter((q) => q.eq(q.field("action"), "admin.profile_provisioned"))
+          .collect(),
+      ).toHaveLength(1);
+    });
+  });
+
+  it("reuses an admin profile without overwriting later edits on sign-in", async () => {
+    const t = testConvex();
+    const userId = await seedUser(t, { email: "admin@example.test", emailVerificationTime: 1 });
+    const args = {
+      userId,
+      provider: "google",
+      email: "admin@example.test",
+      emailVerified: true,
+      displayName: "Initial Admin",
+      adminEmails: ["admin@example.test"],
+    };
+    const first = await t.run((ctx) => ensureGoogleApplicationAccount(ctx, args));
+    if (first.profileId === null) throw new Error("Expected admin profile provisioning.");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(first.profileId!, {
+        slug: "edited-admin",
+        draft: {
+          name: "Edited Admin",
+          slug: "edited-admin",
+          email: "admin@example.test",
+          imageUrl: "https://example.test/avatar.png",
+          links: [
+            { id: "custom", label: "Custom", destination: "https://example.test", enabled: true },
+          ],
+        },
+      });
+    });
+    const second = await t.run((ctx) =>
+      ensureGoogleApplicationAccount(ctx, { ...args, displayName: "Changed Google Name" }),
+    );
+    expect(second).toEqual(first);
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(first.profileId!)).toMatchObject({
+        slug: "edited-admin",
+        status: "draft",
+        draft: {
+          name: "Edited Admin",
+          slug: "edited-admin",
+          imageUrl: "https://example.test/avatar.png",
+        },
+      });
+      expect(await ctx.db.query("profiles").collect()).toHaveLength(1);
+    });
+  });
+
+  it("keeps an inconsistent existing administrator signed in without exposing a foreign profile", async () => {
+    const t = testConvex();
+    const userId = await seedUser(t, {
+      email: "broken-admin@example.test",
+      emailVerificationTime: 1,
+    });
+    const customerId = await t.run(async (ctx) => {
+      const other = await ctx.db.insert("customers", {
+        email: "other@example.test",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const foreignProfileId = await ctx.db.insert("profiles", {
+        ownerId: other,
+        slug: "other",
+        status: "draft",
+        draft: { name: "Other", slug: "other", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return await ctx.db.insert("customers", {
+        userId,
+        email: "broken-admin@example.test",
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        profileId: foreignProfileId,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    });
+    const result = await t.run((ctx) =>
+      ensureGoogleApplicationAccount(ctx, {
+        userId,
+        provider: "google",
+        email: "broken-admin@example.test",
+        emailVerified: true,
+        adminEmails: ["broken-admin@example.test"],
+      }),
+    );
+    expect(result).toMatchObject({ customerId, role: "admin", status: "active", profileId: null });
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(customerId))?.profileId).not.toBeUndefined();
+      const failures = await ctx.db
+        .query("auditLogs")
+        .withIndex("by_accountId", (q) => q.eq("accountId", customerId))
+        .collect();
+      expect(failures.some((event) => event.action === "admin.profile_provisioning_failed")).toBe(
+        true,
+      );
     });
   });
 

@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { env, internalMutation } from "./_generated/server";
+import { ensureAdminPersonalProfile } from "./adminProfile";
 
 const emailArg = v.string();
 
@@ -143,12 +144,21 @@ export const bootstrap = internalMutation({
       }));
     if (adminExisting !== null)
       await ctx.db.patch(adminExisting._id, {
+        scope,
         userId: args.adminUserId,
         role: "admin",
         status: "active",
         deletionStatus: "active",
         updatedAt: now,
       });
+    const adminUser = await ctx.db.get(args.adminUserId);
+    await ensureAdminPersonalProfile(ctx, {
+      customerId: adminCustomerId,
+      actorUserId: args.adminUserId,
+      actorLabel: adminEmail,
+      initialName: adminUser?.name,
+      email: adminEmail,
+    });
 
     if (
       customerExisting !== null &&
