@@ -526,6 +526,15 @@ describe("Convex authentication and ownership", () => {
     await expect(
       admin.mutation(api.customers.setRole, { customerId: data.adminCustomerId, role: "customer" }),
     ).rejects.toThrow("last active administrator");
+    const roleChangeEntries = await admin.query(api.audit.list, {});
+    expect(roleChangeEntries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "customer.role_changed",
+          targetAccountEmail: "owner@example.com",
+        }),
+      ]),
+    );
     await t.run(async (ctx) => {
       expect(
         await ctx.db

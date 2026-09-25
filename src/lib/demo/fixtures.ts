@@ -46,6 +46,7 @@ export type DemoAuditEvent = {
   actor: string;
   action: string;
   target: string;
+  targetAccountEmail?: string;
   occurredAt: string;
   before?: string;
   after?: string;
