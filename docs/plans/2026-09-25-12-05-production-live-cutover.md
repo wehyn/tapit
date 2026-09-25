@@ -19,7 +19,8 @@
 - `TAPIT_APP_ENV=production` as the public live-contract environment label.
 - `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`;
 - `TAPIT_ADMIN_EMAILS` containing the controlled initial administrator email;
-- the platform Production `CONVEX_SITE_URL`, `SITE_URL` set to the stable app origin, and `TAPIT_SUPPORT_URL`; and
+- the platform Production `CONVEX_SITE_URL`, `SITE_URL` set to the stable app origin, a deployment-specific
+  `JWT_PRIVATE_KEY` and matching public `JWKS`, and `TAPIT_SUPPORT_URL`; and
 - no `TAPIT_DEMO_AUTH_MODE=hosted-demo` setting.
 - Preview or development credentials must not be reused for Production.
 - Production will not be used for E2E or test-data provisioning.
@@ -253,7 +254,7 @@ Expected: the target still matches the approved record. If the alias or deployme
 
 - [ ] **Step 1: Obtain the fresh Convex mutation confirmation.**
 
-Before changing any Convex Production variable, explicitly confirm the exact deployment reference and the exact variable operations: set/update `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SITE_URL`, `TAPIT_ADMIN_EMAILS`, and `TAPIT_SUPPORT_URL`; preserve the platform `CONVEX_SITE_URL`; and remove `TAPIT_DEMO_AUTH_MODE` if it exists. Set `SITE_URL` to `PROD_APP_ORIGIN`, not the Convex site URL, so Convex Auth can return from Google OAuth.
+Before changing any Convex Production variable, explicitly confirm the exact deployment reference and the exact variable operations: set/update `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SITE_URL`, `JWT_PRIVATE_KEY`, `JWKS`, `TAPIT_ADMIN_EMAILS`, and `TAPIT_SUPPORT_URL`; preserve the platform `CONVEX_SITE_URL`; and remove `TAPIT_DEMO_AUTH_MODE` if it exists. Set `SITE_URL` to `PROD_APP_ORIGIN`, not the Convex site URL, so Convex Auth can return from Google OAuth. Generate `JWT_PRIVATE_KEY` and `JWKS` as one distinct pair for this deployment and transfer them without printing the private key.
 
 - [x] **Step 1A: Create the approved Production OAuth web client.**
 
@@ -272,6 +273,8 @@ printf '%s' "$PROD_SUPPORT_URL" | npx convex env set --deployment "$PROD_CONVEX_
 ```
 
 Use `--force` only if the approved preflight shows an existing value that must be replaced. The value of `TAPIT_ADMIN_EMAILS` must contain the controlled initial administrator and no unapproved customer address.
+
+Generate the RS256 signing-key pair with the installed Convex Auth tooling and set both `JWT_PRIVATE_KEY` and `JWKS` on the same deployment through stdin or the provider UI. Never put the private key in shell history, command output, the repository, or the cutover record. Verify that `/.well-known/jwks.json` publishes the matching public key before sign-in.
 
 - [ ] **Step 3: Remove hosted-demo auth mode if present.**
 
@@ -299,7 +302,7 @@ Confirm the client is separate from Development/Preview and that the provider re
 npx convex env list --deployment "$PROD_CONVEX_DEPLOYMENT" --names-only
 ```
 
-Expected: the required names, including `SITE_URL`, are present; `SITE_URL` equals the approved app origin; `TAPIT_DEMO_AUTH_MODE` is absent; and the Production Convex site/cloud identity still matches the Vercel public URLs. Do not run a provisioning function or any write against Convex data.
+Expected: the required names, including `SITE_URL`, `JWT_PRIVATE_KEY`, and `JWKS`, are present; `SITE_URL` equals the approved app origin; the public JWKS matches the configured private key; `TAPIT_DEMO_AUTH_MODE` is absent; and the Production Convex site/cloud identity still matches the Vercel public URLs. Do not run a provisioning function or any write against Convex data.
 
 - [ ] **Step 6: Deploy the approved backend to Production for the first time.**
 
