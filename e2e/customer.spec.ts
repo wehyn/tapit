@@ -23,7 +23,20 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
 
 test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
   await signInAsCustomer(page);
-  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
+  const island = page.getByTestId("workspace-sidebar");
+  const desktopBox = await island.boundingBox();
+  expect(desktopBox).not.toBeNull();
+  expect(desktopBox!.x).toBeGreaterThan(0);
+  expect(desktopBox!.y).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 1117, height: 900 });
+  const railBox = await island.boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(railBox!.x + railBox!.width).toBeLessThan(1117);
+  const railProfile = island.getByRole("link", { name: "Profile", exact: true });
+  await expect(railProfile).toBeVisible();
+  await railProfile.focus();
+  await expect(railProfile).toBeFocused();
 
   const desktopNavigation = page.getByRole("navigation", {
     name: "Your Tapit profile navigation",
@@ -97,6 +110,74 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   );
 });
 
+test("refreshed profile editor and preview preserve draft controls", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await signInAsCustomer(page);
+  for (const heading of ["Profile details", "Contact details", "Profile style"]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  }
+  await expect(page.getByLabel("Website", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Your public profile URL")).toHaveCount(0);
+  const frame = page.getByTestId("profile-preview-frame");
+  const phoneWidth = (await frame.boundingBox())!.width;
+  await page.getByRole("button", { name: "desktop", exact: true }).click();
+  await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(phoneWidth);
+  await page.getByRole("button", { name: "phone", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
+  await page.getByRole("button", { name: "Copy URL" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/mara-velasquez");
+  await expect(page.getByLabel("Stable profile slug")).toBeDisabled();
+  await page.getByLabel("Name", { exact: true }).fill("Mara Studio");
+  await page.getByLabel("Bio or role").fill("Brand design for independent teams");
+  await page.getByLabel("Email", { exact: true }).fill("studio@example.test");
+  await page.getByLabel("Phone", { exact: true }).fill("+63 917 555 0184");
+  await expect(frame).toContainText("Mara Studio");
+  for (const theme of ["moss", "night", "paper"]) {
+    await page.getByRole("button", { name: theme, exact: true }).click();
+    await expect(page.getByRole("button", { name: theme, exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  }
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: "test-results/profile-editor-refresh-desktop.png",
+    fullPage: true,
+  });
+  for (const width of [1117, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+  expect(
+    (await page.getByRole("link", { name: "/mara-velasquez" }).boundingBox())!.width,
+  ).toBeGreaterThan(100);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: "test-results/profile-editor-refresh-mobile.png", fullPage: true });
+});
+
+test("profile URL remains available when clipboard access fails", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new Error("Clipboard unavailable")),
+    });
+  });
+  await page.getByRole("button", { name: "Copy URL" }).click();
+  await expect(page.getByRole("status")).toContainText(
+    `${new URL(page.url()).origin}/mara-velasquez`,
+  );
+});
+
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
@@ -104,7 +185,7 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await page.getByLabel("Confirm password").fill("new-demo-password");
   await page.getByRole("button", { name: "Set password" }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("link", { name: "Profile" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Profile", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Links" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards" })).toHaveCount(0);
 
