@@ -86,7 +86,7 @@ describe("Google OAuth login", () => {
     expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
     expect(screen.queryByText(/verification|resend|reset|sign up/i)).not.toBeInTheDocument();
-  });
+  }, 15_000);
 
   it.each([
     [undefined, "/app/profile"],

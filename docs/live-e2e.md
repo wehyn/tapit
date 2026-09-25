@@ -5,6 +5,18 @@
 also separate: it may use `NEXT_PUBLIC_DEMO_STORAGE=convex` with `TAPIT_DEMO_AUTH_MODE=hosted-demo` on an
 isolated non-production Convex deployment. Hosted demo password compatibility is not live-auth evidence.
 
+The local demo suite also exercises the administrator's own draft profile: Personal navigation, all five
+`/app/*` tools, explicit publication, draft privacy, retained `/admin/*` access, and customer isolation.
+Focused Convex integration tests cover Google/admin provisioning, bootstrap reuse, idempotency, owner checks,
+and the internal repair report. These tests do not prove a live Google sign-in or deployed repair.
+
+For existing active administrators on a named non-Production Convex deployment, an operator may run the
+internal `adminProfileRepair.repair` mutation once, retain its `created`/`skipped`/`failed` report, and rerun
+it to confirm reuse. Investigate any failed references before attempting manual changes. Keep customer IDs,
+emails, credentials, and the unredacted report in ignored evidence storage. Do not run this repair against
+Production as part of E2E validation. Record live development, Preview, Production, and physical-device
+evidence separately.
+
 `npm run test:e2e:live` is the guarded live suite. It is allowed only against a named development deployment or
 stable Preview deployment, never Production. The wrapper fails closed before provisioning when the contract is
 missing, points at Production, contains credentials in a URL, has mismatched Convex origins, or reports an app

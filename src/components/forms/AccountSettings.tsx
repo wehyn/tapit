@@ -86,6 +86,7 @@ function DemoAccountSettings() {
   }
 
   function requestDeletion() {
+    if (customer.role !== "customer") return;
     const occurredAt = new Date().toISOString();
     updateDemoState((current) => ({
       ...updateDemoProfile(current, profile.id, (currentProfile) => ({
@@ -226,7 +227,9 @@ function DemoAccountSettings() {
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button
             disabled={
-              customer.deletionStatus === "requested" || customer.deletionStatus === "deleted"
+              customer.role !== "customer" ||
+              customer.deletionStatus === "requested" ||
+              customer.deletionStatus === "deleted"
             }
             onClick={() => setDeletionOpen(true)}
             type="button"
@@ -331,7 +334,7 @@ function LiveAccountSettings() {
         ) : null}
         <div className="mt-5">
           <Button
-            disabled={account.deletionStatus !== "active"}
+            disabled={account.role !== "customer" || account.deletionStatus !== "active"}
             onClick={() => setDeletionOpen(true)}
             type="button"
             variant="danger"

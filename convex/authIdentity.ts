@@ -1,4 +1,5 @@
 import type { Doc } from "./_generated/dataModel";
+import { AdminProfileInconsistentError, ensureAdminPersonalProfile } from "./adminProfile";
 import type { MutationCtx } from "./_generated/server";
 
 export type GoogleIdentityProfile = {
@@ -122,6 +123,34 @@ export async function ensureGoogleApplicationAccount(
       });
       return accountState({ ...existing, status: "pending", deletionStatus: "active", email });
     }
+    if (
+      existing.role === "admin" &&
+      existing.status === "active" &&
+      existing.deletionStatus === "active"
+    ) {
+      try {
+        const ensured = await ensureAdminPersonalProfile(ctx, {
+          customerId: existing._id,
+          actorUserId: args.userId,
+          actorLabel: email,
+          initialName: displayName,
+          email,
+        });
+        return { ...accountState(existing), profileId: ensured.profileId };
+      } catch (error) {
+        if (!(error instanceof AdminProfileInconsistentError)) throw error;
+        await ctx.db.insert("auditLogs", {
+          scope: existing.scope,
+          actorUserId: args.userId,
+          actorLabel: email,
+          action: "admin.profile_provisioning_failed",
+          accountId: existing._id,
+          occurredAt: Date.now(),
+          after: JSON.stringify({ error: "inconsistent_profile_reference" }),
+        });
+        return { ...accountState(existing), profileId: null };
+      }
+    }
     return accountState(existing);
   }
 
@@ -148,10 +177,15 @@ export async function ensureGoogleApplicationAccount(
       status: isAdmin ? "active" : "pending",
     }),
   });
-  return {
-    customerId,
-    role: isAdmin ? "admin" : "customer",
-    status: isAdmin ? "active" : "pending",
-    profileId: null,
-  };
+  if (isAdmin) {
+    const ensured = await ensureAdminPersonalProfile(ctx, {
+      customerId,
+      actorUserId: args.userId,
+      actorLabel: email,
+      initialName: displayName,
+      email,
+    });
+    return { customerId, role: "admin", status: "active", profileId: ensured.profileId };
+  }
+  return { customerId, role: "customer", status: "pending", profileId: null };
 }

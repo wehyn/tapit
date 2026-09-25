@@ -97,10 +97,9 @@ function DemoProfileEditor() {
     [],
   );
   const errors = useMemo(() => {
-    const customer =
-      session?.role === "customer"
-        ? state.customers.find((candidate) => candidate.email === session.email)
-        : undefined;
+    const customer = session
+      ? state.customers.find((candidate) => candidate.email === session.email)
+      : undefined;
     const lifecycleErrors = validatePublicationAccess(
       profile.status,
       customer?.status,
