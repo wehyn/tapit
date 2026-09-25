@@ -34,6 +34,7 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(desktopNavigation.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
