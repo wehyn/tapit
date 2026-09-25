@@ -3,7 +3,7 @@
 import { ConvexAuthNextjsProvider } from "@convex-dev/auth/nextjs";
 import { ConvexAuthProvider, useConvexAuth } from "@convex-dev/auth/react";
 import { ConvexReactClient, useQuery } from "convex/react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useSyncExternalStore } from "react";
 import { Suspense, type ReactNode } from "react";
 
@@ -39,7 +39,6 @@ export function LiveProviders({ children }: { children: ReactNode }) {
 function AuthBoundary({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const hydrated = useSyncExternalStore(
@@ -47,29 +46,34 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     getClientHydrationSnapshot,
     getServerHydrationSnapshot,
   );
-  const isProtectedPage = pathname.startsWith("/app") || pathname.startsWith("/admin");
-  const isPasswordResetPage = pathname === "/login" && searchParams.get("reset") === "1";
-  const hasReturnPath = pathname === "/login" && searchParams.has("next");
+  const isProtectedPage =
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/onboarding");
+  const isSetupPage = pathname.startsWith("/setup/");
   const accessLoading = isAuthenticated && access === undefined;
   let redirectPath: string | null = null;
 
   if (!authLoading && !accessLoading) {
     if (isProtectedPage && !isAuthenticated) {
       redirectPath = `/login?next=${encodeURIComponent(pathname)}`;
+    } else if (!isAuthenticated || isSetupPage) {
+      redirectPath = null;
+    } else if (access?.accountStatus === "pending") {
+      redirectPath = pathname === "/onboarding" ? null : "/onboarding";
+    } else if (access?.accountStatus === "invited") {
+      redirectPath = pathname === "/login" ? null : "/login?reason=invitation-required";
+    } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
+      redirectPath = pathname === "/login" ? null : "/login?reason=account-inactive";
     } else if (isProtectedPage && access?.authenticated !== true) {
-      redirectPath = "/login";
+      redirectPath = `/login?next=${encodeURIComponent(pathname)}`;
     } else if (isProtectedPage) {
       const requiredRole = pathname.startsWith("/admin") ? "admin" : "customer";
       if (access?.role !== requiredRole) {
         redirectPath = access?.role === "admin" ? "/admin/customers" : "/app/profile";
       }
-    } else if (
-      pathname === "/login" &&
-      access?.authenticated === true &&
-      !isPasswordResetPage &&
-      !hasReturnPath
-    ) {
-      redirectPath = access.role === "admin" ? "/admin/customers" : "/app/profile";
+    } else if (pathname === "/login" && access?.accountStatus === "active") {
+      redirectPath = access.role === "admin" ? "/admin" : "/app/profile";
     }
   }
 

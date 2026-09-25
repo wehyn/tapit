@@ -53,7 +53,13 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     email: v.string(),
     role: v.union(v.literal("customer"), v.literal("admin")),
-    status: v.union(v.literal("invited"), v.literal("active"), v.literal("deleted")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("invited"),
+      v.literal("active"),
+      v.literal("deleted"),
+    ),
+    onboardingName: v.optional(v.string()),
     profileId: v.optional(v.id("profiles")),
     deletionStatus: v.union(v.literal("active"), v.literal("requested"), v.literal("deleted")),
     deletionRequestedAt: v.optional(v.number()),
@@ -64,7 +70,8 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_role", ["role"])
     .index("by_scope", ["scope"])
-    .index("by_scope_and_role", ["scope", "role"]),
+    .index("by_scope_and_role", ["scope", "role"])
+    .index("by_scope_and_status", ["scope", "status"]),
   profiles: defineTable({
     scope: v.optional(v.literal("demo")),
     ownerId: v.id("customers"),
@@ -340,8 +347,9 @@ export default defineSchema({
     customerId: v.id("customers"),
     email: v.string(),
     tokenHash: v.string(),
-    expiresAt: v.number(),
+    expiresAt: v.optional(v.number()),
     usedAt: v.optional(v.number()),
+    acceptedAt: v.optional(v.number()),
     invalidatedAt: v.optional(v.number()),
     createdByUserId: v.id("users"),
     createdAt: v.number(),

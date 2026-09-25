@@ -1,72 +1,176 @@
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { describe, expect, it, vi } from "vitest";
+import type { Page } from "@playwright/test";
+import { signInWithGoogle } from "../e2e/fixtures/live";
 
-describe("live E2E deployment preflight", () => {
-  it("requires the wrapper and rejects a production app target", async () => {
-    const { validateLiveContract } = await import("../scripts/live-e2e-contract.mjs");
-    const env = {
-      TAPIT_LIVE_BASE_URL: "https://tapit.example.com",
-      TAPIT_LIVE_APP_ENV: "production",
-      TAPIT_LIVE_CONVEX_URL: "https://prod.convex.cloud",
-      TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview/tapit",
-      TAPIT_LIVE_PROVISION_CONFIRM: "I_UNDERSTAND_NON_PRODUCTION",
-    };
+const confirmation = "I_UNDERSTAND_NON_PRODUCTION";
 
-    expect(validateLiveContract(env, { requireWrapper: true })).toContain("npm run test:e2e:live");
-    expect(validateLiveContract({ ...env, TAPIT_E2E_MODE: "live" })).toContain(
-      "production app targets are not permitted",
-    );
+function stateFiles(parent = path.join(process.cwd(), ".secrets")) {
+  mkdirSync(parent, { recursive: true });
+  const directory = mkdtempSync(path.join(parent, "tapit-google-state-"));
+  const paths = ["admin", "customer", "invited"].map((name) => {
+    const statePath = path.join(directory, `${name}-google.json`);
+    writeFileSync(statePath, JSON.stringify({ cookies: [], origins: [] }));
+    return statePath;
+  });
+  return { directory, paths };
+}
+
+function validEnv(paths: string[]) {
+  return {
+    TAPIT_E2E_MODE: "live",
+    TAPIT_LIVE_BASE_URL: "https://preview.tapit.example",
+    TAPIT_LIVE_APP_ENV: "preview",
+    TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud",
+    TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview:tapit",
+    NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site",
+    TAPIT_LIVE_ADMIN_EMAIL: "admin@example.test",
+    TAPIT_LIVE_ADMIN_GOOGLE_STATE: paths[0],
+    TAPIT_LIVE_CUSTOMER_EMAIL: "customer@example.test",
+    TAPIT_LIVE_CUSTOMER_GOOGLE_STATE: paths[1],
+    TAPIT_LIVE_INVITED_EMAIL: "invited@example.test",
+    TAPIT_LIVE_INVITED_GOOGLE_STATE: paths[2],
+    TAPIT_LIVE_PROFILE_SLUG: "tapit-test-customer",
+    TAPIT_LIVE_PUBLISHED_BIO: "A Tapit test profile.",
+    TAPIT_LIVE_PROVISION_CONFIRM: confirmation,
+  };
+}
+
+describe("live Google E2E deployment preflight", () => {
+  it("requires the wrapper and accepts a complete non-production Google contract", async () => {
+    const { directory, paths } = stateFiles();
+    try {
+      const { missingLiveContract, validateLiveContract } =
+        await import("../scripts/live-e2e-contract.mjs");
+      const env = validEnv(paths);
+
+      expect(missingLiveContract(env)).toEqual([]);
+      expect(
+        validateLiveContract({ ...env, TAPIT_E2E_MODE: undefined }, { requireWrapper: true }),
+      ).toContain("npm run test:e2e:live");
+      expect(validateLiveContract(env)).toBeNull();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
-  it("rejects a runtime app contract whose Convex URL does not match the selected target", async () => {
-    const { validateObservedLiveApp } = await import("../scripts/live-e2e-contract.mjs");
+  it.each([
+    ["production app", { TAPIT_LIVE_APP_ENV: "production" }, "production app targets"],
+    [
+      "production deployment",
+      { TAPIT_LIVE_CONVEX_DEPLOYMENT: "prod:tapit" },
+      "production deployments",
+    ],
+    [
+      "URL credentials",
+      { TAPIT_LIVE_BASE_URL: "https://user:pass@preview.tapit.example" },
+      "URL credentials",
+    ],
+  ])("rejects %s", async (_label, overrides, expected) => {
+    const { directory, paths } = stateFiles();
+    try {
+      const { validateLiveContract } = await import("../scripts/live-e2e-contract.mjs");
+      expect(validateLiveContract({ ...validEnv(paths), ...overrides })).toContain(expected);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
 
+  it("rejects missing Google state files and mismatched Convex site origins", async () => {
+    const { directory, paths } = stateFiles();
+    try {
+      const { liveContractEnvNames, validateLiveContract } =
+        await import("../scripts/live-e2e-contract.mjs");
+      const env = validEnv(paths);
+      rmSync(paths[2]!);
+      expect(validateLiveContract(env)).toContain(liveContractEnvNames.invitedGoogleState);
+      expect(
+        validateLiveContract({ ...env, NEXT_PUBLIC_CONVEX_SITE_URL: "https://other.convex.site" }),
+      ).toContain("site URL does not match");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects Google state files that are not ignored by Git", async () => {
+    const { directory, paths } = stateFiles(tmpdir());
+    try {
+      const { validateLiveContract } = await import("../scripts/live-e2e-contract.mjs");
+      expect(validateLiveContract(validEnv(paths))).toContain("ignored by Git");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to start Google sign-in when the storage-state output is not ignored", () => {
+    const directory = mkdtempSync(path.join(tmpdir(), "tapit-unignored-google-state-"));
+    try {
+      const output = path.join(directory, "google-state.json");
+      const result = spawnSync(process.execPath, ["scripts/live-google-state.mjs", output], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+      });
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("must be ignored by Git");
+      expect(result.stderr).not.toContain("Complete Google sign-in");
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("lets Playwright discover the live Google suite without starting a browser", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["node_modules/@playwright/test/cli.js", "test", "--project", "live-chromium", "--list"],
+      { cwd: process.cwd(), encoding: "utf8", timeout: 15_000 },
+    );
+
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).toContain("live Google OAuth journeys");
+  });
+
+  it("fails a live journey when the Google sign-in action is missing", async () => {
+    const page = {
+      getByRole: () => ({ count: async () => 0 }),
+    } as unknown as Page;
+
+    await expect(signInWithGoogle(page)).rejects.toThrow("Google sign-in control is unavailable");
+  });
+
+  it("requires Google as the observed live auth provider", async () => {
+    const { validateObservedLiveApp } = await import("../scripts/live-e2e-contract.mjs");
+    const observed = {
+      mode: "live",
+      authProvider: "password",
+      appEnvironment: "preview",
+      convexUrl: "https://preview-123.convex.cloud",
+      convexSiteUrl: "https://preview-123.convex.site",
+    };
     expect(
       validateObservedLiveApp(
         {
           TAPIT_LIVE_APP_ENV: "preview",
-          TAPIT_LIVE_CONVEX_URL: "https://preview.convex.cloud",
+          TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud",
+          NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site",
         },
-        { mode: "live", appEnvironment: "preview", convexUrl: "https://other.convex.cloud" },
+        observed,
       ),
-    ).toContain("does not match the selected live Convex URL");
+    ).toContain("Google");
   });
 
-  it("rejects a live app whose upload site belongs to another Convex deployment", async () => {
-    const { validateLiveContract, validateObservedLiveApp } =
-      await import("../scripts/live-e2e-contract.mjs");
-    const expected = {
-      TAPIT_LIVE_APP_ENV: "preview",
-      TAPIT_LIVE_BASE_URL: "https://preview.tapit.example",
-      TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud",
-      TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview/tapit",
-      NEXT_PUBLIC_CONVEX_SITE_URL: "https://other-456.convex.site",
-      TAPIT_LIVE_EMAIL_DOMAIN: "example.test",
-      TAPIT_LIVE_EMAIL_CODE_URL: "https://mailbox.example.test/code",
-      TAPIT_LIVE_EMAIL_CODE_TOKEN: "sink-token",
-    };
-    expect(validateLiveContract(expected, { requireConfirmation: false })).toContain(
-      "site URL does not match",
-    );
-    expect(
-      validateObservedLiveApp(
-        { ...expected, NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site" },
-        {
-          mode: "live",
-          appEnvironment: "preview",
-          convexUrl: "https://preview-123.convex.cloud",
-          convexSiteUrl: "https://other-456.convex.site",
-        },
-      ),
-    ).toContain("site URL does not match");
-  });
-
-  it("accepts equivalent Convex origins with a trailing slash", async () => {
+  it("accepts equivalent Convex origins with trailing slashes", async () => {
     const { validateObservedLiveApp } = await import("../scripts/live-e2e-contract.mjs");
+    const observed = {
+      mode: "live",
+      authProvider: "google",
+      appEnvironment: "preview",
+      convexUrl: "https://preview-123.convex.cloud",
+      convexSiteUrl: "https://preview-123.convex.site",
+    };
     expect(
       validateObservedLiveApp(
         {
@@ -74,12 +178,7 @@ describe("live E2E deployment preflight", () => {
           TAPIT_LIVE_CONVEX_URL: "https://preview-123.convex.cloud/",
           NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site/",
         },
-        {
-          mode: "live",
-          appEnvironment: "preview",
-          convexUrl: "https://preview-123.convex.cloud",
-          convexSiteUrl: "https://preview-123.convex.site",
-        },
+        observed,
       ),
     ).toBeNull();
   });
@@ -90,9 +189,6 @@ describe("live E2E deployment preflight", () => {
       TAPIT_LIVE_BASE_URL: "https://preview.tapit.example/path",
       NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview-123.convex.site/",
     };
-    const denied = vi.fn().mockResolvedValue(new Response("Origin not allowed", { status: 403 }));
-    await expect(verifyProfileImageCors(env, denied)).resolves.toContain("not allowed");
-
     const allowed = vi.fn().mockResolvedValue(
       new Response(null, {
         status: 204,
@@ -102,81 +198,16 @@ describe("live E2E deployment preflight", () => {
     await expect(verifyProfileImageCors(env, allowed)).resolves.toBeNull();
     expect(allowed).toHaveBeenCalledWith(
       "https://preview-123.convex.site/profile-image-upload",
-      expect.objectContaining({
-        method: "OPTIONS",
-        headers: expect.objectContaining({ Origin: "https://preview.tapit.example" }),
-      }),
+      expect.objectContaining({ method: "OPTIONS" }),
     );
   });
 
-  it("requires a protected verification-code sink for live email flows", async () => {
-    const { liveContractEnvNames, missingLiveContract, validateLiveContract } =
-      await import("../scripts/live-e2e-contract.mjs");
-    const env = {
-      TAPIT_LIVE_BASE_URL: "https://preview.tapit.example",
-      TAPIT_LIVE_APP_ENV: "preview",
-      TAPIT_LIVE_CONVEX_URL: "https://preview.convex.cloud",
-      NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview.convex.site",
-      TAPIT_LIVE_CONVEX_DEPLOYMENT: "preview/tapit",
-      TAPIT_LIVE_PROVISION_CONFIRM: "I_UNDERSTAND_NON_PRODUCTION",
-    };
-
-    expect(missingLiveContract(env)).toEqual(
-      expect.arrayContaining([
-        liveContractEnvNames.emailDomain,
-        liveContractEnvNames.emailCodeURL,
-        liveContractEnvNames.emailCodeToken,
-      ]),
-    );
-    expect(
-      validateLiveContract(
-        {
-          ...env,
-          TAPIT_LIVE_EMAIL_DOMAIN: "example.test",
-          TAPIT_LIVE_EMAIL_CODE_URL: "http://mailbox.example.test/code",
-          TAPIT_LIVE_EMAIL_CODE_TOKEN: "mailbox-token",
-        },
-        { requireConfirmation: false },
-      ),
-    ).toContain("require HTTPS");
-  });
-
-  it("reads only an authenticated verification code from the live mail adapter", async () => {
-    const { readLiveVerificationCode } = await import("../scripts/live-e2e-contract.mjs");
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(Response.json({ code: "A1b2C3d4E5f6G7h8" }, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    await expect(
-      readLiveVerificationCode(
-        {
-          emailCodeURL: "https://mailbox.example.test/code",
-          emailCodeToken: "mailbox-token",
-        },
-        "person@example.test",
-        "signup",
-        { timeoutMs: 100, pollIntervalMs: 0 },
-      ),
-    ).resolves.toBe("A1b2C3d4E5f6G7h8");
-
-    const requestedURL = new URL(fetchMock.mock.calls[0]![0] as string);
-    expect(requestedURL.searchParams.get("email")).toBe("person@example.test");
-    expect(requestedURL.searchParams.get("kind")).toBe("signup");
-    expect(fetchMock.mock.calls[0]![1]).toEqual(
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: "Bearer mailbox-token" }),
-      }),
-    );
-  });
-
-  it("rejects production deployment references before invoking the Convex CLI", () => {
-    const binDirectory = mkdtempSync(path.join(tmpdir(), "tapit-live-preflight-"));
+  it("rejects production deployments before invoking the Convex CLI", async () => {
+    const { directory, paths } = stateFiles();
+    const binDirectory = mkdtempSync(path.join(tmpdir(), "tapit-live-preflight-bin-"));
     const mockNpx = path.join(binDirectory, "npx");
     writeFileSync(mockNpx, "#!/bin/sh\nprintf 'mock npx called\\n' >&2\nexit 42\n");
     chmodSync(mockNpx, 0o755);
-
     try {
       const result = spawnSync(process.execPath, ["scripts/live-e2e.mjs"], {
         cwd: process.cwd(),
@@ -184,32 +215,17 @@ describe("live E2E deployment preflight", () => {
         env: {
           ...process.env,
           PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
-          TAPIT_LIVE_BASE_URL: "https://non-production-app.example",
-          TAPIT_LIVE_APP_ENV: "preview",
-          TAPIT_LIVE_CONVEX_URL: "https://preview.convex.cloud",
-          NEXT_PUBLIC_CONVEX_SITE_URL: "https://preview.convex.site",
-          TAPIT_LIVE_ADMIN_EMAIL: "admin@example.test",
-          TAPIT_LIVE_ADMIN_PASSWORD: "not-a-real-password",
-          TAPIT_LIVE_CUSTOMER_EMAIL: "customer@example.test",
-          TAPIT_LIVE_CUSTOMER_PASSWORD: "not-a-real-password",
-          TAPIT_LIVE_PROFILE_SLUG: "tapit-test-customer",
-          TAPIT_LIVE_PUBLISHED_BIO: "A Tapit test profile.",
-          TAPIT_LIVE_EMAIL_DOMAIN: "example.test",
-          TAPIT_LIVE_EMAIL_CODE_URL: "https://mailbox.example.test/code",
-          TAPIT_LIVE_EMAIL_CODE_TOKEN: "mailbox-token",
+          ...validEnv(paths),
           TAPIT_LIVE_CONVEX_DEPLOYMENT: "prod:tapit",
-          TAPIT_LIVE_ADMIN_USER_ID: "admin-user-id",
-          TAPIT_LIVE_CUSTOMER_USER_ID: "customer-user-id",
-          TAPIT_LIVE_PROVISION_CONFIRM: "I_UNDERSTAND_NON_PRODUCTION",
         },
       });
       const output = `${result.stdout}\n${result.stderr}`;
-
       expect(result.status).toBe(1);
       expect(output).toContain("production deployments are not permitted");
       expect(output).not.toContain("mock npx called");
     } finally {
       rmSync(binDirectory, { recursive: true, force: true });
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 });

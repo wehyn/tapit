@@ -10,7 +10,10 @@ function demoProxy(request: NextRequest) {
 const authProxy = convexAuthNextjsMiddleware(
   async (request, { convexAuth }) => {
     const pathname = request.nextUrl.pathname;
-    const protectedRoute = pathname.startsWith("/app") || pathname.startsWith("/admin");
+    const protectedRoute =
+      pathname.startsWith("/app") ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/onboarding");
     if (protectedRoute && !(await convexAuth.isAuthenticated())) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
@@ -26,5 +29,5 @@ export function proxy(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  matcher: ["/api/auth", "/api/auth/:path*", "/app/:path*", "/admin/:path*"],
+  matcher: ["/api/auth", "/api/auth/:path*", "/app/:path*", "/admin/:path*", "/onboarding/:path*"],
 };

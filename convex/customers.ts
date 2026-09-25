@@ -1,9 +1,16 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 
 import { internalQuery, mutation, query } from "./_generated/server";
-import { isHostedDemo, requireAdministrator, requireUser, sameScope } from "./admin";
+import {
+  isActiveCustomer,
+  isHostedDemo,
+  requireAdministrator,
+  requireUser,
+  sameScope,
+} from "./admin";
 import schema from "./schema";
 import { deleteProfileImages } from "./profileImages";
 import {
@@ -12,6 +19,7 @@ import {
   validateProfileSlugValue,
 } from "./validators";
 import { components } from "./components";
+import { allocateProfileSlug } from "./profileSlug";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -22,13 +30,13 @@ const emptyProfile = (slug: string) => ({
 const signupLimiter = new RateLimiter(components.rateLimiter, {
   selfServiceSignup: { kind: "fixed window", rate: 3, period: HOUR },
 });
+const authEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export const createCustomer = mutation({
   args: {
     email: v.string(),
-    slug: v.string(),
+    slug: v.optional(v.string()),
     tokenHash: v.string(),
-    expiresAt: v.number(),
     name: v.optional(v.string()),
     bio: v.optional(v.string()),
     theme: v.optional(profileThemeValidator),
@@ -42,7 +50,7 @@ export const createCustomer = mutation({
     const { userId, account } = await requireAdministrator(ctx);
     const scope = account.scope;
     const email = args.email.trim().toLowerCase();
-    const slug = normalizeProfileSlug(args.slug);
+    const slug = await allocateProfileSlug(ctx, email, args.slug);
     if (!email || !email.includes("@")) throw new Error("A valid customer email is required.");
     const slugError = validateProfileSlugValue(slug);
     if (slugError !== null) throw new Error(slugError);
@@ -58,8 +66,6 @@ export const createCustomer = mutation({
       .withIndex("by_slug", (query) => query.eq("slug", slug))
       .unique();
     if (duplicateSlug !== null) throw new Error("That profile slug is already registered.");
-    if (args.expiresAt <= Date.now())
-      throw new Error("The invitation expiry must be in the future.");
     const duplicateToken = await ctx.db
       .query("invitations")
       .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
@@ -97,7 +103,7 @@ export const createCustomer = mutation({
       customerId,
       email,
       tokenHash: args.tokenHash,
-      expiresAt: args.expiresAt,
+      acceptedAt: undefined,
       createdByUserId: userId,
       createdAt: now,
     });
@@ -125,6 +131,8 @@ export const createSelfServiceAccount = mutation({
   }),
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
+    if (!isHostedDemo())
+      throw new Error("Self-service account creation is available only in hosted demo.");
     const user = await ctx.db.get(userId);
     if (!isHostedDemo() && user?.emailVerificationTime === undefined)
       throw new Error("Email verification required.");
@@ -203,6 +211,204 @@ export const createSelfServiceAccount = mutation({
   },
 });
 
+export const completeSelfServiceOnboarding = mutation({
+  args: { name: v.string() },
+  returns: v.object({
+    customerId: v.id("customers"),
+    profileId: v.id("profiles"),
+    slug: v.string(),
+  }),
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const user = await ctx.db.get(userId);
+    const email = user?.email?.trim().toLowerCase();
+    if (user?.emailVerificationTime === undefined)
+      throw new Error("A server-verified Google email is required.");
+    if (email === undefined || !authEmailPattern.test(email))
+      throw new Error("A valid authenticated email is required.");
+    const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
+      key: `onboarding:${userId}`,
+    });
+    if (!limit.ok) throw new Error("Too many account creation attempts. Try again later.");
+    const customer = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (customer === null || customer.role !== "customer")
+      throw new Error("Pending customer account required.");
+    if (customer.status === "active" && customer.profileId !== undefined) {
+      const profile = await ctx.db.get(customer.profileId);
+      if (profile !== null)
+        return { customerId: customer._id, profileId: profile._id, slug: profile.slug };
+    }
+    if (customer.status !== "pending" || customer.profileId !== undefined)
+      throw new Error("Pending customer account required.");
+    const name = args.name.trim();
+    if (name.length === 0) throw new Error("A nonblank profile name is required.");
+    if (name.length > 120) throw new Error("The profile name is too long.");
+    const slug = await allocateProfileSlug(ctx, name);
+    const now = Date.now();
+    const profileId = await ctx.db.insert("profiles", {
+      ownerId: customer._id,
+      slug,
+      status: "draft",
+      draft: { name, slug, email, links: [] },
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(customer._id, {
+      profileId,
+      status: "active",
+      onboardingName: name,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: email,
+      action: "customer.onboarding_completed",
+      accountId: customer._id,
+      profileId,
+      occurredAt: now,
+      after: JSON.stringify({ slug }),
+    });
+    return { customerId: customer._id, profileId, slug };
+  },
+});
+
+export const deletePendingAccount = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const customer = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (customer === null || customer.status !== "pending" || customer.profileId !== undefined)
+      throw new Error("Pending account without a profile required.");
+    const now = Date.now();
+    await ctx.db.patch(customer._id, {
+      status: "deleted",
+      deletionStatus: "deleted",
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email,
+      action: "account.pending_deleted",
+      accountId: customer._id,
+      occurredAt: now,
+      before: "pending",
+      after: "deleted",
+    });
+    return null;
+  },
+});
+
+export const acceptInvitation = mutation({
+  args: { tokenHash: v.string() },
+  returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const user = await ctx.db.get(userId);
+    const email = user?.email?.trim().toLowerCase();
+    if (user?.emailVerificationTime === undefined)
+      throw new Error("A server-verified Google email is required.");
+    if (email === undefined || !authEmailPattern.test(email))
+      throw new Error("A valid authenticated email is required.");
+    const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
+      key: `invitation:${userId}:${args.tokenHash}`,
+    });
+    if (!limit.ok) throw new Error("Too many invitation attempts. Try again later.");
+    const invitation = await ctx.db
+      .query("invitations")
+      .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
+      .unique();
+    if (
+      invitation === null ||
+      invitation.invalidatedAt !== undefined ||
+      (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
+    )
+      throw new Error("This invitation is invalid or expired.");
+    if (email === undefined || email !== invitation.email.trim().toLowerCase())
+      throw new Error("This authenticated account does not match the invitation email.");
+    const customer = await ctx.db.get(invitation.customerId);
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.deletionStatus !== "active" ||
+      !sameScope(customer, invitation)
+    )
+      throw new Error("Customer account unavailable.");
+    if (customer.status !== "invited" && customer.status !== "active")
+      throw new Error("Customer account unavailable.");
+    if (customer.userId !== undefined && customer.userId !== userId)
+      throw new Error("This invitation is linked to another user.");
+    const linked = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (linked !== null && linked._id !== customer._id)
+      throw new Error("This authenticated account is already linked to another customer.");
+    const now = Date.now();
+    await ctx.db.patch(customer._id, { userId, status: "active", updatedAt: now });
+    if (invitation.acceptedAt === undefined)
+      await ctx.db.patch(invitation._id, { acceptedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email,
+      action: "invitation.accepted",
+      accountId: customer._id,
+      profileId: customer.profileId,
+      occurredAt: now,
+      after: "active",
+    });
+    return { profileId: customer.profileId ?? null };
+  },
+});
+
+export const setRole = mutation({
+  args: { customerId: v.id("customers"), role: v.union(v.literal("customer"), v.literal("admin")) },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const target = await ctx.db.get(args.customerId);
+    if (target === null || !sameScope(account, target) || !isActiveCustomer(target))
+      throw new Error("Customer account unavailable.");
+    if (target.role === args.role) return null;
+    if (target.role === "admin" && args.role === "customer") {
+      let anotherActiveAdministrator = false;
+      for await (const admin of ctx.db
+        .query("customers")
+        .withIndex("by_scope_and_role", (q) => q.eq("scope", account.scope).eq("role", "admin"))) {
+        if (admin._id !== target._id && isActiveCustomer(admin)) {
+          anotherActiveAdministrator = true;
+          break;
+        }
+      }
+      if (!anotherActiveAdministrator)
+        throw new Error("Cannot remove the last active administrator.");
+    }
+    const now = Date.now();
+    await ctx.db.patch(target._id, { role: args.role, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: target.scope,
+      actorUserId: userId,
+      actorLabel: account.email,
+      action: "customer.role_changed",
+      accountId: target._id,
+      profileId: target.profileId,
+      occurredAt: now,
+      before: target.role,
+      after: args.role,
+    });
+    return null;
+  },
+});
+
 export const completeSetup = mutation({
   args: {
     customerId: v.optional(v.id("customers")),
@@ -210,6 +416,7 @@ export const completeSetup = mutation({
   },
   returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
   handler: async (ctx, args) => {
+    if (!isHostedDemo()) throw new Error("Legacy setup is available only in hosted demo.");
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
     if (!isHostedDemo() && user?.emailVerificationTime === undefined)
@@ -220,9 +427,8 @@ export const completeSetup = mutation({
       .unique();
     if (
       invitation === null ||
-      invitation.usedAt !== undefined ||
       invitation.invalidatedAt !== undefined ||
-      invitation.expiresAt <= Date.now()
+      (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
     ) {
       throw new Error("This setup link is invalid or has expired.");
     }
@@ -248,23 +454,29 @@ export const completeSetup = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(invitation._id, { usedAt: now });
+    const shouldRecordAcceptance = invitation.acceptedAt == null;
+    const shouldRecordLink = customer.userId !== userId || customer.status !== "active";
     await ctx.db.patch(customer._id, {
       userId,
       scope: invitation.scope,
       status: "active",
       updatedAt: now,
     });
-    await ctx.db.insert("auditLogs", {
-      scope: customer.scope,
-      actorUserId: userId,
-      actorLabel: customer.email,
-      action: "customer.setup_completed",
-      accountId: customer._id,
-      profileId: customer.profileId,
-      occurredAt: now,
-      after: "active",
-    });
+    if (shouldRecordAcceptance) {
+      await ctx.db.patch(invitation._id, { acceptedAt: now });
+    }
+    if (shouldRecordLink || shouldRecordAcceptance) {
+      await ctx.db.insert("auditLogs", {
+        scope: customer.scope,
+        actorUserId: userId,
+        actorLabel: customer.email,
+        action: "customer.setup_completed",
+        accountId: customer._id,
+        profileId: customer.profileId,
+        occurredAt: now,
+        after: "active",
+      });
+    }
     return { profileId: customer.profileId ?? null };
   },
 });
@@ -295,20 +507,22 @@ export const byIdForAdmin = internalQuery({
 });
 
 export const list = query({
-  args: { search: v.optional(v.string()) },
-  returns: v.array(schema.doc("customers")),
+  args: { search: v.optional(v.string()), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("customers")),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const search = args.search?.trim().toLowerCase();
     const customers = await ctx.db
       .query("customers")
-      .withIndex("by_scope_and_role", (query) =>
-        query.eq("scope", account.scope).eq("role", "customer"),
-      )
-      .take(100);
-    return search === undefined || search.length === 0
-      ? customers
-      : customers.filter((customer) => customer.email.includes(search));
+      .withIndex("by_scope", (query) => query.eq("scope", account.scope))
+      .paginate(args.paginationOpts);
+    return {
+      ...customers,
+      page:
+        search === undefined || search.length === 0
+          ? customers.page
+          : customers.page.filter((customer) => customer.email.includes(search)),
+    };
   },
 });
 
@@ -384,26 +598,29 @@ export const requestDeletion = mutation({
 });
 
 export const listDeletionRequests = query({
-  args: {},
-  returns: v.array(
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
     v.object({
       request: schema.doc("deletionRequests"),
       customer: v.union(v.null(), schema.doc("customers")),
     }),
   ),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const requests = await ctx.db
       .query("deletionRequests")
       .withIndex("by_scope", (query) => query.eq("scope", account.scope))
       .order("desc")
-      .take(100);
-    return await Promise.all(
-      requests.map(async (request) => ({
-        request,
-        customer: await ctx.db.get(request.customerId),
-      })),
-    );
+      .paginate(args.paginationOpts);
+    return {
+      ...requests,
+      page: await Promise.all(
+        requests.page.map(async (request) => ({
+          request,
+          customer: await ctx.db.get(request.customerId),
+        })),
+      ),
+    };
   },
 });
 

@@ -12,7 +12,6 @@ import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
-import type * as authEmail from "../authEmail.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as cardClaims from "../cardClaims.js";
 import type * as cards from "../cards.js";
@@ -43,7 +42,6 @@ declare const fullApi: ApiFromModules<{
   analytics: typeof analytics;
   audit: typeof audit;
   auth: typeof auth;
-  authEmail: typeof authEmail;
   bootstrap: typeof bootstrap;
   cardClaims: typeof cardClaims;
   cards: typeof cards;

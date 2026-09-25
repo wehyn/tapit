@@ -6,6 +6,7 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 
 import { AuthShell, type AuthMode } from "@/components/auth/AuthShell";
+import { GoogleLoginForm } from "@/components/auth/GoogleLoginForm";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -20,39 +21,38 @@ import {
 import { normalizeProfileSlug, validateProfileSlug } from "@/lib/domain";
 import { validateSignupInput, type SignupFormValues } from "@/lib/auth/signup";
 import { api } from "../../../convex/_generated/api";
+import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
-export function sanitizeReturnPath(value: string | string[] | undefined): string | undefined {
-  if (typeof value !== "string" || value.length === 0 || !value.startsWith("/")) return undefined;
-  if (
-    value.startsWith("//") ||
-    value.includes("\\") ||
-    /[\u0000-\u001f\u007f]/.test(value) ||
-    /%(?![0-9a-fA-F]{2})/.test(value)
-  )
-    return undefined;
-  try {
-    const parsed = new URL(value, "https://tapit.invalid");
-    return parsed.origin === "https://tapit.invalid" ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
+export { sanitizeReturnPath } from "@/lib/auth/return-path";
 
 export function LoginForm({
   nextPath,
   initialMode = "signin",
   resetEmail,
+  oauthError,
+  reason,
 }: {
   nextPath?: string;
   initialMode?: AuthMode;
   resetEmail?: string;
+  oauthError?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  return isLocalDemoMode() ? (
-    <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />
-  ) : (
-    <LiveLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} resetEmail={resetEmail} />
-  );
+  if (isLocalDemoMode()) {
+    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />;
+  }
+  if (isHostedDemoMode()) {
+    return (
+      <LiveLoginForm
+        mode={mode}
+        onModeChange={setMode}
+        nextPath={nextPath}
+        resetEmail={resetEmail}
+      />
+    );
+  }
+  return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} reason={reason} />;
 }
 
 function DemoLoginForm({
@@ -148,6 +148,7 @@ function DemoLoginForm({
     <AuthShell
       demoHint
       mode={mode}
+      variant="demo"
       modeChangeDisabled={submitting}
       onModeChange={onModeChange}
       supportUrl={state.supportUrl}
@@ -511,7 +512,12 @@ function LiveLoginForm({
     mode === "signup" && slug ? { slug } : "skip",
   );
   return (
-    <AuthShell mode={mode} modeChangeDisabled={submitting} onModeChange={changeMode}>
+    <AuthShell
+      mode={mode}
+      modeChangeDisabled={submitting}
+      onModeChange={changeMode}
+      variant="hosted-demo"
+    >
       {loading && mode === "signin" && authStep === "form" ? (
         <p className="text-sm text-tapit-muted">Checking your session…</p>
       ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (

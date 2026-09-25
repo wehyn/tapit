@@ -297,31 +297,16 @@ function LiveAccountSettings() {
           </div>
         </dl>
       </Panel>
-      <Panel
-        description="Password changes use the configured Convex Auth provider."
-        title="Change password"
-      >
-        {hostedDemo ? (
+      {hostedDemo ? (
+        <Panel
+          description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
+          title="Hosted demo access"
+        >
           <div className="mt-5">
-            <Notice>
-              Password reset email delivery is disabled in hosted demo mode. Keep using the password
-              created through your setup link.
-            </Notice>
+            <Notice>Password reset email delivery is disabled in hosted demo mode.</Notice>
           </div>
-        ) : (
-          <>
-            <p className="mt-5 text-sm leading-6 text-tapit-muted">
-              Password recovery and password changes are managed by the live authentication flow.
-            </p>
-            <a
-              className="mt-5 inline-flex min-h-12 items-center rounded-tapit bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
-              href={`/login?reset=1&email=${encodeURIComponent(account.email)}`}
-            >
-              Reset password
-            </a>
-          </>
-        )}
-      </Panel>
+        </Panel>
+      ) : null}
       <Panel title="Support">
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
