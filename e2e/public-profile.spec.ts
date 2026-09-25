@@ -2,6 +2,41 @@ import { readFile } from "node:fs/promises";
 
 import { expect, test } from "@playwright/test";
 
+test("mobile identity alignment centers the public profile header", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/mara-velasquez");
+
+  const heading = page.getByRole("heading", { name: "Mara Velasquez" });
+  const bio = page.getByText("Brand systems for independent teams.");
+  const avatar = page.getByRole("img", { name: "Mara Velasquez profile" });
+  const panel = page.getByRole("main").locator("section");
+
+  await expect(heading).toHaveCSS("text-align", "center");
+  await expect(bio).toHaveCSS("text-align", "center");
+  const avatarBox = await avatar.boundingBox();
+  const panelBox = await panel.boundingBox();
+  expect(avatarBox).not.toBeNull();
+  expect(panelBox).not.toBeNull();
+  expect(
+    Math.abs(avatarBox!.x + avatarBox!.width / 2 - (panelBox!.x + panelBox!.width / 2)),
+  ).toBeLessThanOrEqual(2);
+  const devPortal = page.locator("nextjs-portal");
+  if (await devPortal.count()) {
+    await devPortal.evaluate((portal) => {
+      (portal as HTMLElement).style.display = "none";
+    });
+  }
+  await page.screenshot({
+    path: "test-results/public-profile-mobile.png",
+    fullPage: true,
+  });
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.reload();
+  await expect(heading).toHaveCSS("text-align", "left");
+  await expect(bio).toHaveCSS("text-align", "left");
+});
+
 test("direct and active card paths show the same published profile", async ({ page }) => {
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
