@@ -70,6 +70,7 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
     <AppShell
       eyebrow=""
       navGroups={adminNavGroups}
+      pageTitle="Administrator workspace"
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
@@ -132,6 +133,7 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
     <AppShell
       eyebrow=""
       navGroups={adminNavGroups}
+      pageTitle="Administrator workspace"
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
