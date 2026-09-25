@@ -199,7 +199,7 @@ test("administrator can expand audit entries to read account changes", async ({ 
     state.audits.unshift(
       {
         id: "audit-readable-account-created",
-        actor: "bundeharley@gmail.com",
+        actor: "harley@example.test",
         action: "auth.google_account_provisioned",
         target: "harley-albert-buendia",
         occurredAt: "2026-09-25T08:54:00.000Z",
@@ -207,7 +207,7 @@ test("administrator can expand audit entries to read account changes", async ({ 
       },
       {
         id: "audit-readable-onboarding",
-        actor: "bundeharley@gmail.com",
+        actor: "harley@example.test",
         action: "customer.onboarding_completed",
         target: "harley-albert-buendia",
         occurredAt: "2026-09-25T08:55:00.000Z",
@@ -215,7 +215,7 @@ test("administrator can expand audit entries to read account changes", async ({ 
       },
       {
         id: "audit-readable-role-change",
-        actor: "waynegarcia@gmail.com",
+        actor: "admin@example.test",
         action: "customer.role_changed",
         target: "harley-albert-buendia",
         occurredAt: "2026-09-25T08:56:00.000Z",
