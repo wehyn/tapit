@@ -249,5 +249,70 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   ).toBeVisible();
   await expect(customer.getByText("deleted", { exact: true })).toBeVisible();
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("account · deletion approved")).toBeVisible();
+  await expect(page.getByText("Account deletion approved")).toBeVisible();
+});
+
+test("administrator can expand audit entries to read account changes", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByLabel("Customer email").fill("audit-test@example.test");
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  await expect(
+    page.getByText("Customer account created for audit-test@example.test."),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    const rawState = window.localStorage.getItem("tapit:demo-state:v1");
+    if (rawState === null) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(rawState) as {
+      audits: Array<Record<string, string>>;
+    };
+    state.audits.unshift(
+      {
+        id: "audit-readable-account-created",
+        actor: "harley@example.test",
+        action: "auth.google_account_provisioned",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:54:00.000Z",
+        after: JSON.stringify({ role: "customer", status: "pending" }),
+      },
+      {
+        id: "audit-readable-onboarding",
+        actor: "harley@example.test",
+        action: "customer.onboarding_completed",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:55:00.000Z",
+        after: JSON.stringify({ slug: "harley-albert-buendia" }),
+      },
+      {
+        id: "audit-readable-role-change",
+        actor: "admin@example.test",
+        action: "customer.role_changed",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:56:00.000Z",
+        before: "customer",
+        after: "admin",
+      },
+    );
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/admin/audit-log");
+
+  const entry = page.locator("details").filter({ hasText: "Google account created" });
+  await expect(entry).toBeVisible();
+  await expect(entry.getByText("View details")).toBeVisible();
+  await expect(entry).not.toContainText('{"role":"customer","status":"pending"}');
+  await entry.getByText("View details").click();
+  await expect(entry.getByText(/Account role/)).toBeVisible();
+  await expect(entry.getByText(/Not recorded → Customer/)).toBeVisible();
+  await expect(entry.getByText(/Account status/)).toBeVisible();
+  await expect(entry.getByText(/Not recorded → Pending/)).toBeVisible();
+
+  const onboarding = page.locator("details").filter({ hasText: "Customer onboarding completed" });
+  await onboarding.getByText("View details").click();
+  await expect(onboarding.getByText(/Profile slug/)).toBeVisible();
+  await expect(onboarding.getByText(/Not recorded → harley-albert-buendia/)).toBeVisible();
+
+  const roleChange = page.locator("details").filter({ hasText: "Customer role changed" });
+  await roleChange.getByText("View details").click();
+  await expect(roleChange.getByText(/Customer → Administrator/)).toBeVisible();
 });
