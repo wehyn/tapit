@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-25 12:05 Asia/Manila
 
-**Status:** Draft for user review
+**Status:** Revised after Production preflight; provider changes pending exact-target approval
 
 **Scope:** Configure the hosted Production environment for live Google authentication and Convex data while retaining demo mode for local development and E2E.
 
@@ -36,7 +36,9 @@ No application-code change is expected for this cutover. The public deployment c
 - The deployed `main` commit already includes the Google login component and the live Convex provider path.
 - The live runtime is selected at build time by `NEXT_PUBLIC_DEMO_MODE`; the current Production deployment reports `mode=demo`.
 - The Vercel Production environment currently lists `NEXT_PUBLIC_DEMO_MODE`, `NEXT_PUBLIC_DEMO_STORAGE`, and `NEXT_PUBLIC_APP_URL`. It does not list `NEXT_PUBLIC_CONVEX_URL` or `NEXT_PUBLIC_CONVEX_SITE_URL`.
-- Production Convex deployment identity, data state, Google credentials, admin allowlist, and OAuth callback registration still need a read-only preflight. Do not infer their presence from the Vercel project configuration.
+- The matching Convex Production deployment is `giddy-armadillo-255` (`https://giddy-armadillo-255.convex.cloud`, `https://giddy-armadillo-255.convex.site`). Its dashboard reports **Never deployed**, and its environment-variable list is empty. The `users`, `authAccounts`, `customers`, `profiles`, `cards`, and `invitations` tables were confirmed empty in the dashboard.
+- The available Google Cloud account reached its project quota. Google Cloud counts projects pending deletion against that quota until permanent deletion. The user approved dedicating the existing, apparently unused project `sigma-celerity-399507` to Tapit Production OAuth; it has been renamed `Tapit Production OAuth`. The Google Auth Platform consent configuration and a web client with the exact Production origin and callback now exist. The external audience remains in Testing, with only the approved initial administrator added as a test user. Google disables publication until the branding includes an approved public privacy-policy URL. The operator confirmed Wayne Garcia, the Philippines, and `wayneegarcia@gmail.com` as privacy contact. A draft is in `docs/privacy-notice-draft.md`; retention, deletion, and analytics decisions remain open.
+- The controlled initial administrator is `wayneegarcia@gmail.com`, and the approved initial support destination is `mailto:wayneegarcia@gmail.com`.
 
 ## 4. Environment contract
 
@@ -62,9 +64,9 @@ The Google OAuth client must allow the exact Production app origin and callback 
 ## 5. Cutover sequence and safeguards
 
 1. Record the current Production deployment and alias. Record environment-variable names/targets and preserve the prior configuration through the providers' managed settings; do not print or commit secret values. Inspect Convex Production identity and configuration without exposing customer data.
-2. Stop if the Convex target, data state, initial-admin email, OAuth client/callback, or required configuration is missing or ambiguous. Resolve the specific prerequisite before changing the mode flag.
-3. After explicit approval of the concrete Production changes, update only the Vercel Production variables and the matching Convex Production variables. Leave Development and Preview targets untouched.
-4. Trigger a new Production build so the public mode is compiled as live.
+2. Confirm that the Production application and Auth tables are empty or stop for a compatibility assessment. Use the approved dedicated Google Cloud project `sigma-celerity-399507`, configure its OAuth consent branding, and create a Production web client with the exact app origin and Convex callback. Preserve its secret only in provider-managed secret storage. Before public sign-in is offered, approve and publish an accurate privacy notice, link it from the homepage and Google branding, and make the external audience available beyond test users.
+3. After explicit approval naming `giddy-armadillo-255` and the exact variable operations, configure Convex Production and deploy the approved `main` Convex code to that deployment for the first time. Verify the functions, auth issuer, and deployment health before changing Vercel's mode flag. This first backend deployment is part of the cutover, not an existing prerequisite.
+4. After exact-target approval of the Vercel changes, update only Vercel Production variables. Leave Development and Preview targets untouched. Trigger a new Production build from the approved application commit so the public mode is compiled as live.
 5. Verify the new deployment reports `{ "mode": "live", "authProvider": "google", "appEnvironment": "production" }` from `/api/live-contract`, and that `/login` renders `Continue with Google` without the demo password form.
 6. Do not click through the Production OAuth flow as an automated test: the first allowlisted sign-in can create the Production administrator record. The controlled administrator's first sign-in is a separate, deliberate operator action after configuration is confirmed.
 

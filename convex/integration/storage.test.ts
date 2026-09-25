@@ -51,6 +51,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
       role: "customer",
       status: "active",
       deletionStatus: "active",
+      deletionRequestedAt: 1,
       createdAt: 1,
       updatedAt: 1,
     });
@@ -686,7 +687,51 @@ describe("profile image storage", () => {
     });
     const admin = t.withIdentity(identity(data.adminUserId));
     await admin.mutation(api.customers.approveDeletion, { requestId: data.deletionRequestId });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
     await expect(t.run((ctx) => ctx.storage.getUrl(image))).resolves.toBeNull();
+  });
+
+  it("preserves another profile's shared image when deletion is approved", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const image = await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob([pngSignature()], { type: "image/png" }));
+      for (const [profileId, ownerId] of [
+        [data.ownerProfileId, data.ownerCustomerId],
+        [
+          data.otherProfileId,
+          await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (q) => q.eq("userId", data.otherUserId))
+            .unique()
+            .then((row) => row!._id),
+        ],
+      ] as const) {
+        await ctx.db.insert("profileImages", {
+          storageId,
+          profileId,
+          ownerId,
+          contentType: "image/png",
+          size: 8,
+          createdAt: 1,
+        });
+      }
+      return storageId;
+    });
+    const admin = t.withIdentity(identity(data.adminUserId));
+    await admin.mutation(api.customers.approveDeletion, { requestId: data.deletionRequestId });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await expect(t.run((ctx) => ctx.storage.getUrl(image))).resolves.not.toBeNull();
   });
 
   it("rejects stale image revisions and removes both variants as one set", async () => {

@@ -9,6 +9,7 @@
  */
 
 import type * as admin from "../admin.js";
+import type * as accountErasure from "../accountErasure.js";
 import type * as analytics from "../analytics.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
@@ -27,6 +28,7 @@ import type * as profileImageCleanup from "../profileImageCleanup.js";
 import type * as profileImageProcessing from "../profileImageProcessing.js";
 import type * as profileProjection from "../profileProjection.js";
 import type * as profiles from "../profiles.js";
+import type * as retention from "../retention.js";
 import type * as settings from "../settings.js";
 import type * as storage from "../storage.js";
 import type * as validators from "../validators.js";
@@ -39,6 +41,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
+  accountErasure: typeof accountErasure;
   analytics: typeof analytics;
   audit: typeof audit;
   auth: typeof auth;
@@ -57,6 +60,7 @@ declare const fullApi: ApiFromModules<{
   profileImageProcessing: typeof profileImageProcessing;
   profileProjection: typeof profileProjection;
   profiles: typeof profiles;
+  retention: typeof retention;
   settings: typeof settings;
   storage: typeof storage;
   validators: typeof validators;

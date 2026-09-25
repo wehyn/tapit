@@ -151,6 +151,12 @@ export default function HomePage() {
             <Link className="font-medium text-tapit-ink" href="/app/profile">
               Open workspace
             </Link>
+            <Link className="font-medium text-tapit-ink" href="/privacy">
+              Privacy
+            </Link>
+            <Link className="font-medium text-tapit-ink" href="/terms">
+              Terms
+            </Link>
           </div>
         </div>
       </footer>

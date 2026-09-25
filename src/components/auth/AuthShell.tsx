@@ -1,4 +1,5 @@
 import { ArrowUpRight, Fingerprint } from "@phosphor-icons/react";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { PublicHeader } from "@/components/layout/PublicHeader";
@@ -98,7 +99,17 @@ export function AuthShell({
             </div>
           </section>
           <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
-            A focused workspace for a more memorable introduction.
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>A focused workspace for a more memorable introduction.</span>
+              <span className="flex gap-4">
+                <Link className="underline" href="/privacy">
+                  Privacy
+                </Link>
+                <Link className="underline" href="/terms">
+                  Terms
+                </Link>
+              </span>
+            </div>
           </footer>
         </div>
       </main>

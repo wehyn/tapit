@@ -34,5 +34,5 @@ Convex agent skills for common tasks can be installed by running
 - Keep `NEXT_PUBLIC_DEMO_MODE=true` locally. Separate demo, hosted demo, development, Preview, and Production; never use Production for E2E or provisioning.
 - Use `npm run test:e2e:demo` locally. Run live E2E only through `npm run test:e2e:live` and its non-production safety gate.
 - For Convex changes, read the generated guidelines first. Derive identity server-side, enforce ownership/role/scope, and keep public projections published-only.
-- Keep secrets, tokens, IDs, and customer data in ignored environment storage; never write directly to Convex Auth tables.
+- Keep secrets, tokens, IDs, and customer data in ignored environment storage; never write directly to Convex Auth tables. The sole approved exception is the server-side account-erasure path for a verified deletion request: after linked application data is removed, it may delete that customer's Auth account, sessions, tokens, and user row. Do not use this exception for account creation, repair, or provisioning.
 - Run `npm run verify` before claiming completion. Separate local/demo, Preview/Production, and physical-device evidence; see `docs/live-e2e.md`, `docs/launch-readiness.md`, and `e2e/real-device-checklist.md`.

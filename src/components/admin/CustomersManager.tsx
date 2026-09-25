@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -474,6 +474,7 @@ function LiveCustomersManager() {
     status: requestsStatus,
     loadMore: loadMoreRequests,
   } = usePaginatedQuery(api.customers.listDeletionRequests, {}, { initialNumItems: 50 });
+  const hasOverdueDeletionRequests = useQuery(api.customers.hasOverdueDeletionRequests);
   const {
     results: invitations,
     status: invitationsStatus,
@@ -834,11 +835,20 @@ function LiveCustomersManager() {
         ) : null}
       </Panel>
       <Panel title="Deletion requests">
+        {hasOverdueDeletionRequests ? (
+          <p
+            className="mt-5 rounded-tapit border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
+            role="alert"
+          >
+            At least one deletion request is over 30 days old and still awaits administrator
+            approval. Review the request history below.
+          </p>
+        ) : null}
         <div className="mt-5 grid gap-2">
           {requests.length === 0 ? (
-            <Notice>No pending deletion requests.</Notice>
+            <Notice>No deletion requests.</Notice>
           ) : (
-            requests.map(({ request, customer }) => (
+            requests.map(({ request, customer, overdue }) => (
               <article
                 className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
                 key={request._id}
@@ -850,6 +860,11 @@ function LiveCustomersManager() {
                   <p className="mt-1 text-sm text-tapit-muted">
                     Requested {new Date(request.requestedAt).toLocaleString()}
                   </p>
+                  {overdue ? (
+                    <p className="mt-1 text-sm font-semibold text-red-700" role="status">
+                      Overdue — review and approve or resolve this request now.
+                    </p>
+                  ) : null}
                 </div>
                 {request.status === "requested" ? (
                   <Button

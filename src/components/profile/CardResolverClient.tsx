@@ -8,6 +8,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
 import { isActiveAccount, projectPublicProfile, validateRedirectDestination } from "@/lib/domain";
+import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 
 import {
   InactiveCardPage,
@@ -16,6 +17,7 @@ import {
 } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { AnalyticsConsent } from "./AnalyticsConsent";
 import { UnpublishedCardClaim } from "./UnpublishedCardClaim";
 import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
@@ -24,18 +26,6 @@ function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
   if (source === "nfc") return "nfc";
   if (source === "qr") return "qr";
   return "unknown";
-}
-
-function getAnalyticsSessionKey(): string | undefined {
-  try {
-    const key = "tapit:analytics-session";
-    const sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
-    window.sessionStorage.setItem(key, sessionKey);
-    return sessionKey;
-  } catch {
-    // Tracking remains best-effort when storage is unavailable.
-    return undefined;
-  }
 }
 
 function RedirectingCard({
@@ -193,14 +183,17 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
     })),
   };
   return (
-    <PublicProfile
-      onLinkClick={onLinkClick}
-      onView={onView}
-      profile={profile}
-      profileId={profile.id}
-      profileUrl={`/${profile.slug}`}
-      theme={profile.theme}
-    />
+    <>
+      <PublicProfile
+        onLinkClick={onLinkClick}
+        onView={onView}
+        profile={profile}
+        profileId={profile.id}
+        profileUrl={`/${profile.slug}`}
+        theme={profile.theme}
+      />
+      <AnalyticsConsent />
+    </>
   );
 }
 

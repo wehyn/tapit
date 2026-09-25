@@ -77,3 +77,18 @@ test("landing page keeps the core sections without placeholder copy or pricing",
     "/app/profile",
   );
 });
+
+test("visitors can reach the privacy notice and terms from the public homepage", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();
+  await expect(page.getByText("Wayne Garcia operates Tapit from the Philippines.")).toBeVisible();
+
+  await page.getByRole("link", { name: "Back to Tapit" }).click();
+  await page.getByRole("link", { name: "Terms", exact: true }).click();
+  await expect(page).toHaveURL(/\/terms$/);
+  await expect(page.getByRole("heading", { name: "Tapit terms of use" })).toBeVisible();
+});
