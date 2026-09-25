@@ -74,7 +74,8 @@ test("inactive cards never reveal their former profile and vCard includes approv
     return window.btoa(binary);
   });
   const unfoldedVCard = vCard.replace(/\r\n[ \t]/g, "");
-  expect(unfoldedVCard).toContain(`URL:${new URL(page.url()).origin}/mara-velasquez`);
+  expect(unfoldedVCard).not.toContain(`${new URL(page.url()).origin}/mara-velasquez`);
+  expect(unfoldedVCard).not.toMatch(/^URL:/m);
   expect(unfoldedVCard).toContain("TEL;TYPE=VOICE:+63 917 555 0184");
   expect(unfoldedVCard).toContain(`PHOTO;ENCODING=b;TYPE=PNG:${photoBase64}`);
   expect(unfoldedVCard).toContain("item1.URL:https://www.linkedin.com/in/mara-velasquez");
@@ -137,11 +138,18 @@ test("a published phone-only profile can be saved as a contact", async ({ page }
     ownerId: owner.id,
     status: "published" as const,
     theme: "paper" as const,
-    draft: { name: "Phone Only", slug: "phone-only", phone, links },
+    draft: {
+      name: "Phone Only",
+      slug: "phone-only",
+      phone,
+      website: "https://identity-website.example",
+      links,
+    },
     published: {
       name: "Phone Only",
       slug: "phone-only",
       phone,
+      website: "https://identity-website.example",
       links,
       publishedAt: new Date().toISOString(),
     },
@@ -174,6 +182,7 @@ test("a published phone-only profile can be saved as a contact", async ({ page }
   const unfoldedVCard = vCard.replace(/\r\n[ \t]/g, "");
   expect(unfoldedVCard).toContain(`TEL;TYPE=VOICE:${phone}`);
   expect(unfoldedVCard).not.toContain("EMAIL;");
+  expect(unfoldedVCard).not.toContain("https://identity-website.example");
   expect(unfoldedVCard).toContain("item1.URL:https://example.test/portfolio");
   expect(unfoldedVCard).toContain("item1.X-ABLabel:Portfolio");
 });

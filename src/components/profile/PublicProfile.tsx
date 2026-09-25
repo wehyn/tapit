@@ -15,7 +15,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
-import { buildVCard, resolveProfileUrl } from "@/lib/vcard";
+import { buildVCard } from "@/lib/vcard";
 import type { VCardPhoto } from "@/lib/vcard";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
 
@@ -108,7 +108,6 @@ const linkIcons = {
 
 export function PublicProfile({
   profile,
-  profileUrl,
   profileId,
   preview = false,
   theme = "paper",
@@ -118,7 +117,6 @@ export function PublicProfile({
   onView,
 }: {
   profile: PublicProfileProjection;
-  profileUrl: string;
   profileId?: string;
   preview?: boolean;
   theme?: ProfileTheme;
@@ -175,8 +173,6 @@ export function PublicProfile({
         name: profile.name,
         email: profile.email,
         phone: profile.phone,
-        website: profile.website,
-        profileUrl: resolveProfileUrl(profileUrl, window.location.origin),
         links: profile.links.map(({ label, destination }) => ({ label, destination })),
         photo,
       });
