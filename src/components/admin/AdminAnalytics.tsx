@@ -170,6 +170,31 @@ function ProfileAnalyticsDialog({
         event.preventDefault();
         onClose();
       }}
+      onKeyDown={(event) => {
+        if (event.key !== "Tab") return;
+        const dialog = dialogRef.current;
+        if (dialog === null) return;
+
+        const focusableElements = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            "a[href], button, input, select, textarea, [tabindex]",
+          ),
+        ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+        const first = focusableElements[0];
+        const last = focusableElements[focusableElements.length - 1];
+        const focusIsOutsideDialog = !dialog.contains(document.activeElement);
+
+        if (first === undefined || last === undefined) {
+          event.preventDefault();
+          dialog.focus();
+        } else if (event.shiftKey && (document.activeElement === first || focusIsOutsideDialog)) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || focusIsOutsideDialog)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }}
       ref={dialogRef}
     >
       <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
