@@ -84,7 +84,9 @@ export function SidebarNav({
     <nav aria-label={`${title} navigation`}>
       {groups.map((group) => (
         <section className="mb-7 last:mb-0" key={group.label}>
-          <h2 className="mb-2 px-3 text-[0.68rem] font-semibold tracking-[0.18em] text-tapit-muted uppercase">
+          <h2
+            className={`mb-2 px-3 text-[0.68rem] font-semibold tracking-[0.18em] text-tapit-muted uppercase ${surface === "desktop" ? "lg:sr-only xl:not-sr-only" : ""}`}
+          >
             {group.label}
           </h2>
           <div className="space-y-1">
@@ -92,6 +94,7 @@ export function SidebarNav({
               <NavLink
                 active={item.href === activeHref}
                 item={item}
+                compact={surface === "desktop"}
                 key={item.href}
                 onClose={surface === "mobile" ? close : undefined}
                 onNavigate={onNavigate}
@@ -105,16 +108,29 @@ export function SidebarNav({
 
   return (
     <>
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-[285px] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-7 lg:flex">
-        <Brand />
+      <aside
+        data-testid="workspace-sidebar"
+        className="fixed inset-y-4 left-4 z-20 hidden w-[60px] flex-col rounded-2xl border border-tapit-line bg-tapit-surface px-2 py-5 shadow-[0_20px_50px_rgba(21,25,24,0.1)] lg:flex xl:w-[228px] xl:px-5 xl:py-7"
+      >
+        <div className="overflow-hidden lg:hidden xl:block">
+          <Brand />
+        </div>
+        <div
+          aria-hidden="true"
+          className="hidden size-11 items-center justify-center rounded-xl bg-tapit-accent text-sm font-bold text-white lg:flex xl:hidden"
+        >
+          T
+        </div>
         {eyebrow ? (
-          <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
+          <p className="mt-10 hidden px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase xl:block">
             {eyebrow}
           </p>
         ) : null}
         <div className="mt-6 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
         {sidebarFooter ? (
-          <div className="mt-8 border-t border-tapit-line pt-5">{sidebarFooter}</div>
+          <div className="mt-5 border-t border-tapit-line pt-3 xl:mt-8 xl:pt-5">
+            {sidebarFooter}
+          </div>
         ) : null}
       </aside>
 
@@ -183,19 +199,22 @@ export function SidebarNav({
 
 function NavLink({
   active,
+  compact = false,
   item,
   onClose,
   onNavigate,
 }: {
   active: boolean;
+  compact?: boolean;
   item: ShellNavItem;
   onClose?: () => void;
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
 }) {
   return (
     <Link
+      aria-label={item.label}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-11 items-center gap-3 rounded-tapit px-3 py-2.5 text-sm transition-colors ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
+      className={`flex min-h-11 items-center gap-3 rounded-tapit px-3 py-2.5 text-sm transition-colors ${compact ? "lg:justify-center lg:px-0 xl:justify-start xl:px-3" : ""} ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
       href={item.href}
       onClick={(event) => {
         const wasDefaultPrevented = event.defaultPrevented;
@@ -215,7 +234,7 @@ function NavLink({
       }}
     >
       <Icon name={item.icon} size={19} weight={active ? "fill" : "regular"} />
-      <span>{item.label}</span>
+      <span className={compact ? "lg:sr-only xl:not-sr-only" : ""}>{item.label}</span>
     </Link>
   );
 }
