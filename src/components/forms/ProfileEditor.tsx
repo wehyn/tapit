@@ -327,9 +327,48 @@ function DemoProfileEditor() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-8 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
       <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
+        <div className="sticky top-3 z-10 rounded-tapit border border-tapit-line bg-white p-3 shadow-[0_12px_35px_rgba(21,25,24,0.12)] sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <CheckCircleIcon
+                aria-hidden="true"
+                className="shrink-0 text-tapit-accent"
+                size={21}
+                weight="fill"
+              />
+              <span className="font-semibold text-tapit-ink">
+                {isDirty ? "Draft changes" : "Draft saved"}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                disabled={!isDirty || cropFile !== null || imagePending}
+                onClick={() => void saveDraft()}
+                type="button"
+                variant="secondary"
+              >
+                <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                Save draft
+              </Button>
+              <Button
+                disabled={
+                  errors.length > 0 ||
+                  publicationLabel === "Published" ||
+                  cropFile !== null ||
+                  imagePending
+                }
+                onClick={publish}
+                type="button"
+              >
+                <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                {publicationLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
         <Panel className="shadow-none" title="Profile details">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
@@ -533,46 +572,6 @@ function DemoProfileEditor() {
         ) : (
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
         )}
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <CheckCircleIcon
-              aria-hidden="true"
-              className="shrink-0 text-tapit-accent"
-              size={21}
-              weight="fill"
-            />
-            <span className="font-semibold text-tapit-ink">
-              {isDirty ? "Draft changes" : "Draft saved"}
-            </span>
-            <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || cropFile !== null || imagePending}
-              onClick={() => void saveDraft()}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Save draft
-            </Button>
-            <Button
-              disabled={
-                errors.length > 0 ||
-                publicationLabel === "Published" ||
-                cropFile !== null ||
-                imagePending
-              }
-              onClick={publish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {publicationLabel}
-            </Button>
-          </div>
-        </div>
       </div>
       {cropFile !== null ? (
         <ProfileImageCropDialog
@@ -852,9 +851,42 @@ function LiveProfileEditorContent({
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-8 pt-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] lg:gap-10 lg:pt-8">
       <h1 className="sr-only">Profile</h1>
       <div className="grid gap-6">
+        <div className="sticky top-3 z-10 rounded-tapit border border-tapit-line bg-white p-3 shadow-[0_12px_35px_rgba(21,25,24,0.12)] sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-tapit-ink">
+              {isDirty ? "Draft changes" : "Draft saved"}
+            </span>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                disabled={!isDirty || pending !== null || cropFile !== null}
+                loading={pending === "save"}
+                onClick={() => void saveDraft()}
+                type="button"
+                variant="secondary"
+              >
+                <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                Save draft
+              </Button>
+              <Button
+                disabled={
+                  errors.length > 0 ||
+                  publicationLabel === "Published" ||
+                  pending !== null ||
+                  cropFile !== null
+                }
+                loading={pending === "publish"}
+                onClick={publish}
+                type="button"
+              >
+                <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                {publicationLabel}
+              </Button>
+            </div>
+          </div>
+        </div>
         <Panel className="shadow-none" title="Profile details">
           <div className="mt-6 grid gap-5">
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
@@ -1059,39 +1091,6 @@ function LiveProfileEditorContent({
         ) : (
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
         )}
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
-          <span className="text-sm font-semibold text-tapit-ink">
-            {isDirty ? "Draft changes" : "Draft saved"}
-          </span>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || pending !== null || cropFile !== null}
-              loading={pending === "save"}
-              onClick={() => void saveDraft()}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Save draft
-            </Button>
-            <Button
-              disabled={
-                errors.length > 0 ||
-                publicationLabel === "Published" ||
-                pending !== null ||
-                cropFile !== null
-              }
-              loading={pending === "publish"}
-              onClick={publish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {publicationLabel}
-            </Button>
-          </div>
-        </div>
       </div>
       {cropFile !== null ? (
         <ProfileImageCropDialog
