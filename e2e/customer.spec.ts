@@ -76,8 +76,14 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   await expect(mobileAccountMenu).toBeVisible();
   await mobileAccountMenu.click();
   await expect(signOutButton).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(signOutButton).toHaveCount(0);
+  await expect(drawerNavigation).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(drawerNavigation).toBeHidden();
   await expect(openNavigation).toBeFocused();
   await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
