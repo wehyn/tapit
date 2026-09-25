@@ -774,10 +774,7 @@ function LiveCardsManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
-        className="min-w-0"
-        title="Register card URL"
-      >
+      <Panel className="min-w-0" title="Register card URL">
         <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
           <div className="min-w-72 flex-1">
             <Field
