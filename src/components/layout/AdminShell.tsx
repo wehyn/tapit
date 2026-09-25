@@ -30,6 +30,10 @@ const adminNavGroups: ShellNavGroup[] = [
       { href: "/admin/settings", label: "Settings", icon: "settings" },
     ],
   },
+  {
+    label: "Personal",
+    items: [{ href: "/app/profile", label: "My profile", icon: "user" }],
+  },
 ];
 
 const noHydrationSubscription = () => () => {};

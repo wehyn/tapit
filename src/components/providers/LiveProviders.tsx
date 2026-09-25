@@ -68,12 +68,17 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     } else if (isProtectedPage && access?.authenticated !== true) {
       redirectPath = `/login?next=${encodeURIComponent(pathname)}`;
     } else if (isProtectedPage) {
-      const requiredRole = pathname.startsWith("/admin") ? "admin" : "customer";
-      if (access?.role !== requiredRole) {
-        redirectPath = access?.role === "admin" ? "/admin/customers" : "/app/profile";
+      if (pathname.startsWith("/admin") && access?.role !== "admin") {
+        redirectPath = "/app/profile";
+      } else if (
+        pathname.startsWith("/app") &&
+        ((access?.role !== "customer" && access?.role !== "admin") || access.profileId === null)
+      ) {
+        redirectPath = "/login?reason=account-inactive";
       }
     } else if (pathname === "/login" && access?.accountStatus === "active") {
-      redirectPath = access.role === "admin" ? "/admin" : "/app/profile";
+      redirectPath =
+        access.role === "admin" ? "/admin" : access.profileId === null ? null : "/app/profile";
     }
   }
 
