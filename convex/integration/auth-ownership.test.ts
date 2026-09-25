@@ -606,6 +606,7 @@ describe("Convex authentication and ownership", () => {
     await expect(user.query(api.admin.currentAccess, {})).resolves.toMatchObject({
       authenticated: false,
       accountStatus: "pending",
+      email: null,
       role: null,
       profileId: null,
       onboardingName: "Google Name",
@@ -618,6 +619,7 @@ describe("Convex authentication and ownership", () => {
     await expect(user.query(api.admin.currentAccess, {})).resolves.toMatchObject({
       authenticated: true,
       accountStatus: "active",
+      email: "pending@example.com",
       role: "customer",
       accountId: completed.customerId,
       profileId: completed.profileId,

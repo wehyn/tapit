@@ -39,6 +39,7 @@ describe("production authentication boundaries", () => {
     ).resolves.toEqual({
       authenticated: false,
       accountStatus: "unprovisioned",
+      email: null,
       role: null,
       accountId: null,
       profileId: null,
