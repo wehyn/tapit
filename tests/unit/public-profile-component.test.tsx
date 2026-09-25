@@ -132,6 +132,31 @@ describe("public profile preview behavior", () => {
     expect(summary).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("keeps Warm Studio while an About or Services section is still empty", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+            section: { kind: "about", body: "" },
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("main")).toHaveClass("bg-[#fbf6ef]");
+    expect(screen.queryByText("About")).not.toBeInTheDocument();
+  });
+
   it("lets the browser select a published image variant by rendered size", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
@@ -189,14 +214,150 @@ describe("public profile preview behavior", () => {
     );
 
     const hero = screen.getByRole("region", { name: "Profile hero" });
-    expect(hero).toHaveStyle({ height: "520px" });
+    expect(hero).toHaveAttribute("data-hero-height", "520");
+    expect(hero).toHaveClass(
+      "rounded-none",
+      "border-0",
+      "shadow-none",
+      "sm:rounded-tapit",
+      "sm:border",
+      "sm:bg-[#fffdf9]",
+      "sm:overflow-hidden",
+    );
+    expect(hero).not.toHaveClass("bg-[#fffdf9]", "overflow-hidden");
+    expect(hero).not.toHaveStyle({ backgroundColor: "#fffdf9" });
     expect(hero).toHaveTextContent("A warm studio wall");
+    expect(hero).toContainElement(screen.getByRole("heading", { name: projection.name }));
+    expect(hero).toContainElement(screen.getByRole("list", { name: "Profile links" }));
     const surface = hero.querySelector("div");
     expect(surface).toHaveStyle({
       backgroundImage: 'url("https://images.example/hero.jpg")',
       backgroundPosition: "25% 75%",
     });
     expect(screen.queryByRole("region", { name: "Profile slideshow" })).not.toBeInTheDocument();
+  });
+
+  it("keeps identity, media, and contact content in the approved public order", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          media: {
+            heroHeight: 320,
+            autoplay: false,
+            background: {
+              src: "https://images.example/hero.jpg",
+              alt: "A warm studio wall",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [{ src: "https://images.example/slide.jpg", alt: "A studio detail" }],
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const identity = screen.getByRole("heading", { name: projection.name });
+    const hero = screen.getByRole("region", { name: "Profile hero" });
+    const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
+    const contact = screen.getByRole("navigation", { name: "Contact actions" });
+    expect(hero).toContainElement(identity);
+    expect(hero.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(slideshow.compareDocumentPosition(contact) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("keeps a Warm Studio slideshow before identity when no background is configured", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          media: {
+            heroHeight: 320,
+            autoplay: false,
+            slideshow: [{ src: "https://images.example/slide.jpg", alt: "A studio detail" }],
+          },
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const heading = screen.getByRole("heading", { name: projection.name });
+    const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
+    expect(slideshow.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.queryByRole("region", { name: "Profile hero" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the integrated identity inside the full surface and honors phone sizing", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        preview
+        previewMode="phone"
+        profile={{
+          ...projection,
+          name: "A very long profile name that stays readable",
+          bio: "A longer introduction that must remain visible below the image.",
+          media: {
+            heroHeight: 220,
+            autoplay: false,
+            background: {
+              src: "https://images.example/hero.jpg",
+              alt: "A warm studio wall",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [],
+          },
+          customization: {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const hero = screen.getByRole("region", { name: "Profile hero" });
+    const heading = screen.getByRole("heading", {
+      name: "A very long profile name that stays readable",
+    });
+    expect(hero).toContainElement(heading);
+    expect(hero).toHaveAttribute("data-hero-height", "220");
+    expect(hero).toHaveClass(
+      "rounded-tapit",
+      "border",
+      "shadow-[0_20px_60px_rgba(21,25,24,0.12)]",
+      "bg-[#fffdf9]",
+      "overflow-hidden",
+    );
+    expect(hero).not.toHaveStyle({ backgroundColor: "#fffdf9" });
+    expect(heading).toHaveClass("text-3xl");
+    expect(heading).not.toHaveClass("sm:text-4xl");
   });
 
   it("renders projected media for a legacy themed profile", () => {
@@ -228,6 +389,44 @@ describe("public profile preview behavior", () => {
     expect(screen.getByRole("region", { name: "Profile hero" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+  });
+
+  it("keeps legacy media before identity content", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          theme: "night",
+          customization: undefined,
+          media: {
+            heroHeight: 320,
+            autoplay: false,
+            background: {
+              src: "https://images.example/legacy-hero.jpg",
+              alt: "A legacy profile hero",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [{ src: "https://images.example/legacy-slide.jpg", alt: "Legacy slide" }],
+          },
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    const hero = screen.getByRole("region", { name: "Profile hero" });
+    const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
+    const heading = screen.getByRole("heading", { name: projection.name });
+    expect(hero.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(slideshow.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(heading).not.toHaveClass("text-white");
   });
 
   it.each([

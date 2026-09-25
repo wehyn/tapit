@@ -48,15 +48,25 @@ describe("profile customization contract", () => {
     });
   });
 
-  it.each([
-    { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: "future" },
-    { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, section: { kind: "about", body: "   " } },
-    {
-      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      section: { kind: "services", body: "Services", items: ["ok", 42] },
-    },
-  ])("normalizes malformed runtime customization to absence", (customization) => {
-    expect(normalizeProfileCustomization(customization)).toBeUndefined();
+  it("normalizes malformed base customization to absence", () => {
+    expect(
+      normalizeProfileCustomization({ ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: "future" }),
+    ).toBeUndefined();
+  });
+
+  it("keeps the base customization when an optional section is incomplete", () => {
+    expect(
+      normalizeProfileCustomization({
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        section: { kind: "about", body: "   " },
+      }),
+    ).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(
+      normalizeProfileCustomization({
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        section: { kind: "services", body: "Services", items: ["ok", 42] },
+      }),
+    ).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
   });
 
   it("preserves a valid Warm Studio customization while copying nested data safely", () => {

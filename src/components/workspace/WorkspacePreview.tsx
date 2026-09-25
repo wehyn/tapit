@@ -26,7 +26,7 @@ export function WorkspacePreview({
   showProfileUrl?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_20px_70px_rgba(21,25,24,0.06)]">
+    <section className="h-fit overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_20px_70px_rgba(21,25,24,0.06)] min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:[zoom:0.8]">
       <div className="flex items-center justify-between gap-3 border-b border-tapit-line px-5 py-4 sm:px-6">
         <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-tapit-ink">
           <EyeIcon aria-hidden="true" size={18} weight="bold" />
@@ -60,16 +60,24 @@ export function WorkspacePreview({
         </div>
       </div>
       <div
-        className="min-h-[34rem] bg-cover bg-center px-3 py-3 sm:min-h-[38rem] sm:px-6 sm:py-3"
-        style={{ backgroundImage: "url('/images/tapit-hero-atmosphere.png')" }}
+        className={`min-h-[34rem] px-3 py-3 sm:min-h-[38rem] sm:px-6 sm:py-3 ${
+          preview.customization?.preset === "warm-studio"
+            ? "bg-[#fbf6ef]"
+            : preview.theme === "night"
+              ? "bg-[#17211f]"
+              : preview.theme === "moss"
+                ? "bg-[#e8f1eb]"
+                : "bg-tapit-paper"
+        }`}
       >
         <div
           className={`mx-auto transition-[max-width] duration-300 motion-reduce:transition-none ${
-            mode === "phone" ? "max-w-[21rem]" : "max-w-[34rem]"
+            mode === "phone" ? "max-w-[24.375rem]" : "max-w-[34rem]"
           }`}
         >
           <PublicProfile
             preview
+            previewMode={mode}
             profile={preview}
             profileUrl={profileUrl}
             trackClicks={false}

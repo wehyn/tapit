@@ -41,12 +41,10 @@ export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
 
 /** Returns only a complete, render-safe customization object from runtime data. */
 export function normalizeProfileCustomization(value: unknown): ProfileCustomization | undefined {
-  if (
-    !isRecord(value) ||
-    validateProfileCustomization(value as unknown as ProfileCustomization).length > 0
-  ) {
+  if (!isRecord(value)) return undefined;
+  const baseCustomization = { ...value, section: undefined };
+  if (validateProfileCustomization(baseCustomization as unknown as ProfileCustomization).length > 0)
     return undefined;
-  }
 
   const normalized: ProfileCustomization = {
     preset: "warm-studio",
@@ -56,7 +54,7 @@ export function normalizeProfileCustomization(value: unknown): ProfileCustomizat
     contentOrder: value.contentOrder as ProfileContentOrder,
   };
   if (typeof value.featuredLinkId === "string") normalized.featuredLinkId = value.featuredLinkId;
-  if (isRecord(value.section)) {
+  if (isRecord(value.section) && sectionErrors(value.section).length === 0) {
     if (value.section.kind === "about") {
       normalized.section = { kind: "about", body: value.section.body as string };
     } else {

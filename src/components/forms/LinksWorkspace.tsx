@@ -107,7 +107,7 @@ export function LinksWorkspace({
 
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
+      <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
         <section aria-labelledby="links-workspace-title">
           <div className="flex flex-wrap items-end justify-between gap-5">
             <div>
@@ -375,7 +375,10 @@ export function LinksWorkspace({
             </ul>
           ) : null}
         </section>
-        <section className="h-fit lg:sticky lg:top-6" aria-label="Live profile preview">
+        <section
+          className="h-fit min-[1400px]:sticky min-[1400px]:top-6"
+          aria-label="Live profile preview"
+        >
           {preview ? (
             <WorkspacePreview
               mode={previewMode}
@@ -388,48 +391,48 @@ export function LinksWorkspace({
           )}
         </section>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <CheckCircleIcon
-              aria-hidden="true"
-              className="shrink-0 text-tapit-accent"
-              size={21}
-              weight="fill"
-            />
-            <span className="font-semibold text-tapit-ink">
-              {isDirty ? "Draft changes" : "Draft saved"}
-            </span>
-            <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || !canSaveDraft || pendingAction !== null}
-              loading={pendingAction === "save"}
-              onClick={onSaveDraft}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {pendingAction === "save" ? "Saving..." : "Save draft"}
-            </Button>
-            <Button
-              disabled={
-                publicationErrors.length > 0 ||
-                Object.keys(validation).length > 0 ||
-                publicationLabel === "Published" ||
-                pendingAction !== null
-              }
-              loading={pendingAction === "publish"}
-              onClick={onPublish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {pendingAction === "publish" ? "Publishing..." : publicationLabel}
-            </Button>
+      {isDirty ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+          <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2 text-sm">
+              <CheckCircleIcon
+                aria-hidden="true"
+                className="shrink-0 text-tapit-accent"
+                size={21}
+                weight="fill"
+              />
+              <span className="font-semibold text-tapit-ink">Draft changes</span>
+              <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                disabled={!canSaveDraft || pendingAction !== null}
+                loading={pendingAction === "save"}
+                onClick={onSaveDraft}
+                type="button"
+                variant="secondary"
+              >
+                <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                {pendingAction === "save" ? "Saving..." : "Save draft"}
+              </Button>
+              <Button
+                disabled={
+                  publicationErrors.length > 0 ||
+                  Object.keys(validation).length > 0 ||
+                  publicationLabel === "Published" ||
+                  pendingAction !== null
+                }
+                loading={pendingAction === "publish"}
+                onClick={onPublish}
+                type="button"
+              >
+                <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                {pendingAction === "publish" ? "Publishing..." : publicationLabel}
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

@@ -102,7 +102,7 @@ describe("published demo profile paths", () => {
       const projection = {
         contact: contact.getAttribute("href"),
         featured: featured.getAttribute("data-featured"),
-        background: background.querySelector("p")?.textContent,
+        background: background.querySelector("p.sr-only")?.textContent,
         slide: slide.getAttribute("alt") ?? slide.getAttribute("aria-label"),
         marker: marker.className,
         disclosure: disclosure.getAttribute("aria-expanded"),
