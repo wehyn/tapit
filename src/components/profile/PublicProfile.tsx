@@ -20,17 +20,70 @@ import type { VCardPhoto } from "@/lib/vcard";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
 
 const MAX_VCARD_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_VCARD_PHOTO_PIXELS = 16_000_000;
+
+async function convertWebPToPng(image: Blob): Promise<Blob> {
+  const objectUrl = URL.createObjectURL(image);
+  try {
+    const decodedImage = new Image();
+    decodedImage.src = objectUrl;
+    await decodedImage.decode();
+
+    const width = decodedImage.naturalWidth;
+    const height = decodedImage.naturalHeight;
+    if (!width || !height || width * height > MAX_VCARD_PHOTO_PIXELS) {
+      throw new Error("The profile photo dimensions are not supported in a contact file.");
+    }
+
+    const cropSize = Math.min(width, height);
+    const canvas = document.createElement("canvas");
+    canvas.width = 384;
+    canvas.height = 384;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser cannot convert the profile photo.");
+    context.drawImage(
+      decodedImage,
+      (width - cropSize) / 2,
+      (height - cropSize) / 2,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (png) =>
+          png
+            ? resolve(png)
+            : reject(new Error("The profile photo could not be converted to PNG.")),
+        "image/png",
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 async function loadVCardPhoto(imageUrl?: string): Promise<VCardPhoto | undefined> {
   if (!imageUrl) return undefined;
   const response = await fetch(imageUrl, { credentials: "omit" });
   if (!response.ok) throw new Error("The profile photo could not be downloaded.");
 
-  const image = await response.blob();
+  let image = await response.blob();
   if (image.size > MAX_VCARD_PHOTO_BYTES) {
     throw new Error("The profile photo is too large to include in a contact file.");
   }
-  const type = image.type.split(";")[0]?.trim().toLowerCase();
+  let type = image.type.split(";")[0]?.trim().toLowerCase();
+  if (type === "image/webp") {
+    image = await convertWebPToPng(image);
+    type = "image/png";
+  }
+  if (image.size > MAX_VCARD_PHOTO_BYTES) {
+    throw new Error("The profile photo is too large to include in a contact file.");
+  }
   if (type !== "image/jpeg" && type !== "image/png") {
     throw new Error("The profile photo format is not supported in a contact file.");
   }

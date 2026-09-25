@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import sharp from "sharp";
 
 import { expect, test } from "@playwright/test";
 
@@ -48,6 +49,34 @@ test("inactive cards never reveal their former profile and vCard includes approv
   expect(unfoldedVCard).toContain("item3.X-ABLabel:Book a conversation");
   expect(unfoldedVCard).toContain("item4.URL:mailto:mara@example.test");
   expect(unfoldedVCard).toContain("item4.X-ABLabel:Email");
+});
+
+test("vCard export converts a published WebP photo to an embedded PNG", async ({ page }) => {
+  const webpPhoto = await sharp(await readFile("public/images/tapit-demo-mara-avatar.png"))
+    .webp({ quality: 80 })
+    .toBuffer();
+  await page.route("**/images/tapit-demo-mara-avatar.png", (route) =>
+    route.fulfill({ body: webpPhoto, contentType: "image/webp" }),
+  );
+
+  await page.goto("/mara-velasquez");
+  const downloadPromise = page.waitForEvent("download", { timeout: 3000 });
+  await page.getByRole("button", { name: "Save contact" }).click();
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const vCard = (await readFile(downloadPath as string, "utf8")).replace(/\r\n[ \t]/g, "");
+  const photoBase64 = vCard.match(/PHOTO;ENCODING=b;TYPE=PNG:([A-Za-z0-9+/=]+)/)?.[1];
+  expect(photoBase64).toBeTruthy();
+
+  const dimensions = await page.evaluate(async (base64) => {
+    const photoBlob = await fetch(`data:image/png;base64,${base64}`).then((response) =>
+      response.blob(),
+    );
+    const photo = await createImageBitmap(photoBlob);
+    return { width: photo.width, height: photo.height };
+  }, photoBase64);
+  expect(dimensions).toEqual({ width: 384, height: 384 });
 });
 
 test("a published phone-only profile can be saved as a contact", async ({ page }) => {
