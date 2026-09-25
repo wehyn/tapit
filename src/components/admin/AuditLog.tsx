@@ -130,7 +130,6 @@ function LiveAuditLog() {
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
-        description="Administrator state transitions are retained with actor, action, timestamp, and before/after state."
         title="Audit log"
       >
         <div className="mt-6 max-w-lg">
