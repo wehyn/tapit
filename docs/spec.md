@@ -172,8 +172,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-031:** Administrators shall be able to preview and download card QR codes as PNG and SVG files.
 - **FR-032:** QR codes and manually shared profile URLs shall resolve to the same profile content as active NFC cards.
 - **FR-033:** Visitors shall be able to view published profiles without a Tapit account or native app.
-- **FR-034:** The public profile shall include a Save contact action when the profile has enough contact information to generate a vCard.
-- **FR-035:** Generated vCards shall contain only the selected name, email, website, and public profile URL.
+- **FR-034:** The public profile shall include a Save contact action when a name and at least one published contact field, profile photo, or enabled profile link are available.
+- **FR-035:** Generated vCards shall contain the selected name and public profile URL, plus the published profile photo, selected email, phone number, and website, and every enabled published profile link with its label. Duplicate URL destinations shall appear once.
 - **FR-036:** The system shall record aggregate total and unique profile views.
 - **FR-037:** The system shall record aggregate link clicks.
 - **FR-038:** NFC, QR, and direct profile visits shall count as profile views; selecting a destination shall count as a link click.
@@ -557,7 +557,7 @@ The MVP is complete in scope when it provides:
 ### Public profile and vCard
 
 - **AC-022:** Given a visitor opens an active profile through NFC, QR, or direct URL, when the page loads, then the profile is usable without a Tapit account or native app.
-- **AC-023:** Given a profile has selected name, email, website, and public profile URL fields, when a visitor selects Save contact, then Tapit downloads a vCard containing only those selected fields.
+- **AC-023:** Given a profile has a name and published contact content, when a visitor selects Save contact, then Tapit downloads a vCard containing the name and public profile URL, the published profile photo when available, each published email, phone number, and website, and every enabled profile link with its label, without draft or duplicate URL entries.
 - **AC-024:** Given a profile is unpublished or suspended, when a visitor opens its profile or an assigned active card, then the branded unavailable-profile page appears without unpublished data.
 
 ### Analytics and audit
@@ -603,7 +603,7 @@ The MVP is complete in scope when it provides:
 - Profile publication: name plus at least one link required; draft, preview, and explicit publish.
 - Profile links: arbitrary valid HTTPS plus safe `mailto:` and `tel:` actions, with labels, preset icons, enable/disable, and ordering.
 - Public design: clean, professional, mobile-first, strong contrast, restrained themes.
-- vCard: selected name, email, website, and public profile URL only.
+- vCard: selected name and public profile URL, published profile photo, selected email and phone, website, and all enabled published profile links with labels; duplicate URL destinations are omitted.
 - Analytics: aggregate profile views and link clicks; lifetime, 7-day, 30-day, and 90-day views; no raw visitor-level history. Both customers and administrators can see analytics within their permissions.
 - Card/profile states: inactive-card page for deactivated/replaced cards; unavailable-profile page for unpublished/suspended profiles.
 - Deletion: customer request and confirmation, administrator execution/approval, immediate unpublish/deactivation, minimal audit retention, later permanent deletion.

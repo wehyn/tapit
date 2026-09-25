@@ -23,6 +23,8 @@
 
 Visitors have no Tapit navigation. They can view published content, select enabled links, and use Save contact.
 
+The downloaded vCard contains the published photo, selected email and phone, Website field, public profile URL, and all enabled links with their profile labels. It excludes draft content and duplicate URL destinations.
+
 ### Customer paths
 
 - /login: shared customer/administrator login.
@@ -109,7 +111,7 @@ Content:
 - Name.
 - Short bio or role when provided.
 - Ordered enabled links with custom labels and optional preset icons.
-- Save contact when sufficient approved vCard fields exist.
+- Save contact when a name and published contact content are available; include the phone number and profile photo when provided, and preserve labels on enabled links.
 - Tapit branding appropriate to the selected theme.
 
 Actions:

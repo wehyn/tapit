@@ -16,7 +16,7 @@ Customers can create their own account from the public login page, or an adminis
 
 Each NFC card has a unique card URL that resolves to the customer’s stable public profile URL. A recipient can tap the card, scan its QR-code fallback, or open the public profile URL directly and immediately see the published profile without an app or account.
 
-Customers can save drafts, preview changes, and explicitly publish updates without re-encoding the NFC card or changing the public URL. Visitors can download a vCard containing only the owner’s selected name, email, website, and public profile URL. Customers and administrators can view basic aggregate profile-view and link-click analytics.
+Customers can save drafts, preview changes, and explicitly publish updates without re-encoding the NFC card or changing the public URL. Visitors can download a vCard containing the owner’s selected name and public profile URL, plus the published profile photo, selected email, phone number, website, and enabled profile links with their labels. Customers and administrators can view basic aggregate profile-view and link-click analytics.
 
 The public login page offers a clear customer-only mode toggle and a mobile-first signup form for display name, profile slug, email, password, and confirmation. After authentication, the customer sees a stable URL preview and enters the existing Profile and Links workspace, where Portfolio, TikTok, social, booking, contact, and other safe destinations are labeled and edited before the explicit publication boundary.
 
@@ -52,7 +52,7 @@ Administrators can assign, deactivate, suspend, and replace cards, and can manag
 - An active card, QR code, or direct profile URL opens the correct published profile without an app or visitor account. Updating and publishing profile content changes what visitors see without re-encoding the NFC card or changing the stable public URL.
 - A replacement deactivates the old card immediately, the old card shows the branded inactive-card page without exposing the former profile, and administrators can see the relevant assignment/replacement history in the audit log.
 - The public experience becomes usable within 2 seconds on a normal 4G connection, satisfies the agreed accessibility baseline, and meets the 99.9% monthly public-profile availability target.
-- Customers can download a vCard containing only the selected name, email, website, and public profile URL. Customers and administrators can distinguish profile reach from link engagement through aggregate views and clicks.
+- Customers can download a vCard containing the selected name and public profile URL, plus the published photo, selected email, phone number, website, and enabled labeled profile links. Customers and administrators can distinguish profile reach from link engagement through aggregate views and clicks.
 
 ## Open questions
 
