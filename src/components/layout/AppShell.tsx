@@ -12,6 +12,7 @@ export function AppShell({
   mobileHeaderActions,
   navGroups,
   beforeNavigate,
+  pageTitle,
   showPageIntro = true,
   sidebarFooter,
   title,
@@ -21,6 +22,7 @@ export function AppShell({
   mobileHeaderActions?: ReactNode;
   navGroups: ShellNavGroup[];
   beforeNavigate?: (href: string) => Promise<boolean>;
+  pageTitle?: string;
   showPageIntro?: boolean;
   sidebarFooter?: ReactNode;
   title: string;
@@ -80,6 +82,8 @@ export function AppShell({
               {title}
             </h1>
           </div>
+        ) : pageTitle ? (
+          <h1 className="sr-only">{pageTitle}</h1>
         ) : null}
         {children}
       </main>

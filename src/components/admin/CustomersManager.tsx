@@ -615,10 +615,7 @@ function LiveCustomersManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
-        description="Create invited customer accounts. The reusable setup link is shown after creation for controlled handoff."
-        title="Create customer"
-      >
+      <Panel title="Create customer">
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
           <div className="min-w-72 flex-1">
             <Field
@@ -698,10 +695,7 @@ function LiveCustomersManager() {
           </div>
         ) : null}
       </Panel>
-      <Panel
-        description="Search the loaded customer pages and load older accounts when needed."
-        title="Customer accounts"
-      >
+      <Panel title="Customer accounts">
         <div className="mt-6 max-w-md">
           <Field
             id="live-customer-search"
@@ -728,7 +722,14 @@ function LiveCustomersManager() {
               <div>
                 <p className="font-semibold text-tapit-ink">{customer.email}</p>
                 <p className="mt-1 text-sm text-tapit-muted">
-                  {customer.role} · {customer.status} · {customer.deletionStatus}
+                  {[
+                    customer.role,
+                    ...new Set(
+                      [customer.status, customer.deletionStatus].filter(
+                        (status) => status !== "active",
+                      ),
+                    ),
+                  ].join(" · ")}
                 </p>
                 {(() => {
                   const invitation = invitationByCustomer.get(customer._id);
