@@ -118,7 +118,8 @@ test("form focus indicators stay within the Tapit green theme", async ({ page })
   expect(redirectInputFocus.hasVisibleIndicator, "redirect URL").toBe(true);
   expect(redirectInputFocus.colors, "redirect URL").not.toMatch(ORANGE_FOCUS);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await page.getByLabel("Email").fill("admin@tapit.local");
   await page.getByLabel("Password").fill("tapit-demo");

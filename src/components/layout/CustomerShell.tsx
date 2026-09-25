@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -108,20 +108,14 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
       navGroups={session.role === "admin" ? adminNavGroups : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
-        <div className="space-y-3">
-          <p className="px-1 text-sm text-tapit-muted">{customer.email}</p>
-          <Button
-            onClick={() => {
-              signingOut.current = true;
-              clearDemoSession();
-              router.replace("/login");
-            }}
-            variant="quiet"
-            type="button"
-          >
-            Sign out
-          </Button>
-        </div>
+        <CustomerAccountMenu
+          email={customer.email}
+          onSignOut={() => {
+            signingOut.current = true;
+            clearDemoSession();
+            router.replace("/login");
+          }}
+        />
       }
       title="Your Tapit profile"
     >
@@ -173,21 +167,86 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
       navGroups={access.role === "admin" ? adminNavGroups : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
-        <div className="space-y-3">
-          <Button
-            onClick={() => {
-              void signOut().finally(() => router.replace("/login"));
-            }}
-            variant="quiet"
-            type="button"
-          >
-            Sign out
-          </Button>
-        </div>
+        <CustomerAccountMenu
+          email={access.email ?? "Account"}
+          onSignOut={() => {
+            void signOut().finally(() => router.replace("/login"));
+          }}
+        />
       }
       title="Your Tapit profile"
     >
       {children}
     </AppShell>
+  );
+}
+
+function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (event.target instanceof Node && !containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
+
+  const initials = email.slice(0, 2).toUpperCase() || "U";
+
+  return (
+    <div
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !open) return;
+        event.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      }}
+      ref={containerRef}
+    >
+      <div
+        aria-label="Account options"
+        className="absolute inset-x-0 bottom-full z-30 mb-3 rounded-tapit border border-tapit-line bg-tapit-surface p-2 shadow-lg"
+        hidden={!open}
+        id={menuId}
+        role="group"
+      >
+        <p className="break-words px-3 py-2 text-sm text-tapit-ink">{email}</p>
+        <Button
+          className="w-full justify-start hover:bg-red-50"
+          onClick={onSignOut}
+          style={{ color: "var(--tapit-danger)" }}
+          type="button"
+          variant="quiet"
+        >
+          Sign out
+        </Button>
+      </div>
+      <button
+        aria-controls={menuId}
+        aria-expanded={open}
+        aria-label={`Account menu for ${email}`}
+        className="flex min-h-12 w-full items-center gap-3 rounded-tapit px-1 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-paper hover:text-tapit-ink"
+        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        type="button"
+      >
+        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-tapit-accent text-[0.65rem] font-semibold text-white">
+          {initials}
+        </span>
+        <span className="min-w-0 flex-1 truncate">{email}</span>
+        <span aria-hidden="true" className="px-1 text-base leading-none">
+          {open ? "⌃" : "⌄"}
+        </span>
+      </button>
+    </div>
   );
 }

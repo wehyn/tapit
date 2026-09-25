@@ -118,6 +118,9 @@ test.describe("live Google OAuth journeys", () => {
       await page.goto("/login");
       await signInWithGoogle(page, /\/app\/profile$/);
       await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: `Account menu for ${liveEnv.customerEmail}` }),
+      ).toBeVisible();
       const profileSlug = await page.getByLabel("Stable profile slug").inputValue();
       expect(profileSlug).toMatch(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
       customerProfileSlug = profileSlug;
