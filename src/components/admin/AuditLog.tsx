@@ -57,6 +57,7 @@ const readableActions: Record<string, string> = {
   "invitation.revoked": "Customer invitation revoked",
   "profile.links_updated": "Profile links updated",
   "profile.published": "Profile published",
+  "profile.slug_changed": "Profile slug changed",
   "profile.suspended": "Profile suspended",
   "profile.unpublished": "Profile unpublished",
   "profile.updated": "Profile updated",
@@ -162,17 +163,19 @@ function getAuditChanges(action: string, before?: string, after?: string): Audit
   if (beforeData.value === undefined && afterData.value === undefined) return [];
   const scalarChange = /role/i.test(action)
     ? { field: "Account role", valueKey: "role" }
-    : /^profile\./i.test(action) && /status|suspend|publish/i.test(action)
-      ? { field: "Profile status", valueKey: "status" }
-      : /^card\./i.test(action)
-        ? { field: "Card status", valueKey: "status" }
-        : /status/i.test(action)
-          ? { field: "Account status", valueKey: "status" }
-          : /link/i.test(action)
-            ? { field: "Profile links", valueKey: "links" }
-            : /support/i.test(action)
-              ? { field: "Support contact", valueKey: "supportUrl" }
-              : { field: "Change", valueKey: "" };
+    : /^profile\./i.test(action) && /slug/i.test(action)
+      ? { field: "Profile slug", valueKey: "slug" }
+      : /^profile\./i.test(action) && /status|suspend|publish/i.test(action)
+        ? { field: "Profile status", valueKey: "status" }
+        : /^card\./i.test(action)
+          ? { field: "Card status", valueKey: "status" }
+          : /status/i.test(action)
+            ? { field: "Account status", valueKey: "status" }
+            : /link/i.test(action)
+              ? { field: "Profile links", valueKey: "links" }
+              : /support/i.test(action)
+                ? { field: "Support contact", valueKey: "supportUrl" }
+                : { field: "Change", valueKey: "" };
   return [
     {
       field: scalarChange.field,

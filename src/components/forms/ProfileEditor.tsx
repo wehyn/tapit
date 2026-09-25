@@ -114,6 +114,7 @@ function DemoProfileEditor() {
             candidate.draft.slug,
             ...(candidate.published === null ? [] : [candidate.published.slug]),
           ]),
+        immutableSlug: profile.draft.slug,
       }),
       ...lifecycleErrors,
       ...(state.cards.some(
@@ -125,9 +126,8 @@ function DemoProfileEditor() {
         ? ["Claim the attached card before publishing this profile."]
         : []),
     ];
-  }, [draft, profile.id, profile.published, profile.status, session, state]);
+  }, [draft, profile.draft.slug, profile.id, profile.published, profile.status, session, state]);
   const preview = profileForPreview(draft);
-  const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
@@ -162,12 +162,25 @@ function DemoProfileEditor() {
     if (cropFile !== null || imagePending) return false;
     if (!isDirty) return true;
     try {
+      let assignedSlug: string | null = null;
       updateDemoState((current) =>
-        updateDemoProfile(current, profile.id, (currentProfile) => ({ ...currentProfile, draft })),
+        updateDemoProfile(current, profile.id, (currentProfile) => {
+          assignedSlug = currentProfile.draft.slug;
+          return {
+            ...currentProfile,
+            draft: { ...draft, slug: currentProfile.draft.slug },
+          };
+        }),
       );
+      const savedSlug = assignedSlug;
+      if (savedSlug === null) throw new Error("Profile could not be found.");
+      const slugWasRefreshed = draft.slug !== savedSlug;
+      if (slugWasRefreshed) setDraft((current) => ({ ...current, slug: savedSlug }));
       setMessage({
         tone: "success",
-        text: "Draft saved. Visitors still see the last published version.",
+        text: slugWasRefreshed
+          ? "Draft saved. The assigned profile slug was refreshed and is managed by an administrator."
+          : "Draft saved. Visitors still see the last published version.",
       });
       return true;
     } catch (error) {
@@ -188,38 +201,49 @@ function DemoProfileEditor() {
       return;
     }
     try {
-      const nextProfile = {
-        ...publishProfile({ ...profile, draft }, new Date().toISOString(), {
-          existingSlugs: getDemoProfiles(state)
-            .filter((candidate) => candidate.id !== profile.id)
-            .flatMap((candidate) => [
-              candidate.draft.slug,
-              ...(candidate.published === null ? [] : [candidate.published.slug]),
-            ]),
-        }),
-        theme: profile.theme,
-      };
-      updateDemoState((current) => ({
-        ...updateDemoProfile(current, profile.id, () => nextProfile),
-        cards: current.cards.map((card) =>
-          card.profileId === profile.id &&
-          card.status === "claimable" &&
-          card.claimedAt !== undefined
-            ? { ...card, status: "active" }
-            : card,
-        ),
-        audits: [
-          {
-            id: `audit-${Date.now()}`,
-            actor: session?.email ?? profile.draft.name,
-            action: "profile.published",
-            target: draft.slug,
-            occurredAt: new Date().toISOString(),
-            after: "published",
-          },
-          ...current.audits,
-        ],
-      }));
+      const occurredAt = new Date().toISOString();
+      updateDemoState((current) => {
+        const currentProfile = getDemoProfiles(current).find(
+          (candidate) => candidate.id === profile.id,
+        );
+        if (currentProfile === undefined) throw new Error("Profile could not be found.");
+        if (draft.slug !== currentProfile.draft.slug)
+          throw new Error(
+            "The assigned profile slug cannot change except through an administrator.",
+          );
+        const nextProfile = {
+          ...publishProfile({ ...currentProfile, draft }, occurredAt, {
+            existingSlugs: getDemoProfiles(current)
+              .filter((candidate) => candidate.id !== profile.id)
+              .flatMap((candidate) => [
+                candidate.draft.slug,
+                ...(candidate.published === null ? [] : [candidate.published.slug]),
+              ]),
+          }),
+          theme: currentProfile.theme,
+        };
+        return {
+          ...updateDemoProfile(current, profile.id, () => nextProfile),
+          cards: current.cards.map((card) =>
+            card.profileId === profile.id &&
+            card.status === "claimable" &&
+            card.claimedAt !== undefined
+              ? { ...card, status: "active" }
+              : card,
+          ),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: session?.email ?? profile.draft.name,
+              action: "profile.published",
+              target: draft.slug,
+              occurredAt,
+              after: "published",
+            },
+            ...current.audits,
+          ],
+        };
+      });
       setMessage({
         tone: "success",
         text: "Profile published. Your active card paths now show this version.",
@@ -265,7 +289,7 @@ function DemoProfileEditor() {
   }
 
   function copyUrl() {
-    const url = `${window.location.origin}/${draft.slug}`;
+    const url = `${window.location.origin}/${profile.draft.slug}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(url).then(
         () => setCopyMessage("Copied"),
@@ -427,21 +451,21 @@ function DemoProfileEditor() {
                 value={draft.website ?? ""}
               />
               <Field
-                disabled={slugLocked}
-                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
+                disabled
+                help="Only an administrator can change the assigned profile slug."
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}
                 placeholder="alex-morgan"
-                value={draft.slug}
+                value={profile.draft.slug}
               />
             </div>
             <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
               <span className="font-semibold text-tapit-ink">Public URL</span>
               <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
                 {typeof window === "undefined"
-                  ? `/${draft.slug}`
-                  : `${window.location.origin}/${draft.slug}`}
+                  ? `/${profile.draft.slug}`
+                  : `${window.location.origin}/${profile.draft.slug}`}
               </code>
               <Button onClick={copyUrl} type="button" variant="secondary">
                 <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
@@ -517,7 +541,7 @@ function DemoProfileEditor() {
             mode={previewMode}
             onModeChange={setPreviewMode}
             preview={preview}
-            profileUrl={`/${draft.slug}`}
+            profileUrl={`/${profile.draft.slug}`}
             showProfileUrl
             theme={theme}
           />
@@ -622,17 +646,17 @@ function LiveProfileEditorContent({
     },
     [],
   );
-  const currentDraft = useMemo<ProfileContent>(
-    () =>
-      draft ?? {
-        ...liveProfile.draft,
-        links: liveProfile.draft.links.map((link) => ({
-          ...link,
-          icon: link.icon as ProfileContent["links"][number]["icon"],
-        })),
-      },
-    [draft, liveProfile.draft],
-  );
+  const currentDraft = useMemo<ProfileContent>(() => {
+    const assignedSlug = liveProfile.slug ?? liveProfile.draft.slug;
+    const current = draft ?? {
+      ...liveProfile.draft,
+      links: liveProfile.draft.links.map((link) => ({
+        ...link,
+        icon: link.icon as ProfileContent["links"][number]["icon"],
+      })),
+    };
+    return current.slug === assignedSlug ? current : { ...current, slug: assignedSlug };
+  }, [draft, liveProfile.draft, liveProfile.slug]);
   const theme: ProfileTheme = currentDraft.theme ?? "paper";
   const publishedForValidation = liveProfile.published
     ? {
@@ -645,11 +669,10 @@ function LiveProfileEditorContent({
       }
     : null;
   const errors = validatePublication(currentDraft, publishedForValidation, {
-    immutableSlug: liveProfile.published?.slug,
+    immutableSlug: liveProfile.slug,
   });
   const preview = profileForPreview(currentDraft);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
-  const slugLocked = liveProfile.published !== undefined;
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     liveProfile.status === "published"
@@ -965,13 +988,13 @@ function LiveProfileEditorContent({
                 value={currentDraft.website ?? ""}
               />
               <Field
-                disabled={slugLocked}
-                help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
+                disabled
+                help="Only an administrator can change the assigned profile slug."
                 id="profile-slug"
                 label="Stable profile slug"
                 onChange={(event) => updateField("slug", event.target.value)}
                 placeholder="alex-morgan"
-                value={currentDraft.slug}
+                value={liveProfile.slug}
               />
             </div>
           </div>
@@ -1033,7 +1056,7 @@ function LiveProfileEditorContent({
             mode={previewMode}
             onModeChange={setPreviewMode}
             preview={preview}
-            profileUrl={`/${currentDraft.slug}`}
+            profileUrl={`/${liveProfile.slug}`}
             showProfileUrl
             theme={theme}
           />

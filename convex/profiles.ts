@@ -111,6 +111,75 @@ export const adminList = query({
   },
 });
 
+export const adminDetails = query({
+  args: { profileId: v.id("profiles") },
+  returns: v.object({
+    profile: schema.doc("profiles"),
+    customerEmail: v.union(v.string(), v.null()),
+    assignedCardCount: v.number(),
+    assignedCardCountIsCapped: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    const profile = await ctx.db.get(args.profileId);
+    if (profile === null || profile.scope !== account.scope) throw new Error("Profile not found.");
+    const owner = await ctx.db.get(profile.ownerId);
+    if (owner === null || owner.scope !== account.scope) throw new Error("Profile not found.");
+    const cards = await ctx.db
+      .query("cards")
+      .withIndex("by_profileId", (query) => query.eq("profileId", profile._id))
+      .take(1001);
+    return {
+      profile: await projectOwnedProfile(ctx, profile),
+      customerEmail: owner.email,
+      assignedCardCount: Math.min(cards.length, 1000),
+      assignedCardCountIsCapped: cards.length > 1000,
+    };
+  },
+});
+
+export const changeSlug = mutation({
+  args: { profileId: v.id("profiles"), slug: v.string() },
+  returns: v.object({ slug: v.string(), updatedAt: v.number() }),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const profile = await ctx.db.get(args.profileId);
+    if (profile === null || profile.scope !== account.scope) throw new Error("Profile not found.");
+    const normalizedSlug = normalizeProfileSlug(args.slug);
+    if (normalizedSlug === profile.slug)
+      return { slug: profile.slug, updatedAt: profile.updatedAt };
+    const slugError = validateProfileSlugValue(normalizedSlug);
+    if (slugError !== null) throw new Error(slugError);
+    const duplicate = await ctx.db
+      .query("profiles")
+      .withIndex("by_slug", (query) => query.eq("slug", normalizedSlug))
+      .unique();
+    if (duplicate !== null && duplicate._id !== profile._id)
+      throw new Error("That profile slug is already in use.");
+    const now = Date.now();
+    await ctx.db.patch(profile._id, {
+      slug: normalizedSlug,
+      draft: { ...profile.draft, slug: normalizedSlug },
+      ...(profile.published === undefined
+        ? {}
+        : { published: { ...profile.published, slug: normalizedSlug } }),
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "profile.slug_changed",
+      profileId: profile._id,
+      accountId: profile.ownerId,
+      occurredAt: now,
+      before: profile.slug,
+      after: normalizedSlug,
+    });
+    return { slug: normalizedSlug, updatedAt: now };
+  },
+});
+
 export const saveDraft = mutation({
   args: {
     profileId: v.id("profiles"),
@@ -124,22 +193,13 @@ export const saveDraft = mutation({
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
       throw new Error(IMAGE_REVISION_CONFLICT);
     const normalizedSlug = normalizeProfileSlug(args.draft.slug);
-    const draft = { ...args.draft, slug: normalizedSlug };
-    if (profile.published !== undefined && profile.published.slug !== normalizedSlug) {
-      throw new Error("The profile slug cannot change after first publication.");
-    }
-    const slugError = validateProfileSlugValue(args.draft.slug, {
-      immutableSlug: profile.published?.slug,
-    });
+    if (normalizedSlug !== profile.slug)
+      throw new Error("The assigned profile slug cannot change except through an administrator.");
+    const draft = { ...args.draft, slug: profile.slug };
+    const slugError = validateProfileSlugValue(profile.slug);
     if (slugError !== null) throw new Error(slugError);
     const safetyErrors = validateDraftSafety(draft);
     if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
-    const duplicate = await ctx.db
-      .query("profiles")
-      .withIndex("by_slug", (query) => query.eq("slug", normalizedSlug))
-      .unique();
-    if (duplicate !== null && duplicate._id !== profile._id)
-      throw new Error("That profile slug is already in use.");
     const now = Date.now();
     delete draft.imageUrl;
     if (
@@ -198,8 +258,11 @@ export const publish = mutation({
     if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");
     const errors = validateProfileContent(profile.draft);
     if (errors.length > 0) throw new Error(errors.join(" "));
-    if (profile.published !== undefined && profile.published.slug !== profile.draft.slug)
-      throw new Error("The profile slug cannot change after first publication.");
+    if (
+      profile.draft.slug !== profile.slug ||
+      (profile.published !== undefined && profile.published.slug !== profile.slug)
+    )
+      throw new Error("The saved profile slug snapshots do not match the assigned slug.");
     const duplicate = await ctx.db
       .query("profiles")
       .withIndex("by_slug", (query) => query.eq("slug", profile.draft.slug))

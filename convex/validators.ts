@@ -140,7 +140,7 @@ export function validateProfileSlugValue(
     return "The profile slug is invalid.";
   if (RESERVED_PROFILE_SLUGS.has(slug)) return "That profile slug is reserved.";
   if (options.immutableSlug !== undefined && slug !== options.immutableSlug)
-    return "The profile slug cannot change after first publication.";
+    return "The assigned profile slug cannot change except through an administrator.";
   if (options.existingSlugs?.some((existingSlug) => existingSlug === slug))
     return "That profile slug is already in use.";
   return null;
