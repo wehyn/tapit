@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import {
   ArrowRightIcon,
   ArrowsClockwiseIcon,
@@ -682,7 +682,7 @@ export function CardsManager() {
 function LiveCardsManager() {
   const cards = useQuery(api.cards.adminList);
   const profiles = useQuery(api.profiles.adminList);
-  const customers = useQuery(api.customers.list, {});
+  const customerPages = usePaginatedQuery(api.customers.list, {}, { initialNumItems: 50 });
   const register = useMutation(api.cards.register);
   const generateCardToken = useMutation(api.cards.generateCardToken);
   const attach = useMutation(api.cards.attach);
@@ -713,7 +713,7 @@ function LiveCardsManager() {
     [cards],
   );
   const assignableProfiles = profiles ?? [];
-  const availableCustomers = customers ?? [];
+  const availableCustomers = customerPages.results;
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
   const selectedProfileCard =
     selectedProfileId === undefined ? undefined : liveCardForProfile(selectedProfileId);
@@ -725,7 +725,7 @@ function LiveCardsManager() {
     );
   }
 
-  if (cards === undefined || profiles === undefined || customers === undefined)
+  if (cards === undefined || profiles === undefined || customerPages.status === "LoadingFirstPage")
     return <div className="min-h-[60vh] bg-tapit-paper" />;
   async function run(operation: () => Promise<unknown>, success: string) {
     setPending(true);
@@ -774,11 +774,7 @@ function LiveCardsManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
-        className="min-w-0"
-        description="Register pre-encoded URLs and manage assignments. All operations are checked and audited server-side."
-        title="Register card URL"
-      >
+      <Panel className="min-w-0" title="Register card URL">
         <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
           <div className="min-w-72 flex-1">
             <Field
@@ -808,14 +804,27 @@ function LiveCardsManager() {
                   return (
                     <option key={candidate._id} value={candidate._id}>
                       {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
-                      {customers.find((customer) => customer._id === candidate.ownerId)?.email ??
-                        "unassigned"}
+                      {availableCustomers.find((customer) => customer._id === candidate.ownerId)
+                        ?.email ?? "unassigned"}
                       {attachedCard ? ` · ${attachedCard.status}: ${attachedCard.token}` : ""}
                     </option>
                   );
                 })(),
               )}
             </select>
+            {customerPages.status === "CanLoadMore" || customerPages.status === "LoadingMore" ? (
+              <Button
+                className="mt-2"
+                disabled={customerPages.status === "LoadingMore"}
+                onClick={() => customerPages.loadMore(50)}
+                type="button"
+                variant="quiet"
+              >
+                {customerPages.status === "LoadingMore"
+                  ? "Loading customers…"
+                  : "Load more customers"}
+              </Button>
+            ) : null}
           </div>
           <Button disabled={pending} onClick={generateCardUrl} type="button" variant="secondary">
             Generate secure URL
@@ -899,7 +908,7 @@ function LiveCardsManager() {
                                     <option key={candidate._id} value={candidate._id}>
                                       {candidate.draft.name || candidate.draft.slug} ·{" "}
                                       {candidate.slug} ·{" "}
-                                      {customers.find(
+                                      {availableCustomers.find(
                                         (customer) => customer._id === candidate.ownerId,
                                       )?.email ?? "unassigned"}
                                       {attachedCard
@@ -935,7 +944,7 @@ function LiveCardsManager() {
                                     )?.draft.slug ||
                                     "selected profile",
                                   customer:
-                                    customers.find(
+                                    availableCustomers.find(
                                       (candidate) =>
                                         candidate._id ===
                                         profiles.find(

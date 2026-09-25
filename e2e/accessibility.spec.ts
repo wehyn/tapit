@@ -55,7 +55,7 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await expectNoA11yViolations(page);
 
   await page.goto("/app/links");
-  await expect(page.getByRole("heading", { name: "Your links" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add link" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
   await expectNoA11yViolations(page);
 

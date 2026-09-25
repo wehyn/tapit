@@ -247,7 +247,6 @@ describe("card claiming contracts", () => {
       email: "invited@example.com",
       slug: "invited-customer",
       tokenHash: "invited-setup-token",
-      expiresAt: Date.now() + 60_000,
     });
     const invitedCardId = await admin.mutation(api.cards.register, {
       cardUrl: "https://tapit.test/c/card-invited",

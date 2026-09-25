@@ -1,244 +1,140 @@
-# Live E2E
+# Live Google OAuth E2E
 
-`npm run test:e2e:demo` runs the deterministic local demo project. It starts the local Next.js server and
-does not exercise Convex. `npm run test:e2e:live` is the fail-fast live command. It provisions a fresh test
-card/customer state through the existing internal bootstrap and admin UI, then runs the serialized live
-Playwright project. See the [launch-readiness contract](launch-readiness.md) for the preview release target,
-go/no-go gates, and evidence requirements.
+`npm run test:e2e:demo` is the deterministic local browser suite. It keeps
+`NEXT_PUBLIC_DEMO_MODE=true`, uses local fixtures, and does not exercise Convex or Google OAuth. Hosted demo is
+also separate: it may use `NEXT_PUBLIC_DEMO_STORAGE=convex` with `TAPIT_DEMO_AUTH_MODE=hosted-demo` on an
+isolated non-production Convex deployment. Hosted demo password compatibility is not live-auth evidence.
 
-This workflow is for an explicitly named non-production Convex deployment only. Do not use production URLs,
-deployments, credentials, or data.
+The local demo suite also exercises the administrator's own draft profile: Personal navigation, all five
+`/app/*` tools, explicit publication, draft privacy, retained `/admin/*` access, and customer isolation.
+Focused Convex integration tests cover Google/admin provisioning, bootstrap reuse, idempotency, owner checks,
+and the internal repair report. These tests do not prove a live Google sign-in or deployed repair.
 
-Hosted demo mode is separate from local live mode: set `NEXT_PUBLIC_DEMO_MODE=true` and
-`NEXT_PUBLIC_DEMO_STORAGE=convex` to use Convex-backed demo paths. It requires a shared, non-production
-Convex deployment, and its data is visible to all hosted-demo users. Never configure hosted demo with
-production Convex data. When `NEXT_PUBLIC_DEMO_STORAGE` is absent, local demo remains the default.
+For existing active administrators on a named non-Production Convex deployment, an operator may run the
+internal `adminProfileRepair.repair` mutation once, retain its `created`/`skipped`/`failed` report, and rerun
+it to confirm reuse. Investigate any failed references before attempting manual changes. Keep customer IDs,
+emails, credentials, and the unredacted report in ignored evidence storage. Do not run this repair against
+Production as part of E2E validation. Record live development, Preview, Production, and physical-device
+evidence separately.
 
-## Hosted-demo seed and reset
+`npm run test:e2e:live` is the guarded live suite. It is allowed only against a named development deployment or
+stable Preview deployment, never Production. The wrapper fails closed before provisioning when the contract is
+missing, points at Production, contains credentials in a URL, has mismatched Convex origins, or reports an app
+provider other than Google.
 
-Hosted demo requires the deployment environment value `TAPIT_DEMO_AUTH_MODE=hosted-demo` and a matching
-non-production `NEXT_PUBLIC_CONVEX_URL`. The app-side values are:
+## Google provider setup
 
-```text
-NEXT_PUBLIC_DEMO_MODE=true
-NEXT_PUBLIC_DEMO_STORAGE=convex
-NEXT_PUBLIC_CONVEX_URL=https://your-development.convex.cloud
-```
-
-Provision the administrator Password identity through the supported Auth setup flow, then run these exact
-operator commands with its Convex Auth user ID. Use a `dev:<deployment>` or `preview/<branch>` target; never
-run them against production:
-
-```bash
-npx convex run --deployment dev:your-deployment demo:initialize '{"operatorUserId":"USER_ID"}'
-npx convex run --deployment dev:your-deployment demo:reset '{"operatorUserId":"USER_ID"}'
-```
-
-Initialization reconciles the fixed Mara published profile, claimable/active/inactive example cards,
-supported settings, and baseline analytics/audits. Claim-code plaintext is never persisted or returned.
-Reset is safe to repeat, deletes only application records with `scope: "demo"` in dependency order, and
-leaves Auth users and ordinary unscoped records untouched. Because this is shared Convex state, reset changes
-what every connected hosted-demo device sees.
-
-The live suite currently contains 6 serialized browser tests. Preview runs are allowed with the complete
-non-production contract below; production provisioning and live E2E are prohibited.
-
-## 1. Configure live-mode development (optional)
-
-Keep the repository default at `NEXT_PUBLIC_DEMO_MODE=true`. For local live development, configure an ignored
-environment file with a non-production deployment and make the two Convex settings refer to that same
-deployment:
+Configure a separate Google OAuth client for each live development deployment, the stable Preview origin, and
+Production. Register the exact browser origins used by that environment and the matching Convex Auth callback:
 
 ```text
-NEXT_PUBLIC_DEMO_MODE=false
-TAPIT_APP_ENV=development
-CONVEX_DEPLOYMENT=dev:your-deployment
-NEXT_PUBLIC_CONVEX_URL=https://your-deployment.convex.cloud
-TAPIT_LIVE_EMAIL_DOMAIN=example.test
-TAPIT_LIVE_EMAIL_CODE_URL=http://127.0.0.1:8025/code
-TAPIT_LIVE_EMAIL_CODE_TOKEN=...
+https://<app-origin>/
+https://<CONVEX_SITE_URL>/api/auth/callback/google
 ```
 
-Then use the existing combined local command:
+The provider ID is `google` and the scopes are `openid email profile`. Set the Google client values
+`AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` on the matching Convex deployment. Keep `CONVEX_SITE_URL`, the
+Convex cloud URL, the app's `NEXT_PUBLIC_CONVEX_URL`, and the selected deployment reference aligned.
 
-```bash
-NEXT_PUBLIC_DEMO_MODE=false npx convex dev --start "npm run dev -- --hostname 127.0.0.1"
-```
+Set `TAPIT_ADMIN_EMAILS` to the comma-separated normalized addresses allowed to become the first administrator.
+Only a new Google identity whose verified email is in that allowlist can become an administrator. Existing
+pending, invited, active, or deleted accounts are never promoted by a later allowlist change.
 
-`CONVEX_DEPLOYMENT` selects the development deployment and `NEXT_PUBLIC_CONVEX_URL` must be its matching
-Convex URL. This is a local live-mode development workflow, not a production deployment.
+Invitations are manual. An administrator creates an invitation in the app, copies the returned setup link, and
+hands it to the matching verified Google account. The link is reusable by that linked identity until revoked and
+has no transactional email or email adapter dependency. The invited profile remains private until publication.
 
-### Disposable local mail adapter
+## Non-production contract
 
-Start the loopback-only, in-memory adapter in a separate terminal before running the live harness:
-
-```bash
-TAPIT_EMAIL_SINK_PROVIDER_TOKEN=local-provider-token \
-TAPIT_LIVE_EMAIL_CODE_TOKEN=local-reader-token \
-npm run live:email-sink
-```
-
-The adapter has two separate bearer-protected boundaries. Convex sends messages to `POST /send` through
-`TAPIT_AUTH_EMAIL_API_URL`, using `TAPIT_EMAIL_SINK_PROVIDER_TOKEN`; Playwright reads only the newest opaque
-code from `GET /code?email=...&kind=...` through `TAPIT_LIVE_EMAIL_CODE_URL`, using
-`TAPIT_LIVE_EMAIL_CODE_TOKEN`. The default local reader URL is
-`http://127.0.0.1:8025/code`. The adapter keeps only the newest code per normalized recipient in process
-memory: it has no mailbox, does not persist messages, and never returns message bodies.
-
-For local live development, `TAPIT_AUTH_EMAIL_API_URL` may point to the adapter's local `/send` route only
-when Convex delivery is local and can reach that process. When Convex Cloud sends remotely, its send endpoint
-must be a separately approved HTTPS route to the adapter. A tailnet-only `tailscale serve` endpoint is not
-sufficient for Convex Cloud. Any tunnel or provider route must be bearer-protected, limited to the selected
-development/preview run, and cleaned up after the run. Expose only `/send`; keep the `/code` reader on the
-operator's loopback or another separately controlled route.
-
-## Complete contract
-
-Put these values in the shell environment or an ignored environment manager. The command only prints
-variable names and generic errors; it never prints values, passwords, setup tokens, or CLI output from
-provisioning.
+Store this contract in ignored environment storage. Google storage-state files are credentials: keep them out of
+Git, use one dedicated account per state, restrict their file permissions, and never print their contents.
 
 ```text
+TAPIT_E2E_MODE=live
 TAPIT_LIVE_BASE_URL=https://non-production-app.example
-TAPIT_LIVE_APP_ENV=preview
-TAPIT_LIVE_CONVEX_URL=https://your-preview-deployment.convex.cloud
-NEXT_PUBLIC_CONVEX_SITE_URL=https://your-preview-deployment.convex.site
+TAPIT_LIVE_APP_ENV=development|preview
+TAPIT_LIVE_CONVEX_URL=https://deployment.convex.cloud
+TAPIT_LIVE_CONVEX_DEPLOYMENT=dev:<deployment>|preview/<branch>
+NEXT_PUBLIC_CONVEX_SITE_URL=https://deployment.convex.site
 TAPIT_LIVE_ADMIN_EMAIL=admin@example.test
-TAPIT_LIVE_ADMIN_PASSWORD=...
+TAPIT_LIVE_ADMIN_GOOGLE_STATE=.secrets/google-admin.json
 TAPIT_LIVE_CUSTOMER_EMAIL=customer@example.test
-TAPIT_LIVE_CUSTOMER_PASSWORD=...
-TAPIT_LIVE_PROFILE_SLUG=tapit-test-customer
-TAPIT_LIVE_PUBLISHED_BIO=A Tapit test profile.
-TAPIT_LIVE_EMAIL_DOMAIN=example.test
-TAPIT_LIVE_EMAIL_CODE_URL=https://preview-mailbox.example/internal/code
-TAPIT_LIVE_EMAIL_CODE_TOKEN=...
-TAPIT_LIVE_CONVEX_DEPLOYMENT=dev
-TAPIT_LIVE_ADMIN_USER_ID=...
-TAPIT_LIVE_CUSTOMER_USER_ID=...
+TAPIT_LIVE_CUSTOMER_GOOGLE_STATE=.secrets/google-customer.json
+TAPIT_LIVE_INVITED_EMAIL=invited@example.test
+TAPIT_LIVE_INVITED_GOOGLE_STATE=.secrets/google-invited.json
+TAPIT_LIVE_PROFILE_SLUG=tapit-live-customer
+TAPIT_LIVE_PUBLISHED_BIO=A dedicated non-production test profile.
 TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION
 ```
 
-The two Convex user IDs must already exist and correspond to the Password-provider accounts above. The
-email domain must be an isolated disposable domain routed to the selected non-production mail adapter. The
-authenticated code endpoint must be an operator-owned HTTPS adapter (or a localhost HTTP adapter for local
-live development) that accepts the recipient and flow kind as query parameters and returns only the newest
-verification token as `{ "code": "..." }`. It must require the configured reader bearer token, never expose
-mailbox contents, and never be pointed at production mail. The adapter extracts the opaque token from the
-Convex Auth email URL; it does not weaken email verification. This reader URL is distinct from
-`TAPIT_AUTH_EMAIL_API_URL`, which is the provider-facing Convex send endpoint and must use its separate provider
-bearer token. For Convex Cloud, that send endpoint must use an approved HTTPS route; tailnet-only access is
-not enough.
+The wrapper also accepts `TAPIT_LIVE_LOCAL_SERVER=true` only when the base URL is a loopback HTTP app started by
+the wrapper. Remote targets must use HTTPS. Do not put passwords, OAuth tokens, raw invitation tokens, Auth user
+IDs, email-reader URLs, or Production values in this contract.
 
-The existing seeded customer variables (`TAPIT_LIVE_CUSTOMER_*`, `TAPIT_LIVE_PROFILE_SLUG`, and
-`TAPIT_LIVE_PUBLISHED_BIO`) remain required only for the legacy seeded customer draft/public-profile and
-invitation/setup coverage. The self-service journey generates its own email at the configured disposable
-domain, slug, password, and bio at runtime; it does not reuse the seeded customer.
-Use the CLI-supported `preview` or `preview/<branch>` reference instead when the live app is connected to
-an isolated preview deployment. The `TAPIT_LIVE_CONVEX_DEPLOYMENT` value is passed to `npx convex run
---deployment`; it is separate from `CONVEX_DEPLOYMENT=dev:<deployment>` in the Next.js environment file.
-Provision the first administrator Password identity through the supported operator setup flow for the selected
-deployment. The live customer is created by the browser suite through the public customer signup mode with a
-unique runtime email and slug; it does not need a pre-provisioned customer identity, customer user ID, or
-invitation. Keep any seeded customer contract values only for the existing invitation/setup coverage.
-
-The first administrator is an operator-provisioned Password identity, not an open administrator signup route:
-use the supported sign-up operation only from an approved setup surface for the isolated deployment, then run
-bootstrap to link that user ID to the admin customer record. After that, the administrator signs in through
-`/login` like every other account. The public login page exposes only customer self-service signup.
-
-After the administrator identity exists, run the existing internal `bootstrap:bootstrap` mutation through
-`npm run test:e2e:live`; the helper supplies the admin ID and a fresh card token. The live signup test then
-generates a unique disposable customer email and slug at runtime, signs up through `/login?mode=signup`, reads
-the resulting verification token through the authenticated mail adapter, and verifies the email in the browser
-before provisioning the profile through the authenticated app mutation. It must assert that no administrator
-account or invitation is created for that customer. The existing invitation test continues to exercise the
-administrator UI and one-time setup-token path; it also reads and submits its own verification token through the
-same adapter. The browser assertions cover the customer-only signup surface and absence of admin controls; there
-is no direct undocumented table inspection. The final reset journey starts from the disposable customer’s
-authenticated Account Settings page, uses the same adapter, and proves the replacement password works. No
-production deployment is permitted.
-
-This is intentionally limited: `npx convex run` cannot create Convex Auth Password identities, and the
-internal bootstrap mutation requires existing user IDs. If those identities are absent, the helper
-fails with that exact limitation rather than attempting undocumented writes to Convex Auth tables.
-
-## 2. Run the live workflow
-
-Run the complete non-production sequence in this order:
-
-1. Select and announce the explicitly identified `dev` or `preview` Convex deployment. Sync the current code
-   to that deployment and confirm that the app URL, Convex URL, and deployment reference all target the same
-   non-production environment.
-2. Configure `TAPIT_SUPPORT_URL`, `TAPIT_AUTH_EMAIL_FROM`, `TAPIT_AUTH_EMAIL_API_KEY`, and
-   `TAPIT_AUTH_EMAIL_API_URL` on that deployment only. The API URL is the provider-facing `POST /send` route,
-   not the Playwright reader URL. For Convex Cloud, use the separately approved HTTPS route described above.
-3. Provision the administrator Password identity through the supported setup/auth flow and record its user ID.
-   Do not write directly to Convex Auth tables.
-4. Start the local adapter with `npm run live:email-sink`, using separate provider and reader bearer tokens.
-   If delivery is from Convex Cloud, expose only `/send` through the approved HTTPS route and verify that the
-   route is reachable before continuing.
-5. Set the complete live contract in ignored environment storage, including the reader URL/token, deployment,
-   existing admin user ID, confirmation, and all app/customer values. Keep `NEXT_PUBLIC_DEMO_MODE=true` as the
-   tracked repository default.
-6. Run exactly:
+Create each storage state with the visible Chromium helper, one account at a time:
 
 ```bash
-npm run test:e2e:live
+npm run live:google-state -- .secrets/google-admin.json
+npm run live:google-state -- .secrets/google-customer.json
+npm run live:google-state -- .secrets/google-invited.json
 ```
 
-The command requires `TAPIT_LIVE_PROVISION_CONFIRM=I_UNDERSTAND_NON_PRODUCTION`. It fails closed before
-provisioning when required variables are missing, when the Convex deployment reference is not `dev`/`preview`,
-when a remotely reachable mail route is not protected/HTTPS, when local-server mode is inconsistent, or when
-the confirmation is absent. Missing administrator/customer identities, missing external delivery reachability,
-or missing contract variables are blockers. Do not bypass them with direct Auth-table writes or production
-values. After the run, remove the temporary tunnel/provider route and stop the local adapter.
+The helper opens Google in visible Chromium, waits for the operator to complete sign-in, and writes only the
+Playwright storage state after explicit terminal confirmation. It does not capture or log passwords, cookies,
+OAuth credentials, or customer data.
 
-The customer journey also crops `public/images/tapit-demo-mara-avatar.png`, cancels once to prove the current
-image is preserved, then applies and uploads a 384px crop in one bearer-authenticated request to the paired
-`.convex.site` HTTP action. Convex validates the decoded image, creates a 192px derivative, and atomically
-attaches the image set. The image is visible in the private customer preview and only appears in signed-out
-slug/card projections after publication, with `192w` and `384w` candidates. Rejected formats and files over
-5 MB leave the existing image unchanged. Local Convex integration tests cover reference-aware replacement,
-removal, deletion, and 24-hour abandoned-upload reconciliation; deployment HTTP/CORS and cleanup dry-run
-evidence still require this guarded flow against an explicitly selected non-production target.
+## Run the approved non-production suite
 
-## Local live build
+The full live matrix is a one-shot lifecycle run for the three declared identities on a fresh dedicated
+non-production Convex deployment. It creates the first admin, onboards and publishes the customer, accepts and
+revokes an invitation, and leaves those app accounts in their resulting states. The wrapper cannot recreate an
+invitation for an already-active invited identity. Use a fresh dedicated deployment for another full run; do not
+reset Convex Auth tables or mutate the database directly. For a deployment that already has these accounts, use
+new dedicated customer and invited Google identities, states, and an unused `TAPIT_LIVE_PROFILE_SLUG`. The
+first-admin creation case is established only on a fresh deployment.
 
-The live E2E harness has a separate local-server switch. To have `npm run test:e2e:live` start Next.js itself,
-use a local base URL and opt in explicitly:
+1. Select the exact development or stable Preview app, Convex cloud URL, Convex site URL, and deployment
+   reference. Confirm the Google client callback and registered origin match that target.
+2. Confirm `TAPIT_ADMIN_EMAILS` contains the controlled admin email and excludes the dedicated customer email.
+   Confirm each state belongs to its declared email. `TAPIT_LIVE_PROFILE_SLUG` is used as the onboarding
+   display-name seed; choose a valid, unused slug-like value for the fresh deployment.
+3. Keep the repository default at `NEXT_PUBLIC_DEMO_MODE=true`; load the ignored live contract only in the run
+   shell.
+4. Run `npm run test:e2e:live`. The wrapper verifies `/api/live-contract`, auth provider, origin matching, and
+   image CORS, signs the admin identity in through Google when needed, and creates an invitation through the
+   admin UI. The raw setup token remains process memory.
+5. Do not use Production or write Convex Auth tables directly. The run intentionally creates non-production
+   application records that are not reusable for a second full lifecycle run.
+
+The live matrix covers first allowlisted admin sign-in, pending Google onboarding with an editable prefilled name,
+private profile creation, returning active access, pending deletion and restart, matching invitation setup,
+missing-link and wrong-email rejection, invitation replacement and replay until revocation, manual role changes,
+and admin profile/card/analytics behavior. It proves public profile privacy before publication and visibility
+after publication. The initial-admin allowlist non-promotion rule is verified in Convex integration tests because
+the browser harness does not change deployment environment variables during a run.
+
+Live E2E evidence is valid only when the target, Google client configuration, three state paths, declared emails,
+and confirmation are recorded without exposing secrets. Until a dedicated non-production target is provisioned,
+the live suite remains unrun; local/demo evidence does not establish live or Production readiness.
+
+## Local live target
+
+For a local Next.js server connected to a dedicated development deployment, use a loopback app URL and keep the
+Convex URLs remote and matching:
 
 ```text
 TAPIT_LIVE_BASE_URL=http://127.0.0.1:3000
 TAPIT_LIVE_LOCAL_SERVER=true
-NEXT_PUBLIC_CONVEX_SITE_URL=https://your-preview-deployment.convex.site
+TAPIT_LIVE_APP_ENV=development
+TAPIT_LIVE_CONVEX_URL=https://deployment.convex.cloud
+NEXT_PUBLIC_CONVEX_SITE_URL=https://deployment.convex.site
 ```
 
-The live config then starts `npm run dev -- --hostname 127.0.0.1`. The Convex deployment used for
-provisioning remains the explicit `TAPIT_LIVE_CONVEX_DEPLOYMENT` target.
-The site URL must share the deployment hostname with `TAPIT_LIVE_CONVEX_URL` and the
-app's `NEXT_PUBLIC_CONVEX_URL`. The live preflight verifies the served app reports
-that paired site URL and confirms the selected app origin passes the upload route's
-`OPTIONS` CORS policy before any provisioning or image upload is attempted.
+The callback still belongs to the Convex site URL. The browser origin registered for the Google client must match
+the app origin used by the run. Never use a Production Convex URL or Google client for local live testing.
 
-For a remote live base URL, leave `TAPIT_LIVE_LOCAL_SERVER` unset or set it to a value other than `true`.
-The harness never starts a local Next.js server in that mode. Do not run both local-server workflows on the
-same port at once.
+## Related verification
 
-## Live project guard
-
-The live Playwright project is intentionally runnable only through `npm run test:e2e:live`. The wrapper
-performs the non-production preflight, verifies that the selected app reports live mode with the exact
-configured Convex URL, provisions a fresh setup token, and then invokes Playwright. A direct
-`npx playwright test --project live-chromium` run is rejected or skipped before any mutating test.
-
-Live tests are serialized
-because they mutate the same seeded profile; the suite covers customer draft privacy/publication plus
-admin profile draft save, publish, unpublish, suspension, and restoration, as well as cards and analytics.
-
-The generated self-service customer is intentionally disposable test data in the selected isolated deployment.
-Do not attempt undocumented Convex Auth or table deletion. When operators need to remove the app account, use
-the supported customer request/admin approval UI and follow the normal customer deletion workflow. The first
-administrator remains operator-provisioned; public signup never creates an administrator or invitation.
-
-This runbook does not replace manual device evidence. NFC acceptance, QR scans, and device/browser results
-remain external checks and must be recorded in `e2e/real-device-checklist.md` on current physical devices.
+Run `npm run verify` before claiming repository completion. Run `npm run test:e2e:demo` separately for local/demo
+acceptance. Physical NFC, QR, and device evidence remains an external check recorded in
+`e2e/real-device-checklist.md`.

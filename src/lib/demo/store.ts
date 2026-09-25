@@ -55,6 +55,15 @@ function loadFromStorage() {
           Array.isArray(parsed.profiles) && parsed.profiles.length > 0
             ? parsed.profiles
             : [{ ...parsed.profile, theme: parsed.theme ?? fallback.theme }];
+        const adminProfile = fallback.profiles.find((profile) => profile.ownerId === "admin-demo");
+        if (adminProfile && !profiles.some((profile) => profile.ownerId === "admin-demo")) {
+          profiles.push(adminProfile);
+        }
+        const customers = parsed.customers.map((customer) =>
+          customer.id === "admin-demo" && !customer.profileId
+            ? { ...customer, profileId: adminProfile?.id }
+            : customer,
+        );
         const cards = parsed.cards.map((card, index) => ({
           ...card,
           // Older demo records were appended in creation order and had no timestamp.
@@ -69,8 +78,9 @@ function loadFromStorage() {
           ...fallback,
           ...parsed,
           cards,
+          customers,
           profiles,
-          themes,
+          themes: { ...fallback.themes, ...themes },
           profile: parsed.profile,
           analytics: (parsed.analytics ?? fallback.analytics).map((bucket) => ({
             ...bucket,
@@ -165,14 +175,19 @@ export function getDemoProfileForSession(
   current: DemoState,
   currentSession: DemoSession | null,
 ): DemoProfile {
-  if (currentSession?.role === "customer") {
+  if (currentSession !== null) {
     const customer = current.customers.find(
       (candidate) => candidate.email === currentSession.email,
     );
     const profile = getDemoProfileById(current, customer?.profileId);
-    if (profile !== undefined) return profile;
+    if (
+      customer?.status === "active" &&
+      customer.deletionStatus === "active" &&
+      profile?.ownerId === customer.id
+    )
+      return profile;
   }
-  return getDemoProfiles(current)[0] ?? { ...current.profile, theme: current.theme };
+  throw new Error("Personal profile access denied.");
 }
 
 export function getDemoTheme(current: DemoState, profileId: string): ProfileTheme {

@@ -1,9 +1,9 @@
 "use client";
 
-import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
+import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -443,7 +443,6 @@ function DemoCustomersManager() {
 }
 
 function LiveCustomersManager() {
-  const hostedDemo = isHostedDemoMode();
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -452,45 +451,74 @@ function LiveCustomersManager() {
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
-  const customers = useQuery(api.customers.list, { search: query.trim() || undefined });
-  const requests = useQuery(api.customers.listDeletionRequests);
+  const {
+    results: customers,
+    status: customersStatus,
+    loadMore: loadMoreCustomers,
+  } = usePaginatedQuery(
+    api.customers.list,
+    { search: query.trim() || undefined },
+    { initialNumItems: 50 },
+  );
+  const {
+    results: requests,
+    status: requestsStatus,
+    loadMore: loadMoreRequests,
+  } = usePaginatedQuery(api.customers.listDeletionRequests, {}, { initialNumItems: 50 });
+  const hasOverdueDeletionRequests = useQuery(api.customers.hasOverdueDeletionRequests);
+  const {
+    results: invitations,
+    status: invitationsStatus,
+    loadMore: loadMoreInvitations,
+  } = usePaginatedQuery(api.invitations.listForAdmin, {}, { initialNumItems: 50 });
   const create = useMutation(api.customers.createCustomer);
   const approve = useMutation(api.customers.approveDeletion);
-  const requestPasswordReset = useAction(api.auth.adminRequestPasswordReset);
-  if (customers === undefined || requests === undefined)
+  const revokeInvitation = useMutation(api.invitations.revoke);
+  const replaceInvitation = useMutation(api.invitations.replace);
+  const setRole = useMutation(api.customers.setRole);
+  const invitationByCustomer = useMemo(() => {
+    const byCustomer = new Map<string, (typeof invitations)[number]>();
+    for (const invitation of invitations) {
+      if (!byCustomer.has(invitation.customerId)) byCustomer.set(invitation.customerId, invitation);
+    }
+    return byCustomer;
+  }, [invitations]);
+  if (
+    customersStatus === "LoadingFirstPage" ||
+    requestsStatus === "LoadingFirstPage" ||
+    invitationsStatus === "LoadingFirstPage"
+  )
     return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
 
   async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
     setSetupLink("");
+    setCopiedSetupLink(false);
     const normalizedEmail = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setMessage({ tone: "error", text: "Enter a valid customer email address." });
       return;
     }
-    const baseSlug =
-      (profileSlug.trim() || normalizedEmail)
-        .split("@")[0]
-        ?.replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-|-$/g, "") || "profile";
-    const suffix = crypto.randomUUID().slice(0, 8);
-    const requestedSlug = profileSlug.trim() ? baseSlug : `${baseSlug}-${suffix}`;
-    const token = crypto.randomUUID().replaceAll("-", "");
+    const tokenBytes = new Uint8Array(32);
+    crypto.getRandomValues(tokenBytes);
+    const token = btoa(String.fromCharCode(...tokenBytes))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
     setPending(true);
     try {
-      await (create as unknown as (args: Record<string, unknown>) => Promise<unknown>)({
+      await create({
         email: normalizedEmail,
-        slug: requestedSlug,
+        ...(profileSlug.trim() ? { slug: profileSlug.trim() } : {}),
         name: profileName.trim(),
         tokenHash: await hashSetupToken(token),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
       });
       setEmail("");
       setSetupLink(`/setup/${token}`);
       setMessage({
         tone: "success",
-        text: `Customer account created for ${normalizedEmail}. Share the one-time setup link through a controlled channel.`,
+        text: `Customer account created for ${normalizedEmail}. Reusable until revoked.`,
       });
     } catch (error) {
       setMessage({
@@ -518,27 +546,66 @@ function LiveCustomersManager() {
     }
   }
 
-  async function resetPassword(customerId: Id<"customers">, email: string) {
+  async function revoke(customerId: Id<"invitations">) {
     setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
     try {
-      await requestPasswordReset({ customerId });
+      await revokeInvitation({ invitationId: customerId });
       setMessage({
         tone: "success",
-        text: `A secure password setup/reset email was queued for ${email}.`,
+        text: "Invitation revoked.",
       });
     } catch (error) {
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "The password reset could not be queued.",
+        text: error instanceof Error ? error.message : "The invitation could not be revoked.",
+      });
+    }
+  }
+
+  async function replace(customerId: Id<"customers">) {
+    setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
+    const tokenBytes = new Uint8Array(32);
+    crypto.getRandomValues(tokenBytes);
+    const token = btoa(String.fromCharCode(...tokenBytes))
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .replaceAll("=", "");
+    try {
+      await replaceInvitation({ customerId, tokenHash: await hashSetupToken(token) });
+      setSetupLink(`/setup/${token}`);
+      setMessage({ tone: "success", text: "The previous link is invalid immediately." });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The invitation could not be replaced.",
+      });
+    }
+  }
+
+  async function changeRole(customerId: Id<"customers">, role: "customer" | "admin") {
+    setMessage(null);
+    setSetupLink("");
+    setCopiedSetupLink(false);
+    try {
+      await setRole({ customerId, role });
+      setMessage({
+        tone: "success",
+        text: `Role updated to ${role === "admin" ? "administrator" : "customer"}.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The customer role could not be updated.",
       });
     }
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
-        description="Create invited customer accounts. The one-time setup link is shown once for controlled handoff."
-        title="Create customer"
-      >
+      <Panel title="Create customer">
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
           <div className="min-w-72 flex-1">
             <Field
@@ -582,7 +649,7 @@ function LiveCustomersManager() {
         {setupLink ? (
           <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
             <span className="break-all">
-              One-time setup link: <strong className="text-tapit-accent">{setupLink}</strong>
+              Reusable until revoked: <strong className="text-tapit-accent">{setupLink}</strong>
             </span>
             <Button
               onClick={() => {
@@ -600,10 +667,7 @@ function LiveCustomersManager() {
           </div>
         ) : null}
       </Panel>
-      <Panel
-        description="Search the first 100 customer accounts returned by the administrator query."
-        title="Customer accounts"
-      >
+      <Panel title="Customer accounts">
         <div className="mt-6 max-w-md">
           <Field
             id="live-customer-search"
@@ -615,7 +679,13 @@ function LiveCustomersManager() {
           />
         </div>
         <div className="mt-6 grid gap-2">
-          {customers.length === 0 ? <Notice>No customer accounts match this search.</Notice> : null}
+          {customers.length === 0 ? (
+            <Notice>
+              {customersStatus === "CanLoadMore"
+                ? "No matching accounts are in the loaded pages. Load older accounts to continue."
+                : "No customer accounts match this search."}
+            </Notice>
+          ) : null}
           {customers.map((customer) => (
             <article
               className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
@@ -624,34 +694,134 @@ function LiveCustomersManager() {
               <div>
                 <p className="font-semibold text-tapit-ink">{customer.email}</p>
                 <p className="mt-1 text-sm text-tapit-muted">
-                  {customer.role} · {customer.status} · {customer.deletionStatus}
+                  {[
+                    customer.role,
+                    ...new Set(
+                      [customer.status, customer.deletionStatus].filter(
+                        (status) => status !== "active",
+                      ),
+                    ),
+                  ].join(" · ")}
                 </p>
+                {(() => {
+                  const invitation = invitationByCustomer.get(customer._id);
+                  if (!invitation) return null;
+                  const status =
+                    invitation.invalidatedAt !== null
+                      ? "revoked"
+                      : invitation.acceptedAt !== null
+                        ? "accepted"
+                        : "pending";
+                  return (
+                    <>
+                      <p className="mt-1 text-sm text-tapit-muted">Invitation: {status}</p>
+                      {invitation.profileName !== null || invitation.slug !== null ? (
+                        <p className="mt-1 text-sm text-tapit-muted">
+                          Profile: {invitation.profileName ?? "Unnamed profile"}
+                          {invitation.slug === null ? "" : ` · /${invitation.slug}`}
+                        </p>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
               <StatusBadge status={customer.status} />
-              {customer.status !== "deleted" && !hostedDemo ? (
-                <Button
-                  onClick={() => void resetPassword(customer._id, customer.email)}
-                  type="button"
-                  variant="quiet"
-                >
-                  Send password setup/reset
-                </Button>
-              ) : null}
-              {customer.status !== "deleted" && hostedDemo ? (
-                <p className="text-sm text-tapit-muted">
-                  Password reset email delivery is disabled in hosted demo mode.
-                </p>
-              ) : null}
+              {(() => {
+                const invitation = invitationByCustomer.get(customer._id);
+                const invitationActive = invitation?.invalidatedAt === null;
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {invitation && invitationActive ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Revoke this invitation?"))
+                            void revoke(invitation.invitationId);
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Revoke invitation
+                      </Button>
+                    ) : null}
+                    {customer.status === "invited" && !customer.userId ? (
+                      <Button
+                        onClick={() => void replace(customer._id)}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Replace invitation
+                      </Button>
+                    ) : null}
+                    {customer.status === "active" && customer.role === "customer" ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Promote this customer to administrator?"))
+                            void changeRole(customer._id, "admin");
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Promote to administrator
+                      </Button>
+                    ) : null}
+                    {customer.status === "active" && customer.role === "admin" ? (
+                      <Button
+                        onClick={() => {
+                          if (window.confirm("Demote this administrator to customer?"))
+                            void changeRole(customer._id, "customer");
+                        }}
+                        type="button"
+                        variant="quiet"
+                      >
+                        Demote to customer
+                      </Button>
+                    ) : null}
+                  </div>
+                );
+              })()}
             </article>
           ))}
         </div>
+        {customersStatus === "CanLoadMore" || customersStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={customersStatus === "LoadingMore"}
+            onClick={() => loadMoreCustomers(50)}
+            type="button"
+            variant="secondary"
+          >
+            {customersStatus === "LoadingMore" ? "Loading accounts…" : "Load more accounts"}
+          </Button>
+        ) : null}
+        {invitationsStatus === "CanLoadMore" || invitationsStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={invitationsStatus === "LoadingMore"}
+            onClick={() => loadMoreInvitations(50)}
+            type="button"
+            variant="secondary"
+          >
+            {invitationsStatus === "LoadingMore"
+              ? "Loading invitations…"
+              : "Load more invitation history"}
+          </Button>
+        ) : null}
       </Panel>
       <Panel title="Deletion requests">
+        {hasOverdueDeletionRequests ? (
+          <p
+            className="mt-5 rounded-tapit border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
+            role="alert"
+          >
+            At least one deletion request is over 30 days old and still awaits administrator
+            approval. Review the request history below.
+          </p>
+        ) : null}
         <div className="mt-5 grid gap-2">
           {requests.length === 0 ? (
-            <Notice>No pending deletion requests.</Notice>
+            <Notice>No deletion requests.</Notice>
           ) : (
-            requests.map(({ request, customer }) => (
+            requests.map(({ request, customer, overdue }) => (
               <article
                 className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
                 key={request._id}
@@ -663,6 +833,11 @@ function LiveCustomersManager() {
                   <p className="mt-1 text-sm text-tapit-muted">
                     Requested {new Date(request.requestedAt).toLocaleString()}
                   </p>
+                  {overdue ? (
+                    <p className="mt-1 text-sm font-semibold text-red-700" role="status">
+                      Overdue — review and approve or resolve this request now.
+                    </p>
+                  ) : null}
                 </div>
                 {request.status === "requested" ? (
                   <Button
@@ -679,6 +854,17 @@ function LiveCustomersManager() {
             ))
           )}
         </div>
+        {requestsStatus === "CanLoadMore" || requestsStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={requestsStatus === "LoadingMore"}
+            onClick={() => loadMoreRequests(50)}
+            type="button"
+            variant="secondary"
+          >
+            {requestsStatus === "LoadingMore" ? "Loading requests…" : "Load more requests"}
+          </Button>
+        ) : null}
       </Panel>
     </div>
   );

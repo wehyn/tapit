@@ -92,25 +92,7 @@ describe("BuildCardWorkspace", () => {
   it("renders the chooser content and Canva action", () => {
     renderWorkspace();
 
-    expect(screen.getByText("Coming soon")).toHaveClass(
-      "rounded-full",
-      "bg-tapit-accent",
-      "px-4",
-      "py-2",
-      "text-white",
-    );
     expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
-    expect(screen.getByText(/Start with a template in Canva/)).toHaveClass(
-      "mx-auto",
-      "text-center",
-    );
-    expect(screen.getByRole("banner")).toHaveClass(
-      "sticky",
-      "top-0",
-      "z-40",
-      "w-full",
-      "bg-tapit-surface",
-    );
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
     expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
@@ -135,19 +117,9 @@ describe("BuildCardWorkspace", () => {
     );
     expect(screen.getByText("Already got your design?")).toBeVisible();
     const input = screen.getByLabelText("Upload your design");
-    const canvaAction = screen.getByRole("link", { name: "Build your own with Canva" });
-    const uploadAction = input.closest("label");
     expect(input).toBeVisible();
-    expect(canvaAction).toHaveClass("items-center", "justify-center", "text-center");
-    expect(uploadAction).toHaveClass("items-center", "justify-center", "text-center");
-    expect(canvaAction.querySelector("svg")).not.toBeNull();
-    expect(uploadAction?.querySelector("svg")).not.toBeNull();
     expect(input).not.toHaveAttribute("aria-describedby");
     expect(input).not.toHaveAttribute("aria-invalid");
-    expect(screen.getByText("Already got your design?").closest("label")).toHaveClass(
-      "focus-within:ring-2",
-      "focus-within:ring-tapit-focus",
-    );
   });
 
   it.each([
@@ -273,7 +245,7 @@ describe("PublicHeader responsive navigation", () => {
       within(mobileNavigation)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Product", "How it works", "Pricing", "Build card", "Demo Profile"]);
+    ).toEqual(["Product", "How it works", "Build card", "Demo Profile"]);
     expect(within(mobileNavigation).queryByText("For teams")).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");

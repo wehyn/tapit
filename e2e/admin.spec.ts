@@ -23,6 +23,11 @@ test("administrator sidebar preserves operations and governance navigation", asy
   await expect(desktopNavigation).toBeVisible();
   await expect(desktopNavigation.getByRole("heading", { name: "Operations" })).toBeVisible();
   await expect(desktopNavigation.getByRole("heading", { name: "Governance" })).toBeVisible();
+  await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
+  await expect(desktopNavigation.getByRole("link", { name: "My profile" })).toHaveAttribute(
+    "href",
+    "/app/profile",
+  );
   for (const label of ["Customers", "Profiles", "Cards", "Analytics", "Audit log", "Settings"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
@@ -36,6 +41,7 @@ test("administrator sidebar preserves operations and governance navigation", asy
   await expect(
     drawerNavigation.getByRole("link", { name: "Audit log", exact: true }),
   ).toBeVisible();
+  await expect(drawerNavigation.getByRole("link", { name: "My profile" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await drawerNavigation.getByRole("link", { name: "Cards", exact: true }).click();
@@ -45,6 +51,69 @@ test("administrator sidebar preserves operations and governance navigation", asy
     "false",
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await openNavigation.click();
+  await drawerNavigation.getByRole("link", { name: "My profile" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("administrator owns a private personal workspace and keeps console access", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  const nav = page.getByRole("navigation", { name: "Tapit operations navigation" });
+  await expect(nav.getByRole("heading", { name: "Personal" })).toBeVisible();
+  await nav.getByRole("link", { name: "My profile" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Tapit Admin");
+  await expect(page.getByLabel("Stable profile slug")).toHaveValue("admin-tapit");
+  await page.goto("/admin/customers");
+  await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+});
+
+test("administrator publishes only after editing their own draft", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.goto("/app/profile");
+  await expect(page.getByLabel("Name")).toHaveValue("Tapit Admin");
+  await page.goto("/admin-tapit");
+  await expect(page.getByRole("heading", { name: "Profile not found" })).toBeVisible();
+
+  await page.goto("/app/profile");
+  await page.getByLabel("Name").fill("Admin Personal Profile");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.goto("/app/links");
+  await page.getByRole("button", { name: "Add link" }).click();
+  await page
+    .getByRole("textbox", { name: /Label for/ })
+    .last()
+    .fill("Portfolio");
+  await page
+    .getByRole("textbox", { name: /Destination for/ })
+    .last()
+    .fill("https://example.com");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
+  await expect(page.getByText(/Profile published/)).toBeVisible();
+  await page.goto("/admin-tapit");
+  await expect(page.getByRole("heading", { name: "Admin Personal Profile" })).toBeVisible();
+
+  await page.goto("/app/account/build-card");
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await page.goto("/app/analytics");
+  await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
+  await page.goto("/app/account");
+  await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Request deletion" })).toBeDisabled();
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await signInAsCustomer(page);
+  await expect(page.getByLabel("Name")).toHaveValue("Mara Velasquez");
+  await page.goto("/admin/customers");
+  await expect(page).toHaveURL(/\/app\/profile$/);
 });
 
 test("administrator can create and inspect a customer invitation", async ({ page }) => {
@@ -180,5 +249,70 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   ).toBeVisible();
   await expect(customer.getByText("deleted", { exact: true })).toBeVisible();
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("account · deletion approved")).toBeVisible();
+  await expect(page.getByText("Account deletion approved")).toBeVisible();
+});
+
+test("administrator can expand audit entries to read account changes", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByLabel("Customer email").fill("audit-test@example.test");
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  await expect(
+    page.getByText("Customer account created for audit-test@example.test."),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    const rawState = window.localStorage.getItem("tapit:demo-state:v1");
+    if (rawState === null) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(rawState) as {
+      audits: Array<Record<string, string>>;
+    };
+    state.audits.unshift(
+      {
+        id: "audit-readable-account-created",
+        actor: "harley@example.test",
+        action: "auth.google_account_provisioned",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:54:00.000Z",
+        after: JSON.stringify({ role: "customer", status: "pending" }),
+      },
+      {
+        id: "audit-readable-onboarding",
+        actor: "harley@example.test",
+        action: "customer.onboarding_completed",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:55:00.000Z",
+        after: JSON.stringify({ slug: "harley-albert-buendia" }),
+      },
+      {
+        id: "audit-readable-role-change",
+        actor: "admin@example.test",
+        action: "customer.role_changed",
+        target: "harley-albert-buendia",
+        occurredAt: "2026-09-25T08:56:00.000Z",
+        before: "customer",
+        after: "admin",
+      },
+    );
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/admin/audit-log");
+
+  const entry = page.locator("details").filter({ hasText: "Google account created" });
+  await expect(entry).toBeVisible();
+  await expect(entry.getByText("View details")).toBeVisible();
+  await expect(entry).not.toContainText('{"role":"customer","status":"pending"}');
+  await entry.getByText("View details").click();
+  await expect(entry.getByText(/Account role/)).toBeVisible();
+  await expect(entry.getByText(/Not recorded → Customer/)).toBeVisible();
+  await expect(entry.getByText(/Account status/)).toBeVisible();
+  await expect(entry.getByText(/Not recorded → Pending/)).toBeVisible();
+
+  const onboarding = page.locator("details").filter({ hasText: "Customer onboarding completed" });
+  await onboarding.getByText("View details").click();
+  await expect(onboarding.getByText(/Profile slug/)).toBeVisible();
+  await expect(onboarding.getByText(/Not recorded → harley-albert-buendia/)).toBeVisible();
+
+  const roleChange = page.locator("details").filter({ hasText: "Customer role changed" });
+  await roleChange.getByText("View details").click();
+  await expect(roleChange.getByText(/Customer → Administrator/)).toBeVisible();
 });

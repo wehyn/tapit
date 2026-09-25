@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -53,6 +53,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const session = useDemoSession();
   const state = useDemoState();
   const draftSave = useDraftSave();
+  const signingOut = useRef(false);
   const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
@@ -61,13 +62,14 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || signingOut.current) return;
     if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (session.role !== "customer") router.replace("/admin/customers");
     else {
       const customer = state.customers.find((candidate) => candidate.email === session.email);
+      const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
       if (
         customer === undefined ||
+        profile?.ownerId !== customer.id ||
         customer.status !== "active" ||
         customer.deletionStatus !== "active"
       ) {
@@ -75,17 +77,18 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       }
     }
-  }, [hydrated, pathname, router, session, state.customers]);
+  }, [hydrated, pathname, router, session, state.customers, state.profiles]);
 
   const customer =
-    session?.role === "customer"
+    session !== null
       ? state.customers.find((candidate) => candidate.email === session.email)
       : undefined;
+  const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
   if (
     !hydrated ||
     session === null ||
-    session.role !== "customer" ||
     customer === undefined ||
+    profile?.ownerId !== customer.id ||
     customer.status !== "active" ||
     customer.deletionStatus !== "active"
   )
@@ -94,7 +97,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       beforeNavigate={beforeNavigate}
-      eyebrow="Customer workspace"
+      eyebrow=""
       navGroups={customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
@@ -102,6 +105,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
           <p className="px-1 text-sm text-tapit-muted">{customer.email}</p>
           <Button
             onClick={() => {
+              signingOut.current = true;
               clearDemoSession();
               router.replace("/login");
             }}
@@ -130,10 +134,16 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;
-    if (!isAuthenticated || access?.authenticated !== true) {
+    if (access?.accountStatus === "pending") {
+      router.replace("/onboarding");
+    } else if (access?.accountStatus === "invited") {
+      router.replace("/login?reason=invitation-required");
+    } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
+      router.replace("/login?reason=account-inactive");
+    } else if (!isAuthenticated || access?.authenticated !== true) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    } else if (access.role !== "customer") {
-      router.replace(access.role === "admin" ? "/admin/customers" : "/login");
+    } else if (access.profileId === null) {
+      router.replace("/login?reason=account-inactive");
     }
   }, [access, authLoading, isAuthenticated, pathname, router]);
 
@@ -142,7 +152,9 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
     (isAuthenticated && access === undefined) ||
     !isAuthenticated ||
     access?.authenticated !== true ||
-    access.role !== "customer"
+    access.accountStatus !== "active" ||
+    (access.role !== "customer" && access.role !== "admin") ||
+    access.profileId === null
   ) {
     return <div className="min-h-[100dvh] bg-tapit-paper" />;
   }
@@ -150,12 +162,11 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   return (
     <AppShell
       beforeNavigate={beforeNavigate}
-      eyebrow="Customer workspace"
+      eyebrow=""
       navGroups={customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
-          <p className="px-1 text-sm text-tapit-muted">Customer workspace</p>
           <Button
             onClick={() => {
               void signOut().finally(() => router.replace("/login"));

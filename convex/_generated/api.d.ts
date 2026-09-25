@@ -8,11 +8,12 @@
  * @module
  */
 
+import type * as accountErasure from "../accountErasure.js";
 import type * as admin from "../admin.js";
 import type * as analytics from "../analytics.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
-import type * as authEmail from "../authEmail.js";
+import type * as authIdentity from "../authIdentity.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as cardClaims from "../cardClaims.js";
 import type * as cards from "../cards.js";
@@ -33,9 +34,13 @@ import type * as profileMediaCleanup from "../profileMediaCleanup.js";
 import type * as profileMediaProcessing from "../profileMediaProcessing.js";
 import type * as profileMediaUploadHttp from "../profileMediaUploadHttp.js";
 import type * as profileProjection from "../profileProjection.js";
+import type * as profileSlug from "../profileSlug.js";
 import type * as profiles from "../profiles.js";
+import type * as retention from "../retention.js";
 import type * as settings from "../settings.js";
 import type * as storage from "../storage.js";
+import type * as uploadErrors from "../uploadErrors.js";
+import type * as uploadPolicies from "../uploadPolicies.js";
 import type * as validators from "../validators.js";
 
 import type {
@@ -45,11 +50,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accountErasure: typeof accountErasure;
   admin: typeof admin;
   analytics: typeof analytics;
   audit: typeof audit;
   auth: typeof auth;
-  authEmail: typeof authEmail;
+  authIdentity: typeof authIdentity;
   bootstrap: typeof bootstrap;
   cardClaims: typeof cardClaims;
   cards: typeof cards;
@@ -70,9 +76,13 @@ declare const fullApi: ApiFromModules<{
   profileMediaProcessing: typeof profileMediaProcessing;
   profileMediaUploadHttp: typeof profileMediaUploadHttp;
   profileProjection: typeof profileProjection;
+  profileSlug: typeof profileSlug;
   profiles: typeof profiles;
+  retention: typeof retention;
   settings: typeof settings;
   storage: typeof storage;
+  uploadErrors: typeof uploadErrors;
+  uploadPolicies: typeof uploadPolicies;
   validators: typeof validators;
 }>;
 

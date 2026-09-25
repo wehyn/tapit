@@ -86,6 +86,7 @@ function DemoAccountSettings() {
   }
 
   function requestDeletion() {
+    if (customer.role !== "customer") return;
     const occurredAt = new Date().toISOString();
     updateDemoState((current) => ({
       ...updateDemoProfile(current, profile.id, (currentProfile) => ({
@@ -147,10 +148,7 @@ function DemoAccountSettings() {
         </dl>
       </Panel>
 
-      <Panel
-        description="Password recovery and email verification are not part of the local MVP. Contact support if you lose access."
-        title="Change password"
-      >
+      <Panel title="Change password">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
           <KeyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
           Keep your workspace access secure.
@@ -229,7 +227,9 @@ function DemoAccountSettings() {
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <Button
             disabled={
-              customer.deletionStatus === "requested" || customer.deletionStatus === "deleted"
+              customer.role !== "customer" ||
+              customer.deletionStatus === "requested" ||
+              customer.deletionStatus === "deleted"
             }
             onClick={() => setDeletionOpen(true)}
             type="button"
@@ -300,31 +300,16 @@ function LiveAccountSettings() {
           </div>
         </dl>
       </Panel>
-      <Panel
-        description="Password changes use the configured Convex Auth provider."
-        title="Change password"
-      >
-        {hostedDemo ? (
+      {hostedDemo ? (
+        <Panel
+          description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
+          title="Hosted demo access"
+        >
           <div className="mt-5">
-            <Notice>
-              Password reset email delivery is disabled in hosted demo mode. Keep using the password
-              created through your setup link.
-            </Notice>
+            <Notice>Password reset email delivery is disabled in hosted demo mode.</Notice>
           </div>
-        ) : (
-          <>
-            <p className="mt-5 text-sm leading-6 text-tapit-muted">
-              Password recovery and password changes are managed by the live authentication flow.
-            </p>
-            <a
-              className="mt-5 inline-flex min-h-12 items-center rounded-tapit bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
-              href={`/login?reset=1&email=${encodeURIComponent(account.email)}`}
-            >
-              Reset password
-            </a>
-          </>
-        )}
-      </Panel>
+        </Panel>
+      ) : null}
       <Panel title="Support">
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
@@ -349,7 +334,7 @@ function LiveAccountSettings() {
         ) : null}
         <div className="mt-5">
           <Button
-            disabled={account.deletionStatus !== "active"}
+            disabled={account.role !== "customer" || account.deletionStatus !== "active"}
             onClick={() => setDeletionOpen(true)}
             type="button"
             variant="danger"

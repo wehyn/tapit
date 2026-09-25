@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 
 type AuthContext = QueryCtx | MutationCtx;
+const authEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function isActiveCustomer(account: Doc<"customers"> | null | undefined): boolean {
   return account?.status === "active" && account.deletionStatus === "active";
@@ -55,30 +56,85 @@ export async function customerForAuthUser(
     .unique();
 }
 
+type AccountAccessStatus = "pending" | "invited" | "active" | "deleted" | "unprovisioned";
+
+function accountAccessStatus(
+  account: Doc<"customers"> | null,
+  invited: Doc<"customers"> | null,
+): AccountAccessStatus {
+  if (account === null) return invited === null ? "unprovisioned" : "invited";
+  if (account.status === "deleted" || account.deletionStatus !== "active") return "deleted";
+  return account.status;
+}
+
+async function ownedProfileId(ctx: AuthContext, account: Doc<"customers"> | null) {
+  if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
+    return null;
+  const profile = await ctx.db.get(account.profileId);
+  if (profile === null || profile.ownerId !== account._id || !sameScope(account, profile))
+    return null;
+  return profile._id;
+}
+
 export const currentAccess = query({
   args: {},
   returns: v.object({
     authenticated: v.boolean(),
+    accountStatus: v.union(
+      v.literal("unauthenticated"),
+      v.literal("unprovisioned"),
+      v.literal("pending"),
+      v.literal("invited"),
+      v.literal("active"),
+      v.literal("deleted"),
+    ),
     role: v.union(v.literal("admin"), v.literal("customer"), v.null()),
     accountId: v.union(v.id("customers"), v.null()),
     profileId: v.union(v.id("profiles"), v.null()),
+    onboardingName: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null)
-      return { authenticated: false, role: null, accountId: null, profileId: null };
+      return {
+        authenticated: false,
+        accountStatus: "unauthenticated" as const,
+        role: null,
+        accountId: null,
+        profileId: null,
+        onboardingName: null,
+      };
 
     const account = await ctx.db
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
 
+    const user = await ctx.db.get(userId);
+    const verifiedEmail =
+      user?.emailVerificationTime !== undefined &&
+      user?.email &&
+      authEmailPattern.test(user.email.trim().toLowerCase())
+        ? user.email.trim().toLowerCase()
+        : null;
+    const invited =
+      account === null && verifiedEmail
+        ? await ctx.db
+            .query("customers")
+            .withIndex("by_email", (q) => q.eq("email", verifiedEmail))
+            .filter((q) => q.eq(q.field("status"), "invited"))
+            .first()
+        : null;
+    const status = accountAccessStatus(account, invited);
     const active = isActiveCustomer(account);
+    const profileId = await ownedProfileId(ctx, account);
     return {
       authenticated: active,
+      accountStatus: status,
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
-      profileId: active ? (account?.profileId ?? null) : null,
+      profileId,
+      onboardingName: account?.onboardingName ?? null,
     };
   },
 });
@@ -87,15 +143,56 @@ export const currentAccessInternal = internalQuery({
   args: {},
   returns: v.object({
     authenticated: v.boolean(),
+    accountStatus: v.union(
+      v.literal("unauthenticated"),
+      v.literal("unprovisioned"),
+      v.literal("pending"),
+      v.literal("invited"),
+      v.literal("active"),
+      v.literal("deleted"),
+    ),
     role: v.union(v.literal("admin"), v.literal("customer"), v.null()),
+    accountId: v.union(v.id("customers"), v.null()),
+    profileId: v.union(v.id("profiles"), v.null()),
+    onboardingName: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
-    if (userId === null) return { authenticated: false, role: null };
+    if (userId === null)
+      return {
+        authenticated: false,
+        accountStatus: "unauthenticated" as const,
+        role: null,
+        accountId: null,
+        profileId: null,
+        onboardingName: null,
+      };
     const account = await customerForAuthUser(ctx, userId);
+    const active = isActiveCustomer(account);
+    const profileId = await ownedProfileId(ctx, account);
+    const user = await ctx.db.get(userId);
+    const verifiedEmail =
+      user?.emailVerificationTime !== undefined &&
+      user?.email &&
+      authEmailPattern.test(user.email.trim().toLowerCase())
+        ? user.email.trim().toLowerCase()
+        : null;
+    const invited =
+      account === null && verifiedEmail
+        ? await ctx.db
+            .query("customers")
+            .withIndex("by_email", (q) => q.eq("email", verifiedEmail))
+            .filter((q) => q.eq(q.field("status"), "invited"))
+            .first()
+        : null;
+    const accountStatus = accountAccessStatus(account, invited);
     return {
-      authenticated: isActiveCustomer(account),
-      role: isActiveCustomer(account) ? (account?.role ?? null) : null,
+      authenticated: active,
+      accountStatus,
+      role: active ? (account?.role ?? null) : null,
+      accountId: active ? (account?._id ?? null) : null,
+      profileId,
+      onboardingName: account?.onboardingName ?? null,
     };
   },
 });

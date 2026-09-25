@@ -477,7 +477,7 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 - Rate limiting must protect login and sensitive administrative actions.
 - Profile suspension and card deactivation must take effect immediately for public requests.
 - Deletion must immediately hide profile content and deactivate cards, retain only the minimal audit record, and permanently delete personal/profile data after a TBD retention period.
-- Initial operating jurisdiction and compliance requirements are TBD. Before production, define the privacy notice, analytics disclosure/consent approach, data-processing responsibilities, and retention policy for the launch jurisdiction.
+- The initial operating jurisdiction is the Philippines. Before production, define the privacy notice, analytics disclosure/consent approach, data-processing responsibilities, and retention policy for that jurisdiction.
 - The product must not represent a Tapit profile card as government identification, verified identity, or an access credential.
 
 ## Performance and reliability expectations
@@ -622,7 +622,7 @@ The MVP is complete in scope when it provides:
 - **Customer account email changes:** TBD. Options are disallowing changes in MVP or requiring administrator-mediated verification. Recommendation: disallow self-service email changes in MVP and handle exceptional changes administratively.
 - **Unique-view calculation:** TBD. Options include privacy-preserving rotating pseudonymous identifiers, coarse time-bucketed counting, or aggregate edge analytics. Recommendation: choose a method that cannot reconstruct visitor history and document its retention window.
 - **Deleted-data retention period:** TBD. Recommendation: define the period with the launch jurisdiction’s privacy requirements before production.
-- **Launch jurisdiction and compliance:** TBD. This determines privacy notice, analytics disclosure/consent, data-processing responsibilities, and retention obligations.
+- **Launch jurisdiction and compliance:** The operator confirmed the Philippines as the initial jurisdiction. The privacy notice, analytics disclosure/consent, data-processing responsibilities, and retention obligations remain to be resolved.
 - **Hosting capacity and budget:** TBD. Required inputs are expected initial customers/cards, monthly traffic, and monthly spending limit. Recommendation: establish a pilot capacity and cost ceiling before selecting production Vercel and Convex plans.
 - **Availability operations:** TBD. Monitoring, alerting, backup, recovery, and incident-response ownership must be defined before claiming the 99.9% target.
 - **Card registration input:** manual URL entry is confirmed. Whether a future scan-assisted workflow is added is out of scope for MVP.

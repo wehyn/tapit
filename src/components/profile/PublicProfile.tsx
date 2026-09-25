@@ -330,15 +330,20 @@ export function PublicProfile({
       ) : null}
     </>
   );
-  const profileFrameClasses = phonePreview
+  const profileFrameClasses = !warmStudio
     ? "rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-    : preview
+    : phonePreview
       ? "rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-      : "rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
+      : preview
+        ? "rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
+        : "rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
+  const pageFrameClasses = warmStudio
+    ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
+    : "min-h-[100dvh] px-5 py-8 sm:py-12";
   const Container = preview ? "div" : "main";
   return (
     <Container
-      className={`${phonePreview ? "min-h-0 p-0" : preview ? "min-h-0 px-3 py-3 sm:px-4 sm:py-5" : "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
+      className={`${phonePreview ? "min-h-0 p-0" : preview ? "min-h-0 px-3 py-3 sm:px-4 sm:py-5" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
     >
       <div
         className={`mx-auto flex w-full ${phonePreview ? "max-w-none" : "max-w-xl"} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}

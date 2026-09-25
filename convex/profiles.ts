@@ -92,7 +92,9 @@ export const mine = query({
     if (customer === null || !isActiveCustomer(customer) || customer.profileId === undefined)
       return null;
     const profile = await ctx.db.get(customer.profileId);
-    return profile === null ? null : await projectOwnedProfile(ctx, profile);
+    if (profile === null || profile.ownerId !== customer._id || profile.scope !== customer.scope)
+      return null;
+    return await projectOwnedProfile(ctx, profile);
   },
 });
 
@@ -114,7 +116,9 @@ export const current = query({
     if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
       return null;
     const profile = await ctx.db.get(account.profileId);
-    return profile === null ? null : { account, profile: await projectOwnedProfile(ctx, profile) };
+    if (profile === null || profile.ownerId !== account._id || profile.scope !== account.scope)
+      return null;
+    return { account, profile: await projectOwnedProfile(ctx, profile) };
   },
 });
 

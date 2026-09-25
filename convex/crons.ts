@@ -17,4 +17,13 @@ crons.interval(
   {},
 );
 
+crons.interval("prune expired privacy data", { hours: 1 }, internal.retention.prune, {});
+
+crons.interval(
+  "erase overdue accounts",
+  { hours: 1 },
+  internal.accountErasure.eraseDueAccounts,
+  {},
+);
+
 export default crons;

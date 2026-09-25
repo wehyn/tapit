@@ -15,10 +15,12 @@ import {
 import { isActiveAccount } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
+import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { AnalyticsConsent } from "./AnalyticsConsent";
 
 export function PublicProfileScreen({ slug }: { slug: string }) {
   return isLocalDemoMode() ? (
@@ -65,17 +67,9 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
   const onView = useCallback(
     (profileId?: string) => {
       if (profileId === undefined) return;
-      let sessionKey: string | undefined;
-      try {
-        const key = "tapit:analytics-session";
-        sessionKey = window.sessionStorage.getItem(key) ?? crypto.randomUUID();
-        window.sessionStorage.setItem(key, sessionKey);
-      } catch {
-        // Tracking remains best-effort when storage is unavailable.
-      }
       void recordView({
         profileId: profileId as Id<"profiles">,
-        sessionKey,
+        sessionKey: getAnalyticsSessionKey(),
         source: "direct",
       });
     },
@@ -102,13 +96,16 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
     })),
   };
   return (
-    <PublicProfile
-      onLinkClick={onLinkClick}
-      onView={onView}
-      profile={projection}
-      profileId={profile.id}
-      profileUrl={`/${profile.slug}`}
-    />
+    <>
+      <PublicProfile
+        onLinkClick={onLinkClick}
+        onView={onView}
+        profile={projection}
+        profileId={profile.id}
+        profileUrl={`/${profile.slug}`}
+      />
+      <AnalyticsConsent />
+    </>
   );
 }
 

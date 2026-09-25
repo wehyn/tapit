@@ -490,12 +490,18 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       "https://support.example.test",
     );
 
-    await expect(admin.query(api.customers.list, { search: "owner" })).resolves.toEqual([
-      expect.objectContaining({ email: "owner@example.com" }),
-    ]);
-    await expect(owner.query(api.customers.list, {})).rejects.toThrow(
-      "Administrator permission required.",
-    );
+    await expect(
+      admin.query(api.customers.list, {
+        search: "owner",
+        paginationOpts: { numItems: 10, cursor: null },
+      }),
+    ).resolves.toMatchObject({
+      page: [expect.objectContaining({ email: "owner@example.com" })],
+      isDone: true,
+    });
+    await expect(
+      owner.query(api.customers.list, { paginationOpts: { numItems: 10, cursor: null } }),
+    ).rejects.toThrow("Administrator permission required.");
     await expect(owner.query(api.audit.list, {})).rejects.toThrow(
       "Administrator permission required.",
     );
@@ -504,15 +510,22 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     );
 
     const deletion = await owner.mutation(api.customers.requestDeletion, {});
-    await expect(admin.query(api.customers.listDeletionRequests, {})).resolves.toEqual([
-      expect.objectContaining({
-        request: expect.objectContaining({ _id: deletion.requestId, status: "requested" }),
-        customer: expect.objectContaining({
-          email: "owner@example.com",
-          deletionStatus: "requested",
-        }),
+    await expect(
+      admin.query(api.customers.listDeletionRequests, {
+        paginationOpts: { numItems: 10, cursor: null },
       }),
-    ]);
+    ).resolves.toMatchObject({
+      page: [
+        expect.objectContaining({
+          request: expect.objectContaining({ _id: deletion.requestId, status: "requested" }),
+          customer: expect.objectContaining({
+            email: "owner@example.com",
+            deletionStatus: "requested",
+          }),
+        }),
+      ],
+      isDone: true,
+    });
     await expect(
       admin.mutation(api.customers.approveDeletion, { requestId: deletion.requestId }),
     ).resolves.toEqual({ status: "deleted" });

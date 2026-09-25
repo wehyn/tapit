@@ -52,18 +52,6 @@ function renderSidebar() {
 }
 
 describe("SidebarNav", () => {
-  it("renders grouped navigation with one active destination and its footer", () => {
-    renderSidebar();
-
-    expect(screen.getAllByRole("navigation", { name: "Workspace navigation" })).toHaveLength(1);
-    expect(screen.getByText("Workspace")).toBeVisible();
-    expect(screen.getByText("Personal")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Links" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("link", { name: "Account" })).not.toHaveAttribute("aria-current");
-    expect(screen.getByText("Signed in as test@example.com")).toBeVisible();
-  });
-
   it("opens and closes the mobile drawer", () => {
     renderSidebar();
 

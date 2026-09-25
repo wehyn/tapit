@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Flow"
+  short_description: "Branch, commit features, and open PRs"
+  default_prompt: "Use $pr-flow to implement changes as separate feature commits on a branch and open a PR."

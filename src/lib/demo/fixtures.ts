@@ -152,6 +152,14 @@ export function createDefaultDemoState(): DemoState {
     },
     published: null,
   };
+  const adminProfile: DemoProfile = {
+    id: "profile-admin-demo",
+    ownerId: "admin-demo",
+    status: "draft",
+    theme: "paper",
+    draft: { name: "Tapit Admin", slug: "admin-tapit", email: "admin@tapit.local", links: [] },
+    published: null,
+  };
   return {
     customers: [
       {
@@ -177,14 +185,15 @@ export function createDefaultDemoState(): DemoState {
         id: "admin-demo",
         email: "admin@tapit.local",
         role: "admin",
+        profileId: "profile-admin-demo",
         status: "active",
         deletionStatus: "active",
         passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
       },
     ],
-    profiles: [primaryProfile, claimProfile],
+    profiles: [primaryProfile, claimProfile, adminProfile],
     profile: primaryProfile,
-    themes: { [primaryProfile.id]: primaryProfile.theme },
+    themes: { [primaryProfile.id]: primaryProfile.theme, [adminProfile.id]: adminProfile.theme },
     theme: "paper",
     cards: [
       {

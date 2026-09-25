@@ -19,7 +19,6 @@ type PublicNavItem = {
 const publicNavItems: PublicNavItem[] = [
   { href: "#product", label: "Product" },
   { href: "#how-it-works", label: "How it works" },
-  { href: "#pricing", label: "Pricing" },
   { href: "/build-card", label: "Build card" },
 ];
 

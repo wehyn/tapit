@@ -78,6 +78,7 @@ describe("demo self-service signup", () => {
     expect(state.themes).toEqual({
       [profiles[0]!.id]: "night",
       [profiles[1]!.id]: "moss",
+      [profiles[2]!.id]: "paper",
     });
     expect(localStorage.getItem("tapit:demo-state:v1")).toBe(storedBeforeReload);
   });
