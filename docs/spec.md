@@ -2,20 +2,20 @@
 
 Document status: draft  
 Author: `<name/team>`  
-Date: 2026-09-14
+Date: 2026-09-25
 
 ## Product summary
 
 Tapit is a mobile-first digital profile service for independent professionals, with the same one-account/one-profile model available to small businesses. A customer receives a pre-encoded NFC card. When a recipient taps the card, scans its QR fallback, or opens the customer’s public profile URL, Tapit displays a published profile with the customer’s identity and useful contact links.
 
-Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. NFC card URLs are unique per physical card and resolve to a stable public profile URL, allowing administrators to deactivate or replace an individual card without changing the profile.
+Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. NFC card URLs are unique per physical card and resolve to the profile’s current public URL. An administrator may change the profile slug; the old direct profile URL then stops resolving, while card URLs continue to resolve to that profile.
 
 The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
 
 ## Goals
 
 - Make in-person sharing of a professional identity and contact links fast through NFC and QR.
-- Give each customer one stable public profile URL that can be updated without re-encoding a card.
+- Give each customer one public profile URL that can be updated without re-encoding a card; administrators may change its slug when needed.
 - Support a clear, professional, accessible mobile profile experience.
 - Let customers publish a small set of useful identity fields and ordered links.
 - Give administrators controlled ownership of physical card records and assignments.
@@ -76,7 +76,7 @@ Administrators provision customer accounts and physical card records, assign car
 2. The administrator creates a customer account using the customer’s email address.
 3. The administrator registers a pre-encoded NFC card by manually entering its unique card URL.
 4. Tapit validates that the card URL is unused.
-5. The administrator creates or selects the customer’s permanent unique profile slug and assigns the card to the customer’s profile.
+5. The administrator creates or selects the customer’s unique profile slug and assigns the card to the customer’s profile. The customer cannot change the slug after profile creation.
 6. Tapit sends the customer a one-time setup link.
 7. The customer uses the link to set a password and access the profile editor.
 
@@ -88,20 +88,20 @@ Administrators provision customer accounts and physical card records, assign car
 4. The customer chooses basic visual customization and orders the links.
 5. The customer saves a draft and previews responsive desktop/mobile layouts.
 6. The customer explicitly publishes the profile.
-7. Tapit exposes the new published version at the stable profile URL.
+7. Tapit exposes the new published version at the current profile URL.
 
 ### 4. Customer updates a published profile
 
 1. The customer signs in and edits profile fields, links, or theme settings.
 2. Changes remain in draft until explicitly published.
 3. The customer previews the change and publishes it.
-4. Tapit updates the content shown at the stable profile URL and through all active card URLs.
+4. Tapit updates the content shown at the current profile URL and through all active card URLs.
 5. The NFC card does not need to be re-encoded.
 
 ### 5. Visitor uses a Tapit card
 
 1. The visitor taps the NFC card or scans its QR code.
-2. The card URL resolves through the card registry to the stable profile URL.
+2. The card URL resolves through the card registry to the profile’s current public URL.
 3. Tapit records an aggregate profile view without storing visitor identity.
 4. Tapit displays the published profile on the visitor’s mobile browser.
 5. The visitor may select a link, save a vCard, or return to the profile.
@@ -109,7 +109,7 @@ Administrators provision customer accounts and physical card records, assign car
 
 ### 6. Visitor opens a direct profile URL
 
-1. The visitor opens the stable profile URL from a message, social bio, or other source.
+1. The visitor opens the current profile URL from a message, social bio, or other source.
 2. Tapit records an aggregate profile view.
 3. Tapit displays the same published profile as the NFC and QR paths.
 
@@ -120,7 +120,7 @@ Administrators provision customer accounts and physical card records, assign car
 3. The old card URL begins showing the branded inactive-card page without revealing the former profile.
 4. The administrator registers a new pre-encoded card URL and assigns it to the same profile.
 5. Tapit records assignment, deactivation, and replacement events in the audit log.
-6. The new card resolves to the stable profile URL.
+6. The new card resolves to the profile’s current public URL.
 
 Deactivated cards are not reactivated or reassigned. A new card is assigned instead.
 
@@ -145,9 +145,9 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-004:** The system shall send a one-time setup link allowing a customer to set an initial password and access profile setup.
 - **FR-005:** Customers shall be able to sign in with email and password.
 - **FR-006:** The system shall not expose or store customer passwords in administrator interfaces.
-- **FR-007:** Administrators shall be able to create customer profiles and assign a permanent unique slug before publication.
-- **FR-008:** Customers shall be able to suggest or confirm their slug before the profile is published.
-- **FR-009:** The public profile slug shall not change after publication.
+- **FR-007:** Administrators shall be able to create customer profiles and assign a unique slug before publication.
+- **FR-008:** Self-service customers may choose an initial slug during signup. Customers shall not be able to change an assigned slug after profile creation.
+- **FR-009:** Administrators shall be able to change a profile slug at any time, including after publication. The system shall validate and reserve the new slug, update the current public URL immediately, and make the old direct profile URL stop resolving without a redirect.
 - **FR-010:** The system shall require a name and at least one link before publication.
 - **FR-011:** The system shall support an optional profile photo or business logo.
 - **FR-012:** The system shall support an optional short bio or role.
@@ -158,10 +158,10 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-017:** Customers shall be able to customize profile colors, fonts, button styles, and select from a small set of themes.
 - **FR-018:** The system shall support draft, published, unpublished, and suspended profile states.
 - **FR-019:** Customers shall be able to save drafts and preview profile changes before publication.
-- **FR-020:** Changes to a published profile shall not become public until the customer explicitly publishes them.
-- **FR-021:** The system shall expose a stable platform-hosted public profile URL.
+- **FR-020:** Customer content changes to a published profile shall not become public until the customer explicitly publishes them. An administrator’s slug change shall update the public URL immediately without publishing pending content changes.
+- **FR-021:** The system shall expose a platform-hosted public profile URL derived from the profile’s current slug.
 - **FR-022:** The system shall store and manage a unique pre-encoded card URL for each physical NFC card.
-- **FR-023:** Each NFC card URL shall resolve to the assigned profile’s stable public profile URL while the card is active.
+- **FR-023:** Each active NFC card URL shall resolve to the assigned profile’s current public profile URL, including after an administrator changes the profile slug.
 - **FR-024:** Administrators shall manually enter each card’s unique pre-encoded URL and the system shall reject duplicate registrations.
 - **FR-025:** Administrators shall be able to assign a card to a profile.
 - **FR-026:** Administrators shall be able to deactivate cards and issue replacements.
@@ -181,20 +181,24 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-040:** The system shall not retain raw visitor-level analytics history.
 - **FR-041:** Customers shall view analytics for their own profile.
 - **FR-042:** Administrators shall view analytics and operational status for all profiles and cards.
-- **FR-043:** Administrators shall be able to edit, publish, unpublish, or suspend profiles for support and policy enforcement.
+- **FR-043:** Administrators shall be able to view all profile details, change profile slugs, edit and publish profile content, unpublish, suspend, or restore profiles for support and policy enforcement.
 - **FR-044:** Administrators shall be able to view customer, profile, and card status.
-- **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, profile changes, suspension, and deletion handling.
+- **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, profile changes including slug changes, suspension, and deletion handling.
 - **FR-046:** Audit entries shall include the administrator, action, affected account/card/profile, timestamp, and relevant before-and-after status.
 - **FR-047:** Customers shall be able to change their password, view their account email, request account deletion, and access support.
 - **FR-048:** Customers shall not have a Cards navigation screen or card reassignment controls in the MVP.
-- **FR-049:** Customers shall be able to copy and share their stable public profile URL from the Profile area.
+- **FR-049:** Customers shall be able to copy and share their current public profile URL from the Profile area.
 - **FR-050:** Deleted or unpublished profiles shall not expose unpublished profile information.
 - **FR-051:** A visitor shall be able to choose customer self-service signup from the login page using display name, profile slug, email, password, and password confirmation.
 - **FR-052:** Customer self-service signup shall create one active customer account and one draft profile owned by that account, with no invitation and no published snapshot.
 - **FR-053:** The system shall derive the signup email and account role from the authenticated server identity and shall never accept a caller-supplied user ID or role for provisioning.
-- **FR-054:** The system shall normalize, validate, reserve, and uniquely enforce customer profile slugs before creating or saving a profile.
-- **FR-055:** A self-service customer shall receive a stable platform-hosted profile URL immediately, but that URL shall remain unavailable to visitors until explicit publication requirements are met.
+- **FR-054:** The system shall normalize, validate, reserve, and uniquely enforce current profile slugs at creation and on administrator changes. A normal customer shall not be able to change an existing slug through profile-save or publish operations.
+- **FR-055:** A self-service customer shall receive a platform-hosted profile URL immediately, but that URL shall remain unavailable to visitors until explicit publication requirements are met.
 - **FR-056:** Self-service customers shall be able to use the existing labeled-link editor for portfolio, TikTok, social, contact, booking, and other destinations allowed by FR-014.
+- **FR-057:** Selecting a profile in the administrator Profiles registry shall open a popup showing the complete profile record, including draft and published values, image, contact fields, theme, redirect, links and their enabled state, publication state, and available profile timestamps.
+- **FR-058:** Administrators shall be able to change a profile slug from its details popup. The slug change shall be authorized by the server, validated for format and uniqueness, synchronize the current slug in the draft and published profile, and record the actor and before-and-after values in the audit log.
+- **FR-059:** A slug change shall not create a redirect or alias from the old direct profile URL. The old URL shall return the existing unavailable/missing-profile state, while assigned active card URLs shall continue resolving to the same profile at its current slug.
+- **FR-060:** The administrator slug-change control shall warn that the old direct URL will stop resolving before the change is applied.
 
 ## User experience
 
@@ -202,7 +206,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 
 Customer navigation:
 
-- Profile: identity fields, public URL, slug confirmation before publication, draft/published state, preview, and publish controls.
+- Profile: identity fields, current public URL, read-only assigned slug, draft/published state, preview, and publish controls.
 - Links: link list, add/edit forms, labels, icons, enabled state, and ordering.
 - Analytics: profile views, unique views, link clicks, and time ranges.
 - Account: password change, account email display, deletion request, and support.
@@ -230,7 +234,7 @@ The page should be clean, professional, mobile-first, high contrast, and restrai
 
 ### Customer profile editor
 
-The editor should distinguish draft content from the currently published version. Required fields should be visibly marked. The customer should be able to save a draft, preview responsive layouts, and explicitly publish. The interface should show the stable public URL and provide a copy action.
+The editor should distinguish draft content from the currently published version. Required fields should be visibly marked. The customer should be able to save a draft, preview responsive layouts, and explicitly publish. The interface should show the current public URL and provide a copy action. After profile creation, the slug is read-only to customers; administrators change it from the Profiles area.
 
 ### Link editor
 
@@ -321,7 +325,7 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 #### Profile
 
 - Internal profile identifier.
-- Stable immutable slug after publication.
+- Current unique slug, changeable only by an administrator after profile creation.
 - Display name.
 - Profile image/logo reference.
 - Short bio or role.
@@ -503,10 +507,10 @@ The MVP is complete in scope when it provides:
 - Editable, reorderable links with custom labels, preset icons, and safe URL validation.
 - Draft, preview, explicit publish, and unpublish behavior.
 - Basic restrained profile customization.
-- Stable platform profile slugs selected during self-service signup or created by administrators for invited customers and confirmed before publication.
+- Profile slugs selected during self-service signup or assigned by administrators for invited customers; after profile creation, only administrators may change them.
 - Pre-encoded NFC card URL registration by manual entry.
 - One or more active cards assigned to a profile by administrators.
-- Unique card URL resolution to a stable profile URL.
+- Unique card URL resolution to the profile’s current public URL.
 - QR-code preview and PNG/SVG downloads.
 - Visitor profile access from NFC, QR, or direct URL without an account or app.
 - vCard download with the approved field set.
@@ -532,9 +536,9 @@ The MVP is complete in scope when it provides:
 - **AC-004:** Given a customer has no profile content, when they attempt to publish, then Tapit identifies the missing required name and at least one link.
 - **AC-005:** Given a customer enters a name and at least one valid link, when they save a draft, then the draft is stored without changing the public profile.
 - **AC-006:** Given a customer previews a draft, when they switch between supported responsive layouts, then the preview reflects the draft without publishing it.
-- **AC-007:** Given a valid draft, when the customer explicitly publishes it, then the profile becomes publicly accessible at its stable URL.
+- **AC-007:** Given a valid draft, when the customer explicitly publishes it, then the profile becomes publicly accessible at its current URL.
 - **AC-008:** Given a published profile has pending edits, when the customer saves without publishing, then visitors continue to see the last published version.
-- **AC-009:** Given a customer publishes updated profile content, when a visitor loads the stable profile URL, then the new content is shown without NFC re-encoding.
+- **AC-009:** Given a customer publishes updated profile content, when a visitor loads the current profile URL, then the new content is shown without NFC re-encoding.
 
 ### Links and profile design
 
@@ -548,7 +552,7 @@ The MVP is complete in scope when it provides:
 
 - **AC-015:** Given an administrator enters an unused pre-encoded card URL, when they register it, then Tapit creates an active card record available for assignment.
 - **AC-016:** Given an administrator enters a card URL already registered, when they submit it, then Tapit rejects the registration and identifies the duplicate condition.
-- **AC-017:** Given an active card is assigned to a published profile, when its NFC URL is opened, then Tapit resolves the card to the correct stable profile URL and displays the published profile.
+- **AC-017:** Given an active card is assigned to a published profile, when its NFC URL is opened, then Tapit resolves the card to the profile’s current URL and displays the published profile.
 - **AC-018:** Given an administrator generates a QR code for an active card, when they preview or download it, then both PNG and SVG outputs encode the unique card URL.
 - **AC-019:** Given an administrator deactivates a card, when a visitor opens its NFC or QR URL, then the inactive-card page appears and the former profile is not exposed.
 - **AC-020:** Given an old card is replaced, when the new card is assigned, then the old card remains inactive and the new card resolves to the assigned profile.
@@ -575,12 +579,17 @@ The MVP is complete in scope when it provides:
 - **AC-032:** Given a visitor uses a supported current iPhone or Android phone on a normal 4G connection, when they open an active card URL, then the profile becomes usable within 2 seconds under the agreed measurement method.
 - **AC-033:** Given the public profile service experiences a temporary failure, when a visitor requests a profile, then Tapit shows the friendly error page rather than an unhandled error.
 - **AC-034:** Given the service is measured over a calendar month after production monitoring is established, when planned maintenance is excluded, then public-profile availability meets the 99.9% target.
-- **AC-035:** Given signup creates a profile, when the customer opens the workspace, then the stable profile URL is shown and the customer is directed to add links before publication.
+- **AC-035:** Given signup creates a profile, when the customer opens the workspace, then the current profile URL is shown and the customer is directed to add links before publication.
 - **AC-036:** Given a requested slug is invalid, reserved, or already in use, when signup is submitted, then Tapit rejects provisioning with an actionable error and does not create a second account or profile.
-- **AC-037:** Given a newly signed-up customer saves a bio or links without publishing, when a visitor opens the stable URL, then the visitor sees the existing missing/unavailable state and no draft content.
-- **AC-038:** Given a customer adds enabled Portfolio and TikTok HTTPS links and publishes a valid profile, when a signed-out visitor opens the stable URL, then the profile name, bio, and both labeled links are visible without authentication.
+- **AC-037:** Given a newly signed-up customer saves a bio or links without publishing, when a visitor opens the profile URL, then the visitor sees the existing missing/unavailable state and no draft content.
+- **AC-038:** Given a customer adds enabled Portfolio and TikTok HTTPS links and publishes a valid profile, when a signed-out visitor opens the profile URL, then the profile name, bio, and both labeled links are visible without authentication.
 - **AC-039:** Given a visitor attempts to create an administrator account through the public login page, when signup is submitted, then no administrator path or role selection is available.
 - **AC-040:** Given the existing invitation setup flow is used, when the invited customer completes setup, then the invitation remains one-time and the customer can still access the same profile workflow.
+- **AC-041:** Given a normal customer has a draft profile, when they attempt to change its slug through a save or publish request, then the server rejects the change even though the profile is unpublished.
+- **AC-042:** Given an administrator changes a profile slug, when the new slug is valid and unused, then the profile’s current URL changes immediately, the old direct URL shows the unavailable/missing-profile state without redirecting, and active card URLs continue resolving to the same profile.
+- **AC-043:** Given an administrator enters an invalid, reserved, or already-used slug, when they submit the change, then Tapit rejects it and preserves the existing profile URL.
+- **AC-044:** Given an administrator changes a slug, when the operation succeeds, then the audit log records the administrator, profile, old slug, new slug, and timestamp.
+- **AC-045:** Given an administrator selects a profile in the Profiles registry, when its popup opens, then the administrator can inspect the draft and published profile details and profile timestamps, and can edit the slug without changing the profile owner or card assignments.
 
 ## Open questions and decisions
 
@@ -597,9 +606,9 @@ The MVP is complete in scope when it provides:
 - Preferred application stack: Next.js, Convex, and Vercel, subject to production validation.
 - Card format: NFC Forum NDEF URI record.
 - Card administration: administrators manually enter card URLs, validate uniqueness, assign cards, deactivate old cards, and assign new replacement cards.
-- Card links: unique per-card URLs resolve to stable profile URLs.
+- Card links: unique per-card URLs resolve to the profile’s current URL.
 - QR: administrator preview plus downloadable PNG and SVG.
-- Public URL: platform-hosted, administrator-created slug, confirmed by customer before publication, immutable after publication.
+- Public URL: platform-hosted and derived from a unique slug; self-service customers may choose the initial slug, and administrators may change it at any time. Customers cannot change an existing slug. A changed slug does not redirect the old URL; active card URLs continue resolving to the profile’s current URL.
 - Profile publication: name plus at least one link required; draft, preview, and explicit publish.
 - Profile links: arbitrary valid HTTPS plus safe `mailto:` and `tel:` actions, with labels, preset icons, enable/disable, and ordering.
 - Public design: clean, professional, mobile-first, strong contrast, restrained themes.
