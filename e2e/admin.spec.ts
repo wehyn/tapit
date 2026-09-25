@@ -61,6 +61,123 @@ test("administrator sidebar preserves operations and governance navigation", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test("administrator can inspect only the selected profile analytics and traffic sources", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.getByLabel("Customer email").fill("analytics-seed@example.test");
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  await expect(
+    page.getByText("Customer account created for analytics-seed@example.test."),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    const rawState = window.localStorage.getItem("tapit:demo-state:v1");
+    if (rawState === null) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(rawState) as { analytics: Array<Record<string, unknown>> };
+    const now = Date.now();
+    state.analytics = [
+      {
+        profileId: "profile-mara",
+        bucketStart: now - 3 * 86400000,
+        source: "nfc",
+        views: 7,
+        uniqueViews: 5,
+        clicks: 2,
+        linkClicks: { linkedin: 2 },
+      },
+      {
+        profileId: "profile-mara",
+        bucketStart: now - 2 * 86400000,
+        source: "qr",
+        views: 3,
+        uniqueViews: 2,
+        clicks: 1,
+        linkClicks: { portfolio: 1 },
+      },
+      {
+        profileId: "profile-claimable",
+        bucketStart: now - 86400000,
+        source: "direct",
+        views: 99,
+        uniqueViews: 90,
+        clicks: 8,
+        linkClicks: { site: 8 },
+      },
+      {
+        profileId: "profile-mara",
+        bucketStart: now - 40 * 86400000,
+        source: "direct",
+        views: 400,
+        uniqueViews: 300,
+        clicks: 40,
+        linkClicks: { booking: 40 },
+      },
+    ];
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/admin/analytics");
+  await page.getByLabel("Time range").selectOption("7d");
+
+  const maraButton = page.getByRole("button", { name: /View analytics for Mara Velasquez/ });
+  await maraButton.click();
+  const maraDialog = page.getByRole("dialog", { name: "Mara Velasquez analytics" });
+  await expect(maraDialog).toBeVisible();
+
+  const maraSummary = maraDialog.getByRole("region", { name: "Engagement summary" });
+  const maraDefinitions = maraSummary.getByRole("definition");
+  await expect(maraDefinitions.nth(0)).toHaveText("10");
+  await expect(maraDefinitions.nth(1)).toHaveText("7");
+  await expect(maraDefinitions.nth(2)).toHaveText("3");
+  const maraSources = maraDialog.getByRole("region", { name: "Traffic sources" });
+  await expect(maraSources.getByText("NFC", { exact: true }).locator("..")).toContainText("9");
+  await expect(maraSources.getByText("QR code", { exact: true }).locator("..")).toContainText("4");
+  await expect(
+    maraDialog.getByRole("region", { name: "Link results" }).getByText("2 clicks", { exact: true }),
+  ).toBeVisible();
+  await expect(maraDialog).not.toContainText("99");
+  await expect(maraDialog).not.toContainText("400");
+
+  await page.keyboard.press("Escape");
+  await expect(maraDialog).toBeHidden();
+  await expect(maraButton).toBeFocused();
+
+  await page.getByRole("button", { name: /View analytics for Claimed profile/ }).click();
+  const claimedDialog = page.getByRole("dialog", { name: "Claimed profile analytics" });
+  await expect(
+    claimedDialog
+      .getByRole("region", { name: "Engagement summary" })
+      .getByRole("definition")
+      .nth(0),
+  ).toHaveText("99");
+  await expect(
+    claimedDialog
+      .getByRole("region", { name: "Traffic sources" })
+      .getByText("Direct profile", { exact: true })
+      .locator(".."),
+  ).toContainText("107");
+});
+
+test("administrator profile analytics dialog keeps focus away from the page behind it", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.goto("/admin/analytics");
+
+  const profileButton = page.getByRole("button", { name: /View analytics for Mara Velasquez/ });
+  await profileButton.click();
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez analytics" });
+  const closeButton = dialog.getByRole("button", { name: "Close profile analytics" });
+  await expect(closeButton).toBeFocused();
+
+  await page.getByLabel("Time range").focus();
+  await expect(closeButton).toBeFocused();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(profileButton).toBeFocused();
+});
+
 test("administrator owns a private personal workspace and keeps console access", async ({
   page,
 }) => {
