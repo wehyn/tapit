@@ -226,7 +226,7 @@ Content: searchable profile registry showing customer, current slug, publication
 
 Actions: inspect all profile details, change the slug, edit and publish profile content, unpublish, suspend, restore where allowed, and view audit history.
 
-Rules: only administrators can change an existing slug. A slug change is applied immediately to the current public URL; the old direct URL stops resolving without a redirect. Active card URLs continue resolving to the same profile. Administrative edits are auditable and never expose unpublished content publicly.
+Rules: only administrators can change an existing slug. A slug change is applied immediately to the current public URL; the old direct URL stops resolving without a redirect and becomes available for reuse. If reused later, it resolves to the newly assigned profile. Active card URLs continue resolving to the original profile. Administrative edits are auditable and never expose unpublished content publicly.
 
 ### Administrator Cards page
 

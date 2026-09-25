@@ -197,8 +197,9 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-056:** Self-service customers shall be able to use the existing labeled-link editor for portfolio, TikTok, social, contact, booking, and other destinations allowed by FR-014.
 - **FR-057:** Selecting a profile in the administrator Profiles registry shall open a popup showing the complete profile record, including draft and published values, image, contact fields, theme, redirect, links and their enabled state, publication state, and available profile timestamps.
 - **FR-058:** Administrators shall be able to change a profile slug from its details popup. The slug change shall be authorized by the server, validated for format and uniqueness, synchronize the current slug in the draft and published profile, and record the actor and before-and-after values in the audit log.
-- **FR-059:** A slug change shall not create a redirect or alias from the old direct profile URL. The old URL shall return the existing unavailable/missing-profile state, while assigned active card URLs shall continue resolving to the same profile at its current slug.
-- **FR-060:** The administrator slug-change control shall warn that the old direct URL will stop resolving before the change is applied.
+- **FR-059:** A slug change shall not create a redirect or alias from the old direct profile URL. The old URL shall return the existing unavailable/missing-profile state until the slug is assigned to another profile, while assigned active card URLs shall continue resolving to the original profile at its current slug.
+- **FR-060:** Before applying a slug change, the administrator control shall warn that the old direct URL will stop resolving and may later be assigned to another profile.
+- **FR-061:** After an administrator changes a slug, the former slug shall be available for reuse. If assigned to another profile, the URL shall resolve directly to that profile and shall not redirect to the original profile.
 
 ## User experience
 
@@ -590,6 +591,7 @@ The MVP is complete in scope when it provides:
 - **AC-043:** Given an administrator enters an invalid, reserved, or already-used slug, when they submit the change, then Tapit rejects it and preserves the existing profile URL.
 - **AC-044:** Given an administrator changes a slug, when the operation succeeds, then the audit log records the administrator, profile, old slug, new slug, and timestamp.
 - **AC-045:** Given an administrator selects a profile in the Profiles registry, when its popup opens, then the administrator can inspect the draft and published profile details and profile timestamps, and can edit the slug without changing the profile owner or card assignments.
+- **AC-046:** Given an administrator changes a profile from an old slug to a new one, when the old slug is later assigned to another profile, then the old URL resolves to the newly assigned profile without redirecting to the original profile.
 
 ## Open questions and decisions
 
@@ -608,7 +610,7 @@ The MVP is complete in scope when it provides:
 - Card administration: administrators manually enter card URLs, validate uniqueness, assign cards, deactivate old cards, and assign new replacement cards.
 - Card links: unique per-card URLs resolve to the profile’s current URL.
 - QR: administrator preview plus downloadable PNG and SVG.
-- Public URL: platform-hosted and derived from a unique slug; self-service customers may choose the initial slug, and administrators may change it at any time. Customers cannot change an existing slug. A changed slug does not redirect the old URL; active card URLs continue resolving to the profile’s current URL.
+- Public URL: platform-hosted and derived from a unique slug; self-service customers may choose the initial slug, and administrators may change it at any time. Customers cannot change an existing slug. A changed slug does not redirect the old URL, and the former slug becomes available for reuse; active card URLs continue resolving to the profile’s current URL.
 - Profile publication: name plus at least one link required; draft, preview, and explicit publish.
 - Profile links: arbitrary valid HTTPS plus safe `mailto:` and `tel:` actions, with labels, preset icons, enable/disable, and ordering.
 - Public design: clean, professional, mobile-first, strong contrast, restrained themes.

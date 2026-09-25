@@ -2,7 +2,7 @@
 
 ## Status
 
-Core conversation design approved. Written-spec review pending. Slug reuse after a rename is recorded as an open policy question. Implementation has not started.
+Core conversation design approved. The user confirmed that former slugs become available for reuse. Written-spec review pending. Implementation has not started.
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Keep the searchable profile registry on `/admin/profiles`, open a profile popup 
 - Preserve the draft and published versions as distinct views of profile content.
 - Let an administrator change the slug before or after publication.
 - Enforce administrator-only slug changes on the server.
-- Ensure the old direct URL stops resolving after a rename without redirecting.
+- Ensure the old direct URL stops resolving after a rename without redirecting, then becomes available for reuse.
 - Keep existing card URLs assigned to the profile working after a slug change.
 - Record slug changes in the audit log.
 
@@ -39,7 +39,7 @@ The popup shows:
 
 When a field differs between the saved draft and published snapshot, both values remain visible and are labeled clearly. The admin can inspect unpublished content without making it public.
 
-The slug control is editable to an administrator and displays the current public URL. Before applying a change, it explains that the former direct URL will stop resolving. Existing moderation and publication actions remain available.
+The slug control is editable to an administrator and displays the current public URL. Before applying a change, it explains that the former direct URL will stop resolving and may later be assigned to another profile. Existing moderation and publication actions remain available.
 
 ## Slug policy
 
@@ -48,24 +48,21 @@ The slug control is editable to an administrator and displays the current public
 - Only an administrator may change an existing slug. The server must reject customer attempts even if they bypass or modify the UI.
 - A valid administrator change takes effect immediately, whether the profile is draft, published, unpublished, or suspended. It does not publish other draft changes or alter the profile status.
 - The current slug, draft slug, and published snapshot slug are updated together when a published snapshot exists.
-- The former URL receives no redirect or alias and resolves to the existing missing/unavailable-profile state.
+- The former URL receives no redirect or alias and resolves to the existing missing/unavailable-profile state until the slug is assigned to another profile; it then resolves directly to that profile.
+- The former slug becomes available for reuse immediately after the current profile releases it.
 - An active card URL remains assigned by profile identity and continues resolving to that profile using its current slug.
 
 ## Authorization, validation, and audit
 
 The administrator Profiles registry and detail data remain administrator-only and scope-checked. Draft and unpublished values must never be added to a public projection.
 
-Slug editing uses a dedicated administrator-only mutation rather than relying on a UI-disabled field or general profile draft save. The mutation normalizes the slug, validates syntax and reserved words, checks current slugs for uniqueness, updates the profile atomically, and writes an audit event containing actor, profile, old slug, new slug, and timestamp. If retired slugs are reserved, the mutation and all slug-allocation paths must check that registry too. Failed validation leaves the profile and audit history unchanged.
+Slug editing uses a dedicated administrator-only mutation rather than relying on a UI-disabled field or general profile draft save. The mutation normalizes the slug, validates syntax and reserved words, checks current slugs for uniqueness, updates the profile atomically, and writes an audit event containing actor, profile, old slug, new slug, and timestamp. A successful update releases the previous slug for reuse. Failed validation leaves the profile and audit history unchanged.
 
 Normal customer profile saves reject any change to the assigned slug, regardless of publication state. The customer Profile editor presents the slug as read-only after profile creation. Initial signup continues to accept a customer-selected slug.
 
-### Open policy question: reuse of retired slugs
-
-The approved behavior is that the old direct URL stops resolving immediately after an administrator changes a slug and no redirect is created. The prior slug could later be reused for a different customer, which would make that address resolve again. Recommended default: keep retired slugs reserved to avoid stale links opening another person’s profile. This reservation behavior is not included in `docs/spec.md` until the user confirms it.
-
 ## Public routing effects
 
-Public profile lookup uses current slugs only. After an administrator changes a slug, requests to the former slug receive the missing/unavailable result; they are not redirected. Active card routes continue to look up the assigned profile and display its current published profile at the current slug. No customer draft content becomes public as a result of changing the slug.
+Public profile lookup uses current slugs only. After an administrator changes a slug, requests to the former slug receive the missing/unavailable result; they are not redirected. The freed slug may be assigned to a different profile later, in which case it opens that profile. Active card routes continue to look up the assigned profile and display its current published profile at the current slug. No customer draft content becomes public as a result of changing the slug.
 
 ## Documentation changes
 
@@ -76,4 +73,4 @@ Public profile lookup uses current slugs only. After an administrator changes a 
 
 ## Implementation review gates
 
-Before coding, review this written design and the updated product documents. The subsequent implementation plan must cover the chosen retired-slug policy, server-side role enforcement, popup projection and layout, audit recording, old direct URL behavior, and card URL continuity. Implementation and verification remain a later step.
+Before coding, review this written design and the updated product documents. The subsequent implementation plan must cover server-side role enforcement, popup projection and layout, audit recording, old direct URL behavior, slug reuse, and card URL continuity. Implementation and verification remain a later step.
