@@ -8,6 +8,50 @@ async function signInAsCustomer(page: Page) {
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
 
+test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1467, height: 899 });
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/profile", "/app/links"]) {
+    await page.goto(route);
+    const preview = page.getByRole("heading", { name: "Preview", exact: true });
+    const save = page.getByRole("button", { name: "Save draft", exact: true });
+    const publish = page.getByRole("button", { name: "Published", exact: true });
+    await expect(preview).toBeVisible();
+    await expect(save).toBeVisible();
+    await expect(publish).toBeVisible();
+
+    const previewBox = await preview.boundingBox();
+    const saveBox = await save.boundingBox();
+    const publishBox = await publish.boundingBox();
+    expect(previewBox).not.toBeNull();
+    expect(saveBox).not.toBeNull();
+    expect(publishBox).not.toBeNull();
+    expect(saveBox!.x + saveBox!.width).toBeLessThan(previewBox!.x);
+    expect(publishBox!.x + publishBox!.width).toBeLessThan(previewBox!.x);
+    const contentAnchor =
+      route === "/app/profile"
+        ? page.getByRole("heading", { name: "Profile details" })
+        : page.getByRole("button", { name: "Add link" });
+    const contentBox = await contentAnchor.boundingBox();
+    expect(contentBox).not.toBeNull();
+    expect(saveBox!.y + saveBox!.height).toBeLessThan(contentBox!.y);
+    expect(publishBox!.y + publishBox!.height).toBeLessThan(contentBox!.y);
+
+    await page.setViewportSize({ width: 390, height: 700 });
+    await expect(save).toBeInViewport();
+    await expect(publish).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await page.screenshot({
+      path: `test-results/${route === "/app/profile" ? "profile" : "links"}-actions-mobile.png`,
+      fullPage: false,
+    });
+    await page.setViewportSize({ width: 1467, height: 899 });
+  }
+});
+
 test("customer build card stays inside the authenticated workspace", async ({ page }) => {
   await signInAsCustomer(page);
 
