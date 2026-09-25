@@ -28,6 +28,13 @@ const customerNavGroups: ShellNavGroup[] = [
     items: [{ href: "/app/account", label: "Account", icon: "gear" }],
   },
 ];
+const adminNavGroups: ShellNavGroup[] = [
+  ...customerNavGroups,
+  {
+    label: "Administration",
+    items: [{ href: "/admin/customers", label: "Admin workspace", icon: "users" }],
+  },
+];
 
 const noHydrationSubscription = () => () => {};
 const clientHydratedSnapshot = () => true;
@@ -98,7 +105,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
-      navGroups={customerNavGroups}
+      navGroups={session.role === "admin" ? adminNavGroups : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
@@ -163,7 +170,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
-      navGroups={customerNavGroups}
+      navGroups={access.role === "admin" ? adminNavGroups : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
