@@ -301,6 +301,35 @@ describe("profile publication and public projection", () => {
     expect(hasUnpublishedChanges(draft, undefined)).toBe(true);
   });
 
+  it("detects unpublished identity color changes", () => {
+    const published = publishProfile(
+      {
+        ...profile(),
+        draft: {
+          ...draft,
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            identityColors: { name: "coral" },
+          },
+        },
+      },
+      "first",
+    );
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        {
+          ...published.draft,
+          customization: {
+            ...published.draft.customization!,
+            identityColors: { name: "jade" },
+          },
+        },
+        published.published,
+      ),
+    ).toBe(true);
+  });
+
   it("treats a missing legacy redirect as the disabled default", () => {
     const legacyPublished = {
       ...draft,
