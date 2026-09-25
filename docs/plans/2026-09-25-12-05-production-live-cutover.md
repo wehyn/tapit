@@ -19,7 +19,7 @@
 - `TAPIT_APP_ENV=production` as the public live-contract environment label.
 - `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`;
 - `TAPIT_ADMIN_EMAILS` containing the controlled initial administrator email;
-- the Production `CONVEX_SITE_URL` and `TAPIT_SUPPORT_URL`; and
+- the platform Production `CONVEX_SITE_URL`, `SITE_URL` set to the stable app origin, and `TAPIT_SUPPORT_URL`; and
 - no `TAPIT_DEMO_AUTH_MODE=hosted-demo` setting.
 - Preview or development credentials must not be reused for Production.
 - Production will not be used for E2E or test-data provisioning.
@@ -253,7 +253,7 @@ Expected: the target still matches the approved record. If the alias or deployme
 
 - [ ] **Step 1: Obtain the fresh Convex mutation confirmation.**
 
-Before changing any Convex Production variable, explicitly confirm the exact deployment reference and the exact variable operations: set/update `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `TAPIT_ADMIN_EMAILS`, and `TAPIT_SUPPORT_URL`; preserve the platform `CONVEX_SITE_URL`; and remove `TAPIT_DEMO_AUTH_MODE` if it exists.
+Before changing any Convex Production variable, explicitly confirm the exact deployment reference and the exact variable operations: set/update `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SITE_URL`, `TAPIT_ADMIN_EMAILS`, and `TAPIT_SUPPORT_URL`; preserve the platform `CONVEX_SITE_URL`; and remove `TAPIT_DEMO_AUTH_MODE` if it exists. Set `SITE_URL` to `PROD_APP_ORIGIN`, not the Convex site URL, so Convex Auth can return from Google OAuth.
 
 - [x] **Step 1A: Create the approved Production OAuth web client.**
 
@@ -266,6 +266,7 @@ Use stdin or the provider UI for each value; never put `AUTH_GOOGLE_SECRET` in c
 ```bash
 printf '%s' "$PROD_GOOGLE_CLIENT_ID" | npx convex env set --deployment "$PROD_CONVEX_DEPLOYMENT" AUTH_GOOGLE_ID
 printf '%s' "$PROD_GOOGLE_CLIENT_SECRET" | npx convex env set --deployment "$PROD_CONVEX_DEPLOYMENT" AUTH_GOOGLE_SECRET
+printf '%s' "$PROD_APP_ORIGIN" | npx convex env set --deployment "$PROD_CONVEX_DEPLOYMENT" SITE_URL
 printf '%s' "$PROD_ADMIN_EMAIL" | npx convex env set --deployment "$PROD_CONVEX_DEPLOYMENT" TAPIT_ADMIN_EMAILS
 printf '%s' "$PROD_SUPPORT_URL" | npx convex env set --deployment "$PROD_CONVEX_DEPLOYMENT" TAPIT_SUPPORT_URL
 ```
@@ -298,7 +299,7 @@ Confirm the client is separate from Development/Preview and that the provider re
 npx convex env list --deployment "$PROD_CONVEX_DEPLOYMENT" --names-only
 ```
 
-Expected: the required names are present, `TAPIT_DEMO_AUTH_MODE` is absent, and the Production Convex site/cloud identity still matches the Vercel public URLs. Do not run a provisioning function or any write against Convex data.
+Expected: the required names, including `SITE_URL`, are present; `SITE_URL` equals the approved app origin; `TAPIT_DEMO_AUTH_MODE` is absent; and the Production Convex site/cloud identity still matches the Vercel public URLs. Do not run a provisioning function or any write against Convex data.
 
 - [ ] **Step 6: Deploy the approved backend to Production for the first time.**
 
