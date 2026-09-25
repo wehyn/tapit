@@ -158,7 +158,7 @@ test("administrator can inspect only the selected profile analytics and traffic 
   ).toContainText("107");
 });
 
-test("administrator profile analytics dialog keeps focus away from the page behind it", async ({
+test("administrator profile analytics dialog contains keyboard and assistive navigation", async ({
   page,
 }) => {
   await signInAsAdmin(page);
@@ -170,8 +170,34 @@ test("administrator profile analytics dialog keeps focus away from the page behi
   const closeButton = dialog.getByRole("button", { name: "Close profile analytics" });
   await expect(closeButton).toBeFocused();
 
+  await page.keyboard.press("Tab");
+  await expect(closeButton).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(closeButton).toBeFocused();
+
   await page.getByLabel("Time range").focus();
   await expect(closeButton).toBeFocused();
+
+  const accessibilitySession = await page.context().newCDPSession(page);
+  try {
+    const { nodes } = await accessibilitySession.send("Accessibility.getFullAXTree");
+    expect(
+      nodes.some(
+        (node) => node.role?.value === "dialog" && node.name?.value === "Mara Velasquez analytics",
+      ),
+    ).toBe(true);
+    expect(
+      nodes.some((node) => node.role?.value === "combobox" && node.name?.value === "Time range"),
+    ).toBe(false);
+    expect(
+      nodes.some(
+        (node) =>
+          node.role?.value === "navigation" && node.name?.value === "Tapit operations navigation",
+      ),
+    ).toBe(false);
+  } finally {
+    await accessibilitySession.detach();
+  }
 
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
