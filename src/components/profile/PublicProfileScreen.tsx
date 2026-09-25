@@ -48,7 +48,6 @@ function DemoPublicProfileScreen({ slug }: { slug: string }) {
     <PublicProfile
       profile={projection}
       profileId={profile.id}
-      profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
       onLinkClick={(key, id) => recordLinkClick(key, id, "direct")}
       onView={(id) => recordProfileView(id, "direct")}
@@ -98,7 +97,6 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
         onView={onView}
         profile={projection}
         profileId={profile.id}
-        profileUrl={`/${profile.slug}`}
         theme={projection.theme}
       />
       <AnalyticsConsent />

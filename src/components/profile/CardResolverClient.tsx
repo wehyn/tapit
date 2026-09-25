@@ -108,7 +108,6 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
     <PublicProfile
       profile={projection}
       profileId={profile.id}
-      profileUrl={`/${projection.slug}`}
       theme={getDemoTheme(state, profile.id)}
       onLinkClick={(key, id) => recordLinkClick(key, id, sourceValue(source))}
       onView={(id) => recordProfileView(id, sourceValue(source))}
@@ -189,7 +188,6 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
         onView={onView}
         profile={profile}
         profileId={profile.id}
-        profileUrl={`/${profile.slug}`}
         theme={profile.theme}
       />
       <AnalyticsConsent />

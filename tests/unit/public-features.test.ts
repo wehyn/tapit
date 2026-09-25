@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildVCard, resolveProfileUrl } from "../../src/lib/vcard";
+import { buildVCard } from "../../src/lib/vcard";
 import { generateQrSvg } from "../../src/lib/qr";
 
 describe("public contact and QR features", () => {
@@ -9,24 +9,20 @@ describe("public contact and QR features", () => {
       name: "Mara Velasquez",
       email: "mara@example.test",
       phone: "+63 917 555 0184",
-      website: "https://mara-velasquez.example",
-      profileUrl: "https://tapit.example/mara-velasquez",
     });
     expect(vCard).toContain("FN:Mara Velasquez");
     expect(vCard).toContain("EMAIL;TYPE=INTERNET:mara@example.test");
     expect(vCard).toContain("TEL;TYPE=VOICE:+63 917 555 0184");
-    expect(vCard).toContain("item1.URL:https://mara-velasquez.example");
-    expect(vCard).toContain("URL:https://tapit.example/mara-velasquez");
+    expect(vCard).not.toMatch(/^URL:/m);
   });
 
   it("embeds the profile photo and labels each distinct published link", () => {
     const vCard = buildVCard({
       name: "Mara Velasquez",
-      website: "https://mara-velasquez.example",
-      profileUrl: "https://tapit.example/mara-velasquez",
       photo: { type: "PNG", base64: "a".repeat(100) },
       links: [
         { label: "Portfolio", destination: "https://mara-velasquez.example" },
+        { label: "Portfolio duplicate", destination: "https://mara-velasquez.example" },
         { label: "LinkedIn", destination: "https://www.linkedin.com/in/mara-velasquez" },
       ],
     });
@@ -35,6 +31,7 @@ describe("public contact and QR features", () => {
     expect(unfolded).toContain(`PHOTO;ENCODING=b;TYPE=PNG:${"a".repeat(100)}`);
     expect(unfolded).toContain("item1.URL:https://mara-velasquez.example");
     expect(unfolded).toContain("item1.X-ABLabel:Portfolio");
+    expect(unfolded).not.toContain("Portfolio duplicate");
     expect(unfolded).toContain("item2.URL:https://www.linkedin.com/in/mara-velasquez");
     expect(unfolded).toContain("item2.X-ABLabel:LinkedIn");
     expect(unfolded.match(/https:\/\/mara-velasquez\.example/g)).toHaveLength(1);
@@ -44,12 +41,6 @@ describe("public contact and QR features", () => {
         .filter((line) => line.length > 0)
         .every((line) => new TextEncoder().encode(line).length <= 75),
     ).toBe(true);
-  });
-
-  it("resolves a relative public profile URL before creating a vCard", () => {
-    expect(resolveProfileUrl("/mara-velasquez", "https://tapit.example")).toBe(
-      "https://tapit.example/mara-velasquez",
-    );
   });
 
   it("generates SVG QR output for a card URL", async () => {

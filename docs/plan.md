@@ -429,7 +429,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 
 - Generate QR codes from unique card URLs.
 - Add administrator QR preview and PNG/SVG download.
-- Generate vCards containing the selected name and public profile URL, published photo, selected email and phone, website, and enabled published links with their labels; omit duplicate URL destinations.
+- Generate vCards containing the selected name, published photo, selected email and phone, and enabled published links with their labels; omit the Profile identity Website field, Tapit public profile URL, and duplicate link destinations.
 - Add public Save contact action and appropriate empty/disabled states.
 
 ### 9. Build privacy-preserving analytics
@@ -840,7 +840,7 @@ Mitigation: keep primitives small, test keyboard/focus/error behavior, use acces
 - Profile updates do not require NFC re-encoding or URL changes.
 - External links, contact actions, labels, icons, ordering, and enable/disable behavior work as specified.
 - QR codes can be previewed and downloaded as PNG and SVG.
-- vCards contain the selected name and public profile URL, published photo, selected email and phone, website, and enabled published links with labels, with no draft content or duplicate URL destinations.
+- vCards contain the selected name, published photo, selected email and phone, and enabled published links with labels, without the Profile identity Website field, Tapit public profile URL, draft content, or duplicate link destinations.
 - Customer and administrator analytics provide the agreed aggregate lifetime, 7-day, 30-day, and 90-day views/clicks without raw visitor-level history.
 - Administrators can edit, publish/unpublish, suspend, deactivate, replace, and audit the relevant profiles/cards.
 - Deactivated/replaced cards show the branded inactive-card page and never expose former profile content.

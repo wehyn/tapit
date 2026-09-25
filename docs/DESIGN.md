@@ -23,7 +23,7 @@
 
 Visitors have no Tapit navigation. They can view published content, select enabled links, and use Save contact.
 
-The downloaded vCard contains the published photo, selected email and phone, Website field, public profile URL, and all enabled links with their profile labels. It excludes draft content and duplicate URL destinations.
+The downloaded vCard contains the published photo, selected email and phone, and all enabled links with their profile labels. It excludes the Profile identity Website field, Tapit’s public profile URL, draft content, and duplicate URL destinations.
 
 ### Customer paths
 

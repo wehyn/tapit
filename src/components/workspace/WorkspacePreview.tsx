@@ -74,7 +74,6 @@ export function WorkspacePreview({
           <PublicProfile
             preview
             profile={preview}
-            profileUrl={profileUrl}
             theme={theme}
             trackClicks={false}
             trackView={false}

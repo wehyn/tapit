@@ -24,7 +24,6 @@ describe("public profile preview behavior", () => {
         preview
         profile={projection}
         profileId="profile-mara"
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
@@ -54,7 +53,6 @@ describe("public profile preview behavior", () => {
             },
           ],
         }}
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
@@ -74,7 +72,6 @@ describe("public profile preview behavior", () => {
           imageSrcSet:
             "https://images.example/small.png 192w, https://images.example/large.png 384w",
         }}
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
