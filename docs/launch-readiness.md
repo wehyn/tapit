@@ -13,6 +13,8 @@ URL, Production Convex deployment reference, release owner, and incident contact
 - `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, platform `CONVEX_SITE_URL`, `NEXT_PUBLIC_CONVEX_URL`, and the deployment
   reference belong to the same environment. Set Convex `SITE_URL` to that environment's public app origin;
   Convex Auth uses it for the post-OAuth redirect, and it is distinct from `CONVEX_SITE_URL`.
+- Convex Auth also needs a deployment-specific `JWT_PRIVATE_KEY` and its matching public `JWKS` to issue and
+  verify sessions. Set both through provider-managed environment storage without printing or committing the key.
 - `TAPIT_ADMIN_EMAILS` is configured on the deployment. Only a new verified Google identity in that allowlist
   can become the first administrator; allowlist changes do not promote existing accounts.
 - Administrators create invitations and hand off links manually to the matching verified Google email. There is
@@ -45,6 +47,8 @@ does not change the live or Production Google-only contract.
       recorded evidence.
 - [ ] Production has a fresh deployment, controlled first-admin allowlist, approved support URL, rollback owner,
       and a documented smoke plan. No live E2E or provisioning harness is run against Production.
+- [ ] The Production build registers the Next.js auth proxy beside `src/app`, and the controlled administrator
+      completes one manual Google sign-in that reaches an authenticated administrator workspace.
 
 ## Operational evidence
 

@@ -56,7 +56,8 @@ Convex Production must use the matching Google OAuth client and policy values:
 
 - `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET`;
 - `TAPIT_ADMIN_EMAILS` containing the controlled initial administrator email;
-- the platform Production `CONVEX_SITE_URL`, `SITE_URL` set to the stable app origin, and `TAPIT_SUPPORT_URL`; and
+- the platform Production `CONVEX_SITE_URL`, `SITE_URL` set to the stable app origin, a deployment-specific
+  `JWT_PRIVATE_KEY` and matching public `JWKS`, and `TAPIT_SUPPORT_URL`; and
 - no `TAPIT_DEMO_AUTH_MODE=hosted-demo` setting.
 
 The Google OAuth client must allow the exact Production app origin and callback `<CONVEX_SITE_URL>/api/auth/callback/google`. Preview or development credentials must not be reused for Production. Because `NEXT_PUBLIC_*` settings are build-time values, changing Vercel variables requires a new Production build/deployment.
