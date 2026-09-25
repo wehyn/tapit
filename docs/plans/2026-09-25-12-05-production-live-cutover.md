@@ -202,7 +202,7 @@ Stop before changing `NEXT_PUBLIC_DEMO_MODE` if any of these are unresolved: the
 - [x] **Step 2: Select an approved dedicated Google Cloud project.** The user approved dedicating the existing `sigma-celerity-399507` project; its name is now `Tapit Production OAuth`. It had no OAuth clients, API keys, service accounts, recent API traffic, or charges visible in the preflight. Its ID remains unchanged. Pending deletion of other projects does not immediately free project quota.
 - [x] **Step 3: Configure Google Auth Platform branding and initial audience.** The visible app name is Tapit, the support contact is the approved address, and the external Testing audience includes the controlled administrator. Public publishing remains gated by Step 6.
 - [x] **Step 4: Create one Production web OAuth client.** The `Tapit Production Web` client has `https://tapit-eosin.vercel.app` as its authorized JavaScript origin and `https://giddy-armadillo-255.convex.site/api/auth/callback/google` as its redirect URI. The user approved this security-sensitive access at action time. Do not print or commit its secret.
-- [ ] **Step 5: Confirm the first Convex deployment path.** Use the approved `main` backend source and a target selector or deploy key that resolves to `giddy-armadillo-255`. Use a dry run where supported. Do not deploy until the fresh target-specific confirmation in Task 3.
+- [ ] **Step 5: Confirm the first Convex deployment path.** Use the reviewed PR #26 source commit and a target selector or deploy key that resolves to `giddy-armadillo-255`. Use a dry run where supported. Do not deploy until the fresh target-specific confirmation in Task 3. Merge the same source to `main` only after the backend is live, so the privacy notice cannot appear before its cleanup behavior.
 - [ ] **Step 6: Resolve the public privacy notice and OAuth audience.** Review `docs/privacy-notice-draft.md` with the operator, settle its factual and jurisdiction-specific placeholders, publish it on Tapit's app origin, link it from the homepage, and enter the matching URL in Google branding. Make the external Google audience available to intended users only after Google permits publication. Do not switch Vercel Production to live while OAuth remains test-user-only.
 
 ---
@@ -221,7 +221,7 @@ Stop before changing `NEXT_PUBLIC_DEMO_MODE` if any of these are unresolved: the
 
 - [ ] **Step 1: Present the exact change set for approval.**
 
-Name the concrete Vercel project and Production alias, current deployment ID, matching Convex Production deployment reference, and the exact variable names/targets to change. State that the change will set the Convex Google/admin/support variables, deploy the approved `main` Convex code to `giddy-armadillo-255` for the first time, set `NEXT_PUBLIC_DEMO_MODE=false`, remove Production `NEXT_PUBLIC_DEMO_STORAGE`, align the public URLs/environment label, and trigger a new Vercel Production build. Hold the Vercel switch until the public privacy notice and Google audience are approved.
+Name the concrete Vercel project and Production alias, current deployment ID, matching Convex Production deployment reference, and the exact variable names/targets to change. State that the change will set Convex admin/support variables, deploy the reviewed PR #26 Convex code to `giddy-armadillo-255` for the first time, merge the reviewed source, publish the privacy and terms pages in demo mode, complete Google branding and audience, then set `NEXT_PUBLIC_DEMO_MODE=false`, remove Production `NEXT_PUBLIC_DEMO_STORAGE`, align the public URLs/environment label, and trigger a live Vercel Production rebuild. The Google ID/secret names are already present and must not be overwritten without a separate reason.
 
 - [ ] **Step 2: Receive explicit approval immediately before provider mutation.**
 
@@ -302,7 +302,11 @@ Expected: the required names are present, `TAPIT_DEMO_AUTH_MODE` is absent, and 
 
 - [ ] **Step 6: Deploy the approved backend to Production for the first time.**
 
-Reconfirm `giddy-armadillo-255` and the approved `main` commit immediately before `npx convex deploy`. Record the command's resolved deployment target and commit without printing credentials. Deploy functions, schema, indexes, and components to this exact Production deployment; do not run a provisioning function, import records, or write Auth tables. Confirm the dashboard reports a successful deployment and the expected public functions and auth HTTP routes are present. Stop before the Vercel live build if the backend deployment or auth issuer cannot be verified.
+Reconfirm `giddy-armadillo-255` and the approved source commit immediately before `npx convex deploy`. The reviewed cutover candidate is `f1a3ee22fa233fdb9637b75d297cf075a0a0ba80` on PR #26; a later commit needs a fresh code review and verification. Record the command's resolved deployment target and commit without printing credentials. Deploy functions, schema, indexes, and components to this exact Production deployment before publishing the matching privacy notice. Do not run a provisioning function, import records, or write Auth tables. Confirm the dashboard reports a successful deployment and the expected public functions and auth HTTP routes are present. Stop before any Vercel Production build if the backend deployment or auth issuer cannot be verified.
+
+- [ ] **Step 7: Publish the reviewed privacy and terms pages while Production is still in demo mode.** After the backend deployment succeeds and PR #26 is approved and merged, let Vercel build the merged `main` commit using the existing Production demo-mode variables. Verify `/privacy` and `/terms` are public on `https://tapit-eosin.vercel.app` and linked from its homepage. Record that new READY deployment as `POLICY_DEPLOYMENT_URL`; retain the old demo deployment for rollback. The public policy's retention claims must never precede the matching backend deployment.
+
+- [ ] **Step 8: Complete Google branding and audience.** Enter `https://tapit-eosin.vercel.app/privacy` and `https://tapit-eosin.vercel.app/terms` in project `sigma-celerity-399507`, verify their public reachability, and publish the External OAuth audience when Google permits. Confirm the basic sign-in scopes and exact origin/callback remain unchanged. Do not switch Vercel to live while Google still admits only test users.
 
 ---
 
@@ -366,15 +370,15 @@ Confirm the Production target contains the required names, has no `NEXT_PUBLIC_D
 
 **Interfaces:**
 
-- Consumes: the approved commit, updated Vercel Production variables, matching Convex Production configuration, and the recorded previous healthy deployment.
+- Consumes: the approved merged commit, updated Vercel Production variables, matching Convex Production configuration, `POLICY_DEPLOYMENT_URL`, and the recorded previous healthy deployment.
 - Produces: `NEW_PROD_DEPLOYMENT_ID` and `NEW_PROD_DEPLOYMENT_URL` for a READY Production deployment with a public live contract and Google login surface; no administrator sign-in.
 
 - [ ] **Step 1: Trigger a new Production build from the approved application commit.**
 
-Use the Vercel dashboard’s redeploy action for the approved commit or the equivalent CLI workflow. When using the CLI with a linked project, rebuild the recorded deployment and target Production:
+Use the Vercel dashboard’s redeploy action for `POLICY_DEPLOYMENT_URL` or the equivalent CLI workflow. When using the CLI, rebuild that deployment with the merged cutover source and target Production:
 
 ```bash
-vercel redeploy "$CURRENT_PROD_DEPLOYMENT_URL" --target production
+vercel redeploy "$POLICY_DEPLOYMENT_URL" --target production
 ```
 
 Do not deploy an arbitrary dirty worktree. Capture the new deployment ID/URL and wait for a READY result with `vercel inspect --wait`; preserve build logs only if they contain no secrets or customer data.
