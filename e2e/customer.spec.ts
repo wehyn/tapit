@@ -51,8 +51,9 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
       (portal as HTMLElement).style.display = "none";
     });
   }
-  await page.getByRole("group", { name: "Account options" }).screenshot({
+  await page.screenshot({
     path: "test-results/customer-account-menu.png",
+    fullPage: false,
   });
   await page.keyboard.press("Escape");
   await expect(signOutButton).toHaveCount(0);
