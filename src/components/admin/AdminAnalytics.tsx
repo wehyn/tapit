@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ActivityIcon, CardsIcon, ChartLineUpIcon, UsersThreeIcon } from "@phosphor-icons/react";
@@ -27,6 +27,65 @@ const ranges: Array<{ value: AnalyticsRange; label: string }> = [
 ];
 
 type Source = "nfc" | "qr" | "direct" | "unknown";
+type ProfileAnalyticsBucket = {
+  bucketStart: number;
+  source?: string;
+  views: number;
+  uniqueViews: number;
+  clicks: number;
+  linkClicks: Record<string, number>;
+};
+type ProfileAnalyticsSummary = {
+  views: number;
+  uniqueViews: number;
+  clicks: number;
+  linkClicks: Record<string, number>;
+  sourceTotals: Record<Source, number>;
+  trend: Array<{ bucketStart: number; total: number }>;
+};
+type ProfileAnalyticsLink = { id: string; label?: string; destination?: string };
+
+function sourceKey(source: string | undefined): Source {
+  return source === "nfc" || source === "qr" || source === "direct" ? source : "unknown";
+}
+
+function summarizeProfileAnalytics(
+  buckets: readonly ProfileAnalyticsBucket[],
+): ProfileAnalyticsSummary {
+  const summary: ProfileAnalyticsSummary = {
+    views: 0,
+    uniqueViews: 0,
+    clicks: 0,
+    linkClicks: {},
+    sourceTotals: { nfc: 0, qr: 0, direct: 0, unknown: 0 },
+    trend: [],
+  };
+  const trendByDay = new Map<number, number>();
+
+  for (const bucket of buckets) {
+    summary.views += bucket.views;
+    summary.uniqueViews += bucket.uniqueViews;
+    summary.clicks += bucket.clicks;
+    summary.sourceTotals[sourceKey(bucket.source)] += bucket.views + bucket.clicks;
+    trendByDay.set(
+      bucket.bucketStart,
+      (trendByDay.get(bucket.bucketStart) ?? 0) + bucket.views + bucket.clicks,
+    );
+    for (const [linkId, clicks] of Object.entries(bucket.linkClicks)) {
+      summary.linkClicks[linkId] = (summary.linkClicks[linkId] ?? 0) + clicks;
+    }
+  }
+
+  summary.trend = [...trendByDay.entries()]
+    .map(([bucketStart, total]) => ({ bucketStart, total }))
+    .sort((left, right) => left.bucketStart - right.bucketStart);
+  return summary;
+}
+
+function analyticsCutoff(range: AnalyticsRange, now: number): number {
+  return range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * 86400000;
+}
+
 function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
   return (
     <div className="mt-5 grid gap-2 sm:grid-cols-4" aria-label="Traffic source breakdown">
@@ -52,15 +111,239 @@ function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
   );
 }
 
+function ProfileMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
+      <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
+      <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+        {value.toLocaleString()}
+      </dd>
+    </div>
+  );
+}
+
+function ProfileAnalyticsDialog({
+  name,
+  slug,
+  links,
+  rangeLabel,
+  summary,
+  loading = false,
+  onClose,
+}: {
+  name: string;
+  slug: string;
+  links: ProfileAnalyticsLink[];
+  rangeLabel: string;
+  summary: ProfileAnalyticsSummary;
+  loading?: boolean;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog === null) return;
+    const trigger = document.activeElement;
+    dialog.showModal();
+    closeButtonRef.current?.focus();
+    return () => {
+      if (dialog.open) dialog.close();
+      if (trigger instanceof HTMLElement) trigger.focus();
+    };
+  }, []);
+
+  const linkResults = links
+    .map((link) => ({ ...link, clicks: summary.linkClicks[link.id] ?? 0 }))
+    .sort((left, right) => right.clicks - left.clicks);
+  const peak = Math.max(1, ...summary.trend.map((bucket) => bucket.total));
+  const hasActivity = summary.views > 0 || summary.clicks > 0;
+
+  return (
+    <dialog
+      aria-describedby="profile-analytics-description"
+      aria-labelledby="profile-analytics-title"
+      aria-modal="true"
+      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto border-0 bg-tapit-ink/70 px-4 py-6 text-left sm:px-8 sm:py-10"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      ref={dialogRef}
+    >
+      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2
+              className="text-xl font-semibold tracking-tight text-tapit-ink"
+              id="profile-analytics-title"
+            >
+              {name} analytics
+            </h2>
+            <p className="mt-2 text-sm text-tapit-muted" id="profile-analytics-description">
+              /{slug} · {rangeLabel} · Aggregate profile activity
+            </p>
+          </div>
+          <button
+            aria-label="Close profile analytics"
+            className="shrink-0 rounded-tapit border border-tapit-line px-3 py-2 text-sm font-semibold text-tapit-ink hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+            onClick={onClose}
+            ref={closeButtonRef}
+            type="button"
+          >
+            Close
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="mt-6 p-4 text-sm text-tapit-muted">Loading profile analytics…</div>
+        ) : (
+          <div className="mt-6 grid gap-4">
+            <section
+              aria-labelledby="profile-analytics-summary-heading"
+              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+            >
+              <h3
+                className="text-base font-semibold text-tapit-ink"
+                id="profile-analytics-summary-heading"
+              >
+                Engagement summary
+              </h3>
+              <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+                <ProfileMetric label="Profile views" value={summary.views} />
+                <ProfileMetric label="Unique views" value={summary.uniqueViews} />
+                <ProfileMetric label="Link clicks" value={summary.clicks} />
+              </dl>
+            </section>
+
+            <section
+              aria-labelledby="profile-analytics-trend-heading"
+              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+            >
+              <h3
+                className="text-base font-semibold text-tapit-ink"
+                id="profile-analytics-trend-heading"
+              >
+                Engagement trend
+              </h3>
+              <div className="mt-5 overflow-x-auto">
+                <div
+                  aria-label="Aggregate engagement trend"
+                  className="flex h-48 min-w-max items-end gap-3 border-b border-tapit-line px-1"
+                >
+                  {summary.trend.length > 0 ? (
+                    summary.trend.map((bucket) => (
+                      <div
+                        className="flex w-12 shrink-0 flex-col items-center justify-end gap-2"
+                        key={bucket.bucketStart}
+                      >
+                        <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                          {bucket.total.toLocaleString()}
+                        </span>
+                        <div
+                          className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                          style={{ height: `${Math.max(10, (bucket.total / peak) * 125)}px` }}
+                          title={`${bucket.total} views and clicks`}
+                        />
+                        <span className="text-[0.65rem] text-tapit-muted">
+                          {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+                      No activity in this range.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section
+              aria-labelledby="profile-analytics-sources-heading"
+              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+            >
+              <h3
+                className="text-base font-semibold text-tapit-ink"
+                id="profile-analytics-sources-heading"
+              >
+                Traffic sources
+              </h3>
+              <SourceBreakdown totals={summary.sourceTotals} />
+            </section>
+
+            <section
+              aria-labelledby="profile-analytics-links-heading"
+              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+            >
+              <h3
+                className="text-base font-semibold text-tapit-ink"
+                id="profile-analytics-links-heading"
+              >
+                Link results
+              </h3>
+              <div className="mt-5 overflow-hidden rounded-tapit border border-tapit-line">
+                {linkResults.length > 0 ? (
+                  linkResults.map((link) => (
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-4 last:border-b-0 sm:px-5"
+                      key={link.id}
+                    >
+                      <div>
+                        <p className="font-semibold text-tapit-ink">
+                          {link.label || "Untitled link"}
+                        </p>
+                        <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
+                          {link.destination || "No destination yet"}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-tapit-accent">
+                        {link.clicks.toLocaleString()} clicks
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <p className="p-5 text-sm text-tapit-muted">
+                    No links are configured for this profile.
+                  </p>
+                )}
+              </div>
+            </section>
+
+            {!hasActivity ? <Notice>No aggregate activity in this range.</Notice> : null}
+          </div>
+        )}
+      </div>
+    </dialog>
+  );
+}
+
 function DemoAdminAnalytics() {
   // Retained only as an inert compatibility helper for the merged worktree.
   const state = useDemoState();
   const profiles = getDemoProfiles(state);
   const [range, setRange] = useState<AnalyticsRange>("lifetime");
   const [now] = useState(() => Date.now());
+  const [selectedProfile, setSelectedProfile] = useState<(typeof profiles)[number] | null>(null);
+  const closeProfileAnalytics = useCallback(() => setSelectedProfile(null), []);
   const totals = useMemo(
     () => aggregateAnalytics(state.analytics, range),
     [range, state.analytics],
+  );
+  const selectedProfileBuckets = useMemo(() => {
+    if (selectedProfile === null) return [];
+    const cutoff = analyticsCutoff(range, now);
+    return state.analytics
+      .filter((bucket) => bucket.profileId === selectedProfile.id && bucket.bucketStart >= cutoff)
+      .map((bucket) => ({ ...bucket, linkClicks: bucket.linkClicks ?? {} }));
+  }, [now, range, selectedProfile, state.analytics]);
+  const selectedProfileSummary = useMemo(
+    () => summarizeProfileAnalytics(selectedProfileBuckets),
+    [selectedProfileBuckets],
   );
   const sourceTotals = useMemo(() => {
     const cutoff = range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * 86400000;
@@ -148,9 +431,12 @@ function DemoAdminAnalytics() {
       >
         <div className="mt-6 grid gap-2">
           {profiles.map((profile) => (
-            <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+            <button
+              aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
+              className="flex w-full flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-left hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile.id}
+              onClick={() => setSelectedProfile(profile)}
+              type="button"
             >
               <div>
                 <p className="font-semibold text-tapit-ink">
@@ -163,7 +449,7 @@ function DemoAdminAnalytics() {
                 </p>
               </div>
               <StatusBadge status={profile.status} />
-            </div>
+            </button>
           ))}
           {state.cards.map((card) => (
             <div
@@ -179,6 +465,16 @@ function DemoAdminAnalytics() {
           ))}
         </div>
       </Panel>
+      {selectedProfile ? (
+        <ProfileAnalyticsDialog
+          links={selectedProfile.draft.links}
+          name={selectedProfile.draft.name || "Unnamed profile"}
+          onClose={closeProfileAnalytics}
+          rangeLabel={ranges.find((option) => option.value === range)?.label ?? range}
+          slug={selectedProfile.draft.slug}
+          summary={selectedProfileSummary}
+        />
+      ) : null}
     </div>
   );
 }
@@ -186,6 +482,8 @@ function DemoAdminAnalytics() {
 function LiveAdminAnalytics() {
   const [range, setRange] = useState<AnalyticsRange>("lifetime");
   const [now] = useState(() => Date.now());
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const closeProfileAnalytics = useCallback(() => setSelectedProfileId(null), []);
   const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 500 });
   useEffect(() => {
     if (pages.status === "CanLoadMore") pages.loadMore(500);
@@ -223,6 +521,29 @@ function LiveAdminAnalytics() {
   );
   const profiles = useQuery(api.profiles.adminList);
   const cards = useQuery(api.cards.adminList);
+  const selectedProfile = profiles?.find((profile) => profile._id === selectedProfileId) ?? null;
+  const selectedProfileSummary = useMemo(
+    () =>
+      summarizeProfileAnalytics(
+        pages.results
+          .filter((row) => row.profileId === selectedProfileId)
+          .map((row) => {
+            const linkKey = row.linkKey ?? row.linkId;
+            return {
+              bucketStart: row.bucketStart,
+              source: row.source,
+              views: row.eventType === "profile_view" ? row.total : 0,
+              uniqueViews: row.eventType === "profile_view" ? row.uniqueCount : 0,
+              clicks: row.eventType === "link_click" ? row.total : 0,
+              linkClicks:
+                row.eventType === "link_click" && linkKey !== undefined
+                  ? { [linkKey]: row.total }
+                  : {},
+            };
+          }),
+      ),
+    [pages.results, selectedProfileId],
+  );
   if (profiles === undefined || cards === undefined || pages.status === "LoadingFirstPage")
     return <div className="p-8 text-sm text-tapit-muted">Loading operational analytics…</div>;
   return (
@@ -272,9 +593,12 @@ function LiveAdminAnalytics() {
       <Panel title="Profile and card status">
         <div className="mt-6 grid gap-2">
           {profiles.map((profile) => (
-            <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+            <button
+              aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
+              className="flex w-full flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-left hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile._id}
+              onClick={() => setSelectedProfileId(profile._id)}
+              type="button"
             >
               <div>
                 <p className="font-semibold text-tapit-ink">
@@ -283,7 +607,7 @@ function LiveAdminAnalytics() {
                 <p className="mt-1 text-sm text-tapit-muted">/{profile.draft.slug}</p>
               </div>
               <StatusBadge status={profile.status} />
-            </div>
+            </button>
           ))}
           {cards.map((card) => (
             <div
@@ -305,6 +629,17 @@ function LiveAdminAnalytics() {
       >
         <SourceBreakdown totals={sourceTotals} />
       </Panel>
+      {selectedProfile ? (
+        <ProfileAnalyticsDialog
+          links={selectedProfile.draft.links}
+          loading={pages.status !== "Exhausted"}
+          name={selectedProfile.draft.name || "Unnamed profile"}
+          onClose={closeProfileAnalytics}
+          rangeLabel={ranges.find((option) => option.value === range)?.label ?? range}
+          slug={selectedProfile.draft.slug}
+          summary={selectedProfileSummary}
+        />
+      ) : null}
     </div>
   );
 }
