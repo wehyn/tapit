@@ -13,6 +13,7 @@ import {
   type ProfileContent,
   type ProfileRecord,
   validateProfileRedirect,
+  validatePublication,
   validateRedirectDestination,
 } from "../../src/lib/domain";
 import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
@@ -68,6 +69,32 @@ describe("profile publication and public projection", () => {
         "now",
       ),
     ).toThrow("A profile website must be a valid HTTPS URL without credentials.");
+  });
+
+  it("allows white identity text when the draft has a background image", () => {
+    expect(
+      validatePublication(
+        {
+          ...draft,
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            identityColors: { name: { kind: "custom", hex: "#ffffff" } },
+          },
+          media: {
+            heroHeight: 320,
+            autoplay: true,
+            background: {
+              assetId: assetId("background"),
+              altText: "Backdrop",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [],
+          },
+        },
+        null,
+      ),
+    ).not.toContain("The profile name custom color does not meet contrast requirements.");
   });
 
   it("allows missing or disabled redirects, but validates enabled redirects", () => {
@@ -309,7 +336,7 @@ describe("profile publication and public projection", () => {
           ...draft,
           customization: {
             ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-            identityColors: { name: "coral" },
+            identityColors: { name: { kind: "preset", value: "coral" } },
           },
         },
       },
@@ -322,7 +349,7 @@ describe("profile publication and public projection", () => {
           ...published.draft,
           customization: {
             ...published.draft.customization!,
-            identityColors: { name: "jade" },
+            identityColors: { name: { kind: "preset", value: "jade" } },
           },
         },
         published.published,

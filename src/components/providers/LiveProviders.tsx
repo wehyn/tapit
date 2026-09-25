@@ -8,27 +8,28 @@ import { useEffect, useSyncExternalStore } from "react";
 import { Suspense, type ReactNode } from "react";
 
 import { api } from "../../../convex/_generated/api";
+import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
 import { isHostedDemoMode } from "@/lib/demo/mode";
+import { isActiveAccess } from "@/lib/auth/access";
 
 const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
 const convex = convexUrl ? new ConvexReactClient(convexUrl) : null;
 const subscribeToHydration = () => () => {};
 const getClientHydrationSnapshot = () => true;
 const getServerHydrationSnapshot = () => false;
-
 export function LiveProviders({ children }: { children: ReactNode }) {
   if (convex === null) {
     throw new Error("Missing NEXT_PUBLIC_CONVEX_URL in live mode.");
   }
   const authProvider = isHostedDemoMode() ? (
     <ConvexAuthProvider client={convex}>
-      <Suspense fallback={<div className="min-h-[100dvh] bg-tapit-paper" />}>
+      <Suspense fallback={<AuthLoadingState />}>
         <AuthBoundary>{children}</AuthBoundary>
       </Suspense>
     </ConvexAuthProvider>
   ) : (
     <ConvexAuthNextjsProvider client={convex}>
-      <Suspense fallback={<div className="min-h-[100dvh] bg-tapit-paper" />}>
+      <Suspense fallback={<AuthLoadingState />}>
         <AuthBoundary>{children}</AuthBoundary>
       </Suspense>
     </ConvexAuthNextjsProvider>
@@ -52,6 +53,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     pathname.startsWith("/onboarding");
   const isSetupPage = pathname.startsWith("/setup/");
   const accessLoading = isAuthenticated && access === undefined;
+  const activeAccess = isActiveAccess(access);
   let redirectPath: string | null = null;
 
   if (!authLoading && !accessLoading) {
@@ -65,7 +67,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
       redirectPath = pathname === "/login" ? null : "/login?reason=invitation-required";
     } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
       redirectPath = pathname === "/login" ? null : "/login?reason=account-inactive";
-    } else if (isProtectedPage && access?.authenticated !== true) {
+    } else if (isProtectedPage && !activeAccess) {
       redirectPath = `/login?next=${encodeURIComponent(pathname)}`;
     } else if (isProtectedPage) {
       if (pathname.startsWith("/admin") && access?.role !== "admin") {
@@ -76,7 +78,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
       ) {
         redirectPath = "/login?reason=account-inactive";
       }
-    } else if (pathname === "/login" && access?.accountStatus === "active") {
+    } else if (pathname === "/login" && activeAccess) {
       redirectPath =
         access.role === "admin" ? "/admin" : access.profileId === null ? null : "/app/profile";
     }
@@ -87,11 +89,11 @@ function AuthBoundary({ children }: { children: ReactNode }) {
   }, [redirectPath, router]);
 
   if (!hydrated || authLoading || accessLoading) {
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
   }
 
   if (redirectPath !== null) {
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
   }
 
   return children;

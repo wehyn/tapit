@@ -84,6 +84,10 @@ describe("public profile preview behavior", () => {
             typeScale: "editorial",
             linkTreatment: "outlined",
             contentOrder: "section-first",
+            identityColors: {
+              name: { kind: "preset", value: "jade" },
+              bio: { kind: "preset", value: "coral" },
+            },
             featuredLinkId: "portfolio",
             section: { kind: "about", body: "A short studio introduction." },
           },
@@ -122,6 +126,12 @@ describe("public profile preview behavior", () => {
       "bg-transparent",
       "text-[#a84431]",
     );
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
+      color: "#3e806d",
+    });
+    expect(screen.getByText("Brand systems for independent teams.")).toHaveStyle({
+      color: "#a84431",
+    });
     const summary = screen.getByText("About").closest("summary");
     if (summary === null) throw new Error("The About disclosure summary is missing.");
     expect(summary).toHaveAttribute("aria-expanded", "false");
@@ -205,6 +215,10 @@ describe("public profile preview behavior", () => {
             typeScale: "comfortable",
             linkTreatment: "filled",
             contentOrder: "links-first",
+            identityColors: {
+              name: { kind: "preset", value: "jade" },
+              bio: { kind: "preset", value: "coral" },
+            },
           },
         }}
         profileUrl="/mara-velasquez"
@@ -228,6 +242,13 @@ describe("public profile preview behavior", () => {
     expect(hero).not.toHaveStyle({ backgroundColor: "#fffdf9" });
     expect(hero).toHaveTextContent("A warm studio wall");
     expect(hero).toContainElement(screen.getByRole("heading", { name: projection.name }));
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
+      color: "#3e806d",
+    });
+    expect(screen.getByRole("heading", { name: projection.name })).not.toHaveClass("text-white");
+    expect(screen.getByText("Brand systems for independent teams.")).toHaveStyle({
+      color: "#a84431",
+    });
     expect(hero).toContainElement(screen.getByRole("list", { name: "Profile links" }));
     const surface = hero.querySelector("div");
     expect(surface).toHaveStyle({

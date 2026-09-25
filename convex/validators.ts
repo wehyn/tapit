@@ -27,6 +27,16 @@ const MAX_LINK_LABEL_LENGTH = 120;
 const MAX_DESTINATION_LENGTH = 2048;
 const WEBSITE_ERROR = "A profile website must be a valid HTTPS URL without credentials.";
 
+function hasBackgroundMedia(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "background" in value &&
+    (value as { background?: unknown }).background !== undefined
+  );
+}
+
 export const linkIconValidator = v.union(
   v.literal("link"),
   v.literal("mail"),
@@ -60,12 +70,30 @@ const profileCustomizationSectionValidator = v.union(
   }),
 );
 
+const profileIdentityColorPresetValidator = v.union(
+  v.literal("default"),
+  v.literal("coral"),
+  v.literal("jade"),
+  v.literal("ink"),
+);
+
+const profileIdentityColorValidator = v.union(
+  v.object({ kind: v.literal("preset"), value: profileIdentityColorPresetValidator }),
+  v.object({ kind: v.literal("custom"), hex: v.string() }),
+);
+
+const profileIdentityColorsValidator = v.object({
+  name: v.optional(profileIdentityColorValidator),
+  bio: v.optional(profileIdentityColorValidator),
+});
+
 export const profileCustomizationValidator = v.object({
   preset: v.literal("warm-studio"),
   accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
   typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
   linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
   contentOrder: v.union(v.literal("links-first"), v.literal("section-first")),
+  identityColors: v.optional(profileIdentityColorsValidator),
   featuredLinkId: v.optional(v.string()),
   section: v.optional(profileCustomizationSectionValidator),
 });
@@ -286,6 +314,8 @@ export function validateDraftSafety(content: {
   errors.push(
     ...validateProfileCustomization(
       content.customization as Parameters<typeof validateProfileCustomization>[0],
+      [],
+      { allowWhite: hasBackgroundMedia(content.media) },
     ),
   );
   errors.push(...validateProfileMedia(content.media));
@@ -319,6 +349,7 @@ export function validateProfileContent(content: {
   website?: string;
   redirect?: { enabled: boolean; destination: string };
   customization?: unknown;
+  media?: unknown;
   links: Array<{
     id: string;
     label: string;

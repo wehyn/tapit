@@ -7,6 +7,8 @@ import { useQuery } from "convex/react";
 
 import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
+import { isActiveAccess } from "@/lib/auth/access";
+import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
 import { api } from "../../../convex/_generated/api";
 
 import { AppShell } from "./AppShell";
@@ -67,7 +69,7 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
   }, [hydrated, pathname, router, session]);
 
   if (!hydrated || session === null || session.role !== "admin") {
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
   }
 
   return (
@@ -106,6 +108,7 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+  const activeAccess = isActiveAccess(access);
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;
@@ -115,22 +118,21 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
       router.replace("/login?reason=invitation-required");
     } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
       router.replace("/login?reason=account-inactive");
-    } else if (!isAuthenticated || access?.authenticated !== true) {
+    } else if (!isAuthenticated || !activeAccess) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     } else if (access.role !== "admin") {
       router.replace(access.role === "customer" ? "/app/profile" : "/login");
     }
-  }, [access, authLoading, isAuthenticated, pathname, router]);
+  }, [access, activeAccess, authLoading, isAuthenticated, pathname, router]);
 
   if (
     authLoading ||
     (isAuthenticated && access === undefined) ||
     !isAuthenticated ||
-    access?.authenticated !== true ||
-    access.accountStatus !== "active" ||
+    !activeAccess ||
     access.role !== "admin"
   ) {
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
   }
 
   return (

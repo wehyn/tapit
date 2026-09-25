@@ -259,20 +259,23 @@ export function PublicProfile({
       >
         {preview ? (
           <h2
-            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}
           </h2>
         ) : (
           <h1
-            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "text-white drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}
           </h1>
         )}
         {profile.bio ? (
           <p
-            className={`${hasIntegratedBackground ? (preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7") : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} ${hasIntegratedBackground ? "text-white/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]" : mutedClasses}`}
+            className={`${hasIntegratedBackground ? (preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7") : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} ${hasIntegratedBackground ? "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]" : mutedClasses}`}
+            style={warmStudio ? { color: appearance.bioColor } : undefined}
           >
             {profile.bio}
           </p>

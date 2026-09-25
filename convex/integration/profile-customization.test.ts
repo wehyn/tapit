@@ -19,6 +19,10 @@ const customization = {
   typeScale: "comfortable" as const,
   linkTreatment: "filled" as const,
   contentOrder: "links-first" as const,
+  identityColors: {
+    name: { kind: "preset" as const, value: "coral" as const },
+    bio: { kind: "custom" as const, hex: "#a84431" },
+  },
   featuredLinkId: "site",
   section: { kind: "about" as const, body: "A small studio." },
 };
@@ -139,6 +143,32 @@ test("server rejects invalid customization values and preserves ownership checks
     owner.mutation(api.profiles.saveDraft, {
       profileId: data.profileId,
       draft: draft("owner", { customization: { ...customization, accent: "violet" } }),
+    }),
+  ).rejects.toThrow();
+  await expect(
+    owner.mutation(api.profiles.saveDraft, {
+      profileId: data.profileId,
+      draft: draft("owner", {
+        customization: {
+          ...customization,
+          identityColors: {
+            bio: { kind: "custom", hex: "#ffffff" },
+          },
+        },
+      }),
+    }),
+  ).rejects.toThrow("The profile bio custom color does not meet contrast requirements.");
+  await expect(
+    owner.mutation(api.profiles.saveDraft, {
+      profileId: data.profileId,
+      draft: draft("owner", {
+        customization: {
+          ...customization,
+          identityColors: {
+            name: { kind: "custom", hex: "#fff" },
+          },
+        },
+      }),
     }),
   ).rejects.toThrow();
   await expect(

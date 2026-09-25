@@ -3,16 +3,30 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { Id } from "../../convex/_generated/dataModel";
 import { ProfileCustomizationEditor } from "../../src/components/forms/ProfileCustomizationEditor";
 import {
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   type ProfileCustomization,
 } from "../../src/lib/profile-customization";
+import type { ProfileMediaPresentation } from "../../src/lib/profile-media";
 
 const links = [
   { id: "booking", label: "Book a call", destination: "https://example.com/book", enabled: true },
   { id: "old", label: "Old link", destination: "https://example.com/old", enabled: false },
 ] as const;
+
+const backgroundMedia = {
+  heroHeight: 320,
+  autoplay: true,
+  background: {
+    assetId: "background" as Id<"profileMediaAssets">,
+    altText: "Backdrop",
+    positionX: 50,
+    positionY: 50,
+  },
+  slideshow: [],
+} satisfies ProfileMediaPresentation;
 
 function lastChange(onChange: ReturnType<typeof vi.fn>): ProfileCustomization {
   return onChange.mock.lastCall?.[0] as ProfileCustomization;
@@ -95,6 +109,48 @@ describe("ProfileCustomizationEditor", () => {
     expect(lastChange(onChange).preset).toBe("warm-studio");
   });
 
+  it("keeps identity color rows independent and supports the custom picker", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ControlledEditor links={[]} onChange={onChange} />);
+
+    expect(screen.getByRole("button", { name: "Default name color" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Default bio / role color" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Coral name color" }));
+    expect(lastChange(onChange).identityColors).toEqual({
+      name: { kind: "preset", value: "coral" },
+    });
+    expect(lastChange(onChange).identityColors?.bio).toBeUndefined();
+
+    await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
+    expect(screen.getByRole("dialog", { name: "Name custom color picker" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Name hue" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Name saturation" })).toBeInTheDocument();
+    expect(screen.getByRole("slider", { name: "Name value" })).toBeInTheDocument();
+    const hexInput = screen.getByLabelText("Name custom hex color");
+    await user.clear(hexInput);
+    await user.type(hexInput, "#a84431");
+    expect(lastChange(onChange).identityColors).toEqual({
+      name: { kind: "custom", hex: "#a84431" },
+    });
+
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "Name custom color picker" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Choose custom name color" })).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
+    await user.clear(screen.getByLabelText("Name custom hex color"));
+    await user.type(screen.getByLabelText("Name custom hex color"), "#ffffff");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The profile name custom color does not meet contrast requirements.",
+    );
+    expect(lastChange(onChange).identityColors).toEqual({
+      name: { kind: "custom", hex: "#a84431" },
+    });
+  });
+
   it("supports About and Services content with at most three service items", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
@@ -123,6 +179,29 @@ describe("ProfileCustomizationEditor", () => {
     });
     await user.click(screen.getByRole("button", { name: "Remove Services section" }));
     expect(lastChange(onChange).section).toBeUndefined();
+  });
+
+  it("allows white custom identity colors when a background image is active", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        links={[]}
+        media={backgroundMedia}
+        onChange={onChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
+    const hexInput = screen.getByLabelText("Name custom hex color");
+    await user.clear(hexInput);
+    await user.type(hexInput, "#ffffff");
+
+    expect(lastChange(onChange).identityColors).toEqual({
+      name: { kind: "custom", hex: "#ffffff" },
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("exposes section order, guided disclosures, and exact body labels", async () => {

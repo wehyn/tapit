@@ -60,6 +60,10 @@ describe("published demo profile paths", () => {
         typeScale: "comfortable",
         linkTreatment: "filled",
         contentOrder: "links-first",
+        identityColors: {
+          name: { kind: "preset", value: "jade" },
+          bio: { kind: "preset", value: "coral" },
+        },
         featuredLinkId: "booking",
         section: { kind: "about", body: "A published studio introduction." },
       };
@@ -135,6 +139,31 @@ describe("published demo profile paths", () => {
       expect(pathMocks.recordLinkClick).not.toHaveBeenCalled();
       view.unmount();
     }
+  });
+
+  it("renders published identity colors identically through direct and active-card paths", () => {
+    const state = pathMocks.state;
+    if (state === undefined) throw new Error("The demo state is missing.");
+    const profile = state.profiles[0];
+    if (profile === undefined || profile.published === null) {
+      throw new Error("The published demo profile fixture is missing.");
+    }
+    profile.published.media = undefined;
+
+    const paths = (["direct", "card"] as const).map((path) => {
+      const view = renderPublishedPath(path);
+      const heading = screen.getByRole("heading", { name: "Mara Velasquez" });
+      const bio = screen.getByText("Brand systems for independent teams.");
+      const result = { heading: heading.getAttribute("style"), bio: bio.getAttribute("style") };
+      view.unmount();
+      return result;
+    });
+
+    expect(paths[0]).toEqual(paths[1]);
+    expect(paths[0]).toEqual({
+      heading: "color: rgb(62, 128, 109);",
+      bio: "color: rgb(168, 68, 49);",
+    });
   });
 
   it.each(["moss", "night"] as const)(

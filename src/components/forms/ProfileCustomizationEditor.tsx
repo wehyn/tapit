@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
+import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
+import type { ProfileIdentityColor, ProfileIdentityField } from "@/lib/profile-customization";
 
 export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
@@ -128,6 +130,9 @@ function SectionRow({
 function copyCustomization(customization: ProfileCustomization): ProfileCustomization {
   return {
     ...customization,
+    ...(customization.identityColors
+      ? { identityColors: { ...customization.identityColors } }
+      : {}),
     ...(customization.section
       ? {
           section: {
@@ -141,6 +146,50 @@ function copyCustomization(customization: ProfileCustomization): ProfileCustomiz
         }
       : {}),
   };
+}
+
+function IdentityColorControls({
+  customization,
+  errorFor,
+  allowWhite,
+  onChange,
+}: {
+  customization: ProfileCustomization;
+  errorFor: (field: ProfileIdentityField) => string | undefined;
+  allowWhite: boolean;
+  onChange: (next: ProfileCustomization) => void;
+}) {
+  function setColor(field: ProfileIdentityField, color: ProfileIdentityColor | undefined) {
+    const identityColors = { ...(customization.identityColors ?? {}) };
+    if (color === undefined) delete identityColors[field];
+    else identityColors[field] = color;
+    onChange({
+      ...copyCustomization(customization),
+      identityColors: Object.keys(identityColors).length > 0 ? identityColors : undefined,
+    });
+  }
+
+  return (
+    <fieldset className="grid gap-3">
+      <legend className="text-sm font-semibold text-tapit-ink">Identity colors</legend>
+      <p className="text-sm leading-6 text-tapit-muted">
+        Set the name and bio / role independently. These colors affect Warm Studio identity text
+        only.
+      </p>
+      <div className="grid gap-4 rounded-tapit border border-tapit-line/70 bg-tapit-paper/60 p-3.5 sm:p-4">
+        {(["name", "bio"] as const).map((field) => (
+          <ProfileIdentityColorPicker
+            allowWhite={allowWhite}
+            error={errorFor(field)}
+            field={field}
+            key={field}
+            onChange={(color) => setColor(field, color)}
+            value={customization.identityColors?.[field]}
+          />
+        ))}
+      </div>
+    </fieldset>
+  );
 }
 
 export function ProfileCustomizationEditor({
@@ -223,6 +272,12 @@ export function ProfileCustomizationEditor({
   const scaleError = findError("type scale");
   const treatmentError = findError("link treatment");
   const orderError = findError("content order");
+  const identityColorError = (field: ProfileIdentityField) =>
+    errors.find((error) =>
+      field === "name"
+        ? error.toLowerCase().includes("profile name color")
+        : error.toLowerCase().includes("profile bio color"),
+    );
   const kindError = findError("section kind", "section is invalid");
   const bodyError = findError("section body", "about section body", "services section body");
   const itemError = findError("service item", "services items");
@@ -435,6 +490,12 @@ export function ProfileCustomizationEditor({
               Warm Studio
             </RadioChoice>
           </fieldset>
+          <IdentityColorControls
+            allowWhite={media?.background !== undefined}
+            customization={customization}
+            errorFor={identityColorError}
+            onChange={onChange}
+          />
           <ChoiceGroup
             label="Accent"
             name={`${baseId}-accent`}

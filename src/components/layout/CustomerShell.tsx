@@ -11,6 +11,8 @@ import type { ShellNavGroup } from "./navigation";
 import { Button } from "../ui/Button";
 import { clearDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
+import { isActiveAccess } from "@/lib/auth/access";
+import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
 import { api } from "../../../convex/_generated/api";
 
 const customerNavGroups: ShellNavGroup[] = [
@@ -92,7 +94,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     customer.status !== "active" ||
     customer.deletionStatus !== "active"
   )
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
 
   return (
     <AppShell
@@ -129,6 +131,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   const { signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+  const activeAccess = isActiveAccess(access);
   const draftSave = useDraftSave();
   const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
 
@@ -140,23 +143,22 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
       router.replace("/login?reason=invitation-required");
     } else if (access?.accountStatus === "deleted" || access?.accountStatus === "unprovisioned") {
       router.replace("/login?reason=account-inactive");
-    } else if (!isAuthenticated || access?.authenticated !== true) {
+    } else if (!isAuthenticated || !activeAccess) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     } else if (access.profileId === null) {
       router.replace("/login?reason=account-inactive");
     }
-  }, [access, authLoading, isAuthenticated, pathname, router]);
+  }, [access, activeAccess, authLoading, isAuthenticated, pathname, router]);
 
   if (
     authLoading ||
     (isAuthenticated && access === undefined) ||
     !isAuthenticated ||
-    access?.authenticated !== true ||
-    access.accountStatus !== "active" ||
+    !activeAccess ||
     (access.role !== "customer" && access.role !== "admin") ||
     access.profileId === null
   ) {
-    return <div className="min-h-[100dvh] bg-tapit-paper" />;
+    return <AuthLoadingState />;
   }
 
   return (

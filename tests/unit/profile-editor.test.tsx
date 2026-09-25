@@ -190,6 +190,22 @@ describe("ProfileEditor customization seam", () => {
     expect(screen.queryByText("Disabled draft link")).not.toBeInTheDocument();
   });
 
+  it("projects unsaved identity colors into the draft preview", async () => {
+    const user = userEvent.setup();
+    render(<ProfileEditor />);
+
+    await user.click(screen.getByRole("button", { name: "Jade name color" }));
+    await user.click(screen.getByRole("button", { name: "Coral bio / role color" }));
+
+    expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveStyle({
+      color: "#3e806d",
+    });
+    expect(screen.getAllByText("Designer").find((element) => element.tagName === "P")).toHaveStyle({
+      color: "#a84431",
+    });
+    expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+  });
+
   it("keeps legacy profiles on the legacy appearance branch", () => {
     mocks.liveProfile = {
       ...demoProfile,

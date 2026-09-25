@@ -4,6 +4,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import {
   normalizeProfileCustomization,
   type ProfileCustomization,
+  type ProfileIdentityColorValidationOptions,
   validateProfileCustomization,
 } from "../profile-customization";
 import {
@@ -305,7 +306,11 @@ export function validatePublication(
   if (redirectError !== null) errors.push(redirectError);
   const websiteError = validateWebsite(draft.website);
   if (websiteError !== null) errors.push(websiteError);
-  errors.push(...validateProfileCustomization(draft.customization, draft.links));
+  errors.push(
+    ...validateProfileCustomization(draft.customization, draft.links, {
+      allowWhite: draft.media?.background !== undefined,
+    } satisfies ProfileIdentityColorValidationOptions),
+  );
   errors.push(...validateProfileMedia(draft.media));
   return errors;
 }

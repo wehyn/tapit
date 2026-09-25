@@ -2,10 +2,15 @@ import type { ProfileLink } from "./domain";
 
 export type ProfileAccent = "coral" | "jade" | "ink";
 export type ProfileIdentityColorPreset = "default" | "coral" | "jade" | "ink";
-export type ProfileIdentityColor = ProfileIdentityColorPreset | { custom: string };
+export type ProfileIdentityColor =
+  { kind: "preset"; value: ProfileIdentityColorPreset } | { kind: "custom"; hex: string };
+export type ProfileIdentityField = "name" | "bio";
 export interface ProfileIdentityColors {
   name?: ProfileIdentityColor;
   bio?: ProfileIdentityColor;
+}
+export interface ProfileIdentityColorValidationOptions {
+  allowWhite?: boolean;
 }
 export type ProfileTypeScale = "compact" | "comfortable" | "editorial";
 export type ProfileLinkTreatment = "filled" | "outlined";
@@ -112,8 +117,8 @@ export function resolveProfileAppearance(
       PROFILE_LINK_TREATMENTS.has(value.linkTreatment as ProfileLinkTreatment)
         ? (value.linkTreatment as ProfileLinkTreatment)
         : DEFAULT_WARM_STUDIO_CUSTOMIZATION.linkTreatment,
-    nameColor: resolveIdentityColor(value?.identityColors, "name"),
-    bioColor: resolveIdentityColor(value?.identityColors, "bio"),
+    nameColor: resolveProfileIdentityColor(value?.identityColors, "name"),
+    bioColor: resolveProfileIdentityColor(value?.identityColors, "bio"),
   };
 }
 
@@ -121,20 +126,23 @@ const PROFILE_ACCENTS = new Set<ProfileAccent>(["coral", "jade", "ink"]);
 const PROFILE_TYPE_SCALES = new Set<ProfileTypeScale>(["compact", "comfortable", "editorial"]);
 const PROFILE_LINK_TREATMENTS = new Set<ProfileLinkTreatment>(["filled", "outlined"]);
 const PROFILE_CONTENT_ORDERS = new Set<ProfileContentOrder>(["links-first", "section-first"]);
-const PROFILE_IDENTITY_COLOR_PRESETS = new Set<ProfileIdentityColorPreset>([
+export const PROFILE_IDENTITY_COLOR_PRESETS = [
   "default",
   "coral",
   "jade",
   "ink",
-]);
-const IDENTITY_COLOR_DEFAULTS = { name: "#2c2420", bio: "#74665d" } as const;
-const IDENTITY_COLOR_PALETTE = {
+] as const satisfies readonly ProfileIdentityColorPreset[];
+const PROFILE_IDENTITY_COLOR_PRESET_SET = new Set<ProfileIdentityColorPreset>(
+  PROFILE_IDENTITY_COLOR_PRESETS,
+);
+export const IDENTITY_COLOR_DEFAULTS = { name: "#2c2420", bio: "#74665d" } as const;
+export const IDENTITY_COLOR_PALETTE = {
   default: IDENTITY_COLOR_DEFAULTS,
   coral: { name: "#a84431", bio: "#a84431" },
   jade: { name: "#3e806d", bio: "#3e806d" },
   ink: { name: "#2c2420", bio: "#2c2420" },
 } as const;
-const IDENTITY_SURFACES = { name: "#fbf6ef", bio: "#fffdf9" } as const;
+const IDENTITY_SURFACES = ["#fbf6ef", "#fffdf9"] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -174,14 +182,14 @@ function sectionErrors(section: unknown): string[] {
   return errors;
 }
 
-function isHexColor(value: unknown): value is string {
+export function isProfileIdentityHex(value: unknown): value is string {
   return typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 }
 
 function relativeLuminance(hex: string): number {
   const channels = [1, 3, 5].map((index) => parseInt(hex.slice(index, index + 2), 16) / 255);
   const linear = channels.map((channel) =>
-    channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
   );
   return 0.2126 * (linear[0] ?? 0) + 0.7152 * (linear[1] ?? 0) + 0.0722 * (linear[2] ?? 0);
 }
@@ -196,35 +204,45 @@ function meetsContrast(color: string, surface: string): boolean {
   );
 }
 
-function identityColorError(field: "name" | "bio"): string {
+function identityColorError(field: ProfileIdentityField): string {
   return field === "name"
     ? "The profile name color is invalid."
     : "The profile bio color is invalid.";
 }
 
-function identityColorValue(
-  value: unknown,
-):
-  | { kind: "preset"; value: ProfileIdentityColorPreset }
-  | { kind: "custom"; value: string }
-  | undefined {
+function identityColorValue(value: unknown): ProfileIdentityColor | undefined {
   if (
-    typeof value === "string" &&
-    PROFILE_IDENTITY_COLOR_PRESETS.has(value as ProfileIdentityColorPreset)
+    isRecord(value) &&
+    Object.keys(value).length === 2 &&
+    value.kind === "preset" &&
+    PROFILE_IDENTITY_COLOR_PRESET_SET.has(value.value as ProfileIdentityColorPreset)
   ) {
-    return { kind: "preset", value: value as ProfileIdentityColorPreset };
+    return { kind: "preset", value: value.value as ProfileIdentityColorPreset };
   }
-  if (isRecord(value) && Object.keys(value).length === 1 && isHexColor(value.custom)) {
-    return { kind: "custom", value: value.custom.toLowerCase() };
+  if (
+    isRecord(value) &&
+    Object.keys(value).length === 2 &&
+    value.kind === "custom" &&
+    isProfileIdentityHex(value.hex)
+  ) {
+    return { kind: "custom", hex: value.hex.toLowerCase() };
   }
   return undefined;
 }
 
-function identityColorErrors(field: "name" | "bio", value: unknown): string[] {
+function identityColorErrors(
+  field: ProfileIdentityField,
+  value: unknown,
+  options: ProfileIdentityColorValidationOptions,
+): string[] {
   if (value === undefined) return [];
   const parsed = identityColorValue(value);
   if (parsed === undefined) return [identityColorError(field)];
-  if (parsed.kind === "custom" && !meetsContrast(parsed.value, IDENTITY_SURFACES[field])) {
+  if (parsed.kind === "custom" && options.allowWhite && parsed.hex === "#ffffff") return [];
+  if (
+    parsed.kind === "custom" &&
+    !IDENTITY_SURFACES.every((surface) => meetsContrast(parsed.hex, surface))
+  ) {
     return [
       field === "name"
         ? "The profile name custom color does not meet contrast requirements."
@@ -234,12 +252,15 @@ function identityColorErrors(field: "name" | "bio", value: unknown): string[] {
   return [];
 }
 
-function identityColorsErrors(value: unknown): string[] {
+function identityColorsErrors(
+  value: unknown,
+  options: ProfileIdentityColorValidationOptions,
+): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return [identityColorError("name"), identityColorError("bio")];
   const errors = [
-    ...identityColorErrors("name", value.name),
-    ...identityColorErrors("bio", value.bio),
+    ...identityColorErrors("name", value.name, options),
+    ...identityColorErrors("bio", value.bio, options),
   ];
   for (const key of Object.keys(value)) {
     if (key !== "name" && key !== "bio") errors.push(identityColorError("name"));
@@ -250,24 +271,39 @@ function identityColorsErrors(value: unknown): string[] {
 function normalizeIdentityColors(value: unknown): ProfileIdentityColors | undefined {
   if (!isRecord(value)) return undefined;
   const normalized: ProfileIdentityColors = {};
-  for (const field of ["name", "bio"] as const) {
+  for (const field of ["name", "bio"] satisfies readonly ProfileIdentityField[]) {
     const parsed = identityColorValue(value[field]);
     if (parsed === undefined || (parsed.kind === "preset" && parsed.value === "default")) continue;
-    normalized[field] = parsed.kind === "custom" ? { custom: parsed.value } : parsed.value;
+    normalized[field] = parsed;
   }
   return Object.keys(normalized).length === 0 ? undefined : normalized;
 }
 
-function resolveIdentityColor(value: unknown, field: "name" | "bio"): string {
+export function resolveProfileIdentityColor(value: unknown, field: ProfileIdentityField): string {
   const parsed = isRecord(value) ? identityColorValue(value[field]) : undefined;
   if (parsed === undefined) return IDENTITY_COLOR_DEFAULTS[field];
-  return parsed.kind === "custom" ? parsed.value : IDENTITY_COLOR_PALETTE[parsed.value][field];
+  return parsed.kind === "custom" ? parsed.hex : IDENTITY_COLOR_PALETTE[parsed.value][field];
+}
+
+export function validateProfileIdentityColor(
+  field: ProfileIdentityField,
+  hex: unknown,
+  options: ProfileIdentityColorValidationOptions = {},
+): string | undefined {
+  if (!isProfileIdentityHex(hex)) return identityColorError(field);
+  if (options.allowWhite && hex.toLowerCase() === "#ffffff") return undefined;
+  return IDENTITY_SURFACES.every((surface) => meetsContrast(hex, surface))
+    ? undefined
+    : field === "name"
+      ? "The profile name custom color does not meet contrast requirements."
+      : "The profile bio custom color does not meet contrast requirements.";
 }
 
 /** Returns publication-blocking customization errors. Featured links are intentionally advisory. */
 export function validateProfileCustomization(
   customization: ProfileCustomization | undefined,
   _links: readonly ProfileLink[] = [],
+  options: ProfileIdentityColorValidationOptions = {},
 ): string[] {
   if (customization === undefined) return [];
   const value: Record<string, unknown> = isRecord(customization) ? customization : {};
@@ -284,7 +320,7 @@ export function validateProfileCustomization(
   if (value.featuredLinkId !== undefined && typeof value.featuredLinkId !== "string") {
     errors.push("The featured link id is invalid.");
   }
-  errors.push(...identityColorsErrors(value.identityColors));
+  errors.push(...identityColorsErrors(value.identityColors, options));
   if (value.section !== undefined) errors.push(...sectionErrors(value.section));
   return errors;
 }

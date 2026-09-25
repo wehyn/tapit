@@ -4,6 +4,7 @@ import {
   getAutomaticContactActions,
   getFeaturedProfileLink,
   normalizeProfileCustomization,
+  validateProfileIdentityColor,
   resolveProfileAppearance,
   validateProfileCustomization,
 } from "../../src/lib/profile-customization";
@@ -37,30 +38,63 @@ describe("profile customization contract", () => {
     expect(
       resolveProfileAppearance({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { name: "coral", bio: "jade" },
+        identityColors: {
+          name: { kind: "preset", value: "coral" },
+          bio: { kind: "preset", value: "jade" },
+        },
       }),
     ).toMatchObject({ nameColor: "#a84431", bioColor: "#3e806d" });
     expect(
       normalizeProfileCustomization({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { name: "coral", bio: "default" },
+        identityColors: {
+          name: { kind: "preset", value: "coral" },
+          bio: { kind: "preset", value: "default" },
+        },
       }),
     ).toEqual({
       ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      identityColors: { name: "coral" },
+      identityColors: { name: { kind: "preset", value: "coral" } },
     });
   });
 
   it("normalizes valid uppercase custom identity colors to lowercase", () => {
     const customization = {
       ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      identityColors: { name: { custom: "#A84431" }, bio: { custom: "#3E806D" } },
+      identityColors: {
+        name: { kind: "custom" as const, hex: "#A84431" },
+        bio: { kind: "custom" as const, hex: "#A84431" },
+      },
     };
     expect(validateProfileCustomization(customization)).toEqual([]);
     expect(normalizeProfileCustomization(customization)).toEqual({
       ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      identityColors: { name: { custom: "#a84431" }, bio: { custom: "#3e806d" } },
+      identityColors: {
+        name: { kind: "custom", hex: "#a84431" },
+        bio: { kind: "custom", hex: "#a84431" },
+      },
     });
+  });
+
+  it("validates picker hex values against both Warm Studio surfaces", () => {
+    expect(validateProfileIdentityColor("name", "#a84431")).toBeUndefined();
+    expect(validateProfileIdentityColor("bio", "#ffffff")).toBe(
+      "The profile bio custom color does not meet contrast requirements.",
+    );
+    expect(validateProfileIdentityColor("bio", "#ffffff", { allowWhite: true })).toBeUndefined();
+    expect(validateProfileIdentityColor("name", "#fff")).toBe("The profile name color is invalid.");
+  });
+
+  it("allows white identity colors only when the background-image exception is enabled", () => {
+    const customization = {
+      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+      identityColors: { name: { kind: "custom" as const, hex: "#ffffff" } },
+    };
+
+    expect(validateProfileCustomization(customization)).toContain(
+      "The profile name custom color does not meet contrast requirements.",
+    );
+    expect(validateProfileCustomization(customization, [], { allowWhite: true })).toEqual([]);
   });
 
   it("rejects malformed, unsupported, and low-contrast identity colors", () => {
@@ -70,7 +104,7 @@ describe("profile customization contract", () => {
       "white",
       " #2c2420",
       42,
-      { custom: "#fff" },
+      { kind: "custom", hex: "#fff" },
       "not-a-preset",
     ]) {
       expect(
@@ -83,25 +117,25 @@ describe("profile customization contract", () => {
     expect(
       validateProfileCustomization({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { bio: { custom: "#ffffff" } },
+        identityColors: { bio: { kind: "custom", hex: "#ffffff" } },
       } as never),
     ).toContain("The profile bio custom color does not meet contrast requirements.");
     expect(
       validateProfileCustomization({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { name: { custom: "#ffffff" } },
+        identityColors: { name: { kind: "custom", hex: "#ffffff" } },
       } as never),
     ).toContain("The profile name custom color does not meet contrast requirements.");
     expect(
       validateProfileCustomization({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { extra: "coral" },
+        identityColors: { extra: { kind: "preset", value: "coral" } },
       } as never),
     ).toContain("The profile name color is invalid.");
     expect(
       validateProfileCustomization({
         ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-        identityColors: { bio: "future" },
+        identityColors: { bio: { kind: "preset", value: "future" } },
       } as never),
     ).toContain("The profile bio color is invalid.");
   });

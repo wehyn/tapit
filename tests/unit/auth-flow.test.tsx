@@ -244,6 +244,46 @@ describe("non-active workspace shells", () => {
       await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
     },
   );
+
+  it("keeps an active customer workspace visible while the access response is on the legacy shape", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+    });
+    const { CustomerShell } = await loadShells();
+
+    render(
+      <CustomerShell>
+        <div>customer content</div>
+      </CustomerShell>,
+    );
+
+    expect(screen.getByText("customer content")).toBeInTheDocument();
+  });
+
+  it("keeps an active admin workspace visible while the access response is on the legacy shape", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "admin",
+      accountId: "customer_1",
+      profileId: "profile_1",
+    });
+    const { AdminShell } = await loadShells();
+
+    render(
+      <AdminShell>
+        <div>admin content</div>
+      </AdminShell>,
+    );
+
+    expect(screen.getByText("admin content")).toBeInTheDocument();
+  });
 });
 
 describe("pending Google onboarding", () => {
