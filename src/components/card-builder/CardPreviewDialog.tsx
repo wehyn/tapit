@@ -99,6 +99,8 @@ export function CardPreviewDialog({
           <span aria-hidden="true">×</span>
         </Button>
         <div className="mt-6 flex max-h-[55vh] min-h-48 items-center justify-center overflow-hidden rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:max-h-[60vh]">
+          {/* Blob previews are already local and cannot benefit from Next image optimization. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={`Preview of ${file.name}`}
             className="max-h-[52vh] max-w-full object-contain sm:max-h-[57vh]"

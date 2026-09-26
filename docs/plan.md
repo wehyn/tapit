@@ -184,7 +184,7 @@ Local development should use a development email adapter or captured setup-link 
 #### Direct profile URL
 
 1. Visitor requests `/<slug>`.
-2. The route resolves the stable slug.
+2. The route resolves the profile currently assigned that slug. An administrator may change the assigned slug; the former URL has no redirect and its slug becomes available for reuse.
 3. Tapit checks the profile state.
 4. Published profiles render public fields and enabled links only.
 5. Unpublished or suspended profiles render the branded unavailable page.
@@ -242,7 +242,7 @@ The implementation must prevent invalid transitions such as customer reassignmen
 - Create separate Convex development and production deployments.
 - Keep schema and backend functions under `convex/`.
 - Generate typed Convex API bindings as part of the normal development workflow.
-- Use indexes for stable profile slug lookup, card URL lookup, customer-to-profile lookup, card-to-profile lookup, profile links ordered by position, analytics time buckets, and audit filtering.
+- Use indexes for current profile slug lookup, card URL lookup, customer-to-profile lookup, card-to-profile lookup, profile links ordered by position, analytics time buckets, and audit filtering. A released slug is reusable; no former-slug alias is stored.
 - Use Convex file storage for profile images and store only file references in profile data.
 - Define explicit server-side public/private field projections so private draft data cannot be returned accidentally.
 
@@ -265,7 +265,8 @@ The schema must support:
 
 - one customer account to one profile;
 - multiple cards assigned to one profile;
-- immutable published profile slug;
+- current profile slug synchronized across the profile, draft, and published snapshot; only administrators may change it after profile creation;
+- uniqueness for currently assigned profile slugs, with released slugs available for reuse;
 - unique card URL registration;
 - explicit profile and card states;
 - replacement relationships and historical auditability;
@@ -304,16 +305,16 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 | Surface | Required content and interactions | Required states and constraints | `spec.md` traceability |
 |---|---|---|---|
 | Public profile `/<slug>` | Phone-first identity header, optional image/logo, name, optional bio/role, ordered enabled links, Save contact, Tapit branding, generated metadata, and `noindex` | Lightweight loading, published success, missing/unavailable, and friendly service error; never show drafts, disabled links, analytics, card identifiers, or admin controls | FR-009–FR-021, FR-033–FR-035, FR-038, FR-050; AC-006–AC-009, AC-022–AC-024, AC-025–AC-026, AC-032–AC-033 |
-| Card resolver `/c/<card-token>` and inactive-card page | Check card status, resolve active cards to the stable profile, and provide optional support/contact on the fixed inactive page | Active, invalid/missing, and inactive/replaced states; inactive handling must not query or expose former profile content and must count a profile view only once | FR-022–FR-033, FR-038, FR-042, FR-050; AC-017–AC-020, AC-024–AC-026 |
+| Card resolver `/c/<card-token>` and inactive-card page | Check card status, resolve active cards to their assigned profile identity, and provide optional support/contact on the fixed inactive page | Active cards continue to resolve their assigned profile after an administrator changes its slug; invalid/missing and inactive/replaced states never expose former profile content and count a profile view only once | FR-022–FR-033, FR-038, FR-042, FR-050; AC-017–AC-020, AC-024–AC-026 |
 | Unavailable-profile page | Fixed accessible Tapit branding, “This profile is currently unavailable,” and optional configured support/contact | Unpublished and suspended states must reveal no identity, links, images, analytics, or former content | FR-018, FR-043, FR-050; AC-024, AC-029 |
-| Login `/login` | Sign-in mode plus customer-only signup mode with display name, profile slug, email, password, confirmation, stable URL preview, specific validation, support route, and role-appropriate redirect | Initial, submitting, invalid credentials, invalid/reserved/duplicate slug, rate-limited, auth-service failure, provisioning failure, and authenticated redirect; no administrator signup, password reset, or email verification flow in the MVP | FR-002, FR-005–FR-006, FR-047, FR-051–FR-056; AC-002–AC-003, AC-035–AC-039 |
+| Login `/login` | Sign-in mode plus customer-only signup mode with display name, initial profile slug, email, password, confirmation, profile URL preview, specific validation, support route, and role-appropriate redirect | Initial, submitting, invalid credentials, invalid/reserved/duplicate slug, rate-limited, auth-service failure, provisioning failure, and authenticated redirect; no administrator signup, password reset, or email verification flow in the MVP | FR-002, FR-005–FR-006, FR-047, FR-051–FR-056; AC-002–AC-003, AC-035–AC-039 |
 | Customer setup `/setup/<token>` | Account email context, password and confirmation, password guidance, and success continuation to Profile | Valid, invalid/expired/used token, mismatch, under-8-character password, submitting, success, and service failure; token is single-use | FR-003–FR-006, FR-047; AC-001–AC-002 |
-| Customer shell and Profile `/app/profile` | Responsive customer navigation for Profile, Links, Analytics, and Account; identity editor, immutable-after-publication slug, copyable stable URL, theme controls, status, validation checklist, Save draft, Preview, Publish, and image crop/preview | Draft/published/unpublished status is visible; split editor/preview where space permits and vertical flow on narrow screens; no Cards navigation or card controls | FR-007–FR-021, FR-047–FR-049; AC-004–AC-009, AC-013–AC-014, AC-021 |
+| Customer shell and Profile `/app/profile` | Responsive customer navigation for Profile, Links, Analytics, and Account; identity editor, read-only assigned slug after profile creation, copyable current profile URL, theme controls, status, validation checklist, Save draft, Preview, Publish, and image crop/preview | Customers choose an initial slug during signup but cannot change it after profile creation; an administrator may rename it, which changes the direct URL without redirecting the former URL. Draft/published/unpublished status is visible; no Cards navigation or card controls | FR-007–FR-021, FR-047–FR-049; AC-004–AC-009, AC-013–AC-014, AC-021 |
 | Customer Links `/app/links` | Ordered link rows, custom labels, preset service/icon selection, safe destination input, enable/disable, add/edit/delete, Save draft, Preview, Publish, and reorder controls | Empty, loading, invalid scheme/malformed/empty/duplicate/missing-label, success, and save failure states; pointer reordering may be offered but Move up/Move down must always work | FR-013–FR-020; AC-010–AC-012 |
 | Customer Analytics `/app/analytics` | Lifetime, 7-day, 30-day, and 90-day views, unique views, link clicks, link-level results where available, range selection, and privacy explanation | Loading skeleton, empty explanation, populated metrics, query failure, and own-profile-only permission state; never imply visitor identities | FR-036–FR-042; AC-025–AC-028 |
 | Customer Account `/app/account` | Account email, password-change form, support destination, deletion explanation, request/confirm deletion | Form progress, validation/service errors, success feedback, and deletion confirmation; no card assignment/status controls; account-email changes remain TBD | FR-047–FR-048; AC-030–AC-031 |
 | Administrator Customers `/admin/customers` | Search/list with email, profile/status summary, setup status, customer creation, invitation status, and links to profile/cards | Loading, no-customers creation prompt, invalid/duplicate email, service/permission failure, and account/setup success; surface account, card, assignment, and invitation results separately | FR-002–FR-004, FR-042–FR-046; AC-001, AC-029 |
-| Administrator Profiles `/admin/profiles` | Searchable profile status list, customer, slug, last update, edit, publication, suspension, restore where allowed, and audit access | Loading, empty, query failure, permission failure, and action confirmation/success; administrative edits are audited and never public until explicitly published | FR-007–FR-009, FR-018–FR-020, FR-043–FR-046; AC-007–AC-009, AC-024, AC-029 |
+| Administrator Profiles `/admin/profiles` | Searchable profile status list; selecting a row opens a spacious, keyboard-operable popup on the **Edit profile** tab. The separate **Details & slug** tab shows the overview, customer email, assigned-card summary, lifecycle timestamps, complete draft and published content, and slug editor | Editing and moderation actions stay in **Edit profile**; draft and published values remain distinct in **Details & slug**. Both tabs remain usable at supported viewport widths. Admins can rename slugs in every profile state. Confirm that the old direct URL stops resolving and the released slug can be reused. Every admin edit is authorized and audited; slug changes do not publish other draft content | FR-007–FR-009, FR-018–FR-020, FR-043–FR-046, FR-057–FR-061; AC-007–AC-009, AC-024, AC-029, AC-045–AC-047 |
 | Administrator Cards `/admin/cards` | Card URL registration, duplicate validation, assignment, status, assignment/replacement history, QR preview, PNG/SVG downloads, and audit access | Loading, no-cards registration prompt, invalid/duplicate URL, assignment/deactivation/replacement progress, success, and permission failure; confirmations identify the exact card/profile and immediate inactive effect | FR-022–FR-031, FR-042–FR-046; AC-015–AC-021, AC-029 |
 | Administrator Analytics `/admin/analytics` | Authorized cross-customer aggregate views, unique views, link clicks, time ranges, and operational profile/card status | Metric loading, no-data explanation, query failure, and administrator-only permission state; no raw visitor-level history | FR-036–FR-042; AC-025–AC-029 |
 | Administrator Audit log `/admin/audit-log` | Searchable/filterable proportional history with actor, action, target, timestamp, and before/after state | Loading, no-actions explanation, query failure, new-entry success, and customer-blocked state | FR-043–FR-046; AC-029 |
@@ -326,7 +327,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Keep the last known valid published profile public when draft save or publication fails. Disable or otherwise guard duplicate submissions while a request is in progress without unexpectedly removing controls.
 - Require confirmation for deactivation, replacement, suspension, and deletion. The confirmation identifies the exact target, explains the immediate public effect, and returns focus to the trigger after closing.
 - Make draft and published states explicit in editing contexts. Preview pending changes only; never automatically publish a saved draft.
-- Provide copy-to-clipboard feedback for the stable URL with a usable fallback when clipboard access is unavailable.
+- Provide copy-to-clipboard feedback for the current profile URL with a usable fallback when clipboard access is unavailable. Admin slug changes warn that the former direct URL stops resolving and the former slug may later open another profile.
 - Open external destinations in a new tab where supported, preserve the profile in the original tab, and give external-link actions clear accessible names.
 - Provide an explicit keyboard-accessible Move up/Move down path for link ordering. No feature may depend on precise dragging, hover, color recognition, or pointer precision.
 - Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a cancelled, invalid, authorization, service, or failed upload; explain accepted JPG/PNG/WebP formats, the 5 MiB source limit, and the 5 MiB combined output limit.
@@ -382,14 +383,14 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 ### 3. Implement the core schema and domain rules
 
 - Implement account/profile/card/link states and relationships.
-- Add slug uniqueness and immutability-after-publication rules.
+- Enforce unique current slugs; allow a slug change only through an administrator-only operation after profile creation. Atomically synchronize the current, draft, and published slugs, record the old and new values, release the old slug for reuse, and preserve profile status and unpublished content.
 - Add unique pre-encoded card URL registration rules.
 - Add shared validation for required profile fields, link schemes, image types/sizes, and state transitions.
 - Add audit event contracts before implementing destructive/admin workflows.
 
 ### 4. Build public resolution and status pages
 
-- Build the stable public profile route.
+- Build the public profile route using the currently assigned slug; former slugs receive no redirect or alias after an admin rename.
 - Build the unique card resolver route.
 - Implement the phone-first published profile, fixed unpublished/suspended unavailable page, fixed inactive/replaced-card page, missing-profile state, and friendly temporary-error experience.
 - Add the public identity header, image/logo frame, ordered enabled-link list, Save contact action, metadata, external-link behavior, and Tapit branding described by the design.
@@ -400,7 +401,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 ### 5. Build the customer profile experience
 
 - Implement customer navigation: Profile, Links, Analytics, Account.
-- Build the exact customer Profile screen with name, optional image/logo, bio/role, email, phone, website, immutable slug, copyable public URL, publication status, and validation checklist.
+- Build the exact customer Profile screen with name, optional image/logo, bio/role, email, phone, website, read-only assigned slug after profile creation, copyable current public URL, publication status, and validation checklist. Initial self-service signup still accepts a customer-selected slug.
 - Add basic image crop/preview and optimized upload workflow.
 - Add draft save, phone/desktop responsive preview, validation, explicit publish, and visible draft-versus-published behavior. Use a split editor/preview layout where space permits and a vertical flow on narrow screens.
 - Keep customer Cards navigation absent from the MVP.
@@ -429,7 +430,7 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 
 - Generate QR codes from unique card URLs.
 - Add administrator QR preview and PNG/SVG download.
-- Generate vCards containing only selected name, email, website, and public profile URL.
+- Generate vCards containing the selected name, published photo, selected email and phone, and enabled published links with their labels; omit the Profile identity Website field, Tapit public profile URL, and duplicate link destinations.
 - Add public Save contact action and appropriate empty/disabled states.
 
 ### 9. Build privacy-preserving analytics
@@ -580,7 +581,9 @@ Prove deterministic behavior without a browser:
 
 - profile publish validation: name and at least one valid link;
 - draft versus published isolation;
-- immutable slug after publication;
+- customer slug immutability after profile creation, including unpublished drafts, enforced by the server;
+- administrator slug change in draft, published, unpublished, and suspended states; synchronized published/current slug, old URL unavailable without redirect, freed slug reusable, and audit before/after values;
+- active card URL continuity across an administrator slug change;
 - allowed/blocked link schemes;
 - link ordering and enabled/disabled projection;
 - card state transitions and prohibition of reactivation/reassignment;
@@ -824,7 +827,7 @@ Mitigation: keep primitives small, test keyboard/focus/error behavior, use acces
 
 - **Email:** Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first through an adapter.
 - **Authentication:** Convex Auth or an external managed provider. Recommendation: Convex Auth for MVP because it is selected and integrates with Convex; reassess if recovery/verification requirements cannot be met.
-- **Public card resolution:** redirect card URL to stable profile URL or render profile through a resolver. Recommendation: preserve unique card status checks and count profile views once; choose the simpler implementation after an analytics proof test.
+- **Public card resolution:** keep each card assigned to the profile identity and render or resolve its currently published content. An admin slug change must not require card re-encoding; preserve unique card status checks and count profile views once.
 - **Unique views:** rotating pseudonymous identifiers, coarse time-bucketed counters, or privacy-oriented edge aggregation. Recommendation: choose the least reconstructable method that still supports the required dashboard ranges.
 - **Hosting plans:** Vercel/Convex managed plans versus later self-hosting. Recommendation: managed plans for MVP, subject to a budget and availability review.
 - **UI primitives:** fully custom primitives versus accessible headless behavior with custom Tailwind styling. Recommendation: custom Tapit visuals with proven headless interaction behavior where keyboard/dialog complexity is high.
@@ -836,11 +839,11 @@ Mitigation: keep primitives small, test keyboard/focus/error behavior, use acces
 - CI runs formatting verification, lint, strict typecheck, unit tests, build, and agreed browser tests.
 - Customer onboarding supports public customer self-service signup and administrator-created invited accounts; the first administrator remains operator-provisioned. Administrator onboarding still registers manually entered unique card URLs, assigns cards, and sends a safe setup link.
 - Customers can authenticate, complete a profile, manage links, customize the profile, save drafts, preview responsive layouts, and explicitly publish.
-- Published profiles are available through stable URLs and active NFC/QR card paths without a visitor account or native app.
-- Profile updates do not require NFC re-encoding or URL changes.
+- Published profiles are available at their currently assigned slugs and through active NFC/QR card paths without a visitor account or native app. Only administrators can change an assigned slug after profile creation; former direct URLs do not redirect, released slugs are reusable, and each change is audited.
+- Profile content updates and administrator slug changes do not require NFC/QR card re-encoding; active cards remain assigned to the same profile identity and continue resolving after a rename.
 - External links, contact actions, labels, icons, ordering, and enable/disable behavior work as specified.
 - QR codes can be previewed and downloaded as PNG and SVG.
-- vCards contain only selected name, email, website, and public profile URL fields.
+- vCards contain the selected name, published photo, selected email and phone, and enabled published links with labels, without the Profile identity Website field, Tapit public profile URL, draft content, or duplicate link destinations.
 - Customer and administrator analytics provide the agreed aggregate lifetime, 7-day, 30-day, and 90-day views/clicks without raw visitor-level history.
 - Administrators can edit, publish/unpublish, suspend, deactivate, replace, and audit the relevant profiles/cards.
 - Deactivated/replaced cards show the branded inactive-card page and never expose former profile content.

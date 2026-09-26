@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
-import { UploadSimpleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
   hasUnpublishedChanges,
@@ -127,6 +127,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
+  const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaError, setMediaError] = useState("");
@@ -150,6 +151,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       : [];
     return [
       ...validatePublication(draft, profile.published, {
+        immutableSlug: profile.draft.slug,
         existingSlugs: getDemoProfiles(state)
           .filter((candidate) => candidate.id !== profile.id)
           .flatMap((candidate) => [
@@ -206,12 +208,23 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     if (cropFile !== null || imagePending || mediaBusy) return false;
     if (!isDirty) return true;
     try {
+      let assignedSlug = profile.draft.slug;
       updateDemoState((current) =>
-        updateDemoProfile(current, profile.id, (currentProfile) => ({ ...currentProfile, draft })),
+        updateDemoProfile(current, profile.id, (currentProfile) => {
+          assignedSlug = currentProfile.draft.slug;
+          return {
+            ...currentProfile,
+            draft: { ...draft, slug: currentProfile.draft.slug },
+          };
+        }),
       );
+      const slugWasRefreshed = draft.slug !== assignedSlug;
+      if (slugWasRefreshed) setDraft((current) => ({ ...current, slug: assignedSlug }));
       setMessage({
         tone: "success",
-        text: "Draft saved. Visitors still see the last published version.",
+        text: slugWasRefreshed
+          ? "Draft saved. The assigned profile slug was refreshed and is managed by an administrator."
+          : "Draft saved. Visitors still see the last published version.",
       });
       return true;
     } catch (error) {
@@ -232,46 +245,57 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       return;
     }
     try {
-      const publishedProfile = publishProfile({ ...profile, draft }, new Date().toISOString(), {
-        existingSlugs: getDemoProfiles(state)
-          .filter((candidate) => candidate.id !== profile.id)
-          .flatMap((candidate) => [
-            candidate.draft.slug,
-            ...(candidate.published === null ? [] : [candidate.published.slug]),
-          ]),
+      const occurredAt = new Date().toISOString();
+      updateDemoState((current) => {
+        const currentProfile = getDemoProfiles(current).find(
+          (candidate) => candidate.id === profile.id,
+        );
+        if (currentProfile === undefined) throw new Error("Profile could not be found.");
+        if (draft.slug !== currentProfile.draft.slug)
+          throw new Error(
+            "The assigned profile slug cannot change except through an administrator.",
+          );
+        const publishedProfile = publishProfile({ ...currentProfile, draft }, occurredAt, {
+          existingSlugs: getDemoProfiles(current)
+            .filter((candidate) => candidate.id !== profile.id)
+            .flatMap((candidate) => [
+              candidate.draft.slug,
+              ...(candidate.published === null ? [] : [candidate.published.slug]),
+            ]),
+        });
+        const nextProfile = {
+          ...publishedProfile,
+          published:
+            publishedProfile.published === null
+              ? null
+              : {
+                  ...publishedProfile.published,
+                  ...(draft.media === undefined ? {} : { media: structuredClone(draft.media) }),
+                },
+          theme: currentProfile.theme,
+        };
+        return {
+          ...updateDemoProfile(current, profile.id, () => nextProfile),
+          cards: current.cards.map((card) =>
+            card.profileId === profile.id &&
+            card.status === "claimable" &&
+            card.claimedAt !== undefined
+              ? { ...card, status: "active" }
+              : card,
+          ),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: session?.email ?? profile.draft.name,
+              action: "profile.published",
+              target: draft.slug,
+              occurredAt,
+              after: "published",
+            },
+            ...current.audits,
+          ],
+        };
       });
-      const nextProfile = {
-        ...publishedProfile,
-        published:
-          publishedProfile.published === null
-            ? null
-            : {
-                ...publishedProfile.published,
-                ...(draft.media === undefined ? {} : { media: structuredClone(draft.media) }),
-              },
-        theme: profile.theme,
-      };
-      updateDemoState((current) => ({
-        ...updateDemoProfile(current, profile.id, () => nextProfile),
-        cards: current.cards.map((card) =>
-          card.profileId === profile.id &&
-          card.status === "claimable" &&
-          card.claimedAt !== undefined
-            ? { ...card, status: "active" }
-            : card,
-        ),
-        audits: [
-          {
-            id: `audit-${Date.now()}`,
-            actor: session?.email ?? profile.draft.name,
-            action: "profile.published",
-            target: draft.slug,
-            occurredAt: new Date().toISOString(),
-            after: "published",
-          },
-          ...current.audits,
-        ],
-      }));
       setMessage({
         tone: "success",
         text: "Profile published. Your active card paths now show this version.",
@@ -333,6 +357,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     const validationError = validateProfileImageFile(file);
     if (validationError) return setImageError(validationError);
     setImageError("");
+    setImageApplied(false);
     imageRequestRef.current += 1;
     setCropFile(file);
   }
@@ -350,6 +375,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       if (requestId !== imageRequestRef.current) return;
       updateField("imageUrl", dataUrl);
       setCropFile(null);
+      setImageApplied(true);
     } catch (error) {
       if (requestId === imageRequestRef.current)
         setImageError(error instanceof Error ? error.message : "The image crop failed. Try again.");
@@ -416,6 +442,16 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       {imageError ? (
         <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
           {imageError}
+        </p>
+      ) : null}
+      {imageApplied ? (
+        <p
+          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#17352b]"
+          role="status"
+          aria-label="Photo applied"
+        >
+          <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
+          Photo applied
         </p>
       ) : null}
     </div>
@@ -581,6 +617,7 @@ function LiveProfileEditorContent({
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
+  const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaError, setMediaError] = useState("");
@@ -604,17 +641,17 @@ function LiveProfileEditorContent({
     },
     [],
   );
-  const currentDraft = useMemo<ProfileContent>(
-    () =>
-      draft ?? {
-        ...liveProfile.draft,
-        links: liveProfile.draft.links.map((link) => ({
-          ...link,
-          icon: link.icon as ProfileContent["links"][number]["icon"],
-        })),
-      },
-    [draft, liveProfile.draft],
-  );
+  const currentDraft = useMemo<ProfileContent>(() => {
+    const assignedSlug = liveProfile.slug ?? liveProfile.draft.slug;
+    const current = draft ?? {
+      ...liveProfile.draft,
+      links: liveProfile.draft.links.map((link) => ({
+        ...link,
+        icon: link.icon as ProfileContent["links"][number]["icon"],
+      })),
+    };
+    return current.slug === assignedSlug ? current : { ...current, slug: assignedSlug };
+  }, [draft, liveProfile.draft, liveProfile.slug]);
   const theme: ProfileTheme = currentDraft.theme ?? "paper";
   const publishedForValidation = liveProfile.published
     ? {
@@ -627,13 +664,13 @@ function LiveProfileEditorContent({
       }
     : null;
   const errors = validatePublication(currentDraft, publishedForValidation, {
-    immutableSlug: liveProfile.published?.slug,
+    immutableSlug: liveProfile.slug,
   });
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
-  const slugLocked = liveProfile.published !== undefined;
+  const slugLocked = true;
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     liveProfile.status === "published"
@@ -678,6 +715,7 @@ function LiveProfileEditorContent({
       return;
     }
     setImageError("");
+    setImageApplied(false);
     imageRequestRef.current += 1;
     setCropFile(file);
   }
@@ -719,6 +757,7 @@ function LiveProfileEditorContent({
         };
       });
       setCropFile(null);
+      setImageApplied(true);
     } catch (error) {
       if (requestId === imageRequestRef.current)
         setImageError(
@@ -733,6 +772,7 @@ function LiveProfileEditorContent({
     if (pending !== null) return;
     setPending("image");
     setImageError("");
+    setImageApplied(false);
     try {
       const result = await removeImage({
         profileId: liveProfile._id,
@@ -969,6 +1009,16 @@ function LiveProfileEditorContent({
       {imageError ? (
         <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
           {imageError}
+        </p>
+      ) : null}
+      {imageApplied ? (
+        <p
+          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#17352b]"
+          role="status"
+          aria-label="Photo applied"
+        >
+          <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
+          Photo applied
         </p>
       ) : null}
     </div>

@@ -18,6 +18,7 @@ type AuditEntry = {
   action: string;
   actor: string;
   target?: string;
+  targetAccountEmail?: string;
   occurredAt: string | number;
   before?: string;
   after?: string;
@@ -56,6 +57,7 @@ const readableActions: Record<string, string> = {
   "invitation.revoked": "Customer invitation revoked",
   "profile.links_updated": "Profile links updated",
   "profile.published": "Profile published",
+  "profile.slug_changed": "Profile slug changed",
   "profile.suspended": "Profile suspended",
   "profile.unpublished": "Profile unpublished",
   "profile.updated": "Profile updated",
@@ -161,17 +163,19 @@ function getAuditChanges(action: string, before?: string, after?: string): Audit
   if (beforeData.value === undefined && afterData.value === undefined) return [];
   const scalarChange = /role/i.test(action)
     ? { field: "Account role", valueKey: "role" }
-    : /^profile\./i.test(action) && /status|suspend|publish/i.test(action)
-      ? { field: "Profile status", valueKey: "status" }
-      : /^card\./i.test(action)
-        ? { field: "Card status", valueKey: "status" }
-        : /status/i.test(action)
-          ? { field: "Account status", valueKey: "status" }
-          : /link/i.test(action)
-            ? { field: "Profile links", valueKey: "links" }
-            : /support/i.test(action)
-              ? { field: "Support contact", valueKey: "supportUrl" }
-              : { field: "Change", valueKey: "" };
+    : /^profile\./i.test(action) && /slug/i.test(action)
+      ? { field: "Profile slug", valueKey: "slug" }
+      : /^profile\./i.test(action) && /status|suspend|publish/i.test(action)
+        ? { field: "Profile status", valueKey: "status" }
+        : /^card\./i.test(action)
+          ? { field: "Card status", valueKey: "status" }
+          : /status/i.test(action)
+            ? { field: "Account status", valueKey: "status" }
+            : /link/i.test(action)
+              ? { field: "Profile links", valueKey: "links" }
+              : /support/i.test(action)
+                ? { field: "Support contact", valueKey: "supportUrl" }
+                : { field: "Change", valueKey: "" };
   return [
     {
       field: scalarChange.field,
@@ -197,7 +201,11 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
           </span>
           <span className="mt-1 block text-sm text-tapit-muted">
             By {entry.actor}
-            {entry.target ? ` · ${entry.target}` : ""}
+            {entry.targetAccountEmail
+              ? ` · Account: ${entry.targetAccountEmail}`
+              : entry.target
+                ? ` · ${entry.target}`
+                : ""}
           </span>
         </span>
         <span className="flex items-center gap-3 text-xs text-tapit-muted">
@@ -250,7 +258,7 @@ function DemoAuditLog() {
       .filter(
         (audit) =>
           !normalized ||
-          `${audit.actor} ${audit.action} ${audit.target} ${audit.before ?? ""} ${audit.after ?? ""}`
+          `${audit.actor} ${audit.targetAccountEmail ?? ""} ${audit.action} ${audit.target} ${audit.before ?? ""} ${audit.after ?? ""}`
             .toLowerCase()
             .includes(normalized),
       )
@@ -265,12 +273,13 @@ function DemoAuditLog() {
     occurredAt: audit.occurredAt,
     before: audit.before,
     after: audit.after,
+    targetAccountEmail: audit.targetAccountEmail,
   }));
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
-        description="Review account and profile changes. Open an entry to see the details."
+        description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
       >
         <div className="mt-6 flex items-end gap-3">
@@ -309,12 +318,13 @@ function LiveAuditLog() {
     occurredAt: audit.occurredAt,
     before: audit.before,
     after: audit.after,
+    targetAccountEmail: audit.targetAccountEmail,
   }));
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel
-        description="Review account and profile changes. Open an entry to see the details."
+        description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
       >
         <div className="mt-6 max-w-lg">

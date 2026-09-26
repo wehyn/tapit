@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
+import { SignOutIcon } from "@phosphor-icons/react";
 
 import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
@@ -80,10 +81,12 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
-          <p className="px-1 text-sm text-tapit-muted">
+          <p className="px-1 text-sm text-tapit-muted lg:sr-only xl:not-sr-only">
             Signed in as <strong className="text-tapit-ink">{session.email}</strong>
           </p>
           <Button
+            aria-label="Sign out"
+            className="lg:!px-2 xl:!px-4"
             onClick={() => {
               clearDemoSession();
               router.replace("/login");
@@ -91,7 +94,8 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
             type="button"
             variant="quiet"
           >
-            Sign out
+            <SignOutIcon aria-hidden="true" className="hidden lg:block xl:hidden" size={20} />
+            <span className="lg:sr-only xl:not-sr-only">Sign out</span>
           </Button>
         </div>
       }
@@ -143,15 +147,20 @@ function LiveAdminShell({ children }: { children: React.ReactNode }) {
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
-          <p className="px-1 text-sm text-tapit-muted">Administrator workspace</p>
+          <p className="px-1 text-sm text-tapit-muted lg:sr-only xl:not-sr-only">
+            Administrator workspace
+          </p>
           <Button
+            aria-label="Sign out"
+            className="lg:!px-2 xl:!px-4"
             onClick={() => {
               void signOut().finally(() => router.replace("/login"));
             }}
             type="button"
             variant="quiet"
           >
-            Sign out
+            <SignOutIcon aria-hidden="true" className="hidden lg:block xl:hidden" size={20} />
+            <span className="lg:sr-only xl:not-sr-only">Sign out</span>
           </Button>
         </div>
       }

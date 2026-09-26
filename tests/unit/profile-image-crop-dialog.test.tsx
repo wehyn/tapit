@@ -19,7 +19,7 @@ describe("ProfileImageCropDialog", () => {
     Object.defineProperty(image, "naturalHeight", { value: 400, configurable: true });
     fireEvent.load(image);
     fireEvent.keyDown(viewport, { key: "ArrowRight" });
-    await user.click(screen.getByRole("button", { name: "Apply crop" }));
+    await user.click(screen.getByRole("button", { name: "Apply" }));
 
     expect(onApply).toHaveBeenCalledOnce();
     expect(onApply).toHaveBeenCalledWith({ x: 101, y: 0, size: 400 });
@@ -44,7 +44,7 @@ describe("ProfileImageCropDialog", () => {
 
     render(<ProfileImageCropDialog busy file={file} onApply={onApply} onCancel={onCancel} />);
     expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Apply crop" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Applying..." })).toBeDisabled();
     await user.keyboard("{Escape}");
     expect(onCancel).not.toHaveBeenCalled();
     expect(onApply).not.toHaveBeenCalled();
@@ -66,7 +66,7 @@ describe("ProfileImageCropDialog", () => {
     fireEvent.mouseDown(viewport, { clientX: 100, clientY: 100 });
     fireEvent.mouseMove(viewport, { clientX: 72, clientY: 100 });
     fireEvent.mouseUp(viewport);
-    const apply = screen.getByRole("button", { name: "Apply crop" });
+    const apply = screen.getByRole("button", { name: "Apply" });
     expect(apply).not.toBeDisabled();
     await user.click(apply);
 

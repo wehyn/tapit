@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LinkIcon } from "@/lib/domain";
@@ -24,7 +24,6 @@ describe("public profile preview behavior", () => {
         preview
         profile={projection}
         profileId="profile-mara"
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
@@ -60,7 +59,6 @@ describe("public profile preview behavior", () => {
             },
           ],
         }}
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
@@ -177,7 +175,6 @@ describe("public profile preview behavior", () => {
           imageSrcSet:
             "https://images.example/small.png 192w, https://images.example/large.png 384w",
         }}
-        profileUrl="/mara-velasquez"
         trackClicks={false}
         trackView={false}
       />,
@@ -614,7 +611,7 @@ describe("public profile preview behavior", () => {
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
   });
 
-  it("exports validated phone contact data while omitting unsafe email and website values", () => {
+  it("exports validated phone contact data while omitting unsafe email and website values", async () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:test");
     const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
@@ -629,6 +626,7 @@ describe("public profile preview behavior", () => {
           email: "javascript:alert(1)",
           website: "javascript:alert(2)",
           phone: "+63 917 555 0184",
+          imageUrl: undefined,
           customization: { ...projection.customization! },
         }}
         profileUrl="/mara-velasquez"
@@ -638,9 +636,14 @@ describe("public profile preview behavior", () => {
     );
     expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Save contact" }));
-    expect(blob).toHaveBeenCalledWith([expect.stringContaining("TEL:+63 917 555 0184")], {
-      type: "text/vcard;charset=utf-8",
-    });
+    await waitFor(() =>
+      expect(blob).toHaveBeenCalledWith(
+        [expect.stringContaining("TEL;TYPE=VOICE:+63 917 555 0184")],
+        {
+          type: "text/vcard;charset=utf-8",
+        },
+      ),
+    );
     expect(String(blob.mock.calls[0]?.[0])).not.toContain("javascript:");
     expect(createObjectURL).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:test");
@@ -659,6 +662,8 @@ describe("public profile preview behavior", () => {
           email: "javascript:alert(1)",
           website: "javascript:alert(2)",
           phone: undefined,
+          imageUrl: undefined,
+          links: [],
           customization: undefined,
         }}
         profileUrl="/mara-velasquez"
@@ -690,7 +695,7 @@ describe("public profile preview behavior", () => {
     expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
   });
 
-  it("offers a phone-only vCard for a legacy profile", () => {
+  it("offers a phone-only vCard for a legacy profile", async () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     const blob = vi.spyOn(globalThis, "Blob");
     render(
@@ -700,6 +705,7 @@ describe("public profile preview behavior", () => {
           email: undefined,
           website: undefined,
           phone: "+63 917 555 0184",
+          imageUrl: undefined,
           customization: undefined,
         }}
         profileUrl="/mara-velasquez"
@@ -710,9 +716,14 @@ describe("public profile preview behavior", () => {
 
     expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Save contact" }));
-    expect(blob).toHaveBeenCalledWith([expect.stringContaining("TEL:+63 917 555 0184")], {
-      type: "text/vcard;charset=utf-8",
-    });
+    await waitFor(() =>
+      expect(blob).toHaveBeenCalledWith(
+        [expect.stringContaining("TEL;TYPE=VOICE:+63 917 555 0184")],
+        {
+          type: "text/vcard;charset=utf-8",
+        },
+      ),
+    );
     blob.mockRestore();
   });
 });

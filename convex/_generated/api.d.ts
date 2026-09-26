@@ -10,6 +10,8 @@
 
 import type * as accountErasure from "../accountErasure.js";
 import type * as admin from "../admin.js";
+import type * as adminProfile from "../adminProfile.js";
+import type * as adminProfileRepair from "../adminProfileRepair.js";
 import type * as analytics from "../analytics.js";
 import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
@@ -52,6 +54,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   accountErasure: typeof accountErasure;
   admin: typeof admin;
+  adminProfile: typeof adminProfile;
+  adminProfileRepair: typeof adminProfileRepair;
   analytics: typeof analytics;
   audit: typeof audit;
   auth: typeof auth;

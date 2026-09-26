@@ -14,7 +14,7 @@
 
 ### Visitor-facing paths
 
-- Stable public profile: https://<tapit-domain>/<slug>
+- Current public profile URL: https://<tapit-domain>/<current-slug>
 - Unique card resolver: https://<tapit-domain>/c/<card-token>
 - Published profile state.
 - Unavailable-profile state for unpublished or suspended profiles.
@@ -22,6 +22,8 @@
 - Friendly temporary-error state.
 
 Visitors have no Tapit navigation. They can view published content, select enabled links, and use Save contact.
+
+The downloaded vCard contains the published photo, selected email and phone, and all enabled links with their profile labels. It excludes the Profile identity Website field, Tapit’s public profile URL, draft content, and duplicate URL destinations.
 
 ### Customer paths
 
@@ -62,13 +64,13 @@ Customer navigation intentionally excludes a Cards screen. Customers do not regi
 4. Customer selects a restrained theme and manages labels, icons, enabled state, and link order.
 5. Customer saves a draft and previews phone and desktop layouts.
 6. Customer explicitly publishes after validation passes.
-7. Tapit exposes the published profile at the stable URL.
+7. Tapit exposes the published profile at the current profile URL.
 
 ### Visitor taps or scans
 
 1. Visitor taps the NDEF URI or scans the QR code.
 2. The card resolver checks card status and assigned profile state.
-3. Active cards resolve to the stable public profile; inactive cards show the inactive-card page.
+3. Active cards resolve to the profile’s current public URL; inactive cards show the inactive-card page.
 4. A published profile loads in the visitor’s browser without login or app installation.
 5. The visitor selects a link or Save contact.
 6. External links open in a new tab where supported and the profile remains available in the original tab.
@@ -78,7 +80,7 @@ Customer navigation intentionally excludes a Cards screen. Customers do not regi
 1. Customer edits the draft in Profile or Links.
 2. The last published version remains public while changes are saved or unpublished.
 3. Preview shows pending changes only.
-4. Publish updates all active card paths without NFC re-encoding or URL changes.
+4. Publish updates all active card paths without NFC re-encoding. Only administrators can change an existing profile slug; old direct URLs stop resolving, and active card URLs continue to resolve to the profile’s current URL.
 
 ### Administrator replaces a card
 
@@ -87,7 +89,7 @@ Customer navigation intentionally excludes a Cards screen. Customers do not regi
 3. After confirmation, the old card shows the inactive-card page.
 4. Administrator registers and assigns a new pre-encoded card URL.
 5. The audit log records deactivation, replacement, assignment, actor, timestamp, and state changes.
-6. The new card resolves to the stable profile.
+6. The new card resolves to the profile’s current URL.
 
 ### Customer requests deletion
 
@@ -109,7 +111,7 @@ Content:
 - Name.
 - Short bio or role when provided.
 - Ordered enabled links with custom labels and optional preset icons.
-- Save contact when sufficient approved vCard fields exist.
+- Save contact when a name and published contact content are available; include the phone number and profile photo when provided, and preserve labels on enabled links.
 - Tapit branding appropriate to the selected theme.
 
 Actions:
@@ -126,7 +128,7 @@ Rules: render only published public fields. Never show drafts, disabled links, a
 
 Purpose: resolve the unique card URL while enforcing card state.
 
-Active state: resolve to the assigned stable profile URL and display the published profile.
+Active state: resolve to the assigned profile’s current URL and display the published profile.
 
 Inactive/replaced state: show fixed accessible Tapit branding, the message “This card is inactive,” and the configured support/contact destination when available. Do not query or display the former profile.
 
@@ -144,7 +146,7 @@ Actions: optional support/contact action. Do not display unpublished identity, l
 
 Purpose: authenticate existing customers and administrators, or let a new customer create a profile.
 
-Content: a sign-in mode with email and password, plus a customer-only signup mode with display name, profile slug, email, password, password confirmation, stable URL preview, validation messages, and support route.
+Content: a sign-in mode with email and password, plus a customer-only signup mode with display name, initial profile slug, email, password, password confirmation, current URL preview, validation messages, and support route.
 
 States: initial, submitting, invalid credentials, invalid/reserved/duplicate slug, rate limited, unavailable auth service, provisioning error, and authenticated redirect.
 
@@ -162,7 +164,7 @@ States: valid token, expired/invalid/used token, mismatched passwords, password 
 
 ### Customer Profile page
 
-Purpose: manage identity fields, stable URL, theme, draft state, and publication.
+Purpose: manage identity fields, current URL, theme, draft state, and publication.
 
 Content:
 
@@ -170,8 +172,8 @@ Content:
 - Optional profile image/logo upload, crop, and preview.
 - Optional short bio or role.
 - Optional email, phone, and website.
-- Immutable-after-publication slug.
-- Copyable stable public URL.
+- Read-only assigned slug after profile creation; administrators change it from Profiles.
+- Copyable current public URL.
 - Draft, published, or unpublished status.
 - Save draft, Preview, and Publish actions.
 - Validation checklist for name and at least one valid link.
@@ -220,11 +222,11 @@ Actions: create account, send or resend setup invitation when supported, open pr
 
 Purpose: support and govern customer profiles.
 
-Content: searchable profile list, customer, slug, publication state, last update, and suspension/unavailability state.
+Content: searchable profile registry showing customer, current slug, publication state, last update, and suspension/unavailability state. Selecting a row opens a spacious popup with accessible **Edit profile** and **Details & slug** tabs. The details tab shows the profile overview, lifecycle timestamps, and the complete draft and published values for profile fields, image, contacts, theme, redirect, links, and enabled state.
 
-Actions: edit profile, publish/unpublish, suspend, restore where allowed, and view audit history.
+Actions: inspect all profile details and change the slug in **Details & slug**; edit and publish profile content, unpublish, suspend, and restore where allowed in **Edit profile**; and view audit history.
 
-Rule: administrative edits are auditable and never expose unpublished content publicly.
+Rules: open the popup on **Edit profile**. Keep each tab keyboard-operable and usable on narrow screens. Only administrators can change an existing slug. A slug change is applied immediately to the current public URL; the old direct URL stops resolving without a redirect and becomes available for reuse. If reused later, it resolves to the newly assigned profile. Active card URLs continue resolving to the original profile. Administrative edits are auditable and never expose unpublished content publicly.
 
 ### Administrator Cards page
 
@@ -511,7 +513,7 @@ Exact logo, colors, typeface, corner radius, shadow treatment, and final theme c
 
 - Public profile first, card mechanics hidden: visitors need speed; card ownership is administrative. Supports FR-023, FR-033, and FR-048.
 - Explicit publish instead of automatic public saves: protects the last published version and supports FR-018–FR-020.
-- Stable profile URL plus unique card URL: stable sharing prevents broken links while card-specific status enables replacement. Supports FR-021–FR-023.
+- Current profile URL plus unique card URL: administrator slug changes update the direct profile address while card-specific URLs keep working and can be replaced independently. Supports FR-021–FR-023.
 - Fixed inactive/unavailable pages: reduces leakage and design drift, at the cost of less personalization.
 - No customer Cards screen: respects administrator ownership of physical inventory and prevents accidental reassignment.
 - Basic themes with custom UI: supports Tapit’s own visual language, while increasing accessibility responsibility.

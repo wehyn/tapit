@@ -8,7 +8,8 @@ async function prepareLegacyMaraProfile(page: Page) {
   await page.getByLabel("Bio or role").fill("Legacy profile migration test.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 
   await page.evaluate(() => {
@@ -42,6 +43,43 @@ async function prepareLegacyMaraProfile(page: Page) {
   await signInAsCustomer(page);
 }
 
+test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1467, height: 899 });
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/profile", "/app/links"]) {
+    await page.goto(route);
+    const preview = page.getByRole("heading", { name: "Preview", exact: true });
+    const save = page.getByRole("button", { name: "Save draft", exact: true });
+    const publish = page.getByRole("button", { name: "Published", exact: true });
+    await expect(preview).toBeVisible();
+    await expect(save).toBeVisible();
+    await expect(publish).toBeVisible();
+
+    const previewBox = await preview.boundingBox();
+    const saveBox = await save.boundingBox();
+    const publishBox = await publish.boundingBox();
+    expect(previewBox).not.toBeNull();
+    expect(saveBox).not.toBeNull();
+    expect(publishBox).not.toBeNull();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      1467,
+    );
+
+    await page.setViewportSize({ width: 390, height: 700 });
+    await expect(save).toBeInViewport();
+    await expect(publish).toBeInViewport();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      390,
+    );
+    await page.screenshot({
+      path: `test-results/${route === "/app/profile" ? "profile" : "links"}-actions-mobile.png`,
+      fullPage: false,
+    });
+    await page.setViewportSize({ width: 1467, height: 899 });
+  }
+});
+
 test("customer build card stays inside the authenticated workspace", async ({ page }) => {
   await signInAsCustomer(page);
 
@@ -57,6 +95,20 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
 
 test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
   await signInAsCustomer(page);
+  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+  const island = page.getByTestId("workspace-sidebar");
+  const desktopBox = await island.boundingBox();
+  expect(desktopBox).not.toBeNull();
+  expect(desktopBox!.x).toBeGreaterThan(0);
+  expect(desktopBox!.y).toBeGreaterThan(0);
+  await page.setViewportSize({ width: 1117, height: 900 });
+  const railBox = await island.boundingBox();
+  expect(railBox).not.toBeNull();
+  expect(railBox!.x + railBox!.width).toBeLessThan(1117);
+  const railProfile = island.getByRole("link", { name: "Profile", exact: true });
+  await expect(railProfile).toBeVisible();
+  await railProfile.focus();
+  await expect(railProfile).toBeFocused();
 
   const desktopNavigation = page.getByRole("navigation", {
     name: "Your Tapit profile navigation",
@@ -68,7 +120,28 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(desktopNavigation.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
+  const desktopAccountMenu = page.getByRole("button", {
+    name: "Account menu for mara@example.test",
+  });
+  const signOutButton = page.getByRole("button", { name: "Sign out", exact: true });
+  await expect(desktopAccountMenu).toBeVisible();
+  await expect(signOutButton).toHaveCount(0);
+  await desktopAccountMenu.click();
+  await expect(signOutButton).toBeVisible();
+  const nextDevPortal = page.locator("nextjs-portal");
+  if (await nextDevPortal.count()) {
+    await nextDevPortal.evaluate((portal) => {
+      (portal as HTMLElement).style.display = "none";
+    });
+  }
+  await page.screenshot({
+    path: "test-results/customer-account-menu.png",
+    fullPage: false,
+  });
+  await page.keyboard.press("Escape");
+  await expect(signOutButton).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
@@ -82,7 +155,20 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   await expect(
     drawerNavigation.getByRole("link", { name: "Build card", exact: true }),
   ).toBeVisible();
+  const mobileAccountMenu = page.getByRole("button", {
+    name: "Account menu for mara@example.test",
+  });
+  await expect(mobileAccountMenu).toBeVisible();
+  await mobileAccountMenu.click();
+  await expect(signOutButton).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(signOutButton).toHaveCount(0);
+  await expect(drawerNavigation).toBeVisible();
+  await expect(mobileAccountMenu).toBeFocused();
+  await expect(openNavigation).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(drawerNavigation).toBeHidden();
   await expect(openNavigation).toBeFocused();
   await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
@@ -96,6 +182,76 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
   );
 });
 
+test("refreshed profile editor and preview preserve draft controls", async ({ page }) => {
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await signInAsCustomer(page);
+  for (const heading of [
+    "Profile identity",
+    "Contact and links",
+    "About or Services",
+    "Publication",
+  ]) {
+    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+  }
+  await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
+  await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
+  const frame = page.getByTestId("profile-preview-frame");
+  const phoneWidth = (await frame.boundingBox())!.width;
+  await page.getByRole("button", { name: "desktop", exact: true }).click();
+  await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(phoneWidth);
+  await page.getByRole("button", { name: "phone", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
+  await page.getByRole("button", { name: "Copy URL" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/mara-velasquez");
+  await expect(page.getByLabel("Stable profile slug")).toBeDisabled();
+  await page.getByLabel("Name", { exact: true }).fill("Mara Studio");
+  await page.getByLabel("Bio or role").fill("Brand design for independent teams");
+  await page.getByLabel("Email", { exact: true }).fill("studio@example.test");
+  await page.getByLabel("Phone", { exact: true }).fill("+63 917 555 0184");
+  await expect(frame).toContainText("Mara Studio");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(
+    page.getByText("Draft saved. Visitors still see the last published version.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: "test-results/profile-editor-refresh-desktop.png",
+    fullPage: true,
+  });
+  for (const width of [1117, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+  expect(
+    (await page.getByRole("link", { name: "/mara-velasquez" }).boundingBox())!.width,
+  ).toBeGreaterThan(100);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: "test-results/profile-editor-refresh-mobile.png", fullPage: true });
+});
+
+test("profile URL remains available when clipboard access fails", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
+      configurable: true,
+      value: () => Promise.reject(new Error("Clipboard unavailable")),
+    });
+  });
+  await page.getByRole("button", { name: "Copy URL" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Could not copy automatically" }),
+  ).toContainText(`${new URL(page.url()).origin}/mara-velasquez`);
+});
+
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
@@ -103,11 +259,12 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await page.getByLabel("Confirm password").fill("new-demo-password");
   await page.getByRole("button", { name: "Set password" }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("link", { name: "Profile" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Profile", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Links" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("new-demo-password");
@@ -123,10 +280,10 @@ test("customer drafts stay private until link and profile publication", async ({
     "/app/profile",
   );
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
   await expect(
     page.getByText("Edit your details and see how your profile looks to others.", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
   await expect(
     page.getByText("These controls stay deliberately small so every theme remains readable.", {
       exact: true,
@@ -224,9 +381,12 @@ test("customer customization drafts stay private until the profile is published"
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
-  await page.goto("/app/profile");
+  await page.goto("/app/customize");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("radio", { name: "Editorial" }).check();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await page.goto("/app/profile");
   await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
   await page.getByRole("radio", { name: "About", exact: true }).check();
   await page.getByLabel("About copy").fill("A private draft introduction.");
@@ -253,7 +413,11 @@ test("customer customization drafts stay private until the profile is published"
   await page.keyboard.press("Enter");
   await expect(aboutDisclosure).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText("A private draft introduction.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Email" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Contact actions" }).getByRole("link", {
+      name: "Email",
+    }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Book a conversation" })).toHaveAttribute(
     "data-featured",
     "true",
@@ -268,7 +432,7 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("navigation", { name: "Contact actions" })).toHaveCount(0);
 
-  await page.goto("/app/profile");
+  await page.goto("/app/customize");
   await expect(page.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
   await page.getByRole("button", { name: "Use Warm Studio" }).click();
   await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeChecked();
@@ -285,9 +449,9 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
 test("customer can configure bounded profile media and publish it", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
-  await page.goto("/app/profile");
+  await page.goto("/app/customize");
 
-  await page.getByRole("button", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
     .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
@@ -308,7 +472,7 @@ test("customer can configure bounded profile media and publish it", async ({ pag
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
 
-  await page.goto("/app/profile");
+  await page.goto("/app/customize");
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
@@ -338,13 +502,14 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
 
   await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await expect(cropDialog).toBeVisible();
-  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
+  await expect(page.getByRole("status", { name: "Photo applied" })).toBeVisible();
 
   await imageInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(cropDialog).toBeVisible();
-  await cropDialog.getByRole("button", { name: "Apply crop" }).click();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
 });
@@ -371,6 +536,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(page.getByLabel("Time range")).toHaveValue("7d");
 
   await page.getByRole("link", { name: "Account" }).click();
+  await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();

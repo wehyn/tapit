@@ -12,10 +12,12 @@ import {
   LinkSimple,
   Phone,
 } from "@phosphor-icons/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
-import { buildVCard, resolveProfileUrl } from "@/lib/vcard";
+import type { ProfileTheme } from "@/lib/demo/fixtures";
+import { buildVCard } from "@/lib/vcard";
+import type { VCardPhoto } from "@/lib/vcard";
 import {
   getAutomaticContactActions,
   getFeaturedProfileLink,
@@ -26,6 +28,83 @@ import { ProfileContactStrip } from "./ProfileContactStrip";
 import { ProfileMediaSurface } from "./ProfileMediaSurface";
 import { ProfileSlideshow } from "./ProfileSlideshow";
 import { ProfileSectionDisclosure } from "./ProfileSectionDisclosure";
+
+const MAX_VCARD_PHOTO_BYTES = 5 * 1024 * 1024;
+const MAX_VCARD_PHOTO_PIXELS = 16_000_000;
+
+async function convertWebPToPng(image: Blob): Promise<Blob> {
+  const objectUrl = URL.createObjectURL(image);
+  try {
+    const decodedImage = new Image();
+    decodedImage.src = objectUrl;
+    await decodedImage.decode();
+
+    const width = decodedImage.naturalWidth;
+    const height = decodedImage.naturalHeight;
+    if (!width || !height || width * height > MAX_VCARD_PHOTO_PIXELS) {
+      throw new Error("The profile photo dimensions are not supported in a contact file.");
+    }
+
+    const cropSize = Math.min(width, height);
+    const canvas = document.createElement("canvas");
+    canvas.width = 384;
+    canvas.height = 384;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("This browser cannot convert the profile photo.");
+    context.drawImage(
+      decodedImage,
+      (width - cropSize) / 2,
+      (height - cropSize) / 2,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (png) =>
+          png
+            ? resolve(png)
+            : reject(new Error("The profile photo could not be converted to PNG.")),
+        "image/png",
+      );
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function loadVCardPhoto(imageUrl?: string): Promise<VCardPhoto | undefined> {
+  if (!imageUrl) return undefined;
+  const response = await fetch(imageUrl, { credentials: "omit" });
+  if (!response.ok) throw new Error("The profile photo could not be downloaded.");
+
+  let image = await response.blob();
+  if (image.size > MAX_VCARD_PHOTO_BYTES) {
+    throw new Error("The profile photo is too large to include in a contact file.");
+  }
+  let type = image.type.split(";")[0]?.trim().toLowerCase();
+  if (type === "image/webp") {
+    image = await convertWebPToPng(image);
+    type = "image/png";
+  }
+  if (image.size > MAX_VCARD_PHOTO_BYTES) {
+    throw new Error("The profile photo is too large to include in a contact file.");
+  }
+  if (type !== "image/jpeg" && type !== "image/png") {
+    throw new Error("The profile photo format is not supported in a contact file.");
+  }
+
+  const bytes = new Uint8Array(await image.arrayBuffer());
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return { type: type === "image/png" ? "PNG" : "JPEG", base64: window.btoa(binary) };
+}
 
 const linkIcons = {
   link: LinkSimple,
@@ -43,16 +122,18 @@ export function PublicProfile({
   profileId,
   preview = false,
   previewMode,
+  theme: themeOverride,
   trackClicks = true,
   trackView = true,
   onLinkClick,
   onView,
 }: {
   profile: PublicProfileProjection;
-  profileUrl: string;
+  profileUrl?: string;
   profileId?: string;
   preview?: boolean;
   previewMode?: "phone" | "desktop";
+  theme?: ProfileTheme;
   trackClicks?: boolean;
   trackView?: boolean;
   onLinkClick?: (linkId: string, profileId?: string) => void;
@@ -76,9 +157,15 @@ export function PublicProfile({
   const hasLegacyMedia = hasLegacyBackground || hasLegacySlideshow;
   const phonePreview = preview && (previewMode ?? "phone") === "phone";
   const centerIdentity = preview || hasIntegratedBackground;
-  const theme = profile.theme;
+  const theme = themeOverride ?? profile.theme;
+  void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
-  const canSaveContact = Boolean(profile.name && automaticContactActions.length > 0);
+  const canSaveContact = Boolean(
+    profile.name &&
+    (automaticContactActions.length > 0 || profile.imageUrl || profile.links.length),
+  );
+  const [savingContact, setSavingContact] = useState(false);
+  const [contactError, setContactError] = useState("");
   const featuredLink = getFeaturedProfileLink(profile.links, customization?.featuredLinkId);
   const links = profile.links.filter((link) => link.id !== featuredLink?.id);
   const section = customization?.section;
@@ -172,24 +259,35 @@ export function PublicProfile({
         ? "mt-6"
         : "mt-9";
   const profileLinkGap = phonePreview || !preview ? "gap-3" : "gap-2";
-  function saveContact() {
+  async function saveContact() {
+    if (savingContact) return;
+    setSavingContact(true);
+    setContactError("");
     const email = automaticContactActions.find((action) => action.kind === "email");
     const phone = automaticContactActions.find((action) => action.kind === "phone");
-    const website = automaticContactActions.find((action) => action.kind === "website");
-    const vCard = buildVCard({
-      name: profile.name,
-      email: email?.href.replace(/^mailto:/, ""),
-      phone: phone?.href.replace(/^tel:/, ""),
-      website: website?.href,
-      profileUrl: resolveProfileUrl(profileUrl, window.location.origin),
-    });
-    const blob = new Blob([vCard], { type: "text/vcard;charset=utf-8" });
-    const downloadUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = downloadUrl;
-    anchor.download = `${profile.slug}.vcf`;
-    anchor.click();
-    URL.revokeObjectURL(downloadUrl);
+    try {
+      const photo = await loadVCardPhoto(profile.imageUrl);
+      const vCard = buildVCard({
+        name: profile.name,
+        email: email?.href.replace(/^mailto:/, ""),
+        phone: phone?.href.replace(/^tel:/, ""),
+        links: profile.links.map(({ label, destination }) => ({ label, destination })),
+        photo,
+      });
+      const blob = new Blob([vCard], { type: "text/vcard;charset=utf-8" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = `${profile.slug}.vcf`;
+      anchor.click();
+      URL.revokeObjectURL(downloadUrl);
+    } catch {
+      setContactError(
+        "We couldn't include the profile photo. Check your connection and try again.",
+      );
+    } finally {
+      setSavingContact(false);
+    }
   }
   function renderLink(link: PublicProfileProjection["links"][number], featured = false) {
     const LinkIcon =
@@ -226,7 +324,7 @@ export function PublicProfile({
   ) : null;
   const identity = (
     <div
-      className={`flex flex-col ${centerIdentity ? "items-center text-center" : "items-start text-left sm:flex-row sm:items-center sm:gap-6"}`}
+      className={`flex flex-col ${centerIdentity ? "items-center text-center" : "items-center text-center sm:flex-row sm:items-center sm:gap-6 sm:text-left"}`}
     >
       {profile.imageUrl ? (
         <img
@@ -319,10 +417,17 @@ export function PublicProfile({
         <button
           className={`${phonePreview ? "mt-5 min-h-14 px-5 py-4" : preview ? "mt-4 min-h-12 px-4 py-3" : "mt-5 min-h-14 px-5 py-4"} inline-flex w-full items-center justify-center gap-2 rounded-full border text-sm font-semibold transition motion-reduce:transition-none motion-reduce:transform-none active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
           onClick={saveContact}
+          disabled={savingContact}
           type="button"
         >
-          <DownloadSimple aria-hidden="true" size={19} /> Save contact
+          <DownloadSimple aria-hidden="true" size={19} />
+          {savingContact ? "Preparing contact..." : "Save contact"}
         </button>
+      ) : null}
+      {contactError ? (
+        <p className="mt-3 text-center text-sm text-tapit-danger" role="alert">
+          {contactError}
+        </p>
       ) : null}
       {preview ? (
         <p

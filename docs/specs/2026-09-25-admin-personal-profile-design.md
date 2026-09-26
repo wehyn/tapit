@@ -50,7 +50,7 @@ Admin provisioning must create or reuse one active `customers` record and ensure
 - A generated unique slug.
 - Empty links and no published snapshot.
 
-The generated slug is editable while the profile is unpublished. Existing profile behavior makes the slug immutable after publication.
+The generated slug follows the administrator-only slug policy: an administrator can change it from the administrator Profiles area before or after publication. The customer Profile editor does not allow slug changes, even while a profile is unpublished.
 
 The ensure-profile operation must be idempotent. Repeated Google sign-ins, bootstrap runs, and account refreshes must reuse an existing profile and must not overwrite the admin's name edits, slug, links, image, publication state, or other profile data.
 

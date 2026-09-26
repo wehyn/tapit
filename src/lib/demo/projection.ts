@@ -8,7 +8,7 @@ export function projectDemoPublicProfile(
   content: ProfileContent | PublishedProfileSnapshot | null = profile.published,
   legacyTheme?: ProfileTheme,
 ): PublicProfileProjection | null {
-  if (content === null) return null;
+  if (content === null || profile.status !== "published") return null;
   return projectPublicProfile({
     ...profile,
     status: "published",

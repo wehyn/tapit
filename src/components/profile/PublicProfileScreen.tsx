@@ -20,7 +20,6 @@ import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
-import { AnalyticsConsent } from "./AnalyticsConsent";
 
 export function PublicProfileScreen({ slug }: { slug: string }) {
   return isLocalDemoMode() ? (
@@ -54,6 +53,7 @@ function DemoPublicProfileScreen({ slug }: { slug: string }) {
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
+      theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, "direct")}
       onView={(id) => recordProfileView(id, "direct")}
     />
@@ -96,16 +96,14 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
     })),
   };
   return (
-    <>
-      <PublicProfile
-        onLinkClick={onLinkClick}
-        onView={onView}
-        profile={projection}
-        profileId={profile.id}
-        profileUrl={`/${profile.slug}`}
-      />
-      <AnalyticsConsent />
-    </>
+    <PublicProfile
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={projection}
+      profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
+      theme={projection.theme}
+    />
   );
 }
 
