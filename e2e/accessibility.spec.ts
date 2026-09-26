@@ -1,7 +1,11 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+import {
+  expandProfileDraftActions,
+  resetDemoHarness,
+  signInAsCustomer,
+} from "./support/demo-harness";
 
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page }).analyze();
@@ -26,6 +30,7 @@ test("published profile disclosure is keyboard accessible", async ({ page }) => 
   await page.getByRole("radio", { name: "About", exact: true }).check();
   await page.getByLabel("About copy").fill("Keyboard-friendly studio details.");
   await page.getByRole("button", { name: "Save draft" }).click();
+  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),

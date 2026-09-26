@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import {
   CaretDownIcon,
   CaretUpIcon,
@@ -57,6 +57,10 @@ export function ProfileWorkspaceFrame({
   const isBusy = saveLoading || publishLoading;
   const shouldExpand = hasDraftChanges || isBusy;
   const [isExpanded, setIsExpanded] = useState(shouldExpand);
+  const compactTriggerRef = useRef<HTMLButtonElement>(null);
+  const collapseTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusAfterToggleRef = useRef<"compact" | "collapse" | null>(null);
+  const compactStatus = typeof draftStatus === "string" ? draftStatus : "Draft saved";
 
   useEffect(() => {
     // The frame must react to dirty/loading transitions while preserving manual collapse.
@@ -64,8 +68,15 @@ export function ProfileWorkspaceFrame({
     setIsExpanded(shouldExpand);
   }, [shouldExpand]);
 
+  useEffect(() => {
+    const focusTarget = focusAfterToggleRef.current;
+    if (focusTarget === null) return;
+    focusAfterToggleRef.current = null;
+    (focusTarget === "compact" ? compactTriggerRef : collapseTriggerRef).current?.focus();
+  }, [isExpanded]);
+
   return (
-    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] min-[1400px]:gap-10 min-[1400px]:pt-8">
+    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-44 pt-7 sm:px-8 sm:pb-28 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] min-[1400px]:gap-10 min-[1400px]:pt-8">
       <div className="grid self-start gap-6">
         <div className="pb-1">
           <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
@@ -94,9 +105,13 @@ export function ProfileWorkspaceFrame({
           <button
             aria-controls={actionRegionId}
             aria-expanded={false}
-            aria-label="Draft saved. Show draft actions"
+            aria-label={`${compactStatus}. Show draft actions`}
             className="mx-auto flex min-h-11 w-full max-w-[1440px] items-center justify-between gap-3 rounded-tapit px-1 py-2 text-left text-sm transition hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
-            onClick={() => setIsExpanded(true)}
+            onClick={() => {
+              focusAfterToggleRef.current = "collapse";
+              setIsExpanded(true);
+            }}
+            ref={compactTriggerRef}
             title="Show draft actions"
             type="button"
           >
@@ -151,7 +166,11 @@ export function ProfileWorkspaceFrame({
                 aria-expanded={true}
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-tapit px-4 py-2.5 text-sm font-semibold text-tapit-muted transition hover:bg-tapit-paper hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                 disabled={isBusy}
-                onClick={() => setIsExpanded(false)}
+                onClick={() => {
+                  focusAfterToggleRef.current = "compact";
+                  setIsExpanded(false);
+                }}
+                ref={collapseTriggerRef}
                 type="button"
               >
                 <CaretDownIcon aria-hidden="true" size={18} weight="bold" />

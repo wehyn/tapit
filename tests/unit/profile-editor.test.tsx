@@ -513,6 +513,7 @@ describe("ProfileEditor workspace boundaries", () => {
     mocks.localMode = true;
     render(<ProfileEditor view="customize" />);
 
+    await user.click(screen.getByRole("button", { name: "Draft saved. Show draft actions" }));
     await user.click(screen.getByRole("tab", { name: "Media" }));
     fireEvent.change(screen.getByLabelText("Upload background image"), {
       target: { files: [new File(["demo-image"], "background.png", { type: "image/png" })] },
