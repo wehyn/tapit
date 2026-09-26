@@ -12,8 +12,9 @@ import {
   recordProfileView,
   useHydratedDemoState,
 } from "@/lib/demo/store";
-import { isActiveAccount, projectPublicProfile } from "@/lib/domain";
+import { isActiveAccount } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
+import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
@@ -40,14 +41,19 @@ function DemoPublicProfileScreen({ slug }: { slug: string }) {
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   }
 
-  const projection = projectPublicProfile(profile);
+  const projection = projectDemoPublicProfile(
+    profile,
+    profile.published,
+    getDemoTheme(state, profile.id),
+  );
   if (projection === null) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
 
   return (
     <PublicProfile
       profile={projection}
       profileId={profile.id}
-      theme={getDemoTheme(state, profile.id)}
+      profileUrl={`/${projection.slug}`}
+      theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, "direct")}
       onView={(id) => recordProfileView(id, "direct")}
     />
@@ -95,6 +101,7 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
       onView={onView}
       profile={projection}
       profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
       theme={projection.theme}
     />
   );

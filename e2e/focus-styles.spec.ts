@@ -82,12 +82,12 @@ test("form focus indicators stay within the Tapit green theme", async ({ page })
     "/c/claimable-card-demo",
   ]) {
     await page.goto(route);
-    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main").first()).toBeVisible();
     await expectNoOrangeFocus(page, route);
   }
 
   await page.goto("/login");
-  await expect(page.locator("main")).toBeVisible();
+  await expect(page.locator("main").first()).toBeVisible();
   await expectKeyboardVisibleFocus(page);
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password").fill("tapit-demo");
@@ -96,7 +96,7 @@ test("form focus indicators stay within the Tapit green theme", async ({ page })
 
   for (const route of ["/app/profile", "/app/links", "/app/analytics", "/app/account"]) {
     await page.goto(route);
-    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main").first()).toBeVisible();
     await expectNoOrangeFocus(page, route);
   }
 
@@ -135,7 +135,7 @@ test("form focus indicators stay within the Tapit green theme", async ({ page })
     "/admin/settings",
   ]) {
     await page.goto(route);
-    await expect(page.locator("main")).toBeVisible();
+    await expect(page.locator("main").first()).toBeVisible();
     if (route === "/admin/cards") {
       await expect(page.locator("summary").first()).toBeVisible();
       await page.locator("summary").first().click();

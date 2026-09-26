@@ -26,6 +26,7 @@ import {
   useDemoState,
   updateDemoState,
 } from "@/lib/demo/store";
+import { projectDemoPublicProfile } from "@/lib/demo/projection";
 
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
 import { useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
@@ -105,24 +106,16 @@ export function canPreviewLinks(
 function previewForLinks(
   profile: ReturnType<typeof getDemoProfileForSession>,
   links: ProfileLink[],
+  legacyTheme: ReturnType<typeof getDemoTheme>,
 ) {
   const draft = { ...profile.draft, links };
-  return projectPublicProfile({
-    ...profile,
-    status: "published",
-    draft,
-    published: {
-      ...draft,
-      publishedAt: profile.published?.publishedAt ?? new Date().toISOString(),
-    },
-  });
+  return projectDemoPublicProfile(profile, draft, legacyTheme);
 }
 
 function DemoLinksEditor() {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
-  const theme = getDemoTheme(state, profile.id);
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
   const [redirect, setRedirect] = useState<ProfileRedirect>(() =>
     normalizeProfileRedirect(profile.draft.redirect),
@@ -182,7 +175,7 @@ function DemoLinksEditor() {
       : []),
   ];
   const preview = canPreviewLinks(validation, publicationErrors)
-    ? previewForLinks(profile, links)
+    ? previewForLinks(profile, links, getDemoTheme(state, profile.id))
     : null;
   const isDirty =
     !areProfileLinksEqual(links, profile.draft.links) ||
@@ -347,7 +340,6 @@ function DemoLinksEditor() {
       redirect={redirect}
       redirectError={redirectError}
       canSaveDraft={canSaveLinksDraft(redirect)}
-      theme={theme}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
@@ -591,6 +583,7 @@ export function LiveLinksEditorContent({
       await publishMutation({
         profileId: profile._id,
         expectedImageRevision: profile.imageRevision ?? 0,
+        expectedMediaRevision: profile.mediaRevision ?? 0,
       });
       setMessage({
         tone: "success",
@@ -613,7 +606,6 @@ export function LiveLinksEditorContent({
       redirect={currentDraft.redirect}
       redirectError={redirectError}
       canSaveDraft={canSaveLinksDraft(currentDraft.redirect)}
-      theme={currentDraft.theme ?? "paper"}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}

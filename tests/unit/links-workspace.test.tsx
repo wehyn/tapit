@@ -26,13 +26,27 @@ describe("LinksWorkspace", () => {
         ]}
         redirect={{ enabled: false, destination: "" }}
         redirectError={null}
-        theme="paper"
         preview={{
           id: "preview",
           slug: "mara-velasquez",
           name: "Mara Velasquez",
           theme: "paper",
-          links: [],
+          customization: {
+            preset: "warm-studio",
+            accent: "jade",
+            typeScale: "editorial",
+            linkTreatment: "outlined",
+            contentOrder: "links-first",
+            featuredLinkId: "featured",
+          },
+          links: [
+            {
+              id: "featured",
+              label: "Featured",
+              destination: "https://example.com/featured",
+              enabled: true,
+            },
+          ],
         }}
         validation={{}}
         publicationErrors={[]}
@@ -56,6 +70,8 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("button", { name: "Add link" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveValue("LinkedIn");
     expect(screen.getByRole("region", { name: "Live profile preview" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-4xl");
+    expect(screen.getByRole("link", { name: "Featured" })).toHaveAttribute("data-featured", "true");
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Add link" }));
@@ -89,7 +105,6 @@ describe("LinksWorkspace", () => {
         redirect={{ enabled: true, destination: "" }}
         redirectError={"Redirect destination must be a valid HTTPS URL without credentials."}
         canSaveDraft={false}
-        theme="paper"
         preview={{
           id: "preview",
           slug: "mara-velasquez",
@@ -102,7 +117,7 @@ describe("LinksWorkspace", () => {
         message={null}
         previewMode="phone"
         pendingAction="save"
-        isDirty={false}
+        isDirty={true}
         publicationLabel="Publish changes"
         onPreviewModeChange={vi.fn()}
         onUpdateLink={vi.fn()}
@@ -147,7 +162,6 @@ describe("LinksWorkspace", () => {
           ]}
           redirect={{ enabled: false, destination: "" }}
           redirectError={null}
-          theme="paper"
           preview={{
             id: "preview",
             slug: "mara-velasquez",

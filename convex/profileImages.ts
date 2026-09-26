@@ -121,8 +121,20 @@ export async function deleteProfileImages(ctx: MutationCtx, profileId: Id<"profi
   }
   for (const mapping of mappings) {
     await ctx.db.delete(mapping._id);
-    await ctx.storage.delete(mapping.storageId);
-    if (mapping.smallStorageId !== undefined) await ctx.storage.delete(mapping.smallStorageId);
+    const largeReferences = await ctx.db
+      .query("profileImages")
+      .withIndex("by_storageId", (query) => query.eq("storageId", mapping.storageId))
+      .take(2);
+    if (largeReferences.length === 0) await ctx.storage.delete(mapping.storageId);
+    if (mapping.smallStorageId !== undefined) {
+      const smallReferences = await ctx.db
+        .query("profileImages")
+        .withIndex("by_smallStorageId", (query) =>
+          query.eq("smallStorageId", mapping.smallStorageId),
+        )
+        .take(2);
+      if (smallReferences.length === 0) await ctx.storage.delete(mapping.smallStorageId);
+    }
   }
 }
 

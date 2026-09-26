@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../profile-customization";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
@@ -11,6 +12,10 @@ import {
   type DemoState,
   type ProfileTheme,
 } from "./fixtures";
+
+function createDefaultWarmStudioCustomization() {
+  return structuredClone(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+}
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -206,7 +211,7 @@ export function updateDemoProfile(
     ...current,
     profiles,
     profile: current.profile.id === profileId ? updated : current.profile,
-    themes: { ...current.themes, [profileId]: updated.theme },
+    themes: current.themes,
   };
 }
 
@@ -215,7 +220,17 @@ export function updateDemoTheme(
   profileId: string,
   theme: ProfileTheme,
 ): DemoState {
-  return updateDemoProfile(current, profileId, (profile) => ({ ...profile, theme }));
+  const existing = getDemoProfileById(current, profileId);
+  if (existing === undefined) return current;
+  const profiles = getDemoProfiles(current).map((profile) =>
+    profile.id === profileId ? { ...profile, theme } : profile,
+  );
+  return {
+    ...current,
+    profiles,
+    profile: current.profile.id === profileId ? { ...current.profile, theme } : current.profile,
+    themes: { ...current.themes, [profileId]: theme },
+  };
 }
 
 export function useDemoState(): DemoState {
@@ -273,7 +288,13 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
       ownerId: customerId,
       status: "draft",
       theme: "paper",
-      draft: { name, slug, email, links: [] },
+      draft: {
+        name,
+        slug,
+        email,
+        links: [],
+        customization: createDefaultWarmStudioCustomization(),
+      },
       published: null,
     };
     const customer = {

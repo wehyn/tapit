@@ -53,6 +53,15 @@ async function loadShells() {
   return { AdminShell, CustomerShell };
 }
 
+async function loadDemoCustomerShell() {
+  vi.resetModules();
+  const [{ CustomerShell }, { resetDemoState, setDemoSession }] = await Promise.all([
+    import("../../src/components/layout/CustomerShell"),
+    import("../../src/lib/demo/store"),
+  ]);
+  return { CustomerShell, resetDemoState, setDemoSession };
+}
+
 beforeEach(() => {
   vi.unstubAllEnvs();
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
@@ -244,6 +253,118 @@ describe("non-active workspace shells", () => {
       await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
     },
   );
+
+  it("keeps an active customer workspace visible while the access response is on the legacy shape", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+    });
+    const { CustomerShell } = await loadShells();
+
+    render(
+      <CustomerShell>
+        <div>customer content</div>
+      </CustomerShell>,
+    );
+
+    expect(screen.getByText("customer content")).toBeInTheDocument();
+  });
+
+  it("marks Customize active for an active customer at /app/customize", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    currentPath = "/app/customize";
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+    });
+    const { CustomerShell } = await loadShells();
+
+    render(
+      <CustomerShell>
+        <div>customization content</div>
+      </CustomerShell>,
+    );
+
+    expect(screen.getByText("customization content")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
+      "href",
+      "/app/customize",
+    );
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
+  });
+
+  it("hides Customize from an active admin while keeping Profile in CustomerShell", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    currentPath = "/app/profile";
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: "profile_1",
+    });
+    const { CustomerShell } = await loadShells();
+
+    render(
+      <CustomerShell>
+        <div>admin profile content</div>
+      </CustomerShell>,
+    );
+
+    expect(screen.getByText("admin profile content")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Customize" })).not.toBeInTheDocument();
+  });
+
+  it("hides Customize from an admin session in demo CustomerShell while keeping Profile", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    currentPath = "/app/profile";
+    localStorage.clear();
+    const { CustomerShell, resetDemoState, setDemoSession } = await loadDemoCustomerShell();
+    resetDemoState();
+    setDemoSession({ email: "admin@tapit.local", role: "admin" });
+
+    render(
+      <CustomerShell>
+        <div>demo admin profile content</div>
+      </CustomerShell>,
+    );
+
+    expect(screen.getByText("demo admin profile content")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByRole("link", { name: "Customize" })).not.toBeInTheDocument();
+  });
+
+  it("keeps an active admin workspace visible while the access response is on the legacy shape", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "admin",
+      accountId: "customer_1",
+      profileId: "profile_1",
+    });
+    const { AdminShell } = await loadShells();
+
+    render(
+      <AdminShell>
+        <div>admin content</div>
+      </AdminShell>,
+    );
+
+    expect(screen.getByText("admin content")).toBeInTheDocument();
+  });
 });
 
 describe("pending Google onboarding", () => {

@@ -12,6 +12,8 @@ import {
   sameScope,
 } from "./admin";
 import schema from "./schema";
+import { deleteProfileImages } from "./profileImages";
+import { deleteProfileMedia } from "./profileMedia";
 import { internal } from "./_generated/api";
 import {
   normalizeProfileSlug,
@@ -19,6 +21,7 @@ import {
   validateProfileSlugValue,
 } from "./validators";
 import { components } from "./components";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 import { allocateProfileSlug } from "./profileSlug";
 
 const emptyProfile = (slug: string) => ({
@@ -92,7 +95,9 @@ export const createCustomer = mutation({
         email,
         ...(args.name !== undefined ? { name: args.name.trim() } : {}),
         ...(args.bio !== undefined ? { bio: args.bio } : {}),
-        ...(args.theme !== undefined ? { theme: args.theme } : {}),
+        ...(args.theme !== undefined
+          ? { theme: args.theme }
+          : { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }),
       },
       createdAt: now,
       updatedAt: now,
@@ -192,7 +197,7 @@ export const createSelfServiceAccount = mutation({
       ownerId: customerId,
       slug,
       status: "draft",
-      draft: { name, slug, email, links: [] },
+      draft: { name, slug, email, links: [], customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION },
       createdAt: now,
       updatedAt: now,
     });
@@ -694,6 +699,8 @@ export const approveDeletion = mutation({
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),
     );
+    await deleteProfileImages(ctx, profile._id);
+    await deleteProfileMedia(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,

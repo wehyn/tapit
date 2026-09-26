@@ -2,12 +2,18 @@ export type VCardFields = {
   name: string;
   email?: string;
   phone?: string;
+  website?: string;
+  profileUrl?: string;
   links?: readonly VCardLink[];
   photo?: VCardPhoto;
 };
 
 export type VCardLink = { label: string; destination: string };
 export type VCardPhoto = { type: "JPEG" | "PNG"; base64: string };
+
+export function resolveProfileUrl(profileUrl: string, origin: string): string {
+  return new URL(profileUrl, origin).toString();
+}
 
 function escapeVCard(value: string): string {
   return value
@@ -49,6 +55,7 @@ function foldVCardLine(line: string): string {
 
 export function buildVCard(fields: VCardFields): string {
   const lines = ["BEGIN:VCARD", "VERSION:3.0", `FN:${escapeVCard(fields.name)}`];
+  if (fields.profileUrl?.trim()) lines.push(`URL:${escapeVCard(fields.profileUrl.trim())}`);
   if (fields.email?.trim()) lines.push(`EMAIL;TYPE=INTERNET:${escapeVCard(fields.email.trim())}`);
   if (fields.phone?.trim()) lines.push(`TEL;TYPE=VOICE:${escapeVCard(fields.phone.trim())}`);
   if (fields.photo) {
@@ -66,6 +73,13 @@ export function buildVCard(fields: VCardFields): string {
     lines.push(`item${group}.URL:${escapeVCard(destination)}`);
     lines.push(`item${group}.X-ABLabel:${escapeVCard(label)}`);
     group += 1;
+  }
+  if (fields.website?.trim()) {
+    const website = fields.website.trim();
+    const normalized = normalizedDestination(website);
+    if (!seenDestinations.has(normalized)) {
+      lines.push(`item${group}.URL:${escapeVCard(website)}`);
+    }
   }
 
   lines.push("END:VCARD");

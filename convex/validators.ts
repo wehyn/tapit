@@ -1,4 +1,6 @@
 import { v } from "convex/values";
+import { validateProfileCustomization } from "../src/lib/profile-customization";
+import { validateProfileMedia } from "../src/lib/profile-media";
 
 export const MAX_PROFILE_LINKS = 100;
 export const CLAIM_CODE_LENGTH = 8;
@@ -23,6 +25,17 @@ const MAX_PROFILE_FIELD_LENGTH = 320;
 const MAX_LINK_ID_LENGTH = 160;
 const MAX_LINK_LABEL_LENGTH = 120;
 const MAX_DESTINATION_LENGTH = 2048;
+const WEBSITE_ERROR = "A profile website must be a valid HTTPS URL without credentials.";
+
+function hasBackgroundMedia(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    "background" in value &&
+    (value as { background?: unknown }).background !== undefined
+  );
+}
 
 export const linkIconValidator = v.union(
   v.literal("link"),
@@ -48,9 +61,94 @@ export const profileThemeValidator = v.union(
   v.literal("night"),
 );
 
+const profileCustomizationSectionValidator = v.union(
+  v.object({ kind: v.literal("about"), body: v.string() }),
+  v.object({
+    kind: v.literal("services"),
+    body: v.string(),
+    items: v.optional(v.array(v.string())),
+  }),
+);
+
+const profileIdentityColorPresetValidator = v.union(
+  v.literal("default"),
+  v.literal("coral"),
+  v.literal("jade"),
+  v.literal("ink"),
+);
+
+const profileIdentityColorValidator = v.union(
+  v.object({ kind: v.literal("preset"), value: profileIdentityColorPresetValidator }),
+  v.object({ kind: v.literal("custom"), hex: v.string() }),
+);
+
+const profileIdentityColorsValidator = v.object({
+  name: v.optional(profileIdentityColorValidator),
+  bio: v.optional(profileIdentityColorValidator),
+});
+
+export const profileCustomizationValidator = v.object({
+  preset: v.literal("warm-studio"),
+  accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
+  typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
+  linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
+  contentOrder: v.union(v.literal("links-first"), v.literal("section-first")),
+  identityColors: v.optional(profileIdentityColorsValidator),
+  featuredLinkId: v.optional(v.string()),
+  section: v.optional(profileCustomizationSectionValidator),
+});
+
 export const profileRedirectValidator = v.object({
   enabled: v.boolean(),
   destination: v.string(),
+});
+
+const profileMediaPersistedImageValidator = v.object({
+  assetId: v.id("profileMediaAssets"),
+  altText: v.string(),
+});
+export const profileMediaPersistedValidator = v.object({
+  background: v.optional(
+    v.object({
+      assetId: v.id("profileMediaAssets"),
+      altText: v.string(),
+      positionX: v.number(),
+      positionY: v.number(),
+    }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(profileMediaPersistedImageValidator),
+  autoplay: v.boolean(),
+});
+const profileMediaOwnerImageValidator = v.object({
+  assetId: v.id("profileMediaAssets"),
+  altText: v.string(),
+  url: v.optional(v.string()),
+  previewUrl: v.optional(v.string()),
+});
+export const profileMediaValidator = v.object({
+  background: v.optional(
+    v.object({
+      assetId: v.id("profileMediaAssets"),
+      altText: v.string(),
+      positionX: v.number(),
+      positionY: v.number(),
+      url: v.optional(v.string()),
+      previewUrl: v.optional(v.string()),
+    }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(profileMediaOwnerImageValidator),
+  autoplay: v.boolean(),
+});
+const publicProfileMediaImageValidator = v.object({ src: v.string(), alt: v.string() });
+export const publicProfileMediaValidator = v.object({
+  background: v.optional(
+    publicProfileMediaImageValidator.extend({ positionX: v.number(), positionY: v.number() }),
+  ),
+  heroHeight: v.number(),
+  slideshow: v.array(publicProfileMediaImageValidator),
+  autoplay: v.boolean(),
 });
 
 export const profileContentValidator = v.object({
@@ -63,8 +161,16 @@ export const profileContentValidator = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileThemeValidator),
+  customization: v.optional(profileCustomizationValidator),
+  media: v.optional(profileMediaValidator),
   redirect: v.optional(profileRedirectValidator),
   links: v.array(linkValidator),
+});
+
+// Save-draft callers may explicitly clear media with null. Persisted profile
+// content remains URL-free and represents absence by omitting this field.
+export const saveDraftContentValidator = profileContentValidator.extend({
+  media: v.optional(v.union(v.null(), profileMediaValidator)),
 });
 
 export const profileStatusValidator = v.union(
@@ -81,10 +187,12 @@ export const publicProfileValidator = v.object({
   bio: v.optional(v.string()),
   imageUrl: v.optional(v.string()),
   imageSrcSet: v.optional(v.string()),
+  media: v.optional(publicProfileMediaValidator),
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: profileThemeValidator,
+  customization: v.optional(profileCustomizationValidator),
   links: v.array(linkValidator),
 });
 
@@ -121,6 +229,21 @@ function isSafeRedirectDestination(destination: string): boolean {
 
 export function validateRedirectDestination(destination: string): string | null {
   return isSafeRedirectDestination(destination) ? null : REDIRECT_DESTINATION_ERROR;
+}
+
+function isSafeWebsite(website: string): boolean {
+  if (!website.trim()) return true;
+  try {
+    const parsed = new URL(website);
+    return (
+      parsed.protocol === "https:" &&
+      parsed.hostname.length > 0 &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeProfileSlug(value: string): string {
@@ -160,6 +283,8 @@ export function validateDraftSafety(content: {
   phone?: string;
   website?: string;
   redirect?: { enabled: boolean; destination: string };
+  customization?: unknown;
+  media?: unknown;
   links: Array<{
     id: string;
     label: string;
@@ -185,6 +310,15 @@ export function validateDraftSafety(content: {
     if (field !== undefined && fieldTooLong(field, MAX_PROFILE_FIELD_LENGTH))
       errors.push("A profile field is too long.");
   }
+  if (content.website !== undefined && !isSafeWebsite(content.website)) errors.push(WEBSITE_ERROR);
+  errors.push(
+    ...validateProfileCustomization(
+      content.customization as Parameters<typeof validateProfileCustomization>[0],
+      [],
+      { allowWhite: hasBackgroundMedia(content.media) },
+    ),
+  );
+  errors.push(...validateProfileMedia(content.media));
   const seenIds = new Set<string>();
   for (const link of content.links) {
     if (!link.id.trim()) errors.push("Every link needs a valid ID.");
@@ -214,6 +348,8 @@ export function validateProfileContent(content: {
   phone?: string;
   website?: string;
   redirect?: { enabled: boolean; destination: string };
+  customization?: unknown;
+  media?: unknown;
   links: Array<{
     id: string;
     label: string;

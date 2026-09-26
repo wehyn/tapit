@@ -32,6 +32,7 @@ vi.mock("convex/react", () => ({
       slug: "mara-velasquez",
       status: "draft",
       imageRevision: 7,
+      mediaRevision: 11,
       draft: { name: "Mara Velasquez", slug: "mara-velasquez", links: [] },
       createdAt: 1,
       updatedAt: 1,
@@ -52,7 +53,11 @@ it("saves an administrative draft against the image revision shown", async () =>
   fireEvent.click(screen.getByRole("button", { name: "Save admin draft" }));
   await screen.findByText("Administrative draft changes saved.");
   expect(mutation).toHaveBeenCalledWith(
-    expect.objectContaining({ profileId: "profile-1", expectedImageRevision: 7 }),
+    expect.objectContaining({
+      profileId: "profile-1",
+      expectedImageRevision: 7,
+      expectedMediaRevision: 11,
+    }),
   );
 });
 
@@ -64,5 +69,6 @@ it("publishes an administrative draft against the image revision shown", async (
   expect(mutation).toHaveBeenCalledWith({
     profileId: "profile-1",
     expectedImageRevision: 7,
+    expectedMediaRevision: 11,
   });
 });

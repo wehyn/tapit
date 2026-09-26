@@ -1,6 +1,20 @@
 /** Shared, persistence-agnostic domain rules for profiles, links, cards, and access. */
 
 import type { Id } from "../../../convex/_generated/dataModel";
+import {
+  normalizeProfileCustomization,
+  type ProfileCustomization,
+  type ProfileIdentityColorValidationOptions,
+  validateProfileCustomization,
+} from "../profile-customization";
+import {
+  normalizeProfileMedia,
+  stripProfileMediaUrls,
+  validateProfileMedia,
+  type PublicProfileMediaImage,
+  type PublicProfileMediaPresentation,
+  type ProfileMediaPresentation,
+} from "../profile-media";
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
@@ -39,6 +53,8 @@ export interface ProfileContent {
   phone?: string;
   website?: string;
   theme?: ProfileTheme;
+  customization?: ProfileCustomization;
+  media?: ProfileMediaPresentation;
   redirect?: ProfileRedirect;
   links: ProfileLink[];
 }
@@ -66,6 +82,8 @@ export interface PublicProfileProjection {
   phone?: string;
   website?: string;
   theme: ProfileTheme;
+  customization?: ProfileCustomization;
+  media?: PublicProfileMediaPresentation;
   links: ProfileLink[];
 }
 
@@ -112,6 +130,7 @@ export type AccountStatus = "invited" | "active" | "deleted";
 const LINK_SCHEMES = new Set(["https:", "mailto:", "tel:"]);
 const INVALID_REDIRECT_DESTINATION =
   "Redirect destination must be a valid HTTPS URL without credentials.";
+const INVALID_WEBSITE = "A profile website must be a valid HTTPS URL without credentials.";
 
 function nonblank(value: string): boolean {
   return value.trim().length > 0;
@@ -201,6 +220,21 @@ export function validateProfileRedirect(redirect: ProfileRedirect | undefined): 
   return validateRedirectDestination(redirect.destination);
 }
 
+function validateWebsite(website: string | undefined): string | null {
+  if (website === undefined || !nonblank(website)) return null;
+  try {
+    const parsed = new URL(website);
+    return parsed.protocol.toLowerCase() === "https:" &&
+      nonblank(parsed.hostname) &&
+      parsed.username.length === 0 &&
+      parsed.password.length === 0
+      ? null
+      : INVALID_WEBSITE;
+  } catch {
+    return INVALID_WEBSITE;
+  }
+}
+
 export function validatePublicationAccess(
   profileStatus: ProfileStatus,
   accountStatus: AccountStatus | undefined,
@@ -270,6 +304,14 @@ export function validatePublication(
   }
   const redirectError = validateProfileRedirect(draft.redirect);
   if (redirectError !== null) errors.push(redirectError);
+  const websiteError = validateWebsite(draft.website);
+  if (websiteError !== null) errors.push(websiteError);
+  errors.push(
+    ...validateProfileCustomization(draft.customization, draft.links, {
+      allowWhite: draft.media?.background !== undefined,
+    } satisfies ProfileIdentityColorValidationOptions),
+  );
+  errors.push(...validateProfileMedia(draft.media));
   return errors;
 }
 
@@ -286,6 +328,15 @@ export function publishProfile(
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
     ...(profile.draft.redirect === undefined ? {} : { redirect: { ...profile.draft.redirect } }),
+    ...(profile.draft.customization === undefined
+      ? {}
+      : { customization: structuredClone(profile.draft.customization) }),
+    ...(profile.draft.media === undefined
+      ? {}
+      : (() => {
+          const media = stripProfileMediaUrls(structuredClone(profile.draft.media));
+          return media === undefined ? {} : { media };
+        })()),
     publishedAt,
   };
   return { ...profile, status: "published", published: snapshot };
@@ -305,9 +356,50 @@ function stableSerialize(value: unknown): string {
 }
 
 function canonicalizeRedirect(content: ProfileContent): ProfileContent {
+  const media = stripProfileMediaUrls(content.media);
   return {
     ...content,
     redirect: content.redirect ?? { enabled: false, destination: "" },
+    ...(media === undefined ? {} : { media }),
+  };
+}
+
+function projectPublicProfileMedia(value: unknown): PublicProfileMediaPresentation | undefined {
+  const normalized = normalizeProfileMedia(value);
+  if (normalized === undefined) return undefined;
+
+  const projectImage = (
+    image: ProfileMediaPresentation["slideshow"][number],
+  ): PublicProfileMediaImage | undefined => {
+    const src = image.previewUrl ?? image.url;
+    return typeof src === "string" && src.trim().length > 0
+      ? { src: src.trim(), alt: image.altText }
+      : undefined;
+  };
+  const slideshow = normalized.slideshow.flatMap((image) => {
+    const projected = projectImage(image);
+    return projected === undefined ? [] : [projected];
+  });
+  const background =
+    normalized.background === undefined
+      ? undefined
+      : (() => {
+          const projected = projectImage(normalized.background);
+          return projected === undefined
+            ? undefined
+            : {
+                ...projected,
+                positionX: normalized.background.positionX,
+                positionY: normalized.background.positionY,
+              };
+        })();
+
+  if (background === undefined && slideshow.length === 0) return undefined;
+  return {
+    ...(background === undefined ? {} : { background }),
+    heroHeight: normalized.heroHeight,
+    slideshow,
+    autoplay: normalized.autoplay,
   };
 }
 
@@ -329,6 +421,8 @@ export function hasUnpublishedChanges(
 export function projectPublicProfile(profile: ProfileRecord): PublicProfileProjection | null {
   if (profile.status !== "published" || profile.published === null) return null;
   const snapshot = profile.published;
+  const media = projectPublicProfileMedia(snapshot.media);
+  const customization = normalizeProfileCustomization(snapshot.customization);
   return {
     id: profile.id,
     slug: snapshot.slug,
@@ -339,6 +433,8 @@ export function projectPublicProfile(profile: ProfileRecord): PublicProfileProje
     ...(snapshot.phone === undefined ? {} : { phone: snapshot.phone }),
     ...(snapshot.website === undefined ? {} : { website: snapshot.website }),
     theme: snapshot.theme ?? "paper",
+    ...(customization === undefined ? {} : { customization }),
+    ...(media === undefined ? {} : { media }),
     links: snapshot.links.filter((link) => link.enabled).map((link) => ({ ...link })),
   };
 }

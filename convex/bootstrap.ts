@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 
 import { env, internalMutation } from "./_generated/server";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 import { ensureAdminPersonalProfile } from "./adminProfile";
 
 const emailArg = v.string();
@@ -212,7 +213,7 @@ export const bootstrap = internalMutation({
     if (existingProfile?.published !== undefined && existingProfile.published.slug !== slug)
       throw new Error("A published profile slug cannot be changed during bootstrap.");
     const publishedAt = now;
-    const draft = {
+    const base = {
       name: "Tapit Test Customer",
       slug,
       bio: publishedBio,
@@ -226,7 +227,27 @@ export const bootstrap = internalMutation({
         },
       ],
     };
-    const published = { ...draft, publishedAt };
+    const draft = {
+      ...base,
+      ...(existingProfile?.draft.theme !== undefined ? { theme: existingProfile.draft.theme } : {}),
+      ...(existingProfile === null
+        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
+        : existingProfile.draft.customization !== undefined
+          ? { customization: existingProfile.draft.customization }
+          : {}),
+    };
+    const published = {
+      ...base,
+      ...(existingProfile?.published?.theme !== undefined
+        ? { theme: existingProfile.published.theme }
+        : {}),
+      ...(existingProfile?.published?.customization !== undefined
+        ? { customization: existingProfile.published.customization }
+        : existingProfile === null
+          ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
+          : {}),
+      publishedAt,
+    };
     const profileId =
       existingProfile?._id ??
       (await ctx.db.insert("profiles", {

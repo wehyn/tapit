@@ -7,7 +7,8 @@ import { useCallback, useEffect, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
-import { isActiveAccount, projectPublicProfile, validateRedirectDestination } from "@/lib/domain";
+import { projectDemoPublicProfile } from "@/lib/demo/projection";
+import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 
 import {
@@ -85,7 +86,11 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   }
-  const projection = projectPublicProfile(profile);
+  const projection = projectDemoPublicProfile(
+    profile,
+    profile.published,
+    getDemoTheme(state, profile.id),
+  );
   if (projection === null) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   const redirect = profile.published?.redirect;
   const redirectDestination =
@@ -108,7 +113,8 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
     <PublicProfile
       profile={projection}
       profileId={profile.id}
-      theme={getDemoTheme(state, profile.id)}
+      profileUrl={`/${projection.slug}`}
+      theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, sourceValue(source))}
       onView={(id) => recordProfileView(id, sourceValue(source))}
     />
@@ -188,6 +194,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
         onView={onView}
         profile={profile}
         profileId={profile.id}
+        profileUrl={`/${profile.slug}`}
         theme={profile.theme}
       />
       <AnalyticsConsent />

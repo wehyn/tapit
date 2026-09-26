@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { digest } from "./cards";
 import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -87,7 +88,13 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
   const today = new Date(now);
   const dayStart = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const publishedAt = dayStart - 2 * DAY;
-  const maraDraft = {
+  const mara = await ctx.db
+    .query("profiles")
+    .withIndex("by_slug", (q) => q.eq("slug", MARA_SLUG))
+    .unique();
+  if (mara !== null && mara.scope !== DEMO_SCOPE)
+    throw new Error("The Mara demo profile is already owned outside the demo scope.");
+  const maraBase = {
     name: "Mara Velasquez",
     slug: MARA_SLUG,
     bio: "Brand systems for independent teams.",
@@ -95,16 +102,31 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     phone: "+63 917 555 0184",
     website: "https://mara-velasquez.example",
     imageUrl: "/images/tapit-demo-mara-avatar.png",
-    theme: "paper" as const,
     links: links.map((link) => ({ ...link, enabled: true })),
   };
-  const maraPublished = { ...maraDraft, publishedAt };
-  const mara = await ctx.db
-    .query("profiles")
-    .withIndex("by_slug", (q) => q.eq("slug", MARA_SLUG))
-    .unique();
-  if (mara !== null && mara.scope !== DEMO_SCOPE)
-    throw new Error("The Mara demo profile is already owned outside the demo scope.");
+  const maraDraft = {
+    ...maraBase,
+    theme: mara?.draft.theme ?? ("paper" as const),
+    ...(mara?.draft.customization !== undefined
+      ? { customization: mara.draft.customization }
+      : mara === null
+        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
+        : {}),
+  };
+  const maraPublished = {
+    ...maraBase,
+    ...(mara?.published?.theme !== undefined
+      ? { theme: mara.published.theme }
+      : mara === null || mara.published === undefined
+        ? { theme: "paper" as const }
+        : {}),
+    ...(mara?.published?.customization !== undefined
+      ? { customization: mara.published.customization }
+      : mara === null
+        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
+        : {}),
+    publishedAt,
+  };
   const maraCustomer = mara === null ? null : await ctx.db.get(mara.ownerId);
   const maraCustomerId =
     maraCustomer?._id ??

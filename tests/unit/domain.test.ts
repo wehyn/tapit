@@ -13,8 +13,13 @@ import {
   type ProfileContent,
   type ProfileRecord,
   validateProfileRedirect,
+  validatePublication,
   validateRedirectDestination,
 } from "../../src/lib/domain";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
+import type { Id } from "../../convex/_generated/dataModel";
+
+const assetId = (value: string) => value as Id<"profileMediaAssets">;
 
 const websiteLink = {
   id: "one",
@@ -57,6 +62,41 @@ describe("profile publication and public projection", () => {
     }
   });
 
+  it("rejects credential-bearing profile websites during publication", () => {
+    expect(() =>
+      publishProfile(
+        { ...profile(), draft: { ...draft, website: "https://user:password@example.com" } },
+        "now",
+      ),
+    ).toThrow("A profile website must be a valid HTTPS URL without credentials.");
+  });
+
+  it("allows white identity text when the draft has a background image", () => {
+    expect(
+      validatePublication(
+        {
+          ...draft,
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            identityColors: { name: { kind: "custom", hex: "#ffffff" } },
+          },
+          media: {
+            heroHeight: 320,
+            autoplay: true,
+            background: {
+              assetId: assetId("background"),
+              altText: "Backdrop",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [],
+          },
+        },
+        null,
+      ),
+    ).not.toContain("The profile name custom color does not meet contrast requirements.");
+  });
+
   it("allows missing or disabled redirects, but validates enabled redirects", () => {
     expect(validateProfileRedirect(undefined)).toBeNull();
     expect(validateProfileRedirect({ enabled: false, destination: "" })).toBeNull();
@@ -88,6 +128,125 @@ describe("profile publication and public projection", () => {
     ).toBe(true);
   });
 
+  it("compares and projects only published media", () => {
+    const media = {
+      heroHeight: 360,
+      autoplay: true,
+      background: {
+        assetId: assetId("background"),
+        altText: "Published backdrop",
+        positionX: 50,
+        positionY: 50,
+        url: "https://cdn.test/published.jpg",
+        previewUrl: "https://cdn.test/published-preview.jpg",
+      },
+      slideshow: [
+        {
+          assetId: assetId("slide"),
+          altText: "Published slide",
+          url: "https://cdn.test/slide.jpg",
+          previewUrl: "https://cdn.test/slide-preview.jpg",
+        },
+      ],
+    };
+    const published = publishProfile({ ...profile(), draft: { ...draft, media } }, "first");
+    const changed = {
+      ...published,
+      draft: {
+        ...published.draft,
+        media: { ...media, heroHeight: 420 },
+      },
+    };
+
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(hasUnpublishedChanges(changed.draft, published.published)).toBe(true);
+    const resolvedPublished = {
+      ...published,
+      published: { ...published.published!, media },
+    };
+    expect(projectPublicProfile(resolvedPublished)?.media).toEqual({
+      heroHeight: 360,
+      autoplay: true,
+      background: {
+        src: "https://cdn.test/published-preview.jpg",
+        alt: "Published backdrop",
+        positionX: 50,
+        positionY: 50,
+      },
+      slideshow: [
+        {
+          src: "https://cdn.test/slide-preview.jpg",
+          alt: "Published slide",
+        },
+      ],
+    });
+    expect(projectPublicProfile(resolvedPublished)?.media?.background).not.toHaveProperty(
+      "assetId",
+    );
+    expect(projectPublicProfile(resolvedPublished)?.media?.slideshow[0]).not.toHaveProperty("url");
+
+    const draftOnly = {
+      ...resolvedPublished,
+      draft: {
+        ...published.draft,
+        media: {
+          ...media,
+          background: { ...media.background, url: "https://cdn.test/draft-only.jpg" },
+        },
+      },
+    };
+    expect(projectPublicProfile(draftOnly)?.media).toEqual(
+      projectPublicProfile(resolvedPublished)?.media,
+    );
+    expect(
+      projectPublicProfile({ ...profile(), draft: { ...draft, media } })?.media,
+    ).toBeUndefined();
+  });
+
+  it("does not throw when comparing malformed media", () => {
+    const malformedDraft = {
+      ...draft,
+      media: null,
+    } as unknown as ProfileContent;
+    const malformedPublished = {
+      ...draft,
+      media: { heroHeight: 320, autoplay: true },
+      publishedAt: "first",
+    } as unknown as ProfileRecord["published"];
+    const malformedDraftValue = {
+      ...draft,
+      media: [null, { background: "invalid" }],
+    } as unknown as ProfileContent;
+
+    expect(() => hasUnpublishedChanges(malformedDraft, malformedPublished)).not.toThrow();
+    expect(() => hasUnpublishedChanges(malformedDraftValue, malformedPublished)).not.toThrow();
+  });
+
+  it("deeply isolates nested customization data in the published snapshot", () => {
+    const customization = {
+      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+      section: { kind: "services" as const, body: "Services", items: ["Consulting"] },
+    };
+    const source = { ...profile(), draft: { ...draft, customization } };
+    const published = publishProfile(source, "first");
+
+    customization.section!.items![0] = "Changed draft";
+    expect(published.published?.customization?.section).toEqual({
+      kind: "services",
+      body: "Services",
+      items: ["Consulting"],
+    });
+
+    const publishedSection = published.published!.customization!.section!;
+    if (publishedSection.kind !== "services") throw new Error("Expected services section");
+    publishedSection.items![0] = "Changed published";
+    expect(source.draft.customization?.section).toEqual({
+      kind: "services",
+      body: "Services",
+      items: ["Changed draft"],
+    });
+  });
+
   it("rejects an enabled invalid redirect during publication", () => {
     expect(() =>
       publishProfile(
@@ -96,6 +255,24 @@ describe("profile publication and public projection", () => {
       ),
     ).toThrow("Redirect destination must be a valid HTTPS URL without credentials.");
   });
+
+  it.each([undefined, "hidden"])(
+    "does not block publication when featured link id is %s",
+    (featuredLinkId) => {
+      const published = publishProfile(
+        {
+          ...profile(),
+          draft: {
+            ...draft,
+            customization: { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, featuredLinkId },
+          },
+        },
+        "now",
+      );
+
+      expect(published.published?.customization?.featuredLinkId).toBe(featuredLinkId);
+    },
+  );
 
   it("compares draft content without considering the publication timestamp", () => {
     const published = publishProfile(profile(), "first");
@@ -151,6 +328,35 @@ describe("profile publication and public projection", () => {
     expect(hasUnpublishedChanges(draft, undefined)).toBe(true);
   });
 
+  it("detects unpublished identity color changes", () => {
+    const published = publishProfile(
+      {
+        ...profile(),
+        draft: {
+          ...draft,
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            identityColors: { name: { kind: "preset", value: "coral" } },
+          },
+        },
+      },
+      "first",
+    );
+    expect(hasUnpublishedChanges(published.draft, published.published)).toBe(false);
+    expect(
+      hasUnpublishedChanges(
+        {
+          ...published.draft,
+          customization: {
+            ...published.draft.customization!,
+            identityColors: { name: { kind: "preset", value: "jade" } },
+          },
+        },
+        published.published,
+      ),
+    ).toBe(true);
+  });
+
   it("treats a missing legacy redirect as the disabled default", () => {
     const legacyPublished = {
       ...draft,
@@ -196,6 +402,78 @@ describe("profile publication and public projection", () => {
     expect(publicProfile?.name).toBe("Ada Lovelace");
     expect(publicProfile?.links).toHaveLength(1);
     expect(publicProfile?.links[0]?.label).toBe("Website");
+  });
+
+  it("projects customization only from the published snapshot", () => {
+    const published = publishProfile(
+      { ...profile(), draft: { ...draft, customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION } },
+      "first",
+    );
+    const changed = {
+      ...published,
+      draft: {
+        ...published.draft,
+        customization: { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, accent: "jade" as const },
+      },
+    };
+    expect(projectPublicProfile(changed)?.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+  });
+
+  it("deeply isolates nested customization data in the public projection", () => {
+    const published = publishProfile(
+      {
+        ...profile(),
+        draft: {
+          ...draft,
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            section: { kind: "services", body: "Services", items: ["Consulting"] },
+          },
+        },
+      },
+      "first",
+    );
+    const projection = projectPublicProfile(published)!;
+
+    const projectionSection = projection.customization!.section!;
+    if (projectionSection.kind !== "services") throw new Error("Expected services section");
+    projectionSection.items![0] = "Changed projection";
+
+    expect(published.published?.customization?.section).toEqual({
+      kind: "services",
+      body: "Services",
+      items: ["Consulting"],
+    });
+  });
+
+  it.each(["paper", "moss", "night"] as const)(
+    "preserves legacy %s theme without customization",
+    (theme) => {
+      const published = publishProfile({ ...profile(), draft: { ...draft, theme } }, "first");
+      const projection = projectPublicProfile(published);
+
+      expect(projection?.theme).toBe(theme);
+      expect(projection?.customization).toBeUndefined();
+    },
+  );
+
+  it("uses published customization when present alongside the legacy theme", () => {
+    const published = publishProfile(
+      {
+        ...profile(),
+        draft: {
+          ...draft,
+          theme: "night",
+          customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        },
+      },
+      "first",
+    );
+
+    expect(projectPublicProfile(published)).toMatchObject({
+      theme: "night",
+      customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+    });
   });
 
   it("does not allow a published slug to change", () => {

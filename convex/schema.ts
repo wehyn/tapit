@@ -1,6 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { profileCustomizationValidator, profileMediaPersistedValidator } from "./validators";
 
 const profileLink = v.object({
   id: v.string(),
@@ -27,6 +28,8 @@ const profileContent = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  customization: v.optional(profileCustomizationValidator),
+  media: v.optional(profileMediaPersistedValidator),
   redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
 });
@@ -41,6 +44,8 @@ const publishedProfile = v.object({
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
   theme: v.optional(profileTheme),
+  customization: v.optional(profileCustomizationValidator),
+  media: v.optional(profileMediaPersistedValidator),
   redirect: v.optional(profileRedirect),
   links: v.array(profileLink),
   publishedAt: v.number(),
@@ -89,6 +94,7 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     imageRevision: v.optional(v.number()),
+    mediaRevision: v.optional(v.number()),
     publishedAt: v.optional(v.number()),
     unpublishedAt: v.optional(v.number()),
     suspendedAt: v.optional(v.number()),
@@ -139,6 +145,46 @@ export default defineSchema({
     .index("by_status_and_createdAt", ["status", "createdAt"])
     .index("by_largeStorageId", ["largeStorageId"])
     .index("by_smallStorageId", ["smallStorageId"]),
+  profileMediaAssets: defineTable({
+    scope: v.optional(v.literal("demo")),
+    storageId: v.id("_storage"),
+    previewStorageId: v.optional(v.id("_storage")),
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+    contentType: v.union(v.literal("image/jpeg"), v.literal("image/png"), v.literal("image/webp")),
+    size: v.number(),
+    width: v.number(),
+    height: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_storageId", ["storageId"])
+    .index("by_previewStorageId", ["previewStorageId"])
+    .index("by_profileId", ["profileId"])
+    .index("by_scope", ["scope"]),
+  profileMediaUploadJobs: defineTable({
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+    sha256: v.string(),
+    previewSha256: v.optional(v.string()),
+    storageId: v.optional(v.id("_storage")),
+    previewStorageId: v.optional(v.id("_storage")),
+    expectedMediaRevision: v.number(),
+    status: v.union(v.literal("pending"), v.literal("attached"), v.literal("failed")),
+    createdAt: v.number(),
+    uploadWindowEndsAt: v.number(),
+    scanCursor: v.optional(v.string()),
+    scanSourceCandidateId: v.optional(v.id("_storage")),
+    scanPreviewCandidateId: v.optional(v.id("_storage")),
+    scanSourceAmbiguous: v.optional(v.boolean()),
+    scanPreviewAmbiguous: v.optional(v.boolean()),
+  })
+    .index("by_profileId", ["profileId"])
+    .index("by_profileId_and_status_and_uploadWindowEndsAt", [
+      "profileId",
+      "status",
+      "uploadWindowEndsAt",
+    ])
+    .index("by_status_and_createdAt", ["status", "createdAt"]),
   uploadAssets: defineTable({
     kind: v.union(v.literal("profile-photo"), v.literal("card-design")),
     policyVersion: v.string(),

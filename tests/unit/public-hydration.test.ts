@@ -17,10 +17,20 @@ vi.mock("../../src/lib/demo/mode", () => ({
   isLocalDemoMode: () => resolverMocks.demoMode,
 }));
 vi.mock("../../src/components/profile/PublicProfile", () => ({
-  PublicProfile: ({ onView }: { onView?: (profileId?: string) => void }) => {
+  PublicProfile: ({
+    onView,
+    profile,
+  }: {
+    onView?: (profileId?: string) => void;
+    profile?: { customization?: { accent?: string } };
+  }) => {
     return createElement(
       "div",
-      { "data-testid": "public-profile", onClick: () => onView?.("profile-live") },
+      {
+        "data-customization-accent": profile?.customization?.accent,
+        "data-testid": "public-profile",
+        onClick: () => onView?.("profile-live"),
+      },
       "Public profile",
     );
   },
@@ -50,6 +60,13 @@ const activeResult = {
     slug: "live-profile",
     name: "Live profile",
     theme: "paper" as const,
+    customization: {
+      preset: "warm-studio" as const,
+      accent: "jade" as const,
+      typeScale: "editorial" as const,
+      linkTreatment: "outlined" as const,
+      contentOrder: "links-first" as const,
+    },
     links: [],
   },
 };
@@ -183,6 +200,10 @@ describe("card redirect hydration", () => {
   it("renders the profile and records a view when an active card has no redirect", () => {
     render(createElement(CardResolverClient, { cardToken: "card-live", source: "qr" }));
     expect(screen.getByTestId("public-profile")).toBeInTheDocument();
+    expect(screen.getByTestId("public-profile")).toHaveAttribute(
+      "data-customization-accent",
+      "jade",
+    );
     expect(resolverMocks.replace).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("public-profile"));
     expect(resolverMocks.recordView).toHaveBeenCalledWith(

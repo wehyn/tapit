@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { projectPublicProfile } from "../../src/lib/domain";
 import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
 
 type DemoStore = typeof import("../../src/lib/demo/store");
 
@@ -24,6 +25,62 @@ describe("demo self-service signup", () => {
     localStorage.clear();
     store = await loadStore();
     store.resetDemoState();
+  });
+
+  it("keeps the primary demo profile Warm Studio while the claimable fixture stays legacy", () => {
+    const state = createDefaultDemoState();
+    expect(state.profile.draft.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(state.profile.published?.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(state.profiles[1]?.draft.customization).toBeUndefined();
+    expect(state.profiles[1]?.theme).toBe("paper");
+  });
+
+  it("reloads legacy theme-only profiles without adding customization or changing themes", async () => {
+    const fixture = createDefaultDemoState();
+    const profiles = fixture.profiles.map((profile, index) => {
+      const { customization: _draftCustomization, ...draft } = profile.draft;
+      const published =
+        profile.published === null
+          ? null
+          : (({ customization: _publishedCustomization, ...legacyPublished }) => legacyPublished)(
+              profile.published,
+            );
+      return {
+        ...profile,
+        theme: index === 0 ? "night" : "moss",
+        draft,
+        published,
+      };
+    });
+    const legacyState = {
+      ...fixture,
+      profile: profiles[0],
+      profiles,
+      theme: "night" as const,
+      themes: {
+        [profiles[0]!.id]: "night" as const,
+        [profiles[1]!.id]: "moss" as const,
+      },
+    };
+    localStorage.setItem("tapit:demo-state:v1", JSON.stringify(legacyState));
+    const storedBeforeReload = localStorage.getItem("tapit:demo-state:v1");
+
+    const reloaded = await loadStore();
+    const state = reloaded.getDemoState();
+    const primary = state.profiles.find((profile) => profile.id === profiles[0]!.id);
+    const claimable = state.profiles.find((profile) => profile.id === profiles[1]!.id);
+
+    expect(primary?.theme).toBe("night");
+    expect(primary?.draft.customization).toBeUndefined();
+    expect(primary?.published?.customization).toBeUndefined();
+    expect(claimable?.theme).toBe("moss");
+    expect(claimable?.draft.customization).toBeUndefined();
+    expect(state.themes).toEqual({
+      [profiles[0]!.id]: "night",
+      [profiles[1]!.id]: "moss",
+      [profiles[2]!.id]: "paper",
+    });
+    expect(localStorage.getItem("tapit:demo-state:v1")).toBe(storedBeforeReload);
   });
 
   it("creates an owned draft account and persists it across a local reload", async () => {
@@ -52,6 +109,13 @@ describe("demo self-service signup", () => {
         slug: "new-person",
         email: "new.person@example.com",
         links: [],
+        customization: {
+          preset: "warm-studio",
+          accent: "coral",
+          typeScale: "comfortable",
+          linkTreatment: "filled",
+          contentOrder: "links-first",
+        },
       },
       published: null,
     });
@@ -77,6 +141,27 @@ describe("demo self-service signup", () => {
         role: "customer",
       }).id,
     ).toBe(created.profileId);
+  });
+
+  it("gives each new local profile an independent customization", () => {
+    const first = store.createDemoSelfServiceAccount({
+      ...account,
+      email: "first@example.com",
+      slug: "first",
+    });
+    const second = store.createDemoSelfServiceAccount({
+      ...account,
+      email: "second@example.com",
+      slug: "second",
+    });
+    const state = store.getDemoState();
+    const firstProfile = state.profiles.find((profile) => profile.id === first.profileId);
+    const secondProfile = state.profiles.find((profile) => profile.id === second.profileId);
+    expect(firstProfile?.draft.customization).not.toBe(secondProfile?.draft.customization);
+
+    firstProfile!.draft.customization!.section = { kind: "about", body: "Private first profile" };
+    expect(secondProfile?.draft.customization?.section).toBeUndefined();
+    expect(DEFAULT_WARM_STUDIO_CUSTOMIZATION.section).toBeUndefined();
   });
 
   it("rejects duplicate email and slug without mutating state", () => {

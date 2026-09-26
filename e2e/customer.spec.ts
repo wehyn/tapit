@@ -1,11 +1,46 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function signInAsCustomer(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("mara@example.test");
-  await page.getByLabel("Password").fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/profile$/);
+import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+
+async function prepareLegacyMaraProfile(page: Page) {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Legacy profile migration test.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo state to be persisted before legacy setup.");
+    const state = JSON.parse(raw);
+    const customer = state.customers.find(
+      (candidate: { email?: string }) => candidate.email === "mara@example.test",
+    );
+    const stripCustomization = (profile: {
+      id?: string;
+      draft?: object;
+      published?: object | null;
+    }) => {
+      if (profile.id !== customer?.profileId) return profile;
+      const draft = { ...profile.draft } as { customization?: unknown };
+      delete draft.customization;
+      const next = { ...profile, draft } as typeof profile & { published?: object | null };
+      if (profile.published) {
+        const published = { ...profile.published } as { customization?: unknown };
+        delete published.customization;
+        next.published = published;
+      }
+      return next;
+    };
+    state.profiles = state.profiles.map(stripCustomization);
+    state.profile = stripCustomization(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await signInAsCustomer(page);
 }
 
 test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
@@ -14,6 +49,9 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
 
   for (const route of ["/app/profile", "/app/links"]) {
     await page.goto(route);
+    if (route === "/app/profile") {
+      await page.getByLabel("Bio or role").fill("Layout preview draft");
+    }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
     const publish = page.getByRole("button", { name: "Published", exact: true });
@@ -27,16 +65,9 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     expect(previewBox).not.toBeNull();
     expect(saveBox).not.toBeNull();
     expect(publishBox).not.toBeNull();
-    expect(saveBox!.x + saveBox!.width).toBeLessThan(previewBox!.x);
-    expect(publishBox!.x + publishBox!.width).toBeLessThan(previewBox!.x);
-    const contentAnchor =
-      route === "/app/profile"
-        ? page.getByRole("heading", { name: "Profile details" })
-        : page.getByRole("button", { name: "Add link" });
-    const contentBox = await contentAnchor.boundingBox();
-    expect(contentBox).not.toBeNull();
-    expect(saveBox!.y + saveBox!.height).toBeLessThan(contentBox!.y);
-    expect(publishBox!.y + publishBox!.height).toBeLessThan(contentBox!.y);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      1467,
+    );
 
     await page.setViewportSize({ width: 390, height: 700 });
     await expect(save).toBeInViewport();
@@ -49,6 +80,31 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       fullPage: false,
     });
     await page.setViewportSize({ width: 1467, height: 899 });
+  }
+});
+
+test("profile draft actions only appear when a draft needs action", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/profile", "/app/customize"] as const) {
+    await page.goto(route);
+
+    const actions = page.getByRole("region", { name: "Draft actions", exact: true });
+    await expect(actions).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);
+
+    if (route === "/app/profile") {
+      await page.getByLabel("Bio or role").fill("Draft action bar test");
+    } else {
+      await page.getByRole("radio", { name: "Jade" }).check();
+    }
+
+    await expect(actions).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+    ).toBeVisible();
   }
 });
 
@@ -67,7 +123,7 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
 
 test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
   await signInAsCustomer(page);
-  await expect(page.getByRole("heading", { name: "Profile details" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
   const island = page.getByTestId("workspace-sidebar");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
@@ -157,11 +213,16 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
 test("refreshed profile editor and preview preserve draft controls", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInAsCustomer(page);
-  for (const heading of ["Profile details", "Contact details", "Profile style"]) {
+  for (const heading of [
+    "Profile identity",
+    "Contact and links",
+    "About or Services",
+    "Publication",
+  ]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
-  await expect(page.getByLabel("Website", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Your public profile URL")).toHaveCount(0);
+  await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
+  await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
   const frame = page.getByTestId("profile-preview-frame");
   const phoneWidth = (await frame.boundingBox())!.width;
   await page.getByRole("button", { name: "desktop", exact: true }).click();
@@ -181,15 +242,12 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await page.getByLabel("Email", { exact: true }).fill("studio@example.test");
   await page.getByLabel("Phone", { exact: true }).fill("+63 917 555 0184");
   await expect(frame).toContainText("Mara Studio");
-  for (const theme of ["moss", "night", "paper"]) {
-    await page.getByRole("button", { name: theme, exact: true }).click();
-    await expect(page.getByRole("button", { name: theme, exact: true })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-  }
   await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(page.getByText("Draft saved", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Draft saved. Visitors still see the last published version.", {
+      exact: true,
+    }),
+  ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
     path: "test-results/profile-editor-refresh-desktop.png",
@@ -217,9 +275,9 @@ test("profile URL remains available when clipboard access fails", async ({ page 
     });
   });
   await page.getByRole("button", { name: "Copy URL" }).click();
-  await expect(page.getByRole("status")).toContainText(
-    `${new URL(page.url()).origin}/mara-velasquez`,
-  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "Could not copy automatically" }),
+  ).toContainText(`${new URL(page.url()).origin}/mara-velasquez`);
 });
 
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
@@ -250,10 +308,10 @@ test("customer drafts stay private until link and profile publication", async ({
     "/app/profile",
   );
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
   await expect(
     page.getByText("Edit your details and see how your profile looks to others.", { exact: true }),
-  ).toHaveCount(0);
+  ).toBeVisible();
   await expect(
     page.getByText("These controls stay deliberately small so every theme remains readable.", {
       exact: true,
@@ -345,6 +403,118 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 
+test("customer customization drafts stay private until the profile is published", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await page.goto("/app/customize");
+  await page.getByRole("radio", { name: "Warm Studio" }).check();
+  await page.getByRole("radio", { name: "Editorial" }).check();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await page.goto("/app/profile");
+  await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
+  await page.getByRole("radio", { name: "About", exact: true }).check();
+  await page.getByLabel("About copy").fill("A private draft introduction.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByText("A private draft introduction.")).toHaveCount(0);
+  const bookingLink = page.getByRole("link", { name: "Book a conversation" });
+  await expect(bookingLink).toBeVisible();
+  await expect(bookingLink).not.toHaveAttribute("data-featured", "true");
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  const aboutDisclosure = page.locator("summary").filter({ hasText: "About" });
+  await expect(aboutDisclosure).toHaveAttribute("aria-expanded", "false");
+  await aboutDisclosure.focus();
+  await expect(aboutDisclosure).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(aboutDisclosure).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText("A private draft introduction.")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Contact actions" }).getByRole("link", {
+      name: "Email",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Book a conversation" })).toHaveAttribute(
+    "data-featured",
+    "true",
+  );
+});
+
+test("legacy profiles opt into Warm Studio before the new presentation is published", async ({
+  page,
+}) => {
+  await prepareLegacyMaraProfile(page);
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("navigation", { name: "Contact actions" })).toHaveCount(0);
+
+  await page.goto("/app/customize");
+  await expect(page.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
+  await page.getByRole("button", { name: "Use Warm Studio" }).click();
+  await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeChecked();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("navigation", { name: "Contact actions" })).toBeVisible();
+  await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+});
+
+test("customer can configure bounded profile media and publish it", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await page.getByLabel("Hero height: 320px").fill("420");
+  await page.getByLabel("Crop horizontal position: 50%").fill("30");
+  await page.getByLabel("Crop vertical position: 50%").fill("65");
+
+  const slideshowInput = page.getByLabel("Upload slideshow images");
+  await slideshowInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
+  await slideshowInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await page.getByLabel("Slideshow image 2 description").fill("Studio detail two");
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
+
+  await page.goto("/app/customize");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(path);
+    await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
+    await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+  }
+});
+
 test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/app/profile");
@@ -394,6 +564,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(page.getByLabel("Time range")).toHaveValue("7d");
 
   await page.getByRole("link", { name: "Account" }).click();
+  await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();

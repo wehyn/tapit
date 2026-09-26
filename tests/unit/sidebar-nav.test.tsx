@@ -29,6 +29,7 @@ const groups = [
     label: "Workspace",
     items: [
       { href: "/app/profile", label: "Profile", icon: "user" as const },
+      { href: "/app/customize", label: "Customize", icon: "fingerprint" as const },
       { href: "/app/links", label: "Links", icon: "link" as const },
     ],
   },
@@ -52,6 +53,24 @@ function renderSidebar() {
 }
 
 describe("SidebarNav", () => {
+  it("marks only Customize active at /app/customize", () => {
+    render(
+      <SidebarNav
+        activeHref="/app/customize"
+        eyebrow="Customer workspace"
+        groups={groups}
+        onNavigate={vi.fn()}
+        sidebarFooter={<p>Signed in as test@example.com</p>}
+        title="Workspace"
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("aria-current", "page");
+    for (const label of ["Profile", "Links", "Account"]) {
+      expect(screen.getByRole("link", { name: label })).not.toHaveAttribute("aria-current");
+    }
+  });
+
   it("opens and closes the mobile drawer", () => {
     renderSidebar();
 

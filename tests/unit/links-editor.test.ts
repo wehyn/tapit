@@ -200,6 +200,7 @@ describe("LinksEditor controller boundaries", () => {
     expect(saveMutation).toHaveBeenCalledWith({
       profileId: "profile-1",
       expectedImageRevision: 7,
+      expectedMediaRevision: 0,
     });
   });
 });

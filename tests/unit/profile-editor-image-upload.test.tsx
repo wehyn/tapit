@@ -16,11 +16,30 @@ vi.mock("convex/react", () => ({
     scope: "default",
     status: "draft",
     imageRevision: 3,
+    mediaRevision: 3,
     draft: {
       name: "Mara Velasquez",
       slug: "mara-velasquez",
+      customization: {
+        preset: "warm-studio",
+        accent: "coral",
+        typeScale: "comfortable",
+        linkTreatment: "filled",
+        contentOrder: "links-first",
+      },
       imageStorageId: "storage-old",
       imageUrl: "https://image.test/old",
+      media: {
+        heroHeight: 320,
+        autoplay: true,
+        background: {
+          assetId: "media-old",
+          altText: "Existing backdrop",
+          positionX: 50,
+          positionY: 50,
+        },
+        slideshow: [],
+      },
       links: [
         {
           id: "site",
@@ -128,4 +147,141 @@ it("keeps the existing image when the upload fails", async () => {
   for (const image of screen.getAllByRole("img", { name: "Mara Velasquez profile" }))
     expect(image).toHaveAttribute("src", "https://image.test/old");
   expect(screen.getByRole("dialog")).toBeVisible();
+});
+
+it("uploads live profile media with the media revision and strips URLs before saving", async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response(
+      JSON.stringify({
+        assetId: "media-1",
+        url: "https://image.test/media-1",
+        previewUrl: "https://image.test/media-1-preview",
+        mediaRevision: 4,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.change(screen.getByLabelText("Upload background image"), {
+    target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
+  });
+  const altField = await screen.findByLabelText("Background image description");
+  fireEvent.change(altField, { target: { value: "Studio backdrop" } });
+
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+  expect(fetchMock).toHaveBeenCalledWith(
+    "https://preview-123.convex.site/profile-media-upload",
+    expect.objectContaining({
+      method: "POST",
+      body: expect.any(File),
+      headers: {
+        Authorization: "Bearer test-token",
+        "Content-Type": "image/png",
+        "X-Media-Revision": "3",
+        "X-Profile-Id": "profile-1",
+      },
+    }),
+  );
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() => expect(mutation).toHaveBeenCalled());
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedImageRevision: 3,
+      expectedMediaRevision: 4,
+      profileId: "profile-1",
+      draft: expect.objectContaining({
+        media: {
+          heroHeight: 320,
+          autoplay: true,
+          background: {
+            assetId: "media-1",
+            altText: "Studio backdrop",
+            positionX: 50,
+            positionY: 50,
+          },
+          slideshow: [],
+        },
+      }),
+    }),
+  );
+  const savedDraft = mutation.mock.calls.at(-1)?.[0].draft;
+  expect(JSON.stringify(savedDraft)).not.toContain("image.test/media-1");
+});
+
+it("keeps existing media after a failed upload", async () => {
+  fetchMock.mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }));
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.change(screen.getByLabelText("Upload background image"), {
+    target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
+  });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Temporary media failure");
+  expect(screen.getByLabelText("Background image description")).toHaveValue("Existing backdrop");
+});
+
+it("passes the current media revision when publishing", async () => {
+  render(<ProfileEditor />);
+
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalled());
+  expect(mutation).toHaveBeenLastCalledWith({
+    expectedImageRevision: 3,
+    expectedMediaRevision: 3,
+    profileId: "profile-1",
+  });
+});
+
+it("sends an explicit media null when the existing background is removed", async () => {
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.click(screen.getByRole("button", { name: "Remove background" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalled());
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedMediaRevision: 3,
+      draft: expect.objectContaining({ media: null }),
+    }),
+  );
+});
+
+it("disables publish while live media processing is pending", async () => {
+  let resolveUpload: (response: Response) => void = () => undefined;
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveUpload = resolve;
+      }),
+  );
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.change(screen.getByLabelText("Upload background image"), {
+    target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
+  });
+
+  await waitFor(() => expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled());
+  resolveUpload(
+    new Response(
+      JSON.stringify({
+        assetId: "media-pending",
+        url: "https://image.test/media-pending",
+        previewUrl: "https://image.test/media-pending-preview",
+        mediaRevision: 4,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  const altField = await screen.findByLabelText("Background image description");
+  fireEvent.change(altField, { target: { value: "Pending backdrop" } });
+  await waitFor(() => expect(screen.getByRole("button", { name: "Publish" })).toBeEnabled());
 });
