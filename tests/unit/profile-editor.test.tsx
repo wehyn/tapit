@@ -142,13 +142,6 @@ function renderBranch(branch: "demo" | "live", view: "profile" | "customize" = "
   render(<ProfileEditor view={view} />);
 }
 
-async function showDraftActions(user: ReturnType<typeof userEvent.setup>) {
-  const trigger = screen.queryByRole("button", {
-    name: "Draft saved. Show draft actions",
-  });
-  if (trigger) await user.click(trigger);
-}
-
 function applyLastDemoUpdate() {
   const update = mocks.updateDemoState.mock.lastCall?.[0];
   if (typeof update !== "function") return undefined;
@@ -452,11 +445,9 @@ describe("ProfileEditor workspace boundaries", () => {
   it.each(["demo", "live"] as const)(
     "publishes the complete draft from Profile in the %s branch",
     async (branch) => {
-      const user = userEvent.setup();
       renderBranch(branch, "profile");
 
-      await showDraftActions(user);
-      await user.click(screen.getByRole("button", { name: "Publish" }));
+      fireEvent.click(screen.getByRole("button", { name: "Publish" }));
 
       if (branch === "demo") {
         expect(mocks.updateDemoState).toHaveBeenCalled();
@@ -472,7 +463,6 @@ describe("ProfileEditor workspace boundaries", () => {
   it.each(["demo", "live"] as const)(
     "keeps Unpublish available for published profiles in the %s branch",
     async (branch) => {
-      const user = userEvent.setup();
       mocks.liveProfile = {
         ...demoProfile,
         _id: "live-profile",
@@ -481,8 +471,7 @@ describe("ProfileEditor workspace boundaries", () => {
       };
       renderBranch(branch, "profile");
 
-      await showDraftActions(user);
-      await user.click(screen.getByRole("button", { name: "Unpublish" }));
+      fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
 
       if (branch === "demo") {
         expect(mocks.updateDemoState).toHaveBeenCalled();
@@ -513,7 +502,6 @@ describe("ProfileEditor workspace boundaries", () => {
     mocks.localMode = true;
     render(<ProfileEditor view="customize" />);
 
-    await user.click(screen.getByRole("button", { name: "Draft saved. Show draft actions" }));
     await user.click(screen.getByRole("tab", { name: "Media" }));
     fireEvent.change(screen.getByLabelText("Upload background image"), {
       target: { files: [new File(["demo-image"], "background.png", { type: "image/png" })] },

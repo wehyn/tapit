@@ -1,7 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
-import { expandProfileDraftActions } from "./support/demo-harness";
-
 // Hosted demo runs are intentionally opt-in and must identify a non-production
 // Convex deployment. Local demo coverage remains in public-profile.spec.ts.
 const deployment = process.env.CONVEX_DEPLOYMENT ?? "";
@@ -96,7 +94,6 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     await customerPage.getByLabel("Claim code").fill(claimCode as string);
     await customerPage.getByRole("button", { name: "Claim this card" }).click();
     await expect(customerPage).toHaveURL(/\/app\/profile$/);
-    await expandProfileDraftActions(customerPage);
     await customerPage.getByRole("button", { name: "Publish" }).click();
     await expect(customerPage.getByText(/Profile published/)).toBeVisible();
 

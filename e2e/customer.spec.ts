@@ -1,10 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  expandProfileDraftActions,
-  resetDemoHarness,
-  signInAsCustomer,
-} from "./support/demo-harness";
+import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
 
 async function prepareLegacyMaraProfile(page: Page) {
   await resetDemoHarness(page);
@@ -54,9 +50,7 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
   for (const route of ["/app/profile", "/app/links"]) {
     await page.goto(route);
     if (route === "/app/profile") {
-      await page
-        .getByRole("button", { name: "Draft saved. Show draft actions", exact: true })
-        .click();
+      await page.getByLabel("Bio or role").fill("Layout preview draft");
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
@@ -89,39 +83,16 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
   }
 });
 
-test("profile draft actions collapse cleanly and expand for edits", async ({ page }) => {
+test("profile draft actions only appear when a draft needs action", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
   for (const route of ["/app/profile", "/app/customize"] as const) {
     await page.goto(route);
 
-    const compact = page.getByRole("button", {
-      name: "Draft saved. Show draft actions",
-      exact: true,
-    });
-    await expect(compact).toBeVisible();
-    await expect(compact).toHaveAttribute("aria-expanded", "false");
+    const actions = page.getByRole("region", { name: "Draft actions", exact: true });
+    await expect(actions).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);
-
-    await compact.focus();
-    await page.keyboard.press("Enter");
-    const collapse = page.getByRole("button", { name: "Collapse draft actions", exact: true });
-    await expect(collapse).toHaveAttribute("aria-expanded", "true");
-    await expect(collapse).toBeFocused();
-    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
-    ).toBeVisible();
-
-    await collapse.focus();
-    await page.keyboard.press("Enter");
-    const collapsedAgain = page.getByRole("button", {
-      name: "Draft saved. Show draft actions",
-      exact: true,
-    });
-    await expect(collapsedAgain).toHaveAttribute("aria-expanded", "false");
-    await expect(collapsedAgain).toBeFocused();
 
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Draft action bar test");
@@ -129,10 +100,11 @@ test("profile draft actions collapse cleanly and expand for edits", async ({ pag
       await page.getByRole("radio", { name: "Jade" }).check();
     }
 
+    await expect(actions).toBeVisible();
     await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Draft saved. Show draft actions", exact: true }),
-    ).toHaveCount(0);
+      page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+    ).toBeVisible();
   }
 });
 
@@ -456,7 +428,6 @@ test("customer customization drafts stay private until the profile is published"
   await expect(bookingLink).not.toHaveAttribute("data-featured", "true");
 
   await page.goto("/app/profile");
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
@@ -493,7 +464,6 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
   await expect(page.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
   await page.getByRole("button", { name: "Use Warm Studio" }).click();
   await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeChecked();
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
@@ -531,7 +501,6 @@ test("customer can configure bounded profile media and publish it", async ({ pag
   await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
 
   await page.goto("/app/customize");
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),

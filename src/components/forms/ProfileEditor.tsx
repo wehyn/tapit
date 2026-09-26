@@ -573,7 +573,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${draft.slug}`}
-      hasDraftChanges={isDirty}
+      hasDraftChanges={isDirty || hasChangesSincePublish}
       publishDisabled={
         errors.length > 0 ||
         publicationLabel === "Published" ||
@@ -1141,7 +1141,7 @@ function LiveProfileEditorContent({
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${currentDraft.slug}`}
-      hasDraftChanges={isDirty}
+      hasDraftChanges={isDirty || hasChangesSincePublish}
       publishDisabled={
         errors.length > 0 ||
         publicationLabel === "Published" ||

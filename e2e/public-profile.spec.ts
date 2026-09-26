@@ -3,11 +3,7 @@ import sharp from "sharp";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import {
-  expandProfileDraftActions,
-  resetDemoHarness,
-  signInAsCustomer,
-} from "./support/demo-harness";
+import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
 
 async function publishWarmStudioProfile(page: Page) {
   await resetDemoHarness(page);
@@ -23,7 +19,6 @@ async function publishWarmStudioProfile(page: Page) {
   await page.getByLabel("About copy").fill("A published studio introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
@@ -319,7 +314,6 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),

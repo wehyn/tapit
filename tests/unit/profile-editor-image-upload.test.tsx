@@ -228,7 +228,6 @@ it("keeps existing media after a failed upload", async () => {
 it("passes the current media revision when publishing", async () => {
   render(<ProfileEditor />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Draft saved. Show draft actions" }));
   fireEvent.click(screen.getByRole("button", { name: "Publish" }));
 
   await waitFor(() => expect(mutation).toHaveBeenCalled());
@@ -265,7 +264,6 @@ it("disables publish while live media processing is pending", async () => {
   );
   render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Draft saved. Show draft actions" }));
   fireEvent.click(screen.getByRole("tab", { name: "Media" }));
   fireEvent.change(screen.getByLabelText("Upload background image"), {
     target: { files: [new File(["background"], "background.png", { type: "image/png" })] },

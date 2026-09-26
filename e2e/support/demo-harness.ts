@@ -16,13 +16,3 @@ export async function signInAsCustomer(page: Page) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
-
-export async function expandProfileDraftActions(page: Page) {
-  const trigger = page.getByRole("button", { name: /Show draft actions$/ });
-  try {
-    await trigger.waitFor({ state: "visible", timeout: 5000 });
-    await trigger.click();
-  } catch {
-    // The frame is already expanded when a draft is dirty or an operation is in flight.
-  }
-}

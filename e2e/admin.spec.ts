@@ -1,7 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { expandProfileDraftActions } from "./support/demo-harness";
-
 async function signInAsAdmin(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("admin@tapit.local");
@@ -251,7 +249,6 @@ test("administrator publishes only after editing their own draft", async ({ page
     .fill("https://example.com");
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
-  await expandProfileDraftActions(page);
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(page.getByText(/Profile published/)).toBeVisible();
   await page.goto("/admin-tapit");
