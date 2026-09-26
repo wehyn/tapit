@@ -49,6 +49,11 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
 
   for (const route of ["/app/profile", "/app/links"]) {
     await page.goto(route);
+    if (route === "/app/profile") {
+      await page
+        .getByRole("button", { name: "Draft saved. Show draft actions", exact: true })
+        .click();
+    }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
     const publish = page.getByRole("button", { name: "Published", exact: true });
@@ -77,6 +82,46 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       fullPage: false,
     });
     await page.setViewportSize({ width: 1467, height: 899 });
+  }
+});
+
+test("profile draft actions collapse cleanly and expand for edits", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/profile", "/app/customize"] as const) {
+    await page.goto(route);
+
+    const compact = page.getByRole("button", {
+      name: "Draft saved. Show draft actions",
+      exact: true,
+    });
+    await expect(compact).toBeVisible();
+    await expect(compact).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);
+
+    await compact.click();
+    await expect(
+      page.getByRole("button", { name: "Collapse draft actions", exact: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeVisible();
+
+    await page.getByRole("button", { name: "Collapse draft actions", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Draft saved. Show draft actions", exact: true }),
+    ).toHaveAttribute("aria-expanded", "false");
+
+    if (route === "/app/profile") {
+      await page.getByLabel("Bio or role").fill("Draft action bar test");
+    } else {
+      await page.getByRole("radio", { name: "Jade" }).check();
+    }
+
+    await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Draft saved. Show draft actions", exact: true }),
+    ).toHaveCount(0);
   }
 });
 

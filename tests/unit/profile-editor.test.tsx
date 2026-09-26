@@ -142,6 +142,13 @@ function renderBranch(branch: "demo" | "live", view: "profile" | "customize" = "
   render(<ProfileEditor view={view} />);
 }
 
+async function showDraftActions(user: ReturnType<typeof userEvent.setup>) {
+  const trigger = screen.queryByRole("button", {
+    name: "Draft saved. Show draft actions",
+  });
+  if (trigger) await user.click(trigger);
+}
+
 function applyLastDemoUpdate() {
   const update = mocks.updateDemoState.mock.lastCall?.[0];
   if (typeof update !== "function") return undefined;
@@ -448,6 +455,7 @@ describe("ProfileEditor workspace boundaries", () => {
       const user = userEvent.setup();
       renderBranch(branch, "profile");
 
+      await showDraftActions(user);
       await user.click(screen.getByRole("button", { name: "Publish" }));
 
       if (branch === "demo") {
@@ -473,6 +481,7 @@ describe("ProfileEditor workspace boundaries", () => {
       };
       renderBranch(branch, "profile");
 
+      await showDraftActions(user);
       await user.click(screen.getByRole("button", { name: "Unpublish" }));
 
       if (branch === "demo") {
