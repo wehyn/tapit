@@ -94,7 +94,7 @@ export function ProfileWorkspaceFrame({
           <button
             aria-controls={actionRegionId}
             aria-expanded={false}
-            aria-label="Draft saved"
+            aria-label="Draft saved. Show draft actions"
             className="mx-auto flex min-h-11 w-full max-w-[1440px] items-center justify-between gap-3 rounded-tapit px-1 py-2 text-left text-sm transition hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
             onClick={() => setIsExpanded(true)}
             title="Show draft actions"
