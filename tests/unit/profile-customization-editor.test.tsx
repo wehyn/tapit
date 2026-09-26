@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Id } from "../../convex/_generated/dataModel";
 import { ProfileCustomizationEditor } from "../../src/components/forms/ProfileCustomizationEditor";
@@ -11,10 +11,16 @@ import {
 } from "../../src/lib/profile-customization";
 import type { ProfileMediaPresentation } from "../../src/lib/profile-media";
 
-const links = [
-  { id: "booking", label: "Book a call", destination: "https://example.com/book", enabled: true },
-  { id: "old", label: "Old link", destination: "https://example.com/old", enabled: false },
-] as const;
+// Failure modes covered by this isolated component test:
+// - the old mixed accordion can reappear instead of the four visual categories;
+// - tab relationships, selected state, focus, ordering, or disabled legacy behavior can drift;
+// - controls can update the wrong customization field or lose values between category switches;
+// - identity colors can share state, mutate nested draft data, or weaken the white exception;
+// - media upload handlers and busy/error plumbing can be dropped while re-composing the panel;
+// - an optional media handler can silently leave the Media tabpanel blank;
+// - a legacy-to-Warm-Studio transition can restore a stale category instead of Overview or break focus;
+// - validation errors can lose their exact visible association or become color-only indicators;
+// - profile content/publication controls can leak back into this visual-only editor.
 
 const backgroundMedia = {
   heroHeight: 320,
@@ -34,310 +40,553 @@ function lastChange(onChange: ReturnType<typeof vi.fn>): ProfileCustomization {
 
 function ControlledEditor({
   initial = DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-  identityContent,
-  links: editorLinks = links,
+  media: initialMedia,
   onChange,
 }: {
   initial?: ProfileCustomization;
-  identityContent?: React.ReactNode;
-  links?: readonly (typeof links)[number][];
+  media?: ProfileMediaPresentation;
   onChange: ReturnType<typeof vi.fn>;
 }) {
-  const [customization, setCustomization] = useState(initial);
+  const [customization, setCustomization] = useState<ProfileCustomization | undefined>(initial);
+  const [media, setMedia] = useState<ProfileMediaPresentation | undefined>(initialMedia);
   return (
     <ProfileCustomizationEditor
       customization={customization}
-      identityContent={identityContent}
-      links={editorLinks}
+      media={media}
       onChange={(next) => {
         (onChange as unknown as (value: ProfileCustomization | undefined) => void)(next);
-        if (next) setCustomization(next);
+        setCustomization(next);
       }}
+      onMediaChange={setMedia}
     />
   );
 }
 
 describe("ProfileCustomizationEditor", () => {
-  it("updates complete controlled values for style and featured link choices", async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("renders the four tabs in order, starts on Overview, and switches panels", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(
-      <ProfileCustomizationEditor
-        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
-        links={links}
-        onChange={onChange}
-      />,
+    render(<ControlledEditor onChange={onChange} />);
+
+    expect(screen.getAllByRole("tab").map((tab) => tab.textContent?.trim())).toEqual([
+      "Overview",
+      "Identity",
+      "Media",
+      "Layout",
+    ]);
+    expect(screen.getByRole("tablist", { name: "Customization categories" })).toHaveAttribute(
+      "aria-orientation",
+      "horizontal",
     );
-
-    await user.click(screen.getByRole("radio", { name: "Editorial" }));
-    expect(lastChange(onChange)).toEqual({
-      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      typeScale: "editorial",
-    });
-    await user.selectOptions(screen.getByRole("combobox", { name: "Featured link" }), "booking");
-    expect(lastChange(onChange)).toEqual({
-      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      featuredLinkId: "booking",
-    });
-  });
-
-  it("updates every supported style control without changing unrelated values", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<ControlledEditor links={links} onChange={onChange} />);
-
-    for (const [name, value] of [
-      ["Jade", "jade"],
-      ["Ink", "ink"],
-      ["Coral", "coral"],
-    ] as const) {
-      await user.click(screen.getByRole("radio", { name }));
-      expect(lastChange(onChange).accent).toBe(value);
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    const overviewPanel = screen.getByRole("tabpanel");
+    expect(overviewPanel).toHaveAttribute(
+      "aria-labelledby",
+      screen.getByRole("tab", { name: "Overview" }).id,
+    );
+    for (const tab of screen.getAllByRole("tab")) {
+      expect(tab).toHaveAttribute("aria-controls");
+      expect(document.getElementById(tab.getAttribute("aria-controls")!)).toBeInTheDocument();
     }
-    for (const [name, value] of [
-      ["Compact", "compact"],
-      ["Editorial", "editorial"],
-      ["Comfortable", "comfortable"],
-    ] as const) {
-      await user.click(screen.getByRole("radio", { name }));
-      expect(lastChange(onChange).typeScale).toBe(value);
-    }
-    await user.click(screen.getByRole("radio", { name: "Outlined" }));
-    expect(lastChange(onChange).linkTreatment).toBe("outlined");
-    await user.click(screen.getByRole("radio", { name: "Filled" }));
-    expect(lastChange(onChange).linkTreatment).toBe("filled");
-    expect(lastChange(onChange).preset).toBe("warm-studio");
-  });
+    expect(screen.getAllByRole("tabpanel", { hidden: true })).toHaveLength(4);
 
-  it("keeps identity color rows independent and supports the custom picker", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    render(<ControlledEditor links={[]} onChange={onChange} />);
-
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
+    expect(screen.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveAttribute(
+      "aria-labelledby",
+      screen.getByRole("tab", { name: "Identity" }).id,
+    );
     expect(screen.getByRole("button", { name: "Default name color" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Default bio / role color" })).toBeInTheDocument();
+    expect(screen.getByRole("tabpanel")).toHaveFocus();
+
+    await user.click(screen.getByRole("tab", { name: "Layout" }));
+    expect(screen.getByRole("radio", { name: "About/Services first" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Default name color" })).not.toBeInTheDocument();
+  });
+
+  it("reports the responsive tablist orientation and cleans up its media listener", () => {
+    let matches = false;
+    const listeners = new Set<EventListener>();
+    const mediaQuery = {
+      get matches() {
+        return matches;
+      },
+      addEventListener: vi.fn((_type: string, listener: EventListener) => {
+        listeners.add(listener);
+      }),
+      removeEventListener: vi.fn((_type: string, listener: EventListener) => {
+        listeners.delete(listener);
+      }),
+    } as unknown as MediaQueryList;
+    const matchMedia = vi.fn(() => mediaQuery);
+    vi.stubGlobal("matchMedia", matchMedia);
+
+    const { unmount } = render(<ControlledEditor onChange={vi.fn()} />);
+    const tablist = screen.getByRole("tablist", { name: "Customization categories" });
+
+    expect(matchMedia).toHaveBeenCalledWith("(min-width: 1024px)");
+    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
+    expect(mediaQuery.addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
+
+    matches = true;
+    act(() => {
+      listeners.forEach((listener) => listener(new Event("change")));
+    });
+    expect(tablist).toHaveAttribute("aria-orientation", "vertical");
+
+    matches = false;
+    act(() => {
+      listeners.forEach((listener) => listener(new Event("change")));
+    });
+    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
+
+    const listener = [...listeners][0];
+    unmount();
+    expect(mediaQuery.removeEventListener).toHaveBeenCalledWith("change", listener);
+    expect(listeners).toHaveLength(0);
+  });
+
+  it.each([
+    ["horizontal", false, "ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"],
+    ["vertical", true, "ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"],
+  ] as const)(
+    "moves focus only along the %s tablist axis",
+    async (_orientation, matches, blockedForward, blockedBackward, forward, backward) => {
+      const user = userEvent.setup();
+      const mediaQuery = {
+        matches,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      } as unknown as MediaQueryList;
+      vi.stubGlobal(
+        "matchMedia",
+        vi.fn(() => mediaQuery),
+      );
+      const { unmount } = render(<ControlledEditor onChange={vi.fn()} />);
+
+      try {
+        const overviewTab = screen.getByRole("tab", { name: "Overview" });
+        overviewTab.focus();
+        await user.keyboard(`{${blockedForward}}`);
+        expect(overviewTab).toHaveFocus();
+        await user.keyboard(`{${blockedBackward}}`);
+        expect(overviewTab).toHaveFocus();
+
+        await user.keyboard(`{${forward}}`);
+        const identityTab = screen.getByRole("tab", { name: "Identity" });
+        expect(identityTab).toHaveFocus();
+
+        await user.keyboard(`{${backward}}`);
+        expect(overviewTab).toHaveFocus();
+
+        await user.keyboard("{End}");
+        expect(screen.getByRole("tab", { name: "Layout" })).toHaveFocus();
+        await user.keyboard("{Home}");
+        expect(overviewTab).toHaveFocus();
+      } finally {
+        unmount();
+      }
+    },
+  );
+
+  it.each([
+    ["ArrowRight", "Identity"],
+    ["ArrowLeft", "Layout"],
+    ["Home", "Overview"],
+    ["End", "Layout"],
+  ] as const)("keeps focus on the selected tab after %s", async (key, expectedName) => {
+    const user = userEvent.setup();
+    render(<ControlledEditor onChange={vi.fn()} />);
+
+    const overviewTab = screen.getByRole("tab", { name: "Overview" });
+
+    overviewTab.focus();
+    await user.keyboard(`{${key}}`);
+    const expectedTab = screen.getByRole("tab", { name: expectedName });
+    expect(expectedTab).toHaveFocus();
+    expect(expectedTab).toHaveAttribute("aria-selected", "true");
+    expect(expectedTab).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("tabpanel")).not.toHaveFocus();
+  });
+
+  it("keeps keyboard navigation on tabs after pointer activation moves focus to the panel", async () => {
+    const user = userEvent.setup();
+    render(<ControlledEditor onChange={vi.fn()} />);
+
+    const identityTab = screen.getByRole("tab", { name: "Identity" });
+    const mediaTab = screen.getByRole("tab", { name: "Media" });
+
+    await user.click(identityTab);
+    const identityPanel = screen.getByRole("tabpanel");
+    expect(identityPanel).toHaveFocus();
+    expect(identityPanel).toHaveClass("focus-visible:ring-2");
+
+    identityTab.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(mediaTab).toHaveFocus();
+    expect(screen.getByRole("tabpanel")).not.toHaveFocus();
+    await user.keyboard("{ArrowLeft}");
+    expect(identityTab).toHaveFocus();
+  });
+
+  it("renders Overview controls and preserves their values", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(<ControlledEditor onChange={onChange} />);
+
+    expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Coral" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Comfortable" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Filled" })).toBeChecked();
+
+    await user.click(screen.getByRole("radio", { name: "Jade" }));
+    await user.click(screen.getByRole("radio", { name: "Editorial" }));
+    await user.click(screen.getByRole("radio", { name: "Outlined" }));
+    expect(lastChange(onChange)).toMatchObject({
+      accent: "jade",
+      typeScale: "editorial",
+      linkTreatment: "outlined",
+    });
+
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
+    await user.click(screen.getByRole("tab", { name: "Overview" }));
+    expect(screen.getByRole("radio", { name: "Jade" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Editorial" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Outlined" })).toBeChecked();
+  });
+
+  it("keeps name and bio colors independent and clones nested identity data", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const items = ["Design systems"];
+    const initial: ProfileCustomization = {
+      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+      identityColors: { bio: { kind: "preset", value: "jade" as const } },
+      section: { kind: "services" as const, body: "What I offer", items },
+    };
+    render(<ControlledEditor initial={initial} onChange={onChange} />);
+
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
     await user.click(screen.getByRole("button", { name: "Coral name color" }));
-    expect(lastChange(onChange).identityColors).toEqual({
+
+    const next = lastChange(onChange);
+    expect(next.identityColors).toEqual({
       name: { kind: "preset", value: "coral" },
+      bio: { kind: "preset", value: "jade" },
     });
-    expect(lastChange(onChange).identityColors?.bio).toBeUndefined();
+    expect(next.identityColors).not.toBe(initial.identityColors);
+    expect(next.section?.kind).toBe("services");
+    if (next.section?.kind === "services") expect(next.section.items).not.toBe(items);
+    expect(initial.identityColors).toEqual({ bio: { kind: "preset", value: "jade" } });
+    expect(items).toEqual(["Design systems"]);
 
-    await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
-    expect(screen.getByRole("dialog", { name: "Name custom color picker" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Name hue" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Name saturation" })).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: "Name value" })).toBeInTheDocument();
-    const hexInput = screen.getByLabelText("Name custom hex color");
-    await user.clear(hexInput);
-    await user.type(hexInput, "#a84431");
+    await user.click(screen.getByRole("button", { name: "Default name color" }));
     expect(lastChange(onChange).identityColors).toEqual({
-      name: { kind: "custom", hex: "#a84431" },
+      bio: { kind: "preset", value: "jade" },
     });
+  });
 
-    await user.keyboard("{Escape}");
-    expect(
-      screen.queryByRole("dialog", { name: "Name custom color picker" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Choose custom name color" })).toHaveFocus();
+  it("allows custom white only when a background exists", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { unmount } = render(<ControlledEditor onChange={onChange} />);
 
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
     await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
-    await user.clear(screen.getByLabelText("Name custom hex color"));
-    await user.type(screen.getByLabelText("Name custom hex color"), "#ffffff");
+    const nameHex = screen.getByLabelText("Name custom hex color");
+    await user.clear(nameHex);
+    await user.type(nameHex, "#ffffff");
     expect(screen.getByRole("alert")).toHaveTextContent(
       "The profile name custom color does not meet contrast requirements.",
     );
-    expect(lastChange(onChange).identityColors).toEqual({
-      name: { kind: "custom", hex: "#a84431" },
-    });
-  });
+    expect(onChange).not.toHaveBeenCalled();
+    unmount();
 
-  it("supports About and Services content with at most three service items", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
-    const customization = { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION };
-    render(<ControlledEditor initial={customization} links={[]} onChange={onChange} />);
-
-    await user.click(screen.getByRole("radio", { name: "Services" }));
-    expect(lastChange(onChange).section).toEqual({ kind: "services", body: "", items: [] });
-    await user.click(screen.getByRole("button", { name: "Add service" }));
-    await user.click(screen.getByRole("button", { name: "Add service" }));
-    await user.click(screen.getByRole("button", { name: "Add service" }));
-    expect(
-      screen.getAllByRole("textbox").filter((input) => input.getAttribute("maxlength") === "60"),
-    ).toHaveLength(3);
-    expect(screen.queryByRole("button", { name: "Add service" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Remove Service 2" }));
-    expect(
-      screen.getAllByRole("textbox").filter((input) => input.getAttribute("maxlength") === "60"),
-    ).toHaveLength(2);
-    await user.type(screen.getByLabelText("Services intro"), "What I offer");
-    await user.type(screen.getByLabelText("Service 1"), "Design systems");
-    expect(lastChange(onChange).section).toEqual({
-      kind: "services",
-      body: "What I offer",
-      items: ["Design systems", ""],
-    });
-    await user.click(screen.getByRole("button", { name: "Remove Services section" }));
-    expect(lastChange(onChange).section).toBeUndefined();
-  });
-
-  it("allows white custom identity colors when a background image is active", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
     render(
       <ProfileCustomizationEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
-        links={[]}
         media={backgroundMedia}
         onChange={onChange}
       />,
     );
-
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
     await user.click(screen.getByRole("button", { name: "Choose custom name color" }));
-    const hexInput = screen.getByLabelText("Name custom hex color");
-    await user.clear(hexInput);
-    await user.type(hexInput, "#ffffff");
-
+    const backgroundNameHex = screen.getByLabelText("Name custom hex color");
+    await user.clear(backgroundNameHex);
+    await user.type(backgroundNameHex, "#ffffff");
     expect(lastChange(onChange).identityColors).toEqual({
       name: { kind: "custom", hex: "#ffffff" },
     });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("exposes section order, guided disclosures, and exact body labels", async () => {
+  it("renders media controls and preserves upload busy plumbing", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onMediaChange = vi.fn();
+    const onUpload = vi.fn(async () => ({
+      assetId: "uploaded" as Id<"profileMediaAssets">,
+      altText: "Uploaded background",
+    }));
+    const { rerender } = render(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        media={backgroundMedia}
+        mediaBusy
+        onChange={onChange}
+        onMediaChange={onMediaChange}
+        onMediaUpload={onUpload}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Media" }));
+    expect(screen.getByRole("button", { name: "Replace background" })).toBeDisabled();
+    expect(screen.getByLabelText("Upload slideshow images")).toBeDisabled();
+
+    rerender(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        media={backgroundMedia}
+        onChange={onChange}
+        onMediaChange={onMediaChange}
+        onMediaUpload={onUpload}
+      />,
+    );
+    const file = new File(["image"], "background.webp", { type: "image/webp" });
+    await user.upload(screen.getByLabelText("Upload background image"), file);
+    await waitFor(() => {
+      expect(onUpload).toHaveBeenCalledWith(file, "background");
+      expect(onMediaChange).toHaveBeenCalledWith(
+        expect.objectContaining({
+          background: expect.objectContaining({
+            assetId: "uploaded",
+            altText: "Uploaded background",
+            positionX: 50,
+            positionY: 50,
+          }),
+        }),
+      );
+    });
+  });
+
+  it("counts mediaError for the Media tab without duplicating its alert", async () => {
+    const user = userEvent.setup();
+    const mediaError = "Hero height must be between 220 and 520.";
+    const onUpload = vi.fn(async () => ({
+      assetId: "uploaded" as Id<"profileMediaAssets">,
+      altText: "Uploaded background",
+    }));
+    render(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        errors={[mediaError]}
+        media={backgroundMedia}
+        mediaError={mediaError}
+        onChange={vi.fn()}
+        onMediaChange={vi.fn()}
+        onMediaUpload={onUpload}
+      />,
+    );
+
+    expect(screen.getAllByText("Needs attention")).toHaveLength(1);
+    const mediaTab = screen.getByRole("tab", { name: "Media" });
+    expect(mediaTab).toHaveAttribute("aria-describedby");
+    expect(document.getElementById(mediaTab.getAttribute("aria-describedby")!)).toHaveTextContent(
+      "Needs attention",
+    );
+
+    await user.click(mediaTab);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(mediaError);
+  });
+
+  it.each(["both", "change", "upload"] as const)(
+    "shows an accessible unavailable state when the %s media handler is missing",
+    async (missingHandler) => {
+      const user = userEvent.setup();
+      const onUpload = vi.fn(async () => ({
+        assetId: "uploaded" as Id<"profileMediaAssets">,
+        altText: "Uploaded background",
+      }));
+      const mediaProps =
+        missingHandler === "both"
+          ? {}
+          : missingHandler === "change"
+            ? { onMediaUpload: onUpload }
+            : { onMediaChange: vi.fn() };
+
+      render(
+        <ProfileCustomizationEditor
+          customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+          media={backgroundMedia}
+          onChange={vi.fn()}
+          {...mediaProps}
+        />,
+      );
+
+      await user.click(screen.getByRole("tab", { name: "Media" }));
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Media controls are unavailable because both media change and upload handlers are required.",
+      );
+      expect(screen.queryByLabelText("Upload background image")).not.toBeInTheDocument();
+    },
+  );
+
+  it("renders mediaError once in the accessible unavailable state", async () => {
+    const user = userEvent.setup();
+    const mediaError = "Hero height must be between 220 and 520.";
+    render(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        errors={[mediaError]}
+        media={backgroundMedia}
+        mediaError={mediaError}
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("tab", { name: "Media" }));
+    expect(screen.getAllByText(mediaError, { exact: true })).toHaveLength(1);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent(mediaError);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Media controls are unavailable because both media change and upload handlers are required.",
+    );
+  });
+
+  it("renders only content order in Layout and updates it without losing identity values", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <ControlledEditor
-        identityContent={<div>Identity fields</div>}
-        links={[]}
+        initial={{
+          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+          identityColors: { name: { kind: "preset", value: "ink" } },
+        }}
         onChange={onChange}
       />,
     );
-    for (const name of [
-      "Identity",
-      "Contact and links",
-      "About or Services",
-      "Style",
-      "Review and publish",
-    ]) {
-      const button = screen.getByRole("button", { name });
-      expect(button).toHaveAttribute("aria-expanded", "true");
-      expect(document.getElementById(button.getAttribute("aria-controls")!)).toBeInTheDocument();
-    }
+
+    await user.click(screen.getByRole("tab", { name: "Layout" }));
     await user.click(screen.getByRole("radio", { name: "About/Services first" }));
-    expect(lastChange(onChange).contentOrder).toBe("section-first");
-    await user.click(screen.getByRole("radio", { name: "About" }));
-    expect(screen.getByLabelText("About copy")).toBeInTheDocument();
-    expect(screen.getByLabelText("About copy")).toHaveAttribute("maxlength", "280");
+    expect(lastChange(onChange)).toMatchObject({
+      contentOrder: "section-first",
+      identityColors: { name: { kind: "preset", value: "ink" } },
+    });
+    expect(screen.queryByRole("radio", { name: "About" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Links first" })).toBeInTheDocument();
   });
 
-  it("places optional Media after Style and keeps it collapsed by default", () => {
+  it("shows category-level status and exact visible error associations", async () => {
+    const user = userEvent.setup();
     render(
       <ProfileCustomizationEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
-        links={[]}
-        onChange={vi.fn()}
-        onMediaChange={vi.fn()}
-        onMediaUpload={vi.fn()}
-      />,
-    );
-    const labels = screen.getAllByRole("button").map((button) => button.textContent?.trim());
-    expect(labels.indexOf("Media")).toBeGreaterThan(labels.indexOf("Style"));
-    expect(labels.indexOf("Media")).toBeLessThan(labels.indexOf("Review and publish"));
-    expect(screen.getByRole("button", { name: "Media" })).toHaveAttribute("aria-expanded", "false");
-  });
-
-  it("keeps collapsed panels mounted and supports keyboard activation", async () => {
-    const user = userEvent.setup();
-    render(<ControlledEditor links={[]} onChange={vi.fn()} />);
-    const button = screen.getByRole("button", { name: "Style" });
-    const panelId = button.getAttribute("aria-controls")!;
-
-    await user.click(button);
-    expect(button).toHaveAttribute("aria-expanded", "false");
-    expect(document.getElementById(panelId)).toBeInTheDocument();
-    expect(document.getElementById(panelId)).toHaveAttribute("hidden");
-
-    button.focus();
-    await user.keyboard(" ");
-    expect(button).toHaveAttribute("aria-expanded", "true");
-    expect(document.getElementById(panelId)).not.toHaveAttribute("hidden");
-  });
-
-  it("associates customization validation errors with affected controls", () => {
-    render(
-      <ProfileCustomizationEditor
-        customization={{
-          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-          accent: "coral",
-          section: { kind: "services", body: "", items: [""] },
-        }}
         errors={[
           "The profile customization accent is invalid.",
-          "A Services section body must be nonblank.",
-          "Every service item must be nonblank.",
+          "The profile name custom color does not meet contrast requirements.",
+          "The profile bio custom color does not meet contrast requirements.",
+          "Hero height must be between 220 and 520.",
+          "The profile customization content order is invalid.",
         ]}
-        links={[]}
         onChange={vi.fn()}
       />,
     );
 
+    expect(screen.getAllByText("Needs attention")).toHaveLength(4);
     expect(screen.getByRole("radio", { name: "Coral" })).toHaveAttribute(
       "aria-describedby",
       expect.stringContaining("error"),
     );
-    expect(screen.getByLabelText("Services intro")).toHaveAttribute(
-      "aria-describedby",
-      expect.stringContaining("error"),
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The profile customization accent is invalid.",
     );
-    expect(screen.getByLabelText("Service 1")).toHaveAttribute(
-      "aria-describedby",
-      expect.stringContaining("error"),
+
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
+    expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual(
+      expect.arrayContaining([
+        "The profile name custom color does not meet contrast requirements.",
+        "The profile bio custom color does not meet contrast requirements.",
+      ]),
     );
-    expect(screen.getAllByRole("alert").length).toBeGreaterThanOrEqual(3);
+
+    await user.click(screen.getByRole("tab", { name: "Media" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Hero height must be between 220 and 520.");
+
+    await user.click(screen.getByRole("tab", { name: "Layout" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "The profile customization content order is invalid.",
+    );
   });
 
-  it("requires explicit opt-in when customization is missing", async () => {
+  it("keeps legacy theme cards on Overview and disables other categories until opt-in", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(<ProfileCustomizationEditor links={links} onChange={onChange} />);
-    expect(onChange).not.toHaveBeenCalled();
+    const onThemeChange = vi.fn();
+    render(
+      <ProfileCustomizationEditor
+        onChange={onChange}
+        onThemeChange={onThemeChange}
+        theme="paper"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /Paper/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Moss/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Night/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Identity" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Media" })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Layout" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: /Moss/i }));
+    expect(onThemeChange).toHaveBeenCalledWith("moss");
     await user.click(screen.getByRole("button", { name: "Use Warm Studio" }));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
   });
 
-  it("warns and allows clearing a missing featured link", async () => {
+  it("resets a stale legacy category to Overview after Warm Studio is applied", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    render(
+    const { rerender } = render(
       <ProfileCustomizationEditor
-        customization={{ ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, featuredLinkId: "missing" }}
-        links={links}
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
         onChange={onChange}
       />,
     );
-    expect(screen.getByText(/missing or disabled/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Clear featured link" }));
-    expect(lastChange(onChange).featuredLinkId).toBeUndefined();
+
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
+    expect(screen.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
+
+    rerender(<ProfileCustomizationEditor onChange={onChange} />);
+    await user.click(screen.getByRole("button", { name: "Use Warm Studio" }));
+    rerender(
+      <ProfileCustomizationEditor
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        onChange={onChange}
+      />,
+    );
+
+    expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tabpanel")).toHaveFocus();
+    await user.click(screen.getByRole("tab", { name: "Identity" }));
+    expect(screen.getByRole("tabpanel")).toHaveFocus();
   });
 
-  it("warns and clears a disabled featured link", async () => {
-    const user = userEvent.setup();
-    const onChange = vi.fn();
+  it("does not render profile content, featured-link, or publication controls", () => {
     render(
       <ProfileCustomizationEditor
-        customization={{ ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, featuredLinkId: "old" }}
-        links={links}
-        onChange={onChange}
+        customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
+        onChange={vi.fn()}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/disabled/i);
-    expect(screen.getByRole("combobox", { name: "Featured link" })).toHaveAttribute(
-      "aria-describedby",
-      expect.stringContaining("error"),
-    );
-    await user.click(screen.getByRole("button", { name: "Clear featured link" }));
-    expect(lastChange(onChange).featuredLinkId).toBeUndefined();
+
+    expect(screen.queryByLabelText("Featured link")).not.toBeInTheDocument();
+    expect(screen.queryByText("Contact and links")).not.toBeInTheDocument();
+    expect(screen.queryByText("About or Services")).not.toBeInTheDocument();
+    expect(screen.queryByText("Review and publish")).not.toBeInTheDocument();
   });
 });

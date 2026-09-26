@@ -56,6 +56,7 @@ const testNavGroups: ShellNavGroup[] = [
   {
     label: "Workspace",
     items: [
+      { href: "/app/customize", label: "Customize", icon: "fingerprint" },
       { href: "/app/links", label: "Links", icon: "link" },
       { href: "/app/account/build-card", label: "Build card", icon: "card" },
     ],
@@ -75,8 +76,8 @@ describe("DraftSaveProvider", () => {
       const [showFirst, setShowFirst] = useState(true);
       return (
         <DraftSaveProvider>
-          {showFirst ? <SaveButton handler={first} /> : null}
-          <SaveButton handler={second} />
+          {showFirst ? <SaveButton handler={first} key="first" /> : null}
+          <SaveButton handler={second} key="second" />
           <button onClick={() => setShowFirst(false)} type="button">
             Remove first
           </button>
@@ -140,6 +141,43 @@ describe("AppShell draft navigation", () => {
     expect(push).not.toHaveBeenCalled();
     resolveSave(true);
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/links"));
+  });
+
+  it("waits for a successful save before routing from Profile to Customize", async () => {
+    let resolveSave!: (value: boolean) => void;
+    const save = vi.fn(
+      () =>
+        new Promise<boolean>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    function GuardedAppShell() {
+      const saveDraft = useDraftSave();
+      return (
+        <AppShell
+          beforeNavigate={saveDraft}
+          eyebrow="Customer workspace"
+          navGroups={testNavGroups}
+          title="Workspace"
+        >
+          Content
+        </AppShell>
+      );
+    }
+
+    render(
+      <DraftSaveProvider>
+        <SaveButton handler={save} />
+        <GuardedAppShell />
+      </DraftSaveProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Customize" }));
+    expect(save).toHaveBeenCalledOnce();
+    expect(push).not.toHaveBeenCalled();
+    resolveSave(true);
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/app/customize"));
   });
 
   it("cancels routing when saving fails", async () => {

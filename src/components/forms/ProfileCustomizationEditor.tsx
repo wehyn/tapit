@@ -1,45 +1,55 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
-import { CaretDownIcon, CaretUpIcon } from "@phosphor-icons/react";
+import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 
-import type { ProfileCustomization, ProfileSection } from "@/lib/profile-customization";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "@/lib/profile-customization";
-import type { ProfileLink } from "@/lib/domain";
-import { Button } from "@/components/ui/Button";
-import { Field, SelectField, TextareaField } from "@/components/ui/Field";
-import { Notice } from "@/components/ui/Notice";
-import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
-import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
+import type { ProfileTheme } from "@/lib/domain";
+import {
+  DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  type ProfileCustomization,
+  type ProfileIdentityColor,
+  type ProfileIdentityField,
+} from "@/lib/profile-customization";
+import {
+  PROFILE_CUSTOMIZATION_CATEGORIES,
+  classifyProfileWorkspaceError,
+  type ProfileCustomizationCategory,
+} from "@/lib/profile-workspace";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
-import type { ProfileIdentityColor, ProfileIdentityField } from "@/lib/profile-customization";
+import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
+import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
+import { Button } from "@/components/ui/Button";
+import { Notice } from "@/components/ui/Notice";
 
 export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
-  links: readonly ProfileLink[];
-  onChange: (next: ProfileCustomization | undefined) => void;
   errors?: readonly string[];
-  identityContent?: ReactNode;
   media?: ProfileMediaPresentation;
-  onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
-  onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   mediaBusy?: boolean;
   mediaError?: string;
+  onChange: (next: ProfileCustomization | undefined) => void;
+  onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
+  onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
+  onThemeChange?: (theme: ProfileTheme) => void;
+  theme?: ProfileTheme;
 };
 
-type SectionName = "identity" | "contact" | "about" | "style" | "media" | "review";
-
-const sectionLabels: Record<SectionName, string> = {
+const categoryLabels: Record<ProfileCustomizationCategory, string> = {
+  overview: "Overview",
   identity: "Identity",
-  contact: "Contact and links",
-  about: "About or Services",
-  style: "Style",
   media: "Media",
-  review: "Review and publish",
+  layout: "Layout",
 };
 
 const radioClass =
   "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+const LARGE_VIEWPORT_QUERY = "(min-width: 1024px)";
 
 function RadioChoice({
   checked,
@@ -74,56 +84,44 @@ function RadioChoice({
   );
 }
 
-function SectionRow({
-  children,
-  id,
+function ChoiceGroup<T extends string>({
+  label,
   name,
-  onToggle,
-  open,
-  panelDescription,
+  options,
+  value,
+  onChange,
+  error,
 }: {
-  children: React.ReactNode;
-  id: string;
-  name: SectionName;
-  onToggle: () => void;
-  open: boolean;
-  panelDescription?: string;
+  label: string;
+  name: string;
+  options: readonly (readonly [T, string])[];
+  value: T;
+  onChange: (value: T) => void;
+  error?: string;
 }) {
-  const panelId = `${id}-panel`;
   return (
-    <section className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
-      <h2>
-        <button
-          aria-controls={panelId}
-          aria-expanded={open}
-          className="flex min-h-14 w-full items-center justify-between gap-4 px-4 text-left text-sm font-semibold text-tapit-ink outline-none transition hover:bg-tapit-paper focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent sm:px-5"
-          onClick={onToggle}
-          type="button"
-        >
-          <span>{sectionLabels[name]}</span>
-          <span aria-hidden="true" className="text-xl font-normal text-tapit-muted">
-            {open ? (
-              <CaretUpIcon size={18} weight="bold" />
-            ) : (
-              <CaretDownIcon size={18} weight="bold" />
-            )}
-          </span>
-        </button>
-      </h2>
-      <div
-        aria-hidden={!open}
-        className="border-t border-tapit-line/70 px-4 py-5 sm:px-5"
-        hidden={!open}
-        id={panelId}
-      >
-        {panelDescription ? (
-          <p className="sr-only" id={panelDescription}>
-            {sectionLabels[name]} guidance
-          </p>
-        ) : null}
-        {children}
+    <fieldset className="grid gap-2">
+      <legend className="text-sm font-semibold text-tapit-ink">{label}</legend>
+      {error ? (
+        <p className="text-sm font-medium text-tapit-danger" id={`${name}-error`} role="alert">
+          {error}
+        </p>
+      ) : null}
+      <div className="grid gap-2 sm:grid-cols-3">
+        {options.map(([option, text]) => (
+          <RadioChoice
+            checked={value === option}
+            ariaDescribedBy={error ? `${name}-error` : undefined}
+            key={option}
+            name={name}
+            onChange={() => onChange(option)}
+            value={option}
+          >
+            {text}
+          </RadioChoice>
+        ))}
       </div>
-    </section>
+    </fieldset>
   );
 }
 
@@ -192,441 +190,402 @@ function IdentityColorControls({
   );
 }
 
-export function ProfileCustomizationEditor({
-  customization,
-  errors = [],
-  links,
-  onChange,
-  identityContent,
-  media,
-  onMediaChange,
-  onMediaUpload,
-  mediaBusy,
-  mediaError,
-}: ProfileCustomizationEditorProps) {
-  const baseId = useId();
-  const [openSections, setOpenSections] = useState<Record<SectionName, boolean>>({
-    identity: true,
-    contact: true,
-    about: true,
-    style: true,
-    media: false,
-    review: true,
-  });
-
-  function toggle(name: SectionName) {
-    setOpenSections((current) => ({ ...current, [name]: !current[name] }));
-  }
-
-  function update(patch: Partial<ProfileCustomization>) {
-    if (customization) onChange({ ...copyCustomization(customization), ...patch });
-  }
-
-  function updateSection(section: ProfileSection | undefined) {
-    if (customization) onChange({ ...copyCustomization(customization), section });
-  }
-
-  if (!customization) {
-    return (
-      <div className="grid gap-3">
-        {identityContent ? (
-          <SectionRow
-            id={`${baseId}-identity`}
-            name="identity"
-            onToggle={() => toggle("identity")}
-            open={openSections.identity}
-          >
-            {identityContent}
-          </SectionRow>
-        ) : null}
-        <div className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
-          <Notice>
-            This profile still uses its legacy appearance. Choose Warm Studio when you are ready to
-            use the guided customization controls. Media controls appear after you opt in.
-          </Notice>
-          <Button
-            onClick={() => onChange(copyCustomization(DEFAULT_WARM_STUDIO_CUSTOMIZATION))}
-            type="button"
-            variant="secondary"
-          >
-            Use Warm Studio
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const section = customization.section;
-  const featuredLink = customization.featuredLinkId
-    ? links.find((link) => link.id === customization.featuredLinkId)
-    : undefined;
-  const featuredUnavailable = Boolean(customization.featuredLinkId && !featuredLink?.enabled);
-  const errorId = (name: string) => `${baseId}-${name}-error`;
-  const findError = (...needles: string[]) =>
-    errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
-  const featuredError = featuredUnavailable
-    ? "The selected featured link is missing or disabled. It will appear as a normal link."
-    : undefined;
-  const presetError = findError("preset");
-  const accentError = findError("accent");
-  const scaleError = findError("type scale");
-  const treatmentError = findError("link treatment");
-  const orderError = findError("content order");
-  const identityColorError = (field: ProfileIdentityField) =>
-    errors.find((error) =>
-      field === "name"
-        ? error.toLowerCase().includes("profile name color")
-        : error.toLowerCase().includes("profile bio color"),
-    );
-  const kindError = findError("section kind", "section is invalid");
-  const bodyError = findError("section body", "about section body", "services section body");
-  const itemError = findError("service item", "services items");
-  const setKind = (kind: "about" | "services") => {
-    updateSection(
-      kind === "about"
-        ? { kind, body: section?.kind === "about" ? section.body : "" }
-        : {
-            kind,
-            body: section?.kind === "services" ? section.body : "",
-            items: section?.kind === "services" ? [...(section.items ?? [])] : [],
-          },
-    );
-  };
+function LegacyThemeCards({
+  onThemeChange,
+  theme,
+}: {
+  onThemeChange?: (theme: ProfileTheme) => void;
+  theme?: ProfileTheme;
+}) {
+  const options: readonly [ProfileTheme, string][] = [
+    ["paper", "Paper"],
+    ["moss", "Moss"],
+    ["night", "Night"],
+  ];
 
   return (
-    <div className="grid gap-3">
-      {identityContent ? (
-        <SectionRow
-          id={`${baseId}-identity`}
-          name="identity"
-          onToggle={() => toggle("identity")}
-          open={openSections.identity}
-        >
-          {identityContent}
-        </SectionRow>
-      ) : null}
-      <SectionRow
-        id={`${baseId}-contact`}
-        name="contact"
-        onToggle={() => toggle("contact")}
-        open={openSections.contact}
-      >
-        <div className="grid gap-4">
-          <p className="text-sm leading-6 text-tapit-muted">
-            Email, phone, and website are managed in Identity. They appear automatically when
-            populated.
-          </p>
-          <SelectField
-            aria-describedby={featuredError ? errorId("featured-link") : undefined}
-            id={`${baseId}-featured-link`}
-            label="Featured link"
-            onChange={(event) => update({ featuredLinkId: event.target.value || undefined })}
-            value={customization.featuredLinkId ?? ""}
+    <div className="grid gap-4">
+      <p className="text-sm leading-6 text-tapit-muted">
+        This profile still uses its legacy appearance. Choose Warm Studio when you are ready to use
+        the guided customization controls.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {options.map(([value, label]) => (
+          <button
+            aria-pressed={(theme ?? "paper") === value}
+            className={`rounded-tapit border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent ${
+              (theme ?? "paper") === value
+                ? "border-tapit-accent bg-tapit-accent-soft"
+                : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"
+            }`}
+            key={value}
+            onClick={() => onThemeChange?.(value)}
+            type="button"
           >
-            <option value="">No featured link</option>
-            {customization.featuredLinkId && !featuredLink ? (
-              <option value={customization.featuredLinkId}>Unavailable featured link</option>
-            ) : null}
-            {links.map((link) => (
-              <option disabled={!link.enabled} key={link.id} value={link.id}>
-                {link.label}
-                {!link.enabled ? " (disabled)" : ""}
-              </option>
-            ))}
-          </SelectField>
-          {featuredUnavailable ? (
-            <div id={errorId("featured-link")} role="alert">
-              <Notice>
-                The selected featured link is missing or disabled. It will appear as a normal link,
-                and this will not block publication.
-                <span className="mt-3 block">
-                  <Button
-                    onClick={() => update({ featuredLinkId: undefined })}
-                    type="button"
-                    variant="quiet"
-                  >
-                    Clear featured link
-                  </Button>
-                </span>
-              </Notice>
-            </div>
-          ) : null}
-        </div>
-      </SectionRow>
-
-      <SectionRow
-        id={`${baseId}-about`}
-        name="about"
-        onToggle={() => toggle("about")}
-        open={openSections.about}
-      >
-        <div className="grid gap-5">
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
-            {kindError ? (
-              <p className="sr-only" id={errorId("kind")} role="alert">
-                {kindError}
-              </p>
-            ) : null}
-            <div className="grid gap-2 sm:grid-cols-2">
-              <RadioChoice
-                checked={section?.kind === "about"}
-                aria-describedby={kindError ? errorId("kind") : undefined}
-                name={`${baseId}-kind`}
-                onChange={() => setKind("about")}
-                value="about"
-              >
-                About
-              </RadioChoice>
-              <RadioChoice
-                checked={section?.kind === "services"}
-                aria-describedby={kindError ? errorId("kind") : undefined}
-                name={`${baseId}-kind`}
-                onChange={() => setKind("services")}
-                value="services"
-              >
-                Services
-              </RadioChoice>
-            </div>
-          </fieldset>
-          {section?.kind === "about" ? (
-            <TextareaField
-              id={`${baseId}-about-copy`}
-              error={bodyError}
-              label="About copy"
-              maxLength={280}
-              onChange={(event) => updateSection({ kind: "about", body: event.target.value })}
-              value={section.body}
+            <span
+              className={`block h-12 rounded-tapit ${
+                value === "paper"
+                  ? "bg-tapit-paper"
+                  : value === "moss"
+                    ? "bg-[#e8f1eb]"
+                    : "bg-[#17211f]"
+              }`}
             />
-          ) : null}
-          {section?.kind === "services" ? (
-            <div className="grid gap-4">
-              <TextareaField
-                error={bodyError}
-                id={`${baseId}-services-intro`}
-                label="Services intro"
-                maxLength={160}
-                onChange={(event) => updateSection({ ...section, body: event.target.value })}
-                value={section.body}
-              />
-              <div className="grid gap-3">
-                {section.items?.map((item, index) => (
-                  <div className="flex items-end gap-2" key={`${baseId}-service-${index}`}>
-                    <Field
-                      error={itemError}
-                      id={`${baseId}-service-${index}`}
-                      label={`Service ${index + 1}`}
-                      maxLength={60}
-                      onChange={(event) => {
-                        const items = [...(section.items ?? [])];
-                        items[index] = event.target.value;
-                        updateSection({ ...section, items });
-                      }}
-                      value={item}
-                    />
-                    <Button
-                      aria-label={`Remove Service ${index + 1}`}
-                      className="shrink-0"
-                      onClick={() =>
-                        updateSection({
-                          ...section,
-                          items: section.items?.filter((_, itemIndex) => itemIndex !== index),
-                        })
-                      }
-                      type="button"
-                      variant="quiet"
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                ))}
-                {(section.items?.length ?? 0) < 3 ? (
-                  <Button
-                    onClick={() =>
-                      updateSection({ ...section, items: [...(section.items ?? []), ""] })
-                    }
-                    type="button"
-                    variant="secondary"
-                  >
-                    Add service
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
-          {section ? (
-            <Button onClick={() => updateSection(undefined)} type="button" variant="quiet">
-              Remove {section.kind === "about" ? "About" : "Services"} section
-            </Button>
-          ) : (
-            <Button onClick={() => setKind("about")} type="button" variant="secondary">
-              Add About or Services section
-            </Button>
-          )}
-        </div>
-      </SectionRow>
-
-      <SectionRow
-        id={`${baseId}-style`}
-        name="style"
-        onToggle={() => toggle("style")}
-        open={openSections.style}
-      >
-        <div className="grid gap-5">
-          <fieldset className="grid gap-2">
-            <legend className="text-sm font-semibold text-tapit-ink">Preset</legend>
-            {presetError ? (
-              <p className="sr-only" id={errorId("preset")} role="alert">
-                {presetError}
-              </p>
-            ) : null}
-            <RadioChoice
-              ariaDescribedBy={presetError ? errorId("preset") : undefined}
-              checked
-              name={`${baseId}-preset`}
-              onChange={() => undefined}
-              value="warm-studio"
-            >
-              Warm Studio
-            </RadioChoice>
-          </fieldset>
-          <IdentityColorControls
-            allowWhite={media?.background !== undefined}
-            customization={customization}
-            errorFor={identityColorError}
-            onChange={onChange}
-          />
-          <ChoiceGroup
-            label="Accent"
-            name={`${baseId}-accent`}
-            options={[
-              ["coral", "Coral"],
-              ["jade", "Jade"],
-              ["ink", "Ink"],
-            ]}
-            value={customization.accent}
-            onChange={(value) => update({ accent: value })}
-            error={accentError}
-          />
-          <ChoiceGroup
-            label="Type scale"
-            name={`${baseId}-scale`}
-            options={[
-              ["compact", "Compact"],
-              ["comfortable", "Comfortable"],
-              ["editorial", "Editorial"],
-            ]}
-            value={customization.typeScale}
-            onChange={(value) => update({ typeScale: value })}
-            error={scaleError}
-          />
-          <ChoiceGroup
-            label="Link/button treatment"
-            name={`${baseId}-treatment`}
-            options={[
-              ["filled", "Filled"],
-              ["outlined", "Outlined"],
-            ]}
-            value={customization.linkTreatment}
-            onChange={(value) => update({ linkTreatment: value })}
-            error={treatmentError}
-          />
-          <ChoiceGroup
-            label="Content order"
-            name={`${baseId}-order`}
-            options={[
-              ["links-first", "Links first"],
-              ["section-first", "About/Services first"],
-            ]}
-            value={customization.contentOrder}
-            onChange={(value) => update({ contentOrder: value })}
-            error={orderError}
-          />
-        </div>
-      </SectionRow>
-
-      {onMediaChange && onMediaUpload ? (
-        <SectionRow
-          id={`${baseId}-media`}
-          name="media"
-          onToggle={() => toggle("media")}
-          open={openSections.media}
-          panelDescription={`${baseId}-media-guidance`}
-        >
-          <ProfileMediaEditor
-            busy={mediaBusy}
-            error={mediaError}
-            media={media}
-            onChange={onMediaChange}
-            onUpload={onMediaUpload}
-          />
-        </SectionRow>
-      ) : null}
-
-      <SectionRow
-        id={`${baseId}-review`}
-        name="review"
-        onToggle={() => toggle("review")}
-        open={openSections.review}
-      >
-        {errors.length > 0 ? (
-          <ul className="grid gap-2 text-sm text-tapit-muted">
-            {errors.map((error) => (
-              <li key={error}>{error}</li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm leading-6 text-tapit-muted">
-            Review your changes, then use the page actions to save a draft or publish.
-          </p>
-        )}
-        {featuredUnavailable ? (
-          <p className="mt-3 text-sm text-tapit-danger">
-            Your featured link needs attention, but publication remains available.
-          </p>
-        ) : null}
-      </SectionRow>
+            <span className="mt-3 block text-sm font-semibold text-tapit-ink">{label}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-function ChoiceGroup<T extends string>({
-  label,
-  name,
-  options,
-  value,
-  onChange,
-  error,
+function CategoryErrorIndicator({
+  category,
+  errorId,
 }: {
-  label: string;
-  name: string;
-  options: readonly (readonly [T, string])[];
-  value: T;
-  onChange: (value: T) => void;
-  error?: string;
+  category: ProfileCustomizationCategory;
+  errorId: string;
 }) {
   return (
-    <fieldset className="grid gap-2">
-      <legend className="text-sm font-semibold text-tapit-ink">{label}</legend>
-      {error ? (
-        <p className="text-sm font-medium text-tapit-danger" id={`${name}-error`} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="grid gap-2 sm:grid-cols-3">
-        {options.map(([option, text]) => (
-          <RadioChoice
-            checked={value === option}
-            ariaDescribedBy={error ? `${name}-error` : undefined}
-            key={option}
-            name={name}
-            onChange={() => onChange(option)}
-            value={option}
-          >
-            {text}
-          </RadioChoice>
-        ))}
-      </div>
-    </fieldset>
+    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-tapit-danger">
+      <WarningCircleIcon aria-hidden="true" size={16} weight="bold" />
+      <span id={errorId}>Needs attention</span>
+      <span className="sr-only"> in {categoryLabels[category]}</span>
+    </span>
+  );
+}
+
+function CategoryErrorList({ errors }: { errors: readonly string[] }) {
+  if (errors.length === 0) return null;
+  return (
+    <ul
+      className="grid gap-2 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] px-4 py-3 text-sm text-tapit-danger"
+      role="alert"
+    >
+      {errors.map((error) => (
+        <li key={error}>{error}</li>
+      ))}
+    </ul>
+  );
+}
+
+export function ProfileCustomizationEditor({
+  customization,
+  errors = [],
+  media,
+  mediaBusy,
+  mediaError,
+  onChange,
+  onMediaChange,
+  onMediaUpload,
+  onThemeChange,
+  theme,
+}: ProfileCustomizationEditorProps) {
+  type CategoryFocusTarget = "panel" | "tab";
+
+  const baseId = useId();
+  const panelRefs = useRef<Partial<Record<ProfileCustomizationCategory, HTMLElement | null>>>({});
+  const tabRefs = useRef<Partial<Record<ProfileCustomizationCategory, HTMLButtonElement | null>>>(
+    {},
+  );
+  const focusTargetRef = useRef<CategoryFocusTarget | null>(null);
+  const focusOverviewAfterTransitionRef = useRef(false);
+  const [selectedCategory, setSelectedCategory] =
+    useState<ProfileCustomizationCategory>("overview");
+  const [tablistOrientation, setTablistOrientation] = useState<"horizontal" | "vertical">(
+    "horizontal",
+  );
+  const activeCategory = customization ? selectedCategory : "overview";
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const query = window.matchMedia(LARGE_VIEWPORT_QUERY);
+    const updateOrientation = () =>
+      setTablistOrientation(query.matches ? "vertical" : "horizontal");
+    updateOrientation();
+    query.addEventListener?.("change", updateOrientation);
+    return () => query.removeEventListener?.("change", updateOrientation);
+  }, []);
+
+  useEffect(() => {
+    const focusTarget = focusTargetRef.current;
+    focusTargetRef.current = null;
+    if (focusTarget === "panel") panelRefs.current[activeCategory]?.focus();
+  }, [activeCategory]);
+
+  useEffect(() => {
+    if (!customization || !focusOverviewAfterTransitionRef.current) return;
+    focusOverviewAfterTransitionRef.current = false;
+    panelRefs.current.overview?.focus();
+  }, [customization]);
+
+  const errorsFor = (category: ProfileCustomizationCategory) =>
+    errors.filter((error) => classifyProfileWorkspaceError(error) === category);
+  const categoryErrors = Object.fromEntries(
+    PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => [category, errorsFor(category)]),
+  ) as Record<ProfileCustomizationCategory, string[]>;
+  const mediaCategoryErrors = categoryErrors.media.filter((error) => error !== mediaError);
+  const categoryHasErrors: Record<ProfileCustomizationCategory, boolean> = {
+    overview: categoryErrors.overview.length > 0,
+    identity: categoryErrors.identity.length > 0,
+    media: categoryErrors.media.length > 0 || Boolean(mediaError),
+    layout: categoryErrors.layout.length > 0,
+  };
+
+  function update(patch: Partial<ProfileCustomization>) {
+    if (customization) onChange(copyCustomization({ ...customization, ...patch }));
+  }
+
+  const errorId = (name: string) => `${baseId}-${name}-error`;
+  const findError = (...needles: string[]) =>
+    errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
+  const presetError = findError("profile customization preset");
+  const accentError = findError("profile customization accent");
+  const scaleError = findError("profile customization type scale");
+  const treatmentError = findError("profile customization link treatment");
+  const orderError = findError("profile customization content order");
+  const identityColorError = (field: ProfileIdentityField) =>
+    field === "name"
+      ? findError("profile name color", "profile name custom color")
+      : findError("profile bio color", "profile bio custom color");
+
+  function setCategory(category: ProfileCustomizationCategory) {
+    if (customization || category === "overview") setSelectedCategory(category);
+  }
+
+  function handleTabKeyDown(
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    category: ProfileCustomizationCategory,
+  ) {
+    const enabledCategories = PROFILE_CUSTOMIZATION_CATEGORIES.filter(
+      (candidate) => customization || candidate === "overview",
+    );
+    const currentIndex = enabledCategories.indexOf(category);
+    if (currentIndex < 0) return;
+
+    let nextIndex = currentIndex;
+    const movesForward =
+      (tablistOrientation === "horizontal" && event.key === "ArrowRight") ||
+      (tablistOrientation === "vertical" && event.key === "ArrowDown");
+    const movesBackward =
+      (tablistOrientation === "horizontal" && event.key === "ArrowLeft") ||
+      (tablistOrientation === "vertical" && event.key === "ArrowUp");
+    if (movesForward) {
+      nextIndex = (currentIndex + 1) % enabledCategories.length;
+    } else if (movesBackward) {
+      nextIndex = (currentIndex - 1 + enabledCategories.length) % enabledCategories.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = enabledCategories.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextCategory = enabledCategories[nextIndex];
+    if (!nextCategory) return;
+    focusTargetRef.current = "tab";
+    setCategory(nextCategory);
+    tabRefs.current[nextCategory]?.focus();
+  }
+
+  function handleTabClick(category: ProfileCustomizationCategory) {
+    focusTargetRef.current = "panel";
+    setCategory(category);
+    if (activeCategory === category) {
+      panelRefs.current[category]?.focus();
+      focusTargetRef.current = null;
+    }
+  }
+
+  function optIntoWarmStudio() {
+    focusOverviewAfterTransitionRef.current = true;
+    setSelectedCategory("overview");
+    onChange(copyCustomization(DEFAULT_WARM_STUDIO_CUSTOMIZATION));
+  }
+
+  return (
+    <div className="grid gap-5 lg:grid-cols-[9rem_minmax(0,1fr)]">
+      <nav
+        aria-label="Customization categories"
+        aria-orientation={tablistOrientation}
+        className="flex min-w-0 gap-2 overflow-x-auto pb-1 lg:grid lg:content-start"
+        role="tablist"
+      >
+        {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
+          const selected = activeCategory === category;
+          const tabStatusId = `${baseId}-tab-${category}-status`;
+          const disabled = !customization && category !== "overview";
+          return (
+            <button
+              aria-controls={`${baseId}-panel-${category}`}
+              aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
+              aria-label={categoryLabels[category]}
+              aria-selected={selected}
+              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-tapit border px-3 text-left text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-tapit-accent lg:w-full ${
+                selected
+                  ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink"
+                  : "border-tapit-line bg-tapit-surface text-tapit-muted hover:border-tapit-accent hover:text-tapit-ink"
+              } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+              disabled={disabled}
+              id={`${baseId}-tab-${category}`}
+              key={category}
+              onClick={() => handleTabClick(category)}
+              onKeyDown={(event) => handleTabKeyDown(event, category)}
+              ref={(element) => {
+                tabRefs.current[category] = element;
+              }}
+              role="tab"
+              tabIndex={selected ? 0 : -1}
+              type="button"
+            >
+              <span>{categoryLabels[category]}</span>
+              {categoryHasErrors[category] ? (
+                <CategoryErrorIndicator category={category} errorId={tabStatusId} />
+              ) : null}
+            </button>
+          );
+        })}
+      </nav>
+
+      {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => (
+        <section
+          aria-labelledby={`${baseId}-tab-${category}`}
+          aria-label={`${categoryLabels[category]} settings`}
+          className="outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
+          hidden={activeCategory !== category}
+          id={`${baseId}-panel-${category}`}
+          key={category}
+          ref={(element) => {
+            panelRefs.current[category] = element;
+          }}
+          role="tabpanel"
+          tabIndex={-1}
+        >
+          {category === "overview" ? (
+            <div className="grid gap-5">
+              {customization ? (
+                <>
+                  <fieldset className="grid gap-2">
+                    <legend className="text-sm font-semibold text-tapit-ink">Preset</legend>
+                    {presetError ? (
+                      <p className="sr-only" id={errorId("preset")} role="alert">
+                        {presetError}
+                      </p>
+                    ) : null}
+                    <RadioChoice
+                      ariaDescribedBy={presetError ? errorId("preset") : undefined}
+                      checked
+                      name={`${baseId}-preset`}
+                      onChange={() => undefined}
+                      value="warm-studio"
+                    >
+                      Warm Studio
+                    </RadioChoice>
+                  </fieldset>
+                  <ChoiceGroup
+                    error={accentError}
+                    label="Accent"
+                    name={`${baseId}-accent`}
+                    onChange={(value) => update({ accent: value })}
+                    options={[
+                      ["coral", "Coral"],
+                      ["jade", "Jade"],
+                      ["ink", "Ink"],
+                    ]}
+                    value={customization.accent}
+                  />
+                  <ChoiceGroup
+                    error={scaleError}
+                    label="Type scale"
+                    name={`${baseId}-scale`}
+                    onChange={(value) => update({ typeScale: value })}
+                    options={[
+                      ["compact", "Compact"],
+                      ["comfortable", "Comfortable"],
+                      ["editorial", "Editorial"],
+                    ]}
+                    value={customization.typeScale}
+                  />
+                  <ChoiceGroup
+                    error={treatmentError}
+                    label="Link/button treatment"
+                    name={`${baseId}-treatment`}
+                    onChange={(value) => update({ linkTreatment: value })}
+                    options={[
+                      ["filled", "Filled"],
+                      ["outlined", "Outlined"],
+                    ]}
+                    value={customization.linkTreatment}
+                  />
+                </>
+              ) : (
+                <div className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
+                  <LegacyThemeCards onThemeChange={onThemeChange} theme={theme} />
+                  <Notice>
+                    Media and the guided visual controls become available after you opt into Warm
+                    Studio.
+                  </Notice>
+                  <Button onClick={optIntoWarmStudio} type="button" variant="secondary">
+                    Use Warm Studio
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {category === "identity" && customization ? (
+            <div className="grid gap-5">
+              <IdentityColorControls
+                allowWhite={media?.background !== undefined}
+                customization={customization}
+                errorFor={identityColorError}
+                onChange={onChange}
+              />
+            </div>
+          ) : null}
+
+          {category === "media" ? (
+            <div className="grid gap-5">
+              <CategoryErrorList errors={mediaCategoryErrors} />
+              {onMediaChange && onMediaUpload ? (
+                <ProfileMediaEditor
+                  busy={mediaBusy}
+                  error={mediaError}
+                  media={media}
+                  onChange={onMediaChange}
+                  onUpload={onMediaUpload}
+                />
+              ) : (
+                <Notice tone={mediaError ? "error" : "neutral"}>
+                  {mediaError ? <span className="block">{mediaError}</span> : null}
+                  <span>
+                    Media controls are unavailable because both media change and upload handlers are
+                    required.
+                  </span>
+                </Notice>
+              )}
+            </div>
+          ) : null}
+
+          {category === "layout" && customization ? (
+            <div className="grid gap-5">
+              <ChoiceGroup
+                error={orderError}
+                label="Content order"
+                name={`${baseId}-order`}
+                onChange={(value) => update({ contentOrder: value })}
+                options={[
+                  ["links-first", "Links first"],
+                  ["section-first", "About/Services first"],
+                ]}
+                value={customization.contentOrder}
+              />
+            </div>
+          ) : null}
+        </section>
+      ))}
+    </div>
   );
 }

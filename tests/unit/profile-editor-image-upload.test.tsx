@@ -161,9 +161,9 @@ it("uploads live profile media with the media revision and strips URLs before sa
       { status: 200, headers: { "Content-Type": "application/json" } },
     ),
   );
-  render(<ProfileEditor />);
+  render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
   fireEvent.change(screen.getByLabelText("Upload background image"), {
     target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
   });
@@ -214,9 +214,9 @@ it("uploads live profile media with the media revision and strips URLs before sa
 
 it("keeps existing media after a failed upload", async () => {
   fetchMock.mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }));
-  render(<ProfileEditor />);
+  render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
   fireEvent.change(screen.getByLabelText("Upload background image"), {
     target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
   });
@@ -239,9 +239,9 @@ it("passes the current media revision when publishing", async () => {
 });
 
 it("sends an explicit media null when the existing background is removed", async () => {
-  render(<ProfileEditor />);
+  render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
   fireEvent.click(screen.getByRole("button", { name: "Remove background" }));
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
@@ -262,9 +262,9 @@ it("disables publish while live media processing is pending", async () => {
         resolveUpload = resolve;
       }),
   );
-  render(<ProfileEditor />);
+  render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("button", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
   fireEvent.change(screen.getByLabelText("Upload background image"), {
     target: { files: [new File(["background"], "background.png", { type: "image/png" })] },
   });

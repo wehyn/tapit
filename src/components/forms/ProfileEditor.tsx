@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
-import { CheckCircleIcon, CopyIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
   hasUnpublishedChanges,
@@ -38,15 +38,16 @@ import {
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
-import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
+import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
+import { ProfilePublicationPanel } from "@/components/forms/ProfilePublicationPanel";
+import { ProfileWorkspaceFrame } from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
+import { splitProfileWorkspaceErrors } from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -76,10 +77,7 @@ function profileForPreview(draft: ProfileContent, legacyTheme?: ProfileTheme) {
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
 
-type ProfileFieldChange = <K extends keyof ProfileContent>(
-  field: K,
-  value: ProfileContent[K],
-) => void;
+export type ProfileEditorView = "profile" | "customize";
 
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -95,106 +93,6 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 function demoMediaAssetId(requestId: number): ProfileMediaImage["assetId"] {
   return `demo-media-${Date.now()}-${requestId}` as ProfileMediaImage["assetId"];
-}
-
-function ProfileIdentityForm({
-  draft,
-  imageContent,
-  message,
-  onboarding,
-  onChange,
-  onCopyUrl,
-  copyMessage,
-  slugLocked,
-}: {
-  draft: ProfileContent;
-  imageContent?: React.ReactNode;
-  message?: React.ReactNode;
-  onboarding?: React.ReactNode;
-  onChange: ProfileFieldChange;
-  onCopyUrl: () => void;
-  copyMessage: string;
-  slugLocked: boolean;
-}) {
-  return (
-    <Panel className="shadow-none" title="Profile identity">
-      <div className="mt-6 grid gap-5">
-        {message}
-        {onboarding}
-        {imageContent}
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field
-            id="profile-name"
-            label="Name"
-            onChange={(event) => onChange("name", event.target.value)}
-            placeholder="e.g. Alex Morgan"
-            value={draft.name}
-          />
-          <TextareaField
-            id="profile-bio"
-            label="Bio or role"
-            help="A short introduction people can scan quickly."
-            maxLength={140}
-            onChange={(event) => onChange("bio", event.target.value || undefined)}
-            placeholder="e.g. Designer helping small teams"
-            value={draft.bio ?? ""}
-          />
-        </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          <Field
-            id="profile-email"
-            help="This appears as a contact option on your published profile."
-            label="Email"
-            onChange={(event) => onChange("email", event.target.value || undefined)}
-            placeholder="you@example.com"
-            type="email"
-            value={draft.email ?? ""}
-          />
-          <Field
-            id="profile-phone"
-            label="Phone"
-            onChange={(event) => onChange("phone", event.target.value || undefined)}
-            placeholder="+63 917 555 0184"
-            type="tel"
-            value={draft.phone ?? ""}
-          />
-          <Field
-            id="profile-website"
-            label="Website"
-            onChange={(event) => onChange("website", event.target.value || undefined)}
-            placeholder="https://yourwebsite.com"
-            type="url"
-            value={draft.website ?? ""}
-          />
-          <Field
-            disabled={slugLocked}
-            help={
-              slugLocked
-                ? "The slug is immutable after first publication."
-                : "Use lowercase letters, numbers, and hyphens."
-            }
-            id="profile-slug"
-            label="Stable profile slug"
-            onChange={(event) => onChange("slug", event.target.value)}
-            placeholder="alex-morgan"
-            value={draft.slug}
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
-          <span className="font-semibold text-tapit-ink">Public URL</span>
-          <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
-            {typeof window === "undefined"
-              ? `/${draft.slug}`
-              : `${window.location.origin}/${draft.slug}`}
-          </code>
-          <Button onClick={onCopyUrl} type="button" variant="secondary">
-            <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
-            {copyMessage || "Copy"}
-          </Button>
-        </div>
-      </div>
-    </Panel>
-  );
 }
 
 function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; href: string }) {
@@ -216,7 +114,7 @@ function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | 
   );
 }
 
-function DemoProfileEditor() {
+function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -247,11 +145,9 @@ function DemoProfileEditor() {
       session?.role === "customer"
         ? state.customers.find((candidate) => candidate.email === session.email)
         : undefined;
-    const lifecycleErrors = validatePublicationAccess(
-      profile.status,
-      customer?.status,
-      customer?.deletionStatus,
-    );
+    const lifecycleErrors = customer
+      ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
+      : [];
     return [
       ...validatePublication(draft, profile.published, {
         existingSlugs: getDemoProfiles(state)
@@ -272,6 +168,8 @@ function DemoProfileEditor() {
         : []),
     ];
   })();
+  const { profile: profileErrors, customization: customizationErrors } =
+    splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(draft, theme);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
@@ -448,6 +346,7 @@ function DemoProfileEditor() {
       const dataUrl = await readFileAsDataUrl(
         new File([prepared.blob], cropFile.name, { type: prepared.contentType }),
       );
+
       if (requestId !== imageRequestRef.current) return;
       updateField("imageUrl", dataUrl);
       setCropFile(null);
@@ -476,75 +375,67 @@ function DemoProfileEditor() {
     }
   }
 
-  return (
-    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] min-[1400px]:gap-10 min-[1400px]:pt-8">
-      <div className="grid gap-6">
-        <div className="pb-1">
-          <div>
-            <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-              Your profile
-            </h1>
-            <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-              Edit your details and see how your profile looks to others.
-            </p>
-          </div>
+  const imageContent = (
+    <div className="border-t border-tapit-line/70 pt-5">
+      <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+          {draft.imageUrl ? (
+            <NextImage
+              alt={`${draft.name} profile`}
+              className="size-full object-cover"
+              height={80}
+              src={draft.imageUrl}
+              unoptimized
+              width={80}
+            />
+          ) : (
+            draft.name.slice(0, 1).toUpperCase()
+          )}
         </div>
-        <ProfileCustomizationEditor
-          customization={draft.customization}
-          errors={errors}
-          identityContent={
-            <ProfileIdentityForm
+        <div>
+          <label
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            htmlFor="profile-image"
+          >
+            <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+            {imagePending ? "Preparing..." : "Change photo"}
+          </label>
+          <input
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Profile photo or logo"
+            className="sr-only"
+            disabled={cropFile !== null || imagePending}
+            id="profile-image"
+            onChange={chooseImage}
+            type="file"
+          />
+          <p className="mt-2 text-xs leading-5 text-tapit-muted">JPG, PNG, or WebP. Max 5 MB.</p>
+        </div>
+      </div>
+      {imageError ? (
+        <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+          {imageError}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <ProfileWorkspaceFrame
+      controls={
+        view === "profile" ? (
+          <>
+            <ProfileDetailsEditor
+              customization={draft.customization}
               copyMessage={copyMessage}
               draft={draft}
-              imageContent={
-                <div className="border-t border-tapit-line/70 pt-5">
-                  <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-4">
-                    <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-                      {draft.imageUrl ? (
-                        <NextImage
-                          alt={`${draft.name} profile`}
-                          className="size-full object-cover"
-                          height={80}
-                          src={draft.imageUrl}
-                          unoptimized
-                          width={80}
-                        />
-                      ) : (
-                        draft.name.slice(0, 1).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <label
-                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-                        htmlFor="profile-image"
-                      >
-                        <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                        {imagePending ? "Preparing..." : "Change photo"}
-                      </label>
-                      <input
-                        accept="image/jpeg,image/png,image/webp"
-                        aria-label="Profile photo or logo"
-                        className="sr-only"
-                        disabled={cropFile !== null || imagePending}
-                        id="profile-image"
-                        onChange={chooseImage}
-                        type="file"
-                      />
-                      <p className="mt-2 text-xs leading-5 text-tapit-muted">
-                        JPG, PNG, or WebP. Max 5 MB.
-                      </p>
-                    </div>
-                  </div>
-                  {imageError ? (
-                    <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-                      {imageError}
-                    </p>
-                  ) : null}
-                </div>
-              }
+              errors={profileErrors}
+              imageContent={imageContent}
+              links={draft.links}
               message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
               onChange={updateField}
+              onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
               onboarding={
                 needsLinkOnboarding(draft, profile.published) ? (
@@ -561,166 +452,127 @@ function DemoProfileEditor() {
               }
               slugLocked={slugLocked}
             />
-          }
-          links={draft.links}
-          media={draft.media}
-          mediaBusy={mediaBusy}
-          mediaError={mediaError}
-          onMediaChange={(media) => updateField("media", media)}
-          onMediaUpload={uploadDemoMedia}
-          onChange={(customization) => updateField("customization", customization)}
-        />
-        {!draft.customization ? (
-          <Panel
-            className="shadow-none"
-            description="These controls stay deliberately small so every legacy theme remains readable."
-            title="Legacy appearance"
-          >
-            <div className="mt-6 grid gap-5 sm:grid-cols-3">
-              {(["paper", "moss", "night"] as const).map((themeOption) => (
-                <button
-                  aria-pressed={theme === themeOption}
-                  className={`rounded-tapit border p-4 text-left transition ${theme === themeOption ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                  key={themeOption}
-                  onClick={() => chooseTheme(themeOption)}
-                  type="button"
-                >
-                  <span
-                    className={`block h-12 rounded-tapit ${themeOption === "paper" ? "bg-tapit-paper" : themeOption === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
-                  />
-                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                    {themeOption}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Panel>
-        ) : null}
-
-        <Panel className="shadow-none" title="Publication">
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <StatusBadge status={profile.status} />
-            <span className="text-sm text-tapit-muted">{publicationState}</span>
-          </div>
-          {errors.length > 0 ? (
-            <ul className="mt-5 grid gap-2 text-sm text-tapit-muted">
-              {errors.map((error) => (
-                <li className="flex gap-2" key={error}>
-                  <span aria-hidden="true" className="text-tapit-danger">
-                    !
-                  </span>
-                  {error}
-                </li>
-              ))}
-            </ul>
-          ) : profile.status === "published" && !hasChangesSincePublish ? (
-            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
-              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              Your published profile is up to date.
-            </p>
-          ) : (
-            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
-              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              {profile.status === "published"
-                ? "Your saved changes are ready to publish."
-                : "Ready to publish. The required name and one valid enabled link are present."}
-            </p>
-          )}
-          {profile.status === "published" ? (
-            <div className="mt-6">
-              <Button onClick={unpublish} type="button" variant="quiet">
-                Unpublish
-              </Button>
-            </div>
-          ) : null}
-        </Panel>
-      </div>
-
-      <div className="h-fit min-[1400px]:sticky min-[1400px]:top-6">
-        {preview ? (
-          <WorkspacePreview
-            mode={previewMode}
-            onModeChange={setPreviewMode}
-            preview={preview}
-            profileUrl={`/${draft.slug}`}
-            showProfileUrl
-          />
-        ) : (
-          <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
-        )}
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <CheckCircleIcon
-              aria-hidden="true"
-              className="shrink-0 text-tapit-accent"
-              size={21}
-              weight="fill"
-            />
-            <span className="font-semibold text-tapit-ink">Draft changes</span>
-            <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || cropFile !== null || imagePending || mediaBusy}
-              onClick={() => void saveDraft()}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Save draft
-            </Button>
-            <Button
-              disabled={
-                errors.length > 0 ||
-                publicationLabel === "Published" ||
-                cropFile !== null ||
-                imagePending ||
-                mediaBusy
+            <ProfilePublicationPanel
+              customizationErrors={customizationErrors}
+              errors={profileErrors}
+              hasChangesSincePublish={hasChangesSincePublish}
+              onOpenCustomize={
+                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
-              onClick={publish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {publicationLabel}
-            </Button>
-          </div>
-        </div>
-      </div>
-      {cropFile !== null ? (
-        <ProfileImageCropDialog
-          busy={imagePending}
-          file={cropFile}
-          onApply={(crop) => void applyDemoCrop(crop)}
-          onCancel={() => {
-            imageRequestRef.current += 1;
-            setCropFile(null);
-          }}
-        />
-      ) : null}
-    </div>
+              onUnpublish={profile.status === "published" ? unpublish : undefined}
+              publicationState={publicationState}
+              status={profile.status}
+            />
+          </>
+        ) : (
+          <>
+            {profileErrors.length > 0 ? (
+              <Notice tone="error">
+                <ul className="grid gap-2">
+                  {profileErrors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+                <span className="mt-3 block">
+                  <DraftSaveButtonLink href="/app/profile">Open Profile</DraftSaveButtonLink>
+                </span>
+              </Notice>
+            ) : null}
+            {draft.customization === undefined ? (
+              <Panel className="shadow-none" title="Legacy appearance">
+                <ProfileCustomizationEditor
+                  customization={draft.customization}
+                  errors={customizationErrors}
+                  media={draft.media}
+                  mediaBusy={mediaBusy}
+                  mediaError={mediaError}
+                  onChange={(customization) => updateField("customization", customization)}
+                  onMediaChange={(media) => updateField("media", media)}
+                  onMediaUpload={uploadDemoMedia}
+                  onThemeChange={chooseTheme}
+                  theme={theme}
+                />
+              </Panel>
+            ) : (
+              <ProfileCustomizationEditor
+                customization={draft.customization}
+                errors={customizationErrors}
+                media={draft.media}
+                mediaBusy={mediaBusy}
+                mediaError={mediaError}
+                onChange={(customization) => updateField("customization", customization)}
+                onMediaChange={(media) => updateField("media", media)}
+                onMediaUpload={uploadDemoMedia}
+                onThemeChange={chooseTheme}
+                theme={theme}
+              />
+            )}
+          </>
+        )
+      }
+      message={
+        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+      }
+      cropDialog={
+        cropFile !== null ? (
+          <ProfileImageCropDialog
+            busy={imagePending}
+            file={cropFile}
+            onApply={(crop) => void applyDemoCrop(crop)}
+            onCancel={() => {
+              imageRequestRef.current += 1;
+              setCropFile(null);
+            }}
+          />
+        ) : null
+      }
+      description={
+        view === "profile"
+          ? "Edit your details and see how your profile looks to others."
+          : "Tune the look and feel of your public profile."
+      }
+      onPreviewModeChange={setPreviewMode}
+      onPublish={publish}
+      onSave={() => void saveDraft()}
+      preview={preview}
+      previewMode={previewMode}
+      profileUrl={`/${draft.slug}`}
+      publishDisabled={
+        errors.length > 0 ||
+        publicationLabel === "Published" ||
+        cropFile !== null ||
+        imagePending ||
+        mediaBusy
+      }
+      publishLabel={publicationLabel}
+      saveDisabled={!isDirty || cropFile !== null || imagePending || mediaBusy}
+      title={view === "profile" ? "Your profile" : "Customize your profile"}
+      draftStatus={publicationState}
+    />
   );
 }
 
-export function ProfileEditor() {
-  return !isLocalDemoMode() ? <LiveProfileEditor /> : <DemoProfileEditor />;
+export function ProfileEditor({ view = "profile" }: { view?: ProfileEditorView } = {}) {
+  return !isLocalDemoMode() ? <LiveProfileEditor view={view} /> : <DemoProfileEditor view={view} />;
 }
 
-function LiveProfileEditor() {
+function LiveProfileEditor({ view }: { view: ProfileEditorView }) {
   const profile = useQuery(api.profiles.mine);
   if (profile === undefined) return <ProfileEditorLoading />;
   if (profile === null) return <MissingProfilePage />;
-  return <LiveProfileEditorContent profile={profile} />;
+  return <LiveProfileEditorContent profile={profile} view={view} />;
 }
 
 function LiveProfileEditorContent({
   profile,
+  view,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
+  view: ProfileEditorView;
 }) {
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
+  const setStatusMutation = useMutation(api.profiles.setStatus);
   const removeImage = useMutation(api.storage.removeImage);
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
@@ -777,6 +629,8 @@ function LiveProfileEditorContent({
   const errors = validatePublication(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.published?.slug,
   });
+  const { profile: profileErrors, customization: customizationErrors } =
+    splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
   const slugLocked = liveProfile.published !== undefined;
@@ -1042,83 +896,99 @@ function LiveProfileEditorContent({
     }
   }
 
-  return (
-    <div className="mx-auto grid w-full max-w-[1480px] gap-8 px-5 pb-28 pt-7 sm:px-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] min-[1400px]:gap-10 min-[1400px]:pt-8">
-      <div className="grid gap-6">
-        <div className="pb-1">
-          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-            Your profile
-          </h1>
-          <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">
-            Edit your details and see how your profile looks to others.
+  async function unpublish() {
+    if (pending !== null) return;
+    setPending("publish");
+    setMessage(null);
+    try {
+      await setStatusMutation({ profileId: liveProfile._id, status: "unpublished" });
+      setMessage({
+        tone: "success",
+        text: "Profile unpublished. Visitors now see the unavailable page.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
+      });
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const imageContent = (
+    <div className="border-t border-tapit-line/70 pt-5">
+      <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
+      <div className="mt-3 flex flex-wrap items-center gap-4">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+          {currentDraft.imageUrl ? (
+            <NextImage
+              alt={`${currentDraft.name} profile`}
+              className="size-full object-cover"
+              height={80}
+              src={currentDraft.imageUrl}
+              unoptimized
+              width={80}
+            />
+          ) : (
+            currentDraft.name.slice(0, 1).toUpperCase()
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            htmlFor="profile-image"
+          >
+            <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
+            {pending === "image" ? "Uploading..." : "Change photo"}
+          </label>
+          {currentDraft.imageUrl ? (
+            <Button
+              disabled={pending !== null || cropFile !== null}
+              onClick={clearImage}
+              type="button"
+              variant="quiet"
+            >
+              Remove photo
+            </Button>
+          ) : null}
+          <input
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Profile photo or logo"
+            className="sr-only"
+            disabled={pending !== null || cropFile !== null}
+            id="profile-image"
+            onChange={chooseImage}
+            type="file"
+          />
+          <p className="basis-full text-xs leading-5 text-tapit-muted">
+            JPG, PNG, or WebP. Max 5 MB.
           </p>
         </div>
-        <ProfileCustomizationEditor
-          customization={currentDraft.customization}
-          errors={errors}
-          identityContent={
-            <ProfileIdentityForm
+      </div>
+      {imageError ? (
+        <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+          {imageError}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  return (
+    <ProfileWorkspaceFrame
+      controls={
+        view === "profile" ? (
+          <>
+            <ProfileDetailsEditor
+              customization={currentDraft.customization}
               copyMessage={copyMessage}
               draft={currentDraft}
-              imageContent={
-                <div className="border-t border-tapit-line/70 pt-5">
-                  <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-4">
-                    <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-                      {currentDraft.imageUrl ? (
-                        <NextImage
-                          alt={`${currentDraft.name} profile`}
-                          className="size-full object-cover"
-                          height={80}
-                          src={currentDraft.imageUrl}
-                          unoptimized
-                          width={80}
-                        />
-                      ) : (
-                        currentDraft.name.slice(0, 1).toUpperCase()
-                      )}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <label
-                        className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-                        htmlFor="profile-image"
-                      >
-                        <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-                        {pending === "image" ? "Uploading..." : "Change photo"}
-                      </label>
-                      {currentDraft.imageUrl ? (
-                        <Button
-                          disabled={pending !== null || cropFile !== null}
-                          onClick={clearImage}
-                          type="button"
-                          variant="quiet"
-                        >
-                          Remove photo
-                        </Button>
-                      ) : null}
-                      <input
-                        accept="image/jpeg,image/png,image/webp"
-                        aria-label="Profile photo or logo"
-                        className="sr-only"
-                        disabled={pending !== null || cropFile !== null}
-                        id="profile-image"
-                        onChange={chooseImage}
-                        type="file"
-                      />
-                      <p className="basis-full text-xs leading-5 text-tapit-muted">
-                        JPG, PNG, or WebP. Max 5 MB.
-                      </p>
-                    </div>
-                  </div>
-                  {imageError ? (
-                    <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-                      {imageError}
-                    </p>
-                  ) : null}
-                </div>
-              }
+              errors={profileErrors}
+              imageContent={imageContent}
+              links={currentDraft.links}
               message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
               onChange={updateField}
+              onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
               onboarding={
                 needsLinkOnboarding(currentDraft, publishedForValidation) ? (
@@ -1135,128 +1005,105 @@ function LiveProfileEditorContent({
               }
               slugLocked={slugLocked}
             />
-          }
-          links={currentDraft.links}
-          media={currentDraft.media}
-          mediaBusy={mediaBusy}
-          mediaError={mediaError}
-          onMediaChange={(media) => updateField("media", media)}
-          onMediaUpload={uploadLiveMedia}
-          onChange={(customization) => updateField("customization", customization)}
-        />
-        {!currentDraft.customization ? (
-          <Panel className="shadow-none" title="Legacy appearance">
-            <p className="mt-5 text-sm leading-6 text-tapit-muted">
-              This profile keeps its existing appearance until you opt into Warm Studio.
-            </p>
-            <div className="mt-5 grid gap-5 sm:grid-cols-3">
-              {(["paper", "moss", "night"] as const).map((option) => (
-                <button
-                  aria-pressed={theme === option}
-                  className={`rounded-tapit border p-4 text-left transition ${theme === option ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
-                  key={option}
-                  onClick={() => updateField("theme", option)}
-                  type="button"
-                >
-                  <span
-                    className={`block h-12 rounded-tapit ${option === "paper" ? "bg-tapit-paper" : option === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]"}`}
-                  />
-                  <span className="mt-3 block text-sm font-semibold capitalize text-tapit-ink">
-                    {option}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Panel>
-        ) : null}
-        <Panel className="shadow-none" title="Publication">
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <StatusBadge status={profile.status} />{" "}
-            <span className="text-sm text-tapit-muted">{publicationState}</span>
-          </div>
-          {errors.length > 0 ? (
-            <ul className="mt-5 grid gap-2 text-sm text-tapit-muted">
-              {errors.map((error) => (
-                <li key={error} className="flex gap-2">
-                  <span aria-hidden="true" className="text-tapit-danger">
-                    !
-                  </span>
-                  {error}
-                </li>
-              ))}
-            </ul>
-          ) : liveProfile.status === "published" && !hasChangesSincePublish ? (
-            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
-              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              Your published profile is up to date.
-            </p>
-          ) : (
-            <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
-              <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
-              {liveProfile.status === "published"
-                ? "Your saved changes are ready to publish."
-                : "Ready to publish. The required name and one valid enabled link are present."}
-            </p>
-          )}
-        </Panel>
-      </div>
-      <div className="h-fit min-[1400px]:sticky min-[1400px]:top-6">
-        {preview ? (
-          <WorkspacePreview
-            mode={previewMode}
-            onModeChange={setPreviewMode}
-            preview={preview}
-            profileUrl={`/${currentDraft.slug}`}
-            showProfileUrl
-          />
-        ) : (
-          <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
-        )}
-      </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3">
-          <span className="text-sm font-semibold text-tapit-ink">Draft changes</span>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || pending !== null || cropFile !== null || mediaBusy}
-              loading={pending === "save"}
-              onClick={() => void saveDraft()}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Save draft
-            </Button>
-            <Button
-              disabled={
-                errors.length > 0 ||
-                publicationLabel === "Published" ||
-                pending !== null ||
-                cropFile !== null ||
-                mediaBusy
+            <ProfilePublicationPanel
+              customizationErrors={customizationErrors}
+              errors={profileErrors}
+              hasChangesSincePublish={hasChangesSincePublish}
+              onOpenCustomize={
+                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
-              loading={pending === "publish"}
-              onClick={publish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {publicationLabel}
-            </Button>
-          </div>
-        </div>
-      </div>
-      {cropFile !== null ? (
-        <ProfileImageCropDialog
-          busy={pending === "image"}
-          file={cropFile}
-          onApply={(crop) => void applyImageCrop(crop)}
-          onCancel={() => {
-            imageRequestRef.current += 1;
-            setCropFile(null);
-          }}
-        />
-      ) : null}
-    </div>
+              onUnpublish={liveProfile.status === "published" ? () => void unpublish() : undefined}
+              publicationState={publicationState}
+              status={liveProfile.status}
+            />
+          </>
+        ) : (
+          <>
+            {profileErrors.length > 0 ? (
+              <Notice tone="error">
+                <ul className="grid gap-2">
+                  {profileErrors.map((error) => (
+                    <li key={error}>{error}</li>
+                  ))}
+                </ul>
+                <span className="mt-3 block">
+                  <DraftSaveButtonLink href="/app/profile">Open Profile</DraftSaveButtonLink>
+                </span>
+              </Notice>
+            ) : null}
+            {currentDraft.customization === undefined ? (
+              <Panel className="shadow-none" title="Legacy appearance">
+                <ProfileCustomizationEditor
+                  customization={currentDraft.customization}
+                  errors={customizationErrors}
+                  media={currentDraft.media}
+                  mediaBusy={mediaBusy}
+                  mediaError={mediaError}
+                  onChange={(customization) => updateField("customization", customization)}
+                  onMediaChange={(media) => updateField("media", media)}
+                  onMediaUpload={uploadLiveMedia}
+                  onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
+                  theme={theme}
+                />
+              </Panel>
+            ) : (
+              <ProfileCustomizationEditor
+                customization={currentDraft.customization}
+                errors={customizationErrors}
+                media={currentDraft.media}
+                mediaBusy={mediaBusy}
+                mediaError={mediaError}
+                onChange={(customization) => updateField("customization", customization)}
+                onMediaChange={(media) => updateField("media", media)}
+                onMediaUpload={uploadLiveMedia}
+                onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
+                theme={theme}
+              />
+            )}
+          </>
+        )
+      }
+      message={
+        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+      }
+      cropDialog={
+        cropFile !== null ? (
+          <ProfileImageCropDialog
+            busy={pending === "image"}
+            file={cropFile}
+            onApply={(crop) => void applyImageCrop(crop)}
+            onCancel={() => {
+              imageRequestRef.current += 1;
+              setCropFile(null);
+            }}
+          />
+        ) : null
+      }
+      description={
+        view === "profile"
+          ? "Edit your details and see how your profile looks to others."
+          : "Tune the look and feel of your public profile."
+      }
+      onPreviewModeChange={setPreviewMode}
+      onPublish={publish}
+      onSave={() => void saveDraft()}
+      preview={preview}
+      previewMode={previewMode}
+      profileUrl={`/${currentDraft.slug}`}
+      publishDisabled={
+        errors.length > 0 ||
+        publicationLabel === "Published" ||
+        pending !== null ||
+        cropFile !== null ||
+        mediaBusy
+      }
+      publishLabel={publicationLabel}
+      saveDisabled={!isDirty || pending !== null || cropFile !== null || mediaBusy}
+      saveLoading={pending === "save"}
+      title={view === "profile" ? "Your profile" : "Customize your profile"}
+      draftStatus={publicationState}
+      publishLoading={pending === "publish"}
+    />
   );
 }
 
