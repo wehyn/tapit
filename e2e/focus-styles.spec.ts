@@ -41,6 +41,7 @@ async function readFocusStyles(surface: Locator): Promise<FocusStyles> {
 
 async function expectNoOrangeFocus(page: Page, route: string) {
   const controls = page.locator("main").locator(FORM_CONTROLS);
+  await expect(controls.first(), `${route} should expose form controls`).toBeVisible();
   const controlCount = await controls.count();
   expect(controlCount, `${route} should expose form controls`).toBeGreaterThan(0);
   for (let index = 0; index < (await controls.count()); index += 1) {
