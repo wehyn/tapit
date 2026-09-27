@@ -32,6 +32,7 @@ test("published profile disclosure is keyboard accessible", async ({ page }) => 
   ).toBeVisible();
 
   await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expectNoA11yViolations(page);
   const disclosure = page.locator("summary").filter({ hasText: "About" });
   await expect(disclosure).toHaveAttribute("aria-expanded", "false");

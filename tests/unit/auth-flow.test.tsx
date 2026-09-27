@@ -302,7 +302,7 @@ describe("non-active workspace shells", () => {
     expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
   });
 
-  it("hides Customize from an active admin while keeping Profile in CustomerShell", async () => {
+  it("shows Customize for an active admin in CustomerShell", async () => {
     vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
     currentPath = "/app/profile";
     useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
@@ -323,10 +323,13 @@ describe("non-active workspace shells", () => {
 
     expect(screen.getByText("admin profile content")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("link", { name: "Customize" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
+      "href",
+      "/app/customize",
+    );
   });
 
-  it("hides Customize from an admin session in demo CustomerShell while keeping Profile", async () => {
+  it("shows Customize for an admin session in demo CustomerShell", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
     currentPath = "/app/profile";
@@ -343,7 +346,10 @@ describe("non-active workspace shells", () => {
 
     expect(screen.getByText("demo admin profile content")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
-    expect(screen.queryByRole("link", { name: "Customize" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
+      "href",
+      "/app/customize",
+    );
   });
 
   it("keeps an active admin workspace visible while the access response is on the legacy shape", async () => {
