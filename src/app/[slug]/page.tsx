@@ -14,7 +14,14 @@ export async function generateMetadata({
   return createProfileMetadata(slug);
 }
 
-export default async function PublicProfilePage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  return <PublicProfileScreen slug={slug} />;
+export default async function PublicProfilePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ source?: string | string[] | undefined }>;
+}) {
+  const [{ slug }, { source }] = await Promise.all([params, searchParams]);
+  const attributionSource = source === "nfc" || source === "qr" ? source : "direct";
+  return <PublicProfileScreen slug={slug} source={attributionSource} />;
 }

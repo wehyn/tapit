@@ -150,6 +150,51 @@ test("customized direct and active card paths preserve presentation parity", asy
   });
 });
 
+test("tagged profile activity appears by source and aggregates to one daily trend point", async ({
+  page,
+}) => {
+  for (const source of ["nfc", "qr"] as const) {
+    await page.goto(`/mara-velasquez?source=${source}`);
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate((expectedSource) => {
+          const stored = window.localStorage.getItem("tapit:demo-state:v1");
+          if (stored === null) return false;
+          const state = JSON.parse(stored) as {
+            analytics?: Array<{
+              profileId?: string;
+              source?: string;
+              views: number;
+            }>;
+          };
+          return state.analytics?.some(
+            (bucket) =>
+              bucket.profileId === "profile-mara" &&
+              bucket.source === expectedSource &&
+              bucket.views > 0,
+          );
+        }, source),
+      )
+      .toBe(true);
+  }
+
+  await signInAsCustomer(page);
+  await page.goto("/app/analytics");
+
+  const trafficSources = page.getByLabel("Traffic source breakdown");
+  await expect(
+    trafficSources.getByText("NFC", { exact: true }).locator("xpath=following-sibling::dd"),
+  ).toHaveText("1");
+  await expect(
+    trafficSources.getByText("QR code", { exact: true }).locator("xpath=following-sibling::dd"),
+  ).toHaveText("1");
+
+  const trend = page.getByLabel("Aggregate engagement trend");
+  const today = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  await expect(trend.getByText(today, { exact: true })).toHaveCount(1);
+});
+
 test("inactive cards never reveal their former profile and vCard includes approved profile fields", async ({
   page,
 }) => {
