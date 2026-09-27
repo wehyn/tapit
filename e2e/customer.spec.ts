@@ -54,6 +54,7 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
+    // Draft and published states intentionally share this layout assertion.
     const publish = page.getByRole("button", {
       name: /^(?:Publish(?: changes)?|Published)$/,
     });
