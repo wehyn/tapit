@@ -150,6 +150,34 @@ test("customized direct and active card paths preserve presentation parity", asy
   });
 });
 
+test("public profile source parameters attribute visits to NFC and QR", async ({ page }) => {
+  for (const source of ["nfc", "qr"] as const) {
+    await page.goto(`/mara-velasquez?source=${source}`);
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate((expectedSource) => {
+          const stored = window.localStorage.getItem("tapit:demo-state:v1");
+          if (stored === null) return false;
+          const state = JSON.parse(stored) as {
+            analytics?: Array<{
+              profileId?: string;
+              source?: string;
+              views: number;
+            }>;
+          };
+          return state.analytics?.some(
+            (bucket) =>
+              bucket.profileId === "profile-mara" &&
+              bucket.source === expectedSource &&
+              bucket.views > 0,
+          );
+        }, source),
+      )
+      .toBe(true);
+  }
+});
+
 test("inactive cards never reveal their former profile and vCard includes approved profile fields", async ({
   page,
 }) => {

@@ -21,15 +21,27 @@ import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/S
 
 import { PublicProfile } from "./PublicProfile";
 
-export function PublicProfileScreen({ slug }: { slug: string }) {
+export function PublicProfileScreen({
+  slug,
+  source = "direct",
+}: {
+  slug: string;
+  source?: "nfc" | "qr" | "direct";
+}) {
   return isLocalDemoMode() ? (
-    <DemoPublicProfileScreen slug={slug} />
+    <DemoPublicProfileScreen slug={slug} source={source} />
   ) : (
-    <LivePublicProfileScreen slug={slug} />
+    <LivePublicProfileScreen slug={slug} source={source} />
   );
 }
 
-function DemoPublicProfileScreen({ slug }: { slug: string }) {
+function DemoPublicProfileScreen({
+  slug,
+  source,
+}: {
+  slug: string;
+  source: "nfc" | "qr" | "direct";
+}) {
   const { hydrated, state } = useHydratedDemoState();
   if (!hydrated) {
     return <PublicProfileLoading />;
@@ -54,13 +66,19 @@ function DemoPublicProfileScreen({ slug }: { slug: string }) {
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       theme={projection.theme}
-      onLinkClick={(key, id) => recordLinkClick(key, id, "direct")}
-      onView={(id) => recordProfileView(id, "direct")}
+      onLinkClick={(key, id) => recordLinkClick(key, id, source)}
+      onView={(id) => recordProfileView(id, source)}
     />
   );
 }
 
-function LivePublicProfileScreen({ slug }: { slug: string }) {
+function LivePublicProfileScreen({
+  slug,
+  source,
+}: {
+  slug: string;
+  source: "nfc" | "qr" | "direct";
+}) {
   const profile = useQuery(api.profiles.publicBySlug, { slug });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
@@ -70,10 +88,10 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
       void recordView({
         profileId: profileId as Id<"profiles">,
         sessionKey: getAnalyticsSessionKey(),
-        source: "direct",
+        source,
       });
     },
-    [recordView],
+    [recordView, source],
   );
   const onLinkClick = useCallback(
     (linkKey: string, profileId?: string) => {
@@ -81,10 +99,10 @@ function LivePublicProfileScreen({ slug }: { slug: string }) {
       void recordLinkClick({
         profileId: profileId as Id<"profiles">,
         linkKey,
-        source: "direct",
+        source,
       });
     },
-    [recordLinkClick],
+    [recordLinkClick, source],
   );
   if (profile === undefined) return <PublicProfileLoading />;
   if (profile === null) return <MissingProfilePage />;
