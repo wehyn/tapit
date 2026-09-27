@@ -68,8 +68,7 @@ identity-color object:
 export type ProfileIdentityColorPreset = "default" | "coral" | "jade" | "ink";
 
 export type ProfileIdentityColor =
-  | { kind: "preset"; value: ProfileIdentityColorPreset }
-  | { kind: "custom"; hex: string };
+  { kind: "preset"; value: ProfileIdentityColorPreset } | { kind: "custom"; hex: string };
 
 export interface ProfileIdentityColors {
   name?: ProfileIdentityColor;
@@ -122,12 +121,12 @@ CSS fragment.
 
 The controls use these palette values on normal Warm Studio surfaces:
 
-| Choice | Name text | Bio / role text | Hover/focus name |
-| --- | --- | --- | --- |
-| Default | `#2c2420` | `#74665d` | Default |
-| Coral | `#a84431` | `#a84431` | Coral |
-| Jade | `#3e806d` | `#3e806d` | Jade |
-| Ink | `#2c2420` | `#2c2420` | Ink |
+| Choice  | Name text | Bio / role text | Hover/focus name |
+| ------- | --------- | --------------- | ---------------- |
+| Default | `#2c2420` | `#74665d`       | Default          |
+| Coral   | `#a84431` | `#a84431`       | Coral            |
+| Jade    | `#3e806d` | `#3e806d`       | Jade             |
+| Ink     | `#2c2420` | `#2c2420`       | Ink              |
 
 The `default` choice is field-aware so existing Warm Studio profiles retain
 their current ink name and muted bio. The `ink` choice is intentionally

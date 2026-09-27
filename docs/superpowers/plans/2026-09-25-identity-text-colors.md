@@ -238,8 +238,8 @@ Expected: all new contract assertions pass, including the default compatibility 
 
 - [ ] Step 6: Commit the shared contract.
 
-    git add src/lib/profile-customization.ts tests/unit/profile-customization.test.ts tests/unit/domain.test.ts
-    git commit -m "feat: define identity color contract"
+  git add src/lib/profile-customization.ts tests/unit/profile-customization.test.ts tests/unit/domain.test.ts
+  git commit -m "feat: define identity color contract"
 
 ## Task 2: Extend the Convex boundary and publication tests
 
@@ -316,8 +316,8 @@ Expected: no hand-edited generated files, the integration suite passes, and the 
 
 - [ ] Step 5: Commit the Convex boundary.
 
-    git add convex/validators.ts convex/integration/profile-customization.test.ts convex/_generated
-    git commit -m "feat: validate identity colors at profile boundary"
+  git add convex/validators.ts convex/integration/profile-customization.test.ts convex/_generated
+  git commit -m "feat: validate identity colors at profile boundary"
 
 If codegen changes no generated files, omit convex/_generated from git add and record that result in the handoff.
 
@@ -390,14 +390,14 @@ In ProfileCustomizationEditor.tsx:
 
 - [ ] Step 5: Run the picker and editor tests.
 
-    npx vitest run tests/unit/identity-color-picker.test.tsx tests/unit/profile-customization-editor.test.tsx
+  npx vitest run tests/unit/identity-color-picker.test.tsx tests/unit/profile-customization-editor.test.tsx
 
 Expected: all swatch, picker, validation, focus, and independent-field tests pass, including the pre-existing Style and collapsed-section tests.
 
 - [ ] Step 6: Commit the editor controls.
 
-    git add src/components/forms/IdentityColorPicker.tsx src/components/forms/ProfileCustomizationEditor.tsx tests/unit/identity-color-picker.test.tsx tests/unit/profile-customization-editor.test.tsx
-    git commit -m "feat: add identity color picker controls"
+  git add src/components/forms/IdentityColorPicker.tsx src/components/forms/ProfileCustomizationEditor.tsx tests/unit/identity-color-picker.test.tsx tests/unit/profile-customization-editor.test.tsx
+  git commit -m "feat: add identity color picker controls"
 
 ## Task 4: Apply identity colors to the Warm Studio renderer
 
@@ -445,14 +445,14 @@ Use the same identityStyle for the preview heading branch. Keep the existing tex
 
 - [ ] Step 3: Run renderer and regression tests.
 
-    npx vitest run tests/unit/public-profile-component.test.tsx tests/unit/profile-editor.test.tsx
+  npx vitest run tests/unit/public-profile-component.test.tsx tests/unit/profile-editor.test.tsx
 
 Expected: the new style assertions pass; existing Warm Studio, legacy, media, link treatment, contact strip, and preview tests remain green.
 
 - [ ] Step 4: Commit the renderer.
 
-    git add src/components/profile/PublicProfile.tsx tests/unit/public-profile-component.test.tsx tests/unit/profile-editor.test.tsx
-    git commit -m "feat: render identity-only profile colors"
+  git add src/components/profile/PublicProfile.tsx tests/unit/public-profile-component.test.tsx tests/unit/profile-editor.test.tsx
+  git commit -m "feat: render identity-only profile colors"
 
 ## Task 5: Verify draft, publish, direct, and card parity
 
@@ -511,8 +511,8 @@ Do not add a new authentication fixture for this feature; reuse the established 
 
 - [ ] Step 5: Run the parity tests.
 
-    npx vitest run tests/unit/profile-editor.test.tsx tests/unit/domain.test.ts convex/integration/profile-customization.test.ts
-    npx playwright test e2e/customer.spec.ts --grep "identity color|profile color|Warm Studio"
+  npx vitest run tests/unit/profile-editor.test.tsx tests/unit/domain.test.ts convex/integration/profile-customization.test.ts
+  npx playwright test e2e/customer.spec.ts --grep "identity color|profile color|Warm Studio"
 
 Expected: draft privacy, publication, direct/card parity, and old-data compatibility are proven. If the existing browser suite has no matching fixture, retain the unit/integration coverage and record the exact unavailable fixture rather than creating unrelated test infrastructure.
 
@@ -546,19 +546,19 @@ Start the existing local app using the repository’s normal development command
 
 - [ ] Step 3: Run the complete verification set.
 
-    npm run typecheck
-    npm run lint
-    npx vitest run
-    npx next build --webpack
-    git diff --check
-    git status --short --branch
+  npm run typecheck
+  npm run lint
+  npx vitest run
+  npx next build --webpack
+  git diff --check
+  git status --short --branch
 
 Expected: typecheck, lint, all Vitest tests, and the Webpack production build pass; git diff --check reports no whitespace errors; only the intentionally preserved user-owned untracked paths remain.
 
 - [ ] Step 4: Review the final diff and do not push.
 
-    git diff HEAD~4..HEAD --stat
-    git log --oneline --decorate -6
+  git diff HEAD~4..HEAD --stat
+  git log --oneline --decorate -6
 
 Confirm that changes are limited to the shared identity-color contract, Convex validation, editor picker, renderer, tests, and approved docs. Do not push the branch.
 

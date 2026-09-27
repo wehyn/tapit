@@ -42,6 +42,7 @@ Do not hand-edit `convex/_generated/*`; regenerate bindings after backend contra
 ### Task 1: Establish the pure customization contract
 
 **Files:**
+
 - Create: `src/lib/profile-customization.ts`
 - Modify: `src/lib/domain/index.ts`
 - Create: `tests/unit/profile-customization.test.ts`
@@ -51,7 +52,7 @@ Do not hand-edit `convex/_generated/*`; regenerate bindings after backend contra
 
 Add tests that lock the exact v1 contract:
 
-~~~ts
+```ts
 import {
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   getAutomaticContactActions,
@@ -75,7 +76,9 @@ it("provides the Warm Studio default", () => {
 });
 
 it("derives only populated contact fields", () => {
-  expect(getAutomaticContactActions({ email: "mara@example.test", website: "https://mara.test" })).toEqual([
+  expect(
+    getAutomaticContactActions({ email: "mara@example.test", website: "https://mara.test" }),
+  ).toEqual([
     { kind: "email", href: "mailto:mara@example.test", label: "Email" },
     { kind: "website", href: "https://mara.test", label: "Website" },
   ]);
@@ -87,17 +90,31 @@ it("does not feature a disabled or missing link", () => {
 });
 
 it("validates About and Services limits", () => {
-  expect(validateProfileCustomization({
-    ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-    section: { kind: "about", body: "A short introduction." },
-  }, links)).toEqual([]);
+  expect(
+    validateProfileCustomization(
+      {
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        section: { kind: "about", body: "A short introduction." },
+      },
+      links,
+    ),
+  ).toEqual([]);
 
-  expect(validateProfileCustomization({
-    ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-    section: { kind: "services", body: "Choose a service.", items: ["One", "Two", "Three", "Four"] },
-  }, links)).toContain("A Services section can contain at most three items.");
+  expect(
+    validateProfileCustomization(
+      {
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        section: {
+          kind: "services",
+          body: "Choose a service.",
+          items: ["One", "Two", "Three", "Four"],
+        },
+      },
+      links,
+    ),
+  ).toContain("A Services section can contain at most three items.");
 });
-~~~
+```
 
 Add `projectPublicProfile` assertions in `tests/unit/domain.test.ts` proving that `published.customization` is included in the public projection while an unpublished draft customization is not exposed.
 
@@ -105,9 +122,9 @@ Add `projectPublicProfile` assertions in `tests/unit/domain.test.ts` proving tha
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/profile-customization.test.ts tests/unit/domain.test.ts
-~~~
+```
 
 Expected: FAIL because the customization module, fields, and projection assertions do not exist yet.
 
@@ -115,15 +132,14 @@ Expected: FAIL because the customization module, fields, and projection assertio
 
 Define the shared type contract in `src/lib/profile-customization.ts`:
 
-~~~ts
+```ts
 export type ProfileAccent = "coral" | "jade" | "ink";
 export type ProfileTypeScale = "compact" | "comfortable" | "editorial";
 export type ProfileLinkTreatment = "filled" | "outlined";
 export type ProfileContentOrder = "links-first" | "section-first";
 
 export type ProfileSection =
-  | { kind: "about"; body: string }
-  | { kind: "services"; body: string; items?: string[] };
+  { kind: "about"; body: string } | { kind: "services"; body: string; items?: string[] };
 
 export interface ContactAction {
   kind: "email" | "phone" | "website";
@@ -147,7 +163,7 @@ export interface ResolvedProfileAppearance {
   typeScale: ProfileTypeScale;
   linkTreatment: ProfileLinkTreatment;
 }
-~~~
+```
 
 Export `DEFAULT_WARM_STUDIO_CUSTOMIZATION`, `resolveProfileAppearance`, `validateProfileCustomization`, `getAutomaticContactActions`, and `getFeaturedProfileLink`. `resolveProfileAppearance` must return the legacy mode when customization is absent and a Warm Studio token set when it is present. Contact actions must emit only nonblank email/phone/website fields with `mailto:`, `tel:`, or `https:` destinations. `getFeaturedProfileLink` must return only an enabled link with a matching id.
 
@@ -159,22 +175,23 @@ Update `ProfileContent` and `PublicProfileProjection` in `src/lib/domain/index.t
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/profile-customization.test.ts tests/unit/domain.test.ts
-~~~
+```
 
 Expected: PASS, including the existing publication and draft-privacy assertions.
 
 Commit:
 
-~~~bash
+```bash
 git add src/lib/profile-customization.ts src/lib/domain/index.ts tests/unit/profile-customization.test.ts tests/unit/domain.test.ts
 git commit -m "feat: add profile customization domain contract"
-~~~
+```
 
 ### Task 2: Persist and project customization through Convex
 
 **Files:**
+
 - Modify: `convex/schema.ts`
 - Modify: `convex/validators.ts`
 - Modify: `convex/profiles.ts`
@@ -186,7 +203,7 @@ git commit -m "feat: add profile customization domain contract"
 
 Create a `convex-test` fixture with an authenticated owner, a published profile, and a valid enabled link. Cover this sequence:
 
-~~~ts
+```ts
 await owner.mutation(api.profiles.saveDraft, {
   profileId,
   draft: {
@@ -212,7 +229,7 @@ await owner.mutation(api.profiles.publish, { profileId });
 expect(await t.query(api.profiles.publicBySlug, { slug: "owner" })).toMatchObject({
   customization: { preset: "warm-studio", contentOrder: "section-first" },
 });
-~~~
+```
 
 Add rejection cases for an unknown accent, a Services section with four items, a body over its limit, and a customization object supplied by a non-owner. Extend the existing theme-privacy test in `auth-ownership.test.ts` to assert customization remains draft-private until publication.
 
@@ -220,9 +237,9 @@ Add rejection cases for an unknown accent, a Services section with four items, a
 
 Run:
 
-~~~bash
+```bash
 npx vitest run convex/integration/profile-customization.test.ts convex/integration/auth-ownership.test.ts
-~~~
+```
 
 Expected: FAIL because Convex validators and public projections do not yet accept or return customization.
 
@@ -230,10 +247,14 @@ Expected: FAIL because Convex validators and public projections do not yet accep
 
 In `convex/validators.ts`, add validators matching the domain contract:
 
-~~~ts
+```ts
 const profileSectionValidator = v.union(
   v.object({ kind: v.literal("about"), body: v.string() }),
-  v.object({ kind: v.literal("services"), body: v.string(), items: v.optional(v.array(v.string())) }),
+  v.object({
+    kind: v.literal("services"),
+    body: v.string(),
+    items: v.optional(v.array(v.string())),
+  }),
 );
 
 export const profileCustomizationValidator = v.object({
@@ -245,7 +266,7 @@ export const profileCustomizationValidator = v.object({
   featuredLinkId: v.optional(v.string()),
   section: v.optional(profileSectionValidator),
 });
-~~~
+```
 
 Add `customization: v.optional(profileCustomizationValidator)` to both the draft and published content validators in `convex/schema.ts` and `convex/validators.ts`. Extend `validateDraftSafety` to enforce the exact length and item-count limits from the spec.
 
@@ -257,24 +278,25 @@ Update `convex/profiles.ts` so `saveDraft` accepts the new validator and `publis
 
 Run the repository's installed Convex workflow against the configured non-production deployment:
 
-~~~bash
+```bash
 npx convex codegen --typecheck enable
 npx vitest run convex/integration/profile-customization.test.ts convex/integration/auth-ownership.test.ts
 npm run typecheck
-~~~
+```
 
 Expected: generated bindings contain the updated profile validators, focused Convex tests pass, and TypeScript reports no schema or API errors. Do not edit generated files by hand.
 
 - [ ] **Step 6: Commit the backend contract.**
 
-~~~bash
+```bash
 git add convex/schema.ts convex/validators.ts convex/profiles.ts convex/profileProjection.ts convex/integration/profile-customization.test.ts convex/integration/auth-ownership.test.ts convex/_generated
 git commit -m "feat: persist profile customization safely"
-~~~
+```
 
 ### Task 3: Initialize Warm Studio and preserve legacy profiles
 
 **Files:**
+
 - Modify: `convex/customers.ts`
 - Modify: `convex/demo.ts`
 - Modify: `convex/bootstrap.ts`
@@ -293,9 +315,9 @@ Assert that self-service, invited, hosted-demo, and bootstrap-created profiles c
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/demo-signup.test.ts convex/integration/hosted-demo.test.ts convex/integration/auth-ownership.test.ts
-~~~
+```
 
 Expected: FAIL on the new Warm Studio assertions while existing account-creation behavior remains visible.
 
@@ -317,23 +339,24 @@ In `src/components/admin/CustomersManager.tsx`, remove the two `theme` state var
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/demo-signup.test.ts convex/integration/hosted-demo.test.ts convex/integration/auth-ownership.test.ts
 npm run typecheck
-~~~
+```
 
 Expected: PASS with new profiles on Warm Studio, legacy profiles unchanged, and no admin creation type errors.
 
 Commit:
 
-~~~bash
+```bash
 git add convex/customers.ts convex/demo.ts convex/bootstrap.ts src/lib/demo/fixtures.ts src/lib/demo/store.ts src/components/admin/CustomersManager.tsx tests/unit/demo-signup.test.ts convex/integration/hosted-demo.test.ts convex/integration/auth-ownership.test.ts
 git commit -m "feat: default new profiles to Warm Studio"
-~~~
+```
 
 ### Task 4: Build the shared public presentation pieces
 
 **Files:**
+
 - Create: `src/components/profile/ProfileContactStrip.tsx`
 - Create: `src/components/profile/ProfileSectionDisclosure.tsx`
 - Modify: `src/components/profile/PublicProfile.tsx`
@@ -350,12 +373,15 @@ git commit -m "feat: default new profiles to Warm Studio"
 
 Extend `tests/unit/public-profile-component.test.tsx` with a projection containing Warm Studio customization, email, phone, website, a featured link, and a collapsed About section. Assert:
 
-~~~ts
-expect(screen.getByRole("link", { name: "Email" })).toHaveAttribute("href", "mailto:mara@example.test");
+```ts
+expect(screen.getByRole("link", { name: "Email" })).toHaveAttribute(
+  "href",
+  "mailto:mara@example.test",
+);
 expect(screen.getByRole("link", { name: "Phone" })).toHaveAttribute("href", "tel:+639175550184");
 expect(screen.getByRole("link", { name: "Book a call" })).toHaveAttribute("data-featured", "true");
 expect(screen.getByRole("button", { name: "About" })).toHaveAttribute("aria-expanded", "false");
-~~~
+```
 
 Add tests for opening the disclosure, omitting an empty contact strip, and falling back to the legacy theme when customization is absent. Update hydration and links-workspace fixtures to include the optional projection field without changing their existing analytics assertions.
 
@@ -363,9 +389,9 @@ Add tests for opening the disclosure, omitting an empty contact strip, and falli
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/public-profile-component.test.tsx tests/unit/public-hydration.test.ts tests/unit/links-workspace.test.tsx
-~~~
+```
 
 Expected: FAIL because the new contact/disclosure elements and customization-aware renderer do not exist.
 
@@ -373,12 +399,12 @@ Expected: FAIL because the new contact/disclosure elements and customization-awa
 
 Give the component a narrow contract:
 
-~~~ts
+```ts
 type ProfileContactStripProps = {
   actions: readonly ContactAction[];
   preview?: boolean;
 };
-~~~
+```
 
 Render only actions supplied by `getAutomaticContactActions`, with visible labels, Phosphor icons, explicit accessible names, and `mailto:`, `tel:`, or HTTPS behavior. Use the Warm Studio token classes and omit the component when `actions.length === 0`.
 
@@ -400,23 +426,24 @@ In `LinksEditor.tsx` and `LinksWorkspace.tsx`, build preview projections from th
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/public-profile-component.test.tsx tests/unit/public-hydration.test.ts tests/unit/links-workspace.test.tsx
 npm run typecheck
-~~~
+```
 
 Expected: PASS with direct, preview, and card-rendering call sites using one projection-driven public renderer.
 
 Commit:
 
-~~~bash
+```bash
 git add src/components/profile/ProfileContactStrip.tsx src/components/profile/ProfileSectionDisclosure.tsx src/components/profile/PublicProfile.tsx src/components/profile/PublicProfileScreen.tsx src/components/profile/CardResolverClient.tsx src/components/workspace/WorkspacePreview.tsx src/components/forms/LinksEditor.tsx src/components/forms/LinksWorkspace.tsx tests/unit/public-profile-component.test.tsx tests/unit/public-hydration.test.ts tests/unit/links-workspace.test.tsx
 git commit -m "feat: render customized public profiles"
-~~~
+```
 
 ### Task 5: Add the guided customization editor
 
 **Files:**
+
 - Create: `src/components/forms/ProfileCustomizationEditor.tsx`
 - Modify: `src/components/forms/ProfileEditor.tsx`
 - Create: `tests/unit/profile-customization-editor.test.tsx`
@@ -425,7 +452,7 @@ git commit -m "feat: render customized public profiles"
 
 Render the new editor with a draft customization and links. Assert that each control calls the single `onChange` callback with a complete next object:
 
-~~~ts
+```ts
 const onChange = vi.fn();
 render(<ProfileCustomizationEditor customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION} links={links} onChange={onChange} />);
 
@@ -434,7 +461,7 @@ expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ typeScale: "
 
 await user.selectOptions(screen.getByRole("combobox", { name: "Featured link" }), "booking");
 expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ featuredLinkId: "booking" }));
-~~~
+```
 
 Also test choosing About versus Services, the three-item limit, the section-first/links-first control, and the guided section buttons' `aria-expanded` state.
 
@@ -442,9 +469,9 @@ Also test choosing About versus Services, the three-item limit, the section-firs
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/profile-customization-editor.test.tsx
-~~~
+```
 
 Expected: FAIL because the editor component and controls do not exist.
 
@@ -452,14 +479,14 @@ Expected: FAIL because the editor component and controls do not exist.
 
 Use this boundary so demo and live profile editors share the same controls:
 
-~~~ts
+```ts
 export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
   links: readonly ProfileLink[];
   onChange: (next: ProfileCustomization | undefined) => void;
   errors?: readonly string[];
 };
-~~~
+```
 
 Render guided, freely navigable sections for Contact and links, About/Services, Style, and Review. Use labels for every swatch, scale, treatment, content-order choice, featured-link select, section kind, body field, and service item. Initialize a missing customization with `DEFAULT_WARM_STUDIO_CUSTOMIZATION` only for newly created profiles or after the owner explicitly selects “Use Warm Studio”; do not silently rewrite legacy profiles on load.
 
@@ -480,23 +507,24 @@ Update the preview call to the projection-only `WorkspacePreview` API from Task 
 
 Run:
 
-~~~bash
+```bash
 npx vitest run tests/unit/profile-customization-editor.test.tsx tests/unit/links-workspace.test.tsx tests/unit/demo-signup.test.ts
 npm run typecheck
-~~~
+```
 
 Expected: PASS with the editor controls updating draft state and existing links/signup tests retaining their behavior.
 
 - [ ] **Step 6: Commit the guided editor.**
 
-~~~bash
+```bash
 git add src/components/forms/ProfileCustomizationEditor.tsx src/components/forms/ProfileEditor.tsx tests/unit/profile-customization-editor.test.tsx
 git commit -m "feat: add guided profile customization editor"
-~~~
+```
 
 ### Task 6: Exercise the complete owner and visitor flow in E2E tests
 
 **Files:**
+
 - Modify: `e2e/customer.spec.ts`
 - Modify: `e2e/public-profile.spec.ts`
 - Modify: `e2e/accessibility.spec.ts`
@@ -505,7 +533,7 @@ git commit -m "feat: add guided profile customization editor"
 
 Extend the existing demo customer flow with a test that:
 
-~~~ts
+```ts
 await page.goto("/app/profile");
 await page.getByRole("button", { name: "Style" }).click();
 await page.getByRole("radio", { name: "Warm Studio" }).check();
@@ -524,7 +552,7 @@ await page.getByRole("button", { name: "Publish changes" }).click();
 await page.goto("/mara-velasquez");
 await expect(page.getByRole("button", { name: "About" })).toBeVisible();
 await expect(page.getByRole("link", { name: "Email" })).toBeVisible();
-~~~
+```
 
 Use the exact accessible names implemented by the editor. The test must verify the public profile remains unchanged after Save draft and changes only after Publish.
 
@@ -540,22 +568,23 @@ In `e2e/accessibility.spec.ts`, assert the disclosure is keyboard reachable, has
 
 Run:
 
-~~~bash
+```bash
 npm run test:e2e:demo -- --workers=1 e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts
-~~~
+```
 
 Expected: PASS with no public draft leakage, no active-card divergence, and no accessibility violations. Do not weaken assertions to accommodate implementation details.
 
 - [ ] **Step 5: Commit the end-to-end coverage.**
 
-~~~bash
+```bash
 git add e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts
 git commit -m "test: cover profile customization flow"
-~~~
+```
 
 ### Task 7: Final compatibility, visual QA, and handoff
 
 **Files:**
+
 - Modify: `docs/CHANGELOG.md`
 - Review: all files changed by Tasks 1–6
 
@@ -567,7 +596,7 @@ Record that public profiles now support the Warm Studio preset, controlled styli
 
 Run:
 
-~~~bash
+```bash
 npm run format:check
 npm run lint
 npm run typecheck
@@ -576,7 +605,7 @@ npm run build
 npm run test:e2e:demo -- --workers=1
 npx convex codegen --typecheck enable
 git diff --check
-~~~
+```
 
 Expected: every command exits `0`; generated Convex bindings are current; no formatting, lint, type, unit, build, E2E, or whitespace failures remain.
 
@@ -601,10 +630,10 @@ Confirm that no unrelated pricing changes are staged, no generated Convex file w
 
 - [ ] **Step 5: Commit the verified handoff.**
 
-~~~bash
+```bash
 git add docs/CHANGELOG.md
 git commit -m "docs: record profile customization release"
 git status --short --branch
-~~~
+```
 
 Expected: the feature branch is clean except for any pre-existing user-owned untracked files, which must remain untouched and unstaged.
