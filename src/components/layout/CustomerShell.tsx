@@ -39,17 +39,7 @@ const adminNavGroups: ShellNavGroup[] = [
   },
 ];
 
-const customerNavGroupsForAdmin: ShellNavGroup[] = customerNavGroups.map((group) => ({
-  ...group,
-  items: group.items.filter((item) => item.href !== "/app/customize"),
-}));
-const adminNavGroupsForCustomer: ShellNavGroup[] = [
-  ...customerNavGroupsForAdmin,
-  {
-    label: "Administration",
-    items: [{ href: "/admin/customers", label: "Admin workspace", icon: "users" }],
-  },
-];
+const adminNavGroupsForCustomer: ShellNavGroup[] = adminNavGroups;
 
 const noHydrationSubscription = () => () => {};
 const clientHydratedSnapshot = () => true;

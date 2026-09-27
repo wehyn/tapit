@@ -219,10 +219,16 @@ test("administrator owns a private personal workspace and keeps console access",
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByLabel("Name")).toHaveValue("Tapit Admin");
   await expect(page.getByLabel("Stable profile slug")).toHaveValue("admin-tapit");
-  await page
-    .getByRole("navigation", { name: "Your Tapit profile navigation" })
-    .getByRole("link", { name: "Admin workspace" })
-    .click();
+  const profileNavigation = page.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  const customizeLink = profileNavigation.getByRole("link", { name: "Customize", exact: true });
+  await expect(customizeLink).toBeVisible();
+  await customizeLink.click();
+  await expect(page).toHaveURL(/\/app\/customize$/);
+  await expect(page.getByRole("heading", { name: "Customize your profile" })).toBeVisible();
+  await page.goto("/app/profile");
+  await profileNavigation.getByRole("link", { name: "Admin workspace" }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
   await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
 });
