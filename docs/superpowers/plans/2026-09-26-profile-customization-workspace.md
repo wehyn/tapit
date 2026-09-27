@@ -51,18 +51,18 @@
 
 Run:
 
-~~~bash
+```bash
 sed -n '1,240p' AGENTS.md
 find node_modules/next/dist/docs/01-app -maxdepth 3 -type f | sort | rg 'routing|layouts|error|loading|index'
-~~~
+```
 
 Read the route/layout documents selected by the second command before editing route files.
 
 - [ ] Step 2: Run the focused baseline suite.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-editor.test.tsx tests/unit/profile-customization-editor.test.tsx tests/unit/sidebar-nav.test.tsx tests/unit/draft-save-context.test.tsx
-~~~
+```
 
 Expected: the existing focused tests pass before the split begins.
 
@@ -77,31 +77,41 @@ Expected: the existing focused tests pass before the split begins.
 
 Cover these mappings:
 
-~~~ts
-expect(classifyProfileWorkspaceError("The profile customization accent is invalid.")).toBe("overview");
-expect(classifyProfileWorkspaceError("The profile name custom color does not meet contrast requirements.")).toBe("identity");
+```ts
+expect(classifyProfileWorkspaceError("The profile customization accent is invalid.")).toBe(
+  "overview",
+);
+expect(
+  classifyProfileWorkspaceError(
+    "The profile name custom color does not meet contrast requirements.",
+  ),
+).toBe("identity");
 expect(classifyProfileWorkspaceError("Hero height must be between 220 and 520.")).toBe("media");
-expect(classifyProfileWorkspaceError("The profile customization content order is invalid.")).toBe("layout");
+expect(classifyProfileWorkspaceError("The profile customization content order is invalid.")).toBe(
+  "layout",
+);
 expect(classifyProfileWorkspaceError("A nonblank profile name is required.")).toBeUndefined();
 
-expect(splitProfileWorkspaceErrors([
-  "A nonblank profile name is required.",
-  "The profile customization accent is invalid.",
-  "Hero height must be between 220 and 520.",
-])).toEqual({
+expect(
+  splitProfileWorkspaceErrors([
+    "A nonblank profile name is required.",
+    "The profile customization accent is invalid.",
+    "Hero height must be between 220 and 520.",
+  ]),
+).toEqual({
   profile: ["A nonblank profile name is required."],
   customization: [
     "The profile customization accent is invalid.",
     "Hero height must be between 220 and 520.",
   ],
 });
-~~~
+```
 
 - [ ] Step 2: Run the new test and confirm it fails.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-workspace.test.ts
-~~~
+```
 
 Expected: FAIL because src/lib/profile-workspace.ts and its exports do not exist.
 
@@ -109,7 +119,7 @@ Expected: FAIL because src/lib/profile-workspace.ts and its exports do not exist
 
 Use these types and marker groups:
 
-~~~ts
+```ts
 export const PROFILE_CUSTOMIZATION_CATEGORIES = [
   "overview",
   "identity",
@@ -165,15 +175,15 @@ export function splitProfileWorkspaceErrors(errors: readonly string[]): {
     { profile: [], customization: [] } as { profile: string[]; customization: string[] },
   );
 }
-~~~
+```
 
 - [ ] Step 4: Run and commit the isolated contract.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-workspace.test.ts
 git add src/lib/profile-workspace.ts tests/unit/profile-workspace.test.ts
 git commit -m "test: classify profile workspace validation errors"
-~~~
+```
 
 Expected: all classification tests pass.
 
@@ -190,7 +200,7 @@ Render a controlled details editor with Warm Studio customization. Assert that N
 
 Use this public prop contract:
 
-~~~ts
+```ts
 export type ProfileFieldChange = <K extends keyof ProfileContent>(
   field: K,
   value: ProfileContent[K],
@@ -209,13 +219,13 @@ export type ProfileDetailsEditorProps = {
   onCustomizationChange: (next: ProfileCustomization | undefined) => void;
   onCopyUrl: () => void;
 };
-~~~
+```
 
 - [ ] Step 2: Run the details test and confirm it fails.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-details-editor.test.tsx
-~~~
+```
 
 Expected: FAIL because the component does not exist.
 
@@ -225,7 +235,7 @@ Move ProfileIdentityForm from ProfileEditor.tsx into ProfileDetailsEditor.tsx, p
 
 Keep Featured link and About/Services nested under customization. Deep-copy section.items when changing a Services section:
 
-~~~ts
+```ts
 function copyCustomization(customization: ProfileCustomization): ProfileCustomization {
   return {
     ...customization,
@@ -241,17 +251,17 @@ function copyCustomization(customization: ProfileCustomization): ProfileCustomiz
       : {}),
   };
 }
-~~~
+```
 
 When customization is absent, keep the identity fields and render a Notice explaining that Featured link and About/Services become available after choosing Warm Studio in Customize. Do not render visual controls here.
 
 - [ ] Step 4: Run and commit the details surface.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-details-editor.test.tsx
 git add src/components/forms/ProfileDetailsEditor.tsx tests/unit/profile-details-editor.test.tsx
 git commit -m "refactor: extract profile details controls"
-~~~
+```
 
 Expected: the details tests pass.
 
@@ -266,7 +276,7 @@ Expected: the details tests pass.
 
 Test this order and behavior:
 
-~~~tsx
+```tsx
 expect(screen.getByRole("tab", { name: "Overview" })).toHaveAttribute("aria-selected", "true");
 await user.click(screen.getByRole("tab", { name: "Identity" }));
 expect(screen.getByRole("button", { name: "Default name color" })).toBeInTheDocument();
@@ -275,15 +285,15 @@ await user.click(screen.getByRole("radio", { name: "About/Services first" }));
 expect(lastChange(onChange).contentOrder).toBe("section-first");
 await user.click(screen.getByRole("tab", { name: "Media" }));
 expect(screen.getByRole("button", { name: "Upload background image" })).toBeInTheDocument();
-~~~
+```
 
 Also test tab error indicators, values surviving tab switches, white custom identity color with a background, and legacy profiles showing theme cards with disabled non-Overview tabs until Use Warm Studio is selected.
 
 - [ ] Step 2: Run the component tests and confirm the old implementation fails.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-customization-editor.test.tsx
-~~~
+```
 
 Expected: FAIL because the current component exposes Identity/Contact/Style/Review accordions instead of the new visual tabs.
 
@@ -291,7 +301,7 @@ Expected: FAIL because the current component exposes Identity/Contact/Style/Revi
 
 Use this prop shape:
 
-~~~ts
+```ts
 export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
   errors?: readonly string[];
@@ -304,7 +314,7 @@ export type ProfileCustomizationEditorProps = {
   onThemeChange?: (theme: ProfileTheme) => void;
   theme?: ProfileTheme;
 };
-~~~
+```
 
 Use role tablist, role tab, aria-selected, aria-controls, and role tabpanel. Start on Overview. Render these categories in order:
 
@@ -315,26 +325,29 @@ Use role tablist, role tab, aria-selected, aria-controls, and role tabpanel. Sta
 
 Use a vertical desktop rail and horizontal mobile scroller:
 
-~~~tsx
+```tsx
 <div className="grid gap-5 lg:grid-cols-[9rem_minmax(0,1fr)]">
-  <nav aria-label="Customization categories" className="flex gap-2 overflow-x-auto lg:grid lg:content-start">
+  <nav
+    aria-label="Customization categories"
+    className="flex gap-2 overflow-x-auto lg:grid lg:content-start"
+  >
     {/* tab buttons */}
   </nav>
   <section aria-label={categoryLabels[activeCategory] + " settings"} role="tabpanel">
     {/* active category */}
   </section>
 </div>
-~~~
+```
 
 Use classifyProfileWorkspaceError for visible, non-color-only ! indicators. For a legacy profile, keep Overview selected, show the existing paper/moss/night theme cards and Use Warm Studio, and disable Identity, Media, and Layout.
 
 - [ ] Step 4: Run and commit the focused customization workspace.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-customization-editor.test.tsx
 git add src/components/forms/ProfileCustomizationEditor.tsx tests/unit/profile-customization-editor.test.tsx
 git commit -m "feat: organize customization into focused categories"
-~~~
+```
 
 Expected: all tab, error, legacy, media, identity-color, and value-preservation tests pass.
 
@@ -349,7 +362,7 @@ Expected: all tab, error, legacy, media, identity-color, and value-preservation 
 
 Use this prop contract:
 
-~~~ts
+```ts
 export type ProfileWorkspaceFrameProps = {
   title: string;
   description: string;
@@ -367,7 +380,7 @@ export type ProfileWorkspaceFrameProps = {
   publishLabel: string;
   cropDialog?: ReactNode;
 };
-~~~
+```
 
 Move the existing two-column markup, heading, WorkspacePreview, fixed action bar, icons, and responsive classes into this component. Keep controls before the preview in document order so mobile users see controls first. Preserve existing save/publish disabled and loading behavior.
 
@@ -375,7 +388,7 @@ Move the existing two-column markup, heading, WorkspacePreview, fixed action bar
 
 Use:
 
-~~~ts
+```ts
 export type ProfilePublicationPanelProps = {
   status: ProfileStatus;
   publicationState: string;
@@ -385,7 +398,7 @@ export type ProfilePublicationPanelProps = {
   onOpenCustomize: ReactNode;
   onUnpublish?: () => void;
 };
-~~~
+```
 
 Move the current status badge, success copy, profile-content error list, and unpublish action into this panel. When customizationErrors is nonempty, show a Notice with the provided Open Customize action. Do not hide ordinary name, slug, link, website, redirect, Featured link, or About/Services errors.
 
@@ -400,7 +413,7 @@ Move the current status badge, success copy, profile-content error list, and unp
 
 Add demo/live tests for:
 
-~~~tsx
+```tsx
 render(<ProfileEditor view="customize" />);
 expect(screen.getByRole("heading", { name: "Customize your profile" })).toBeVisible();
 expect(screen.getByRole("tab", { name: "Overview" })).toBeVisible();
@@ -410,7 +423,7 @@ render(<ProfileEditor view="profile" />);
 expect(screen.getByRole("heading", { name: "Profile identity" })).toBeVisible();
 expect(screen.getByRole("heading", { name: "Publication" })).toBeVisible();
 expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
-~~~
+```
 
 Cover customization changes updating the preview and enabling Save draft in both demo and live branches. Keep existing photo/media upload and legacy-profile cases.
 
@@ -418,13 +431,13 @@ Cover customization changes updating the preview and enabling Save draft in both
 
 Use:
 
-~~~ts
+```ts
 export type ProfileEditorView = "profile" | "customize";
 
 export function ProfileEditor({ view = "profile" }: { view?: ProfileEditorView } = {}) {
   return !isLocalDemoMode() ? <LiveProfileEditor view={view} /> : <DemoProfileEditor view={view} />;
 }
-~~~
+```
 
 Update DemoProfileEditor, LiveProfileEditor, and LiveProfileEditorContent to accept the view. Keep all draft state, validation, upload handlers, useDraftSaveRegistration, preview projection, save, publish, and unpublish logic in these shared controllers.
 
@@ -432,10 +445,10 @@ Update DemoProfileEditor, LiveProfileEditor, and LiveProfileEditorContent to acc
 
 After validatePublication, derive:
 
-~~~ts
+```ts
 const { profile: profileErrors, customization: customizationErrors } =
   splitProfileWorkspaceErrors(errors);
-~~~
+```
 
 Profile renders ProfileDetailsEditor plus ProfilePublicationPanel. It passes customizationErrors to the publication panel, which renders a guarded DraftSaveButtonLink to /app/customize.
 
@@ -447,22 +460,28 @@ Move legacy theme cards into Customize. Demo theme changes use the existing getD
 
 Use these route titles:
 
-~~~ts
+```ts
 const workspaceCopy =
   view === "customize"
-    ? { title: "Customize your profile", description: "Tune the look and feel of your public profile." }
-    : { title: "Your profile", description: "Edit your details and see how your profile looks to others." };
-~~~
+    ? {
+        title: "Customize your profile",
+        description: "Tune the look and feel of your public profile.",
+      }
+    : {
+        title: "Your profile",
+        description: "Edit your details and see how your profile looks to others.",
+      };
+```
 
 Both routes pass the same profileForPreview result and publish the same complete draft.
 
 - [ ] Step 5: Run and commit the route-aware controller.
 
-~~~bash
+```bash
 npm run test -- tests/unit/profile-editor.test.tsx
 git add src/components/forms/ProfileEditor.tsx src/components/forms/ProfileWorkspaceFrame.tsx src/components/forms/ProfilePublicationPanel.tsx tests/unit/profile-editor.test.tsx
 git commit -m "feat: share profile and customization workspaces"
-~~~
+```
 
 Expected: Profile and Customize tests pass for demo/live, including save calls and preview updates.
 
@@ -481,13 +500,13 @@ Expected: Profile and Customize tests pass for demo/live, including save calls a
 
 Use:
 
-~~~tsx
+```tsx
 import { ProfileEditor } from "@/components/forms/ProfileEditor";
 
 export default function CustomerCustomizePage() {
   return <ProfileEditor view="customize" />;
 }
-~~~
+```
 
 The loading state uses role status and the text Loading customization.... The error file is a client component returning the existing ServiceErrorPage.
 
@@ -495,9 +514,9 @@ The loading state uses role status and the text Loading customization.... The er
 
 Insert after Profile in customerNavGroups:
 
-~~~ts
+```ts
 { href: "/app/customize", label: "Customize", icon: "fingerprint" },
-~~~
+```
 
 Do not add the item to adminNavGroups.
 
@@ -505,11 +524,11 @@ Do not add the item to adminNavGroups.
 
 Update the sidebar fixture so /app/customize marks only Customize with aria-current=page. Render an active customer shell at /app/customize in auth-flow.test.tsx and assert the link is present; keep admin and inactive-account redirect tests unchanged.
 
-~~~bash
+```bash
 npm run test -- tests/unit/auth-flow.test.tsx tests/unit/sidebar-nav.test.tsx
 git add src/app/app/customize/page.tsx src/app/app/customize/loading.tsx src/app/app/customize/error.tsx src/components/layout/CustomerShell.tsx tests/unit/auth-flow.test.tsx tests/unit/sidebar-nav.test.tsx
 git commit -m "feat: add customer customization workspace route"
-~~~
+```
 
 Expected: active customers see Customize; admins do not.
 
@@ -521,10 +540,15 @@ Expected: active customers see Customize; admins do not.
 
 Add /app/customize to testNavGroups and assert navigation waits for the registered save:
 
-~~~tsx
+```tsx
 it("saves before navigating from Profile to Customize", async () => {
   let resolveSave!: (value: boolean) => void;
-  const save = vi.fn(() => new Promise<boolean>((resolve) => { resolveSave = resolve; }));
+  const save = vi.fn(
+    () =>
+      new Promise<boolean>((resolve) => {
+        resolveSave = resolve;
+      }),
+  );
 
   render(
     <DraftSaveProvider>
@@ -544,13 +568,13 @@ it("saves before navigating from Profile to Customize", async () => {
   resolveSave(true);
   await waitFor(() => expect(push).toHaveBeenCalledWith("/app/customize"));
 });
-~~~
+```
 
 - [ ] Step 2: Run the draft-save tests.
 
-~~~bash
+```bash
 npm run test -- tests/unit/draft-save-context.test.tsx
-~~~
+```
 
 Expected: the new navigation test and existing failure/modified-click/external-link tests pass.
 
@@ -558,10 +582,10 @@ Expected: the new navigation test and existing failure/modified-click/external-l
 
 If the existing guard passes unchanged, keep the test with the route commit. If a guard change is needed:
 
-~~~bash
+```bash
 git add src/components/layout/AppShell.tsx src/components/layout/DraftSaveContext.tsx tests/unit/draft-save-context.test.tsx
 git commit -m "test: guard navigation between profile workspaces"
-~~~
+```
 
 ## Task 9: Run complete verification and manually inspect the UI
 
@@ -569,20 +593,20 @@ git commit -m "test: guard navigation between profile workspaces"
 
 - [ ] Step 1: Run formatting and lint.
 
-~~~bash
+```bash
 npm run format:check
 npm run lint
-~~~
+```
 
 Expected: Prettier is clean and ESLint has no new issues beyond the known _links warning in src/lib/profile-customization.ts.
 
 - [ ] Step 2: Run typecheck, tests, and the verified Next build.
 
-~~~bash
+```bash
 npm run typecheck
 npm run test
 npx next build --webpack
-~~~
+```
 
 Expected: TypeScript, the full Vitest suite, and the App Router build all pass, including /app/customize.
 
@@ -600,11 +624,11 @@ Check:
 
 - [ ] Step 4: Inspect the final diff without staging user-owned files.
 
-~~~bash
+```bash
 git diff --check
 git status --short
 git diff --stat HEAD~5..HEAD
-~~~
+```
 
 Do not stage PRODUCT.md, docs/pricing-check-2026-09-25.md, docs/pricing-strategy-philippines.md, sample_data/, or work/.
 

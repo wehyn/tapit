@@ -61,6 +61,7 @@ Do not hand-edit convex/_generated/*; regenerate bindings after schema/API chang
 ## Task 0: Implementation preflight and branch safety
 
 **Files:**
+
 - Read: AGENTS.md
 - Read: convex/_generated/ai/guidelines.md
 - Read: node_modules/next/dist/docs/01-app/index.md
@@ -70,10 +71,10 @@ Do not hand-edit convex/_generated/*; regenerate bindings after schema/API chang
 
 Run:
 
-~~~
+```
 git status --short --branch
 git log --oneline --decorate -5
-~~~
+```
 
 Expected: branch feature/profile-customization, f59f4f0 at or before HEAD, and the only known untracked paths are docs/pricing-strategy-philippines.md and sample_data/.
 
@@ -85,10 +86,10 @@ Read the complete Convex guidelines and relevant Next App Router guide listed ab
 
 Run:
 
-~~~
+```
 npm run typecheck
 npx vitest run tests/unit/profile-customization-editor.test.tsx convex/integration/profile-customization.test.ts
-~~~
+```
 
 Expected: current Phase 1 typecheck and focused tests pass before Phase 2 changes begin.
 
@@ -99,6 +100,7 @@ Do not add the user-owned untracked paths to any Phase 2 commit. If a temporary 
 ## Task 1: Define the pure Phase 2 media contract
 
 **Files:**
+
 - Create: src/lib/profile-media.ts
 - Modify: src/lib/domain/index.ts
 - Create: tests/unit/profile-media.test.ts
@@ -108,7 +110,7 @@ Do not add the user-owned untracked paths to any Phase 2 commit. If a temporary 
 
 Add tests for the exact v1 contract:
 
-~~~
+```
 import {
   DEFAULT_PROFILE_MEDIA,
   MAX_PROFILE_SLIDESHOW_IMAGES,
@@ -198,15 +200,15 @@ it("strips owner-only URLs before persistence", () => {
     slideshow: [{ assetId: "asset-one", altText: "Frame" }],
   });
 });
-~~~
+```
 
 Add domain assertions proving that hasUnpublishedChanges detects media changes, projectPublicProfile returns only media from published, and a draft-only media URL never appears in the public projection.
 
 - [ ] Step 2: Run the focused tests and verify the contract is missing.
 
-~~~
+```
 npx vitest run tests/unit/profile-media.test.ts tests/unit/domain.test.ts
-~~~
+```
 
 Expected: FAIL because the media module, profile fields, and projection logic do not exist.
 
@@ -214,7 +216,7 @@ Expected: FAIL because the media module, profile fields, and projection logic do
 
 Use these constants and shapes in src/lib/profile-media.ts:
 
-~~~
+```
 export const MAX_PROFILE_SLIDESHOW_IMAGES = 10;
 export const MIN_PROFILE_HERO_HEIGHT = 220;
 export const MAX_PROFILE_HERO_HEIGHT = 520;
@@ -252,7 +254,7 @@ export interface PublicProfileMediaPresentation {
   slideshow: PublicProfileMediaImage[];
   autoplay: boolean;
 }
-~~~
+```
 
 validateProfileMedia must enforce hero height 220..520, crop positions 0..100, nonblank alt text of at most 160 characters, at most ten slideshow items, and unique asset IDs. normalizeProfileMedia must clamp numeric values, filter malformed optional items, preserve autoplay and default hero height, and return undefined only when there is no valid background and no slideshow. reorderProfileMediaSlides, removeProfileMediaSlide, and stripProfileMediaUrls must return new objects and never mutate caller state.
 
@@ -262,18 +264,19 @@ Add media?: ProfileMediaPresentation to ProfileContent and PublicProfileProjecti
 
 - [ ] Step 5: Run tests and commit the pure contract.
 
-~~~
+```
 npx vitest run tests/unit/profile-media.test.ts tests/unit/domain.test.ts tests/unit/profile-customization-editor.test.tsx
 npm run typecheck
 git add src/lib/profile-media.ts src/lib/domain/index.ts tests/unit/profile-media.test.ts tests/unit/domain.test.ts
 git commit -m "feat: define bounded profile media contract"
-~~~
+```
 
 Expected: PASS with no regressions in Phase 1 customization tests.
 
 ## Task 2: Add media storage, processing, ownership, and cleanup
 
 **Files:**
+
 - Modify: convex/schema.ts
 - Modify: convex/validators.ts
 - Modify: convex/http.ts
@@ -291,7 +294,7 @@ Expected: PASS with no regressions in Phase 1 customization tests.
 
 Use convex-test with the existing identity/owner fixture style. Cover:
 
-~~~
+```
 it("accepts an owned media asset and rejects a cross-profile reference", async () => {
   const asset = await owner.action(api.profileMedia.attach, {
     profileId: data.ownerProfileId,
@@ -330,15 +333,15 @@ it("rejects stale media revisions", async () => {
     }),
   ).rejects.toThrow("Media changed elsewhere");
 });
-~~~
+```
 
 Also test malformed bytes, unsupported content types, missing storage, oversized files, deletion of an unreferenced asset, retention of an asset referenced by either draft or published content, and account-deletion cleanup.
 
 - [ ] Step 2: Run the new integration tests and verify they fail.
 
-~~~
+```
 npx vitest run convex/integration/profile-media.test.ts
-~~~
+```
 
 Expected: FAIL because the media tables, functions, and API references do not exist.
 
@@ -356,7 +359,7 @@ Add persisted and public validators separately. Public media items contain src a
 
 In convex/profileMedia.ts, implement these typed helpers:
 
-~~~
+```
 getProfileMediaAsset(ctx, assetId)
 assertOwnedProfileMedia(ctx, profileId, ownerId, assetId)
 assertOwnedProfileMediaSet(ctx, profileId, ownerId, media)
@@ -364,7 +367,7 @@ resolveOwnedProfileMedia(ctx, profile, media)
 resolvePublishedProfileMedia(ctx, profile, media)
 removeIfMediaUnreferenced(ctx, profileId, assetId)
 deleteProfileMedia(ctx, profileId)
-~~~
+```
 
 Verify both profile and owner IDs, confirm storage metadata exists, and never trust a client URL. Invalid optional media is omitted from a projection; invalid references in save/publish mutations throw an ownership or validation error.
 
@@ -384,24 +387,25 @@ Add internal.profileMediaCleanup.reconcileExpired to remove failed/expired uploa
 
 - [ ] Step 7: Regenerate bindings and run storage tests.
 
-~~~
+```
 npx convex codegen --typecheck enable
 npx vitest run convex/integration/profile-media.test.ts convex/integration/storage.test.ts
 npm run typecheck
-~~~
+```
 
 Expected: media lifecycle tests pass, existing avatar storage tests pass, and generated Convex bindings contain the new API without hand edits.
 
 - [ ] Step 8: Commit the media storage boundary.
 
-~~~
+```
 git add convex/schema.ts convex/validators.ts convex/http.ts convex/crons.ts convex/profileMedia.ts convex/profileMediaUploadHttp.ts convex/profileMediaProcessing.ts convex/profileMediaCleanup.ts convex/storage.ts convex/customers.ts convex/integration/profile-media.test.ts convex/integration/storage.test.ts convex/_generated
 git commit -m "feat: add owned profile media storage"
-~~~
+```
 
 ## Task 3: Thread media through draft, publication, and projections
 
 **Files:**
+
 - Modify: convex/profiles.ts
 - Modify: convex/profileProjection.ts
 - Modify: convex/validators.ts
@@ -413,7 +417,7 @@ git commit -m "feat: add owned profile media storage"
 
 Attach one background and three slideshow assets. Assert:
 
-~~~
+```
 await owner.mutation(api.profiles.saveDraft, {
   profileId,
   expectedMediaRevision: 3,
@@ -460,15 +464,15 @@ expect(await t.query(api.profiles.publicBySlug, { slug: "owner" }))
       ],
     },
   });
-~~~
+```
 
 Also assert direct slug and active card queries return the same published media, draft-only reorder/height changes remain private, invalid/missing references block save or publication, and old published assets remain live until new publication succeeds.
 
 - [ ] Step 2: Run focused tests and verify they fail.
 
-~~~
+```
 npx vitest run convex/integration/profile-customization.test.ts convex/integration/profile-media.test.ts
-~~~
+```
 
 Expected: FAIL because profile mutations and projections do not yet accept media.
 
@@ -486,19 +490,20 @@ In projectOwnedProfile, resolve draft and published media URLs for the authentic
 
 - [ ] Step 6: Run focused Convex/type checks and commit.
 
-~~~
+```
 npx convex codegen --typecheck enable
 npx vitest run convex/integration/profile-customization.test.ts convex/integration/profile-media.test.ts
 npm run typecheck
 git add convex/profiles.ts convex/profileProjection.ts convex/validators.ts src/lib/domain/index.ts convex/integration/profile-customization.test.ts convex/integration/profile-media.test.ts convex/_generated
 git commit -m "feat: publish profile media through safe projections"
-~~~
+```
 
 Expected: draft privacy, publication, ownership, stale-revision, and slug/card parity tests pass.
 
 ## Task 4: Build the accessible public hero and slideshow
 
 **Files:**
+
 - Create: src/components/profile/ProfileMediaSurface.tsx
 - Create: src/components/profile/ProfileSlideshow.tsx
 - Modify: src/components/profile/PublicProfile.tsx
@@ -510,7 +515,7 @@ Expected: draft privacy, publication, ownership, stale-revision, and slug/card p
 
 Cover:
 
-~~~
+```
 it("keeps background media inside the profile surface", () => {
   render(<PublicProfile profile={profileWithMedia} profileUrl="/mara" />);
   const hero = screen.getByRole("region", { name: "Profile hero" });
@@ -532,15 +537,15 @@ it("supports manual slideshow controls and keeps the active image accessible", a
   expect(screen.getByRole("button", { name: "Image 2 of 3" }))
     .toHaveAttribute("aria-current", "true");
 });
-~~~
+```
 
 Add tests for no media region when optional media is absent, first/last wrap behavior, aria-label/aria-current dots, keyboard activation, swipe threshold, autoplay only after intersection, autoplay pause outside the viewport, reduced-motion disabling autoplay/fade, and no controls when the slideshow is empty.
 
 - [ ] Step 2: Run focused component tests and verify failure.
 
-~~~
+```
 npx vitest run tests/unit/profile-slideshow.test.tsx tests/unit/public-profile-component.test.tsx
-~~~
+```
 
 Expected: FAIL because the new components and public media projection are not rendered.
 
@@ -558,18 +563,19 @@ Render the hero immediately inside the existing bounded profile panel before ide
 
 - [ ] Step 6: Run tests and commit the public renderer.
 
-~~~
+```
 npx vitest run tests/unit/profile-slideshow.test.tsx tests/unit/public-profile-component.test.tsx tests/unit/public-hydration.test.ts
 npm run typecheck
 git add src/components/profile/ProfileMediaSurface.tsx src/components/profile/ProfileSlideshow.tsx src/components/profile/PublicProfile.tsx tests/unit/profile-slideshow.test.tsx tests/unit/public-profile-component.test.tsx tests/unit/public-hydration.test.ts
 git commit -m "feat: render bounded profile media"
-~~~
+```
 
 Expected: PASS with no legacy renderer or hydration regressions.
 
 ## Task 5: Add the collapsed Media editor and live preview wiring
 
 **Files:**
+
 - Create: src/components/forms/ProfileMediaEditor.tsx
 - Modify: src/components/forms/ProfileCustomizationEditor.tsx
 - Modify: src/components/forms/ProfileEditor.tsx
@@ -582,7 +588,7 @@ Expected: PASS with no legacy renderer or hydration regressions.
 
 Render the controlled editor with media and assert:
 
-~~~
+```
 expect(screen.getByRole("button", { name: "Media" }))
   .toHaveAttribute("aria-expanded", "false");
 await user.click(screen.getByRole("button", { name: "Media" }));
@@ -591,15 +597,15 @@ expect(screen.getByRole("button", { name: "Upload background image" }))
 expect(screen.getByLabelText("Hero height")).toHaveAttribute("min", "220");
 expect(screen.getByLabelText("Hero height")).toHaveAttribute("max", "520");
 expect(screen.getByLabelText("Autoplay while visible")).toBeChecked();
-~~~
+```
 
 Cover upload state, n / 10 count, reorder up/down buttons, remove, background replace/remove, position sliders, reuse-as-background, autoplay toggle, accessible descriptions, and preventing the eleventh image. Assert every callback receives a new object and removal/reordering never mutates the prior array.
 
 - [ ] Step 2: Run focused editor tests and verify failure.
 
-~~~
+```
 npx vitest run tests/unit/profile-media-editor.test.tsx tests/unit/profile-customization-editor.test.tsx
-~~~
+```
 
 Expected: FAIL because the Media section and component do not exist.
 
@@ -607,7 +613,7 @@ Expected: FAIL because the Media section and component do not exist.
 
 Expose:
 
-~~~
+```
 export type ProfileMediaEditorProps = {
   media?: ProfileMediaPresentation;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
@@ -618,7 +624,7 @@ export type ProfileMediaEditorProps = {
   busy?: boolean;
   error?: string;
 };
-~~~
+```
 
 Use DEFAULT_PROFILE_MEDIA when the first upload is made. Keep file inputs visually hidden but explicitly labeled, with accept="image/jpeg,image/png,image/webp". The background uploader replaces the current background; the slideshow uploader appends until ten. Use native range inputs for hero height and crop positions with visible numeric values, a checkbox for visible-only autoplay, and buttons labeled Move image n up, Move image n down, Remove image n, and Use image n as background.
 
@@ -638,18 +644,19 @@ Implement the local demo adapter with a data URL generated from the selected fil
 
 - [ ] Step 6: Run editor, upload, and type checks, then commit.
 
-~~~
+```
 npx vitest run tests/unit/profile-media-editor.test.tsx tests/unit/profile-customization-editor.test.tsx tests/unit/profile-editor-image-upload.test.tsx
 npm run typecheck
 git add src/components/forms/ProfileMediaEditor.tsx src/components/forms/ProfileCustomizationEditor.tsx src/components/forms/ProfileEditor.tsx src/lib/profile-media.ts tests/unit/profile-media-editor.test.tsx tests/unit/profile-customization-editor.test.tsx tests/unit/profile-editor-image-upload.test.tsx
 git commit -m "feat: add profile media editor"
-~~~
+```
 
 Expected: media controls are keyboard accessible, Save draft/Publish are disabled during processing, avatar upload tests remain green, and preview updates from draft state before saving.
 
 ## Task 6: Preserve demo, direct/card parity, and existing behavior
 
 **Files:**
+
 - Modify: src/lib/demo/store.ts
 - Modify: src/lib/demo/projection.ts
 - Modify: src/lib/demo/fixtures.ts
@@ -664,19 +671,19 @@ Expected: media controls are keyboard accessible, Save draft/Publish are disable
 
 Build one published projection with media and assert:
 
-~~~
+```
 expect(slugProjection.media).toEqual(cardProjection.media);
 expect(demoProjection.media).toEqual(previewProjection.media);
 expect(JSON.stringify(slugProjection)).not.toContain("draft-background");
-~~~
+```
 
 Keep existing profile-image imageSrcSet assertions unchanged. Assert WorkspacePreview passes media through without putting the background on its outer preview shell.
 
 - [ ] Step 2: Run parity tests and verify failure.
 
-~~~
+```
 npx vitest run tests/unit/profile-media-parity.test.ts convex/integration/profile-customization.test.ts convex/integration/public-image-srcset.test.ts
-~~~
+```
 
 Expected: FAIL only on the new media assertions.
 
@@ -690,18 +697,19 @@ Do not add separate media rendering to PublicProfileScreen or CardResolverClient
 
 - [ ] Step 5: Run parity tests and commit.
 
-~~~
+```
 npx vitest run tests/unit/profile-media-parity.test.ts convex/integration/profile-customization.test.ts convex/integration/public-image-srcset.test.ts
 npm run typecheck
 git add src/lib/demo/store.ts src/lib/demo/projection.ts src/lib/demo/fixtures.ts src/components/profile/PublicProfileScreen.tsx src/components/profile/CardResolverClient.tsx src/components/workspace/WorkspacePreview.tsx convex/integration/profile-customization.test.ts convex/integration/public-image-srcset.test.ts tests/unit/profile-media-parity.test.ts
 git commit -m "test: preserve profile media projection parity"
-~~~
+```
 
 Expected: direct URL, active card, demo, and workspace preview agree on published media while legacy image behavior remains unchanged.
 
 ## Task 7: End-to-end acceptance and accessibility coverage
 
 **Files:**
+
 - Modify: e2e/customer.spec.ts
 - Modify: e2e/public-profile.spec.ts
 - Modify: e2e/accessibility.spec.ts
@@ -731,44 +739,45 @@ Extend e2e/accessibility.spec.ts to open Media with the keyboard, operate hero s
 
 - [ ] Step 4: Run acceptance suites.
 
-~~~
+```
 npx playwright test e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts --project chromium
 npm run test:e2e:demo
-~~~
+```
 
 Expected: owner draft privacy, publication, controls, direct/card parity, keyboard operation, and reduced-motion behavior pass.
 
 - [ ] Step 5: Commit acceptance coverage.
 
-~~~
+```
 git add e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts e2e/live.spec.ts docs/CHANGELOG.md
 git commit -m "test: cover profile customization phase 2"
-~~~
+```
 
 ## Task 8: Full verification and review handoff
 
 **Files:**
+
 - No new implementation files; review all Phase 2 changes and generated bindings.
 
 - [ ] Step 1: Run formatting, lint, typecheck, unit, integration, and build verification.
 
-~~~
+```
 npm run format:check
 npm run lint
 npm run typecheck
 npm run test
 npm run build
-~~~
+```
 
 Expected: all commands pass. If format check identifies generated Convex output, regenerate codegen and rerun it; never hand-format generated files.
 
 - [ ] Step 2: Inspect the final diff and verify scope.
 
-~~~
+```
 git diff --stat f59f4f0..HEAD
 git diff --name-only f59f4f0..HEAD
 git status --short
-~~~
+```
 
 Confirm no physical card artwork, QR design, card-ordering code, sample_data/, or docs/pricing-strategy-philippines.md changed. Confirm the only public media values are published src/alt projections and no assetId, draft URL, or upload-job field reaches public profile/card responses.
 
