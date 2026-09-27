@@ -150,7 +150,9 @@ test("customized direct and active card paths preserve presentation parity", asy
   });
 });
 
-test("public profile source parameters attribute visits to NFC and QR", async ({ page }) => {
+test("tagged profile activity appears by source and aggregates to one daily trend point", async ({
+  page,
+}) => {
   for (const source of ["nfc", "qr"] as const) {
     await page.goto(`/mara-velasquez?source=${source}`);
     await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
@@ -176,6 +178,21 @@ test("public profile source parameters attribute visits to NFC and QR", async ({
       )
       .toBe(true);
   }
+
+  await signInAsCustomer(page);
+  await page.goto("/app/analytics");
+
+  const trafficSources = page.getByLabel("Traffic source breakdown");
+  await expect(
+    trafficSources.getByText("NFC", { exact: true }).locator("xpath=following-sibling::dd"),
+  ).toHaveText("1");
+  await expect(
+    trafficSources.getByText("QR code", { exact: true }).locator("xpath=following-sibling::dd"),
+  ).toHaveText("1");
+
+  const trend = page.getByLabel("Aggregate engagement trend");
+  const today = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  await expect(trend.getByText(today, { exact: true })).toHaveCount(1);
 });
 
 test("inactive cards never reveal their former profile and vCard includes approved profile fields", async ({

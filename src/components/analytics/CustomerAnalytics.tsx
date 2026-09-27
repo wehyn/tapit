@@ -102,9 +102,19 @@ function DemoCustomerAnalytics() {
   const trend = useMemo(() => {
     const days = range === "lifetime" ? Number.POSITIVE_INFINITY : Number(range.slice(0, -1));
     const cutoff = Number.isFinite(days) ? now - days * 24 * 60 * 60 * 1000 : 0;
-    return state.analytics
-      .filter((bucket) => bucket.profileId === profile.id && bucket.bucketStart >= cutoff)
-      .sort((left, right) => left.bucketStart - right.bucketStart);
+    const byDay = new Map<number, { bucketStart: number; views: number; clicks: number }>();
+    for (const bucket of state.analytics) {
+      if (bucket.profileId !== profile.id || bucket.bucketStart < cutoff) continue;
+      const daily = byDay.get(bucket.bucketStart) ?? {
+        bucketStart: bucket.bucketStart,
+        views: 0,
+        clicks: 0,
+      };
+      daily.views += bucket.views;
+      daily.clicks += bucket.clicks;
+      byDay.set(bucket.bucketStart, daily);
+    }
+    return [...byDay.values()].sort((left, right) => left.bucketStart - right.bucketStart);
   }, [now, profile.id, range, state.analytics]);
   const peak = Math.max(1, ...trend.map((bucket) => bucket.views + bucket.clicks));
   const linkResults = profile.draft.links
