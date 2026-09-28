@@ -2,7 +2,15 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+} from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
@@ -35,6 +43,10 @@ import {
   type ProfileMediaImage,
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
+import {
+  mergePendingProfileMediaPreview,
+  type PendingProfileMediaUpload,
+} from "@/lib/profile-media-preview";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -51,29 +63,45 @@ import { splitProfileWorkspaceErrors } from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-function profileForPreview(draft: ProfileContent, legacyTheme?: ProfileTheme) {
-  if (legacyTheme !== undefined) {
-    return projectDemoPublicProfile(
-      {
-        id: "preview",
-        ownerId: "preview",
-        status: "published",
-        theme: legacyTheme,
-        draft,
-        published: null,
-      },
-      draft,
-      legacyTheme,
-    );
-  }
-  return projectPublicProfile({
-    id: "preview",
-    ownerId: "preview",
-    status: "published",
-    draft,
-    published: { ...draft, publishedAt: new Date().toISOString() },
-  });
+function profileForPreview(
+  draft: ProfileContent,
+  legacyTheme: ProfileTheme | undefined,
+  pendingMedia: PendingProfileMediaUpload | null,
+) {
+  const projected =
+    legacyTheme !== undefined
+      ? projectDemoPublicProfile(
+          {
+            id: "preview",
+            ownerId: "preview",
+            status: "published",
+            theme: legacyTheme,
+            draft,
+            published: null,
+          },
+          draft,
+          legacyTheme,
+        )
+      : projectPublicProfile({
+          id: "preview",
+          ownerId: "preview",
+          status: "published",
+          draft,
+          published: { ...draft, publishedAt: new Date().toISOString() },
+        });
+
+  return projected === null ? null : mergePendingProfileMediaPreview(projected, pendingMedia);
 }
+
+type ProfileCustomizationEditorWithMediaPreviewProps = ComponentProps<
+  typeof ProfileCustomizationEditor
+> & {
+  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+};
+
+// Task 4 adds this callback to ProfileCustomizationEditor; widen the local call-site type now.
+const ProfileCustomizationEditorWithMediaPreview =
+  ProfileCustomizationEditor as unknown as ComponentType<ProfileCustomizationEditorWithMediaPreviewProps>;
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
 
@@ -130,6 +158,10 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
+    null,
+  );
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
   const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
@@ -172,7 +204,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   })();
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
-  const preview = profileForPreview(draft, theme);
+  const preview = profileForPreview(draft, theme, pendingMediaPreview);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
@@ -205,7 +237,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   }
 
   async function saveDraft() {
-    if (cropFile !== null || imagePending || mediaBusy) return false;
+    if (cropFile !== null || imagePending || hasUnresolvedMedia) return false;
     if (!isDirty) return true;
     try {
       let assignedSlug = profile.draft.slug;
@@ -239,7 +271,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   useDraftSaveRegistration(saveDraft);
 
   function publish() {
-    if (cropFile !== null || imagePending || mediaBusy) return;
+    if (cropFile !== null || imagePending || hasUnresolvedMedia) return;
     if (errors.length > 0) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
@@ -516,13 +548,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             ) : null}
             {draft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
-                <ProfileCustomizationEditor
+                <ProfileCustomizationEditorWithMediaPreview
                   customization={draft.customization}
                   errors={customizationErrors}
                   media={draft.media}
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadDemoMedia}
                   onThemeChange={chooseTheme}
@@ -530,13 +563,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 />
               </Panel>
             ) : (
-              <ProfileCustomizationEditor
+              <ProfileCustomizationEditorWithMediaPreview
                 customization={draft.customization}
                 errors={customizationErrors}
                 media={draft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadDemoMedia}
                 onThemeChange={chooseTheme}
@@ -579,10 +613,10 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
         publicationLabel === "Published" ||
         cropFile !== null ||
         imagePending ||
-        mediaBusy
+        hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || cropFile !== null || imagePending || mediaBusy}
+      saveDisabled={!isDirty || cropFile !== null || imagePending || hasUnresolvedMedia}
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}
     />
@@ -621,6 +655,10 @@ function LiveProfileEditorContent({
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
+    null,
+  );
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
   const [mediaError, setMediaError] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
@@ -669,7 +707,7 @@ function LiveProfileEditorContent({
   });
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
-  const preview = profileForPreview(currentDraft);
+  const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
   const slugLocked = true;
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
@@ -863,7 +901,8 @@ function LiveProfileEditorContent({
   }
 
   async function saveDraft(keepPublishPending = false): Promise<boolean> {
-    if (!keepPublishPending && (pending !== null || cropFile !== null || mediaBusy)) return false;
+    if (!keepPublishPending && (pending !== null || cropFile !== null || hasUnresolvedMedia))
+      return false;
     if (!isDirty) return true;
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
@@ -909,7 +948,7 @@ function LiveProfileEditorContent({
   });
 
   async function publish() {
-    if (errors.length > 0 || pending !== null || cropFile !== null || mediaBusy) {
+    if (errors.length > 0 || pending !== null || cropFile !== null || hasUnresolvedMedia) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
     }
@@ -1084,13 +1123,14 @@ function LiveProfileEditorContent({
             ) : null}
             {currentDraft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
-                <ProfileCustomizationEditor
+                <ProfileCustomizationEditorWithMediaPreview
                   customization={currentDraft.customization}
                   errors={customizationErrors}
                   media={currentDraft.media}
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadLiveMedia}
                   onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
@@ -1098,13 +1138,14 @@ function LiveProfileEditorContent({
                 />
               </Panel>
             ) : (
-              <ProfileCustomizationEditor
+              <ProfileCustomizationEditorWithMediaPreview
                 customization={currentDraft.customization}
                 errors={customizationErrors}
                 media={currentDraft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadLiveMedia}
                 onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
@@ -1147,10 +1188,10 @@ function LiveProfileEditorContent({
         publicationLabel === "Published" ||
         pending !== null ||
         cropFile !== null ||
-        mediaBusy
+        hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || pending !== null || cropFile !== null || mediaBusy}
+      saveDisabled={!isDirty || pending !== null || cropFile !== null || hasUnresolvedMedia}
       saveLoading={pending === "save"}
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}
