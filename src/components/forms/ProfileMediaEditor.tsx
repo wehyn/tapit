@@ -23,6 +23,7 @@ export type ProfileMediaEditorProps = {
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   onPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
   onMediaErrorClear?: () => void;
+  onMediaUploadCancel?: () => void;
   busy?: boolean;
   error?: string;
 };
@@ -52,6 +53,7 @@ export function ProfileMediaEditor({
   onUpload,
   onPendingPreviewChange,
   onMediaErrorClear,
+  onMediaUploadCancel,
   busy = false,
   error,
 }: ProfileMediaEditorProps) {
@@ -68,6 +70,7 @@ export function ProfileMediaEditor({
   const activePreviewUrl = useRef<string | undefined>(undefined);
   const activePending = useRef<PendingProfileMediaUpload | null>(null);
   const latestPendingPreviewChange = useRef(onPendingPreviewChange);
+  const latestMediaUploadCancel = useRef(onMediaUploadCancel);
   const activeRequest = useRef<
     | {
         target: "background" | "slideshow";
@@ -82,6 +85,9 @@ export function ProfileMediaEditor({
   useEffect(() => {
     latestPendingPreviewChange.current = onPendingPreviewChange;
   }, [onPendingPreviewChange]);
+  useEffect(() => {
+    latestMediaUploadCancel.current = onMediaUploadCancel;
+  }, [onMediaUploadCancel]);
   useEffect(
     () => () => {
       uploadRequests.current.background += 1;
@@ -93,6 +99,7 @@ export function ProfileMediaEditor({
         activePreviewUrl.current = undefined;
       }
       latestPendingPreviewChange.current?.(null);
+      latestMediaUploadCancel.current?.();
     },
     [],
   );
@@ -222,6 +229,7 @@ export function ProfileMediaEditor({
     revokeActivePreview(pending.previewUrl);
     onPendingPreviewChange?.(null);
     onMediaErrorClear?.();
+    if (pending.state === "uploading") onMediaUploadCancel?.();
   }
 
   function hasMeaningfulSettings(next: ProfileMediaPresentation) {
