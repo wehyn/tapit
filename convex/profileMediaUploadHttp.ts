@@ -65,6 +65,8 @@ async function handleUpload(
     jobId = await ctx.runMutation(internal.profileMedia.createUploadJob, {
       profileId: profileId as Id<"profiles">,
       ownerId: access.ownerId,
+      actorUserId: access.userId,
+      accessMode: adminOnly ? "admin" : "owner",
       sha256,
       expectedMediaRevision: revision,
     });
@@ -79,11 +81,13 @@ async function handleUpload(
     if (jobId !== undefined)
       await ctx.runMutation(internal.profileMedia.compensateUpload, { jobId, storageId });
     const message = error instanceof Error ? error.message : "Media upload failed.";
-    const status = message.includes("access denied")
-      ? 403
-      : message.includes("changed elsewhere") || message.includes("Upload job")
-        ? 409
-        : 400;
+    const status =
+      message.toLowerCase().includes("access denied") ||
+      message.toLowerCase().includes("administrator permission required")
+        ? 403
+        : message.includes("changed elsewhere") || message.includes("Upload job")
+          ? 409
+          : 400;
     return new Response(message, { status, headers: cors });
   }
 }

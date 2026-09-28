@@ -121,6 +121,8 @@ export default defineSchema({
   profileImageUploadJobs: defineTable({
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
+    actorUserId: v.optional(v.id("users")),
+    accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     largeSha256: v.string(),
     smallSha256: v.optional(v.string()),
     largeStorageId: v.optional(v.id("_storage")),
@@ -164,6 +166,8 @@ export default defineSchema({
   profileMediaUploadJobs: defineTable({
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
+    actorUserId: v.optional(v.id("users")),
+    accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     sha256: v.string(),
     previewSha256: v.optional(v.string()),
     storageId: v.optional(v.id("_storage")),

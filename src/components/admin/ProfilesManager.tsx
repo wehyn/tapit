@@ -812,7 +812,7 @@ function LiveProfilesManager() {
   const publish = useMutation(api.profiles.publish);
   const setStatus = useMutation(api.profiles.setStatus);
   const changeSlug = useMutation(api.profiles.changeSlug);
-  const removeImage = useMutation(api.storage.removeImage);
+  const removeImage = useMutation(api.storage.removeImageAsAdmin);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<Id<"profiles"> | null>(null);
   const selectedIdRef = useRef<Id<"profiles"> | null>(null);
@@ -932,7 +932,7 @@ function LiveProfilesManager() {
       process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
       process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
     );
-    const response = await fetch(`${siteUrl}/profile-image-upload`, {
+    const response = await fetch(`${siteUrl}/admin-profile-image-upload`, {
       method: "POST",
       body: prepared.blob,
       headers: {

@@ -1,8 +1,14 @@
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { action, internalMutation, internalQuery, mutation } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
-import { profileAccess } from "./profileAccess";
+import {
+  action,
+  internalMutation,
+  internalQuery,
+  mutation,
+  type MutationCtx,
+} from "./_generated/server";
+import type { Doc, Id } from "./_generated/dataModel";
+import { profileAdministratorAccess, profileOwnerAccess } from "./profileAccess";
 import {
   detectProfileImageContentType,
   MAX_PROFILE_IMAGE_SIZE,
@@ -12,6 +18,24 @@ import {
 import schema from "./schema";
 import { isActiveCustomer, sameScope } from "./admin";
 
+type UploadAccessMode = "owner" | "admin";
+
+function canUploadForProfile(
+  actor: Doc<"customers"> | null,
+  actorUserId: Id<"users"> | undefined,
+  accessMode: UploadAccessMode | undefined,
+  owner: Doc<"customers">,
+  profile: Doc<"profiles">,
+): boolean {
+  if (actorUserId === undefined && accessMode === undefined) return isActiveCustomer(owner);
+  if (actor === null || !isActiveCustomer(actor)) return false;
+  if (accessMode === "owner")
+    return actor._id === owner._id && isActiveCustomer(owner) && sameScope(actor, profile);
+  if (accessMode === "admin")
+    return actor.role === "admin" && sameScope(actor, profile) && sameScope(actor, owner);
+  return false;
+}
+
 export const IMAGE_REVISION_CONFLICT = "Photo changed elsewhere. Reload and try again.";
 export const IMAGE_UPLOAD_PENDING =
   "Photo upload in progress. Wait for it to finish and try again.";
@@ -20,7 +44,7 @@ export const generateUploadUrl = mutation({
   args: { profileId: v.id("profiles") },
   returns: v.string(),
   handler: async (ctx, args) => {
-    await profileAccess(ctx, args.profileId);
+    await profileOwnerAccess(ctx, args.profileId);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -29,7 +53,9 @@ export const attachImage = action({
   args: { profileId: v.id("profiles"), storageId: v.id("_storage") },
   returns: v.object({ storageId: v.id("_storage"), imageUrl: v.string() }),
   handler: async (ctx, args): Promise<{ storageId: Id<"_storage">; imageUrl: string }> => {
-    const access = await ctx.runQuery(internal.profileAccess.get, { profileId: args.profileId });
+    const access = await ctx.runQuery(internal.profileAccess.getOwnerAccess, {
+      profileId: args.profileId,
+    });
     const mapping = await ctx.runQuery(internal.profileImages.getMapping, {
       storageId: args.storageId,
     });
@@ -50,7 +76,10 @@ export const attachImage = action({
       throw new Error("The uploaded file must be a valid JPEG, PNG, or WebP image.");
     }
     const { imageUrl } = await ctx.runMutation(internal.storage.attach, {
-      ...access,
+      profileId: access.profileId,
+      ownerId: access.ownerId,
+      actorUserId: access.userId,
+      accessMode: "owner",
       storageId: args.storageId,
       contentType,
       size: blob.size,
@@ -69,6 +98,8 @@ export const attach = internalMutation({
     smallStorageId: v.optional(v.id("_storage")),
     expectedImageRevision: v.optional(v.number()),
     uploadJobId: v.optional(v.id("profileImageUploadJobs")),
+    actorUserId: v.optional(v.id("users")),
+    accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
   },
   returns: v.object({ imageUrl: v.string(), imageRevision: v.number() }),
   handler: async (ctx, args) => {
@@ -76,7 +107,21 @@ export const attach = internalMutation({
     if (profile === null || profile.ownerId !== args.ownerId)
       throw new Error("Profile access denied.");
     const owner = await ctx.db.get(args.ownerId);
-    if (owner === null || !isActiveCustomer(owner) || !sameScope(owner, profile))
+    const job = args.uploadJobId === undefined ? null : await ctx.db.get(args.uploadJobId);
+    const actorUserId = args.uploadJobId === undefined ? args.actorUserId : job?.actorUserId;
+    const accessMode = args.uploadJobId === undefined ? args.accessMode : job?.accessMode;
+    const actor =
+      actorUserId === undefined
+        ? null
+        : await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
+            .unique();
+    if (
+      owner === null ||
+      !sameScope(owner, profile) ||
+      !canUploadForProfile(actor, actorUserId, accessMode, owner, profile)
+    )
       throw new Error("Profile access denied.");
     const currentRevision = profile.imageRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== currentRevision)
@@ -108,7 +153,6 @@ export const attach = internalMutation({
     if (existing !== null && existing.smallStorageId !== args.smallStorageId)
       throw new Error("This image set has different variants.");
     if (args.uploadJobId !== undefined) {
-      const job = await ctx.db.get(args.uploadJobId);
       if (
         job === null ||
         job.status !== "pending" ||
@@ -138,6 +182,16 @@ export const attach = internalMutation({
       imageRevision: currentRevision + 1,
       updatedAt: Date.now(),
     });
+    if (actor?.role === "admin")
+      await ctx.db.insert("auditLogs", {
+        scope: profile.scope,
+        actorUserId: actor.userId,
+        actorLabel: "Administrator",
+        action: "profile.photo_uploaded",
+        profileId: profile._id,
+        accountId: profile.ownerId,
+        occurredAt: Date.now(),
+      });
     if (
       oldStorageId !== undefined &&
       oldStorageId !== args.storageId &&
@@ -191,13 +245,30 @@ export const createUploadJob = internalMutation({
   args: {
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
+    actorUserId: v.optional(v.id("users")),
+    accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     largeSha256: v.string(),
     expectedImageRevision: v.number(),
   },
   returns: v.id("profileImageUploadJobs"),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
-    if (profile === null || profile.ownerId !== args.ownerId)
+    const owner = await ctx.db.get(args.ownerId);
+    if (
+      profile === null ||
+      owner === null ||
+      profile.ownerId !== args.ownerId ||
+      !sameScope(owner, profile)
+    )
+      throw new Error("Profile access denied.");
+    const actor =
+      args.actorUserId === undefined
+        ? null
+        : await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (query) => query.eq("userId", args.actorUserId!))
+            .unique();
+    if (!canUploadForProfile(actor, args.actorUserId, args.accessMode, owner, profile))
       throw new Error("Profile access denied.");
     if (args.expectedImageRevision !== (profile.imageRevision ?? 0))
       throw new Error(IMAGE_REVISION_CONFLICT);
@@ -205,6 +276,8 @@ export const createUploadJob = internalMutation({
     return await ctx.db.insert("profileImageUploadJobs", {
       profileId: args.profileId,
       ownerId: args.ownerId,
+      ...(args.actorUserId === undefined ? {} : { actorUserId: args.actorUserId }),
+      ...(args.accessMode === undefined ? {} : { accessMode: args.accessMode }),
       largeSha256: args.largeSha256,
       expectedImageRevision: args.expectedImageRevision,
       status: "pending",
@@ -264,24 +337,58 @@ export const getUploadJob = internalQuery({
   handler: async (ctx, args) => await ctx.db.get(args.jobId),
 });
 
+async function clearProfilePhoto(
+  ctx: MutationCtx,
+  profile: Doc<"profiles">,
+  expectedImageRevision: number | undefined,
+  actorUserId: Id<"users"> | undefined,
+) {
+  const currentRevision = profile.imageRevision ?? 0;
+  if (expectedImageRevision !== undefined && expectedImageRevision !== currentRevision)
+    throw new Error(IMAGE_REVISION_CONFLICT);
+  const oldStorageId = profile.draft.imageStorageId;
+  const draft = { ...profile.draft };
+  delete draft.imageUrl;
+  const now = Date.now();
+  await ctx.db.patch(profile._id, {
+    draft: { ...draft, imageStorageId: undefined },
+    imageRevision: currentRevision + 1,
+    updatedAt: now,
+  });
+  if (oldStorageId !== undefined && profile.published?.imageStorageId !== oldStorageId)
+    await removeIfUnreferenced(ctx, oldStorageId, profile._id);
+  if (actorUserId !== undefined)
+    await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
+      actorUserId,
+      actorLabel: "Administrator",
+      action: "profile.photo_removed",
+      profileId: profile._id,
+      accountId: profile.ownerId,
+      occurredAt: now,
+    });
+  return { imageRevision: currentRevision + 1 };
+}
+
 export const removeImage = mutation({
   args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
   returns: v.object({ imageRevision: v.number() }),
   handler: async (ctx, args) => {
-    const { profile } = await profileAccess(ctx, args.profileId);
-    const currentRevision = profile.imageRevision ?? 0;
-    if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== currentRevision)
-      throw new Error(IMAGE_REVISION_CONFLICT);
-    const oldStorageId = profile.draft.imageStorageId;
-    const draft = { ...profile.draft };
-    delete draft.imageUrl;
-    await ctx.db.patch(profile._id, {
-      draft: { ...draft, imageStorageId: undefined },
-      imageRevision: currentRevision + 1,
-      updatedAt: Date.now(),
-    });
-    if (oldStorageId !== undefined && profile.published?.imageStorageId !== oldStorageId)
-      await removeIfUnreferenced(ctx, oldStorageId, profile._id);
-    return { imageRevision: currentRevision + 1 };
+    const { account, profile, userId } = await profileOwnerAccess(ctx, args.profileId);
+    return await clearProfilePhoto(
+      ctx,
+      profile,
+      args.expectedImageRevision,
+      account.role === "admin" ? userId : undefined,
+    );
+  },
+});
+
+export const removeImageAsAdmin = mutation({
+  args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
+  returns: v.object({ imageRevision: v.number() }),
+  handler: async (ctx, args) => {
+    const { profile, userId } = await profileAdministratorAccess(ctx, args.profileId);
+    return await clearProfilePhoto(ctx, profile, args.expectedImageRevision, userId);
   },
 });

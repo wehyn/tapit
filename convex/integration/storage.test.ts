@@ -208,6 +208,234 @@ describe("profile image storage", () => {
     vi.unstubAllEnvs();
   });
 
+  it("keeps customer photo paths owner-only and audits administrator photo changes", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const otherScopeProfileId = await t.run(async (ctx) => {
+      const ownerUserId = await ctx.db.insert("users", { email: "isolated@example.com" });
+      const ownerId = await ctx.db.insert("customers", {
+        userId: ownerUserId,
+        email: "isolated@example.com",
+        role: "customer",
+        scope: "demo",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId,
+        scope: "demo",
+        slug: "isolated",
+        status: "draft",
+        draft: validDraft("isolated"),
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(ownerId, { profileId });
+      return profileId;
+    });
+    const image = await sharp({
+      create: { width: 384, height: 384, channels: 4, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+    const request = (profileId: Id<"profiles">) => ({
+      method: "POST" as const,
+      headers: {
+        Origin: "http://localhost:3000",
+        "X-Profile-Id": profileId,
+        "X-Image-Revision": "0",
+        "Content-Type": "image/png",
+      },
+      body: new Uint8Array(image),
+    });
+
+    const adminOnCustomerPath = await t
+      .withIdentity(identity(data.adminUserId))
+      .fetch("/profile-image-upload", request(data.ownerProfileId));
+    expect(adminOnCustomerPath.status).toBe(403);
+
+    const customerOnAdminPath = await t
+      .withIdentity(identity(data.ownerUserId))
+      .fetch("/admin-profile-image-upload", request(data.ownerProfileId));
+    expect(customerOnAdminPath.status).toBe(403);
+
+    const crossScopeAdminUpload = await t
+      .withIdentity(identity(data.adminUserId))
+      .fetch("/admin-profile-image-upload", request(otherScopeProfileId));
+    expect(crossScopeAdminUpload.status).toBe(403);
+    await expect(
+      t.withIdentity(identity(data.adminUserId)).mutation(api.storage.removeImageAsAdmin, {
+        profileId: otherScopeProfileId,
+        expectedImageRevision: 0,
+      }),
+    ).rejects.toThrow("Profile access denied");
+
+    const adminUpload = await t
+      .withIdentity(identity(data.adminUserId))
+      .fetch("/admin-profile-image-upload", request(data.ownerProfileId));
+    expect(adminUpload.status).toBe(200);
+    expect((await adminUpload.json()).imageRevision).toBe(1);
+    await expect(
+      t.withIdentity(identity(data.adminUserId)).mutation(api.storage.removeImage, {
+        profileId: data.ownerProfileId,
+        expectedImageRevision: 1,
+      }),
+    ).rejects.toThrow("Profile access denied");
+
+    const auditAfterUpload = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_profileId", (query) => query.eq("profileId", data.ownerProfileId))
+        .collect(),
+    );
+    expect(auditAfterUpload).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "profile.photo_uploaded",
+          actorUserId: data.adminUserId,
+          accountId: data.ownerCustomerId,
+          profileId: data.ownerProfileId,
+        }),
+      ]),
+    );
+
+    const adminRemove = await t
+      .withIdentity(identity(data.adminUserId))
+      .mutation(api.storage.removeImageAsAdmin, {
+        profileId: data.ownerProfileId,
+        expectedImageRevision: 1,
+      });
+    expect(adminRemove.imageRevision).toBe(2);
+    const auditAfterRemoval = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_profileId", (query) => query.eq("profileId", data.ownerProfileId))
+        .collect(),
+    );
+    expect(auditAfterRemoval).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "profile.photo_removed",
+          actorUserId: data.adminUserId,
+          accountId: data.ownerCustomerId,
+          profileId: data.ownerProfileId,
+        }),
+      ]),
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects administrator photo jobs after the actor account is deleted or demoted", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const jobId = await t.mutation(internal.storage.createUploadJob, {
+      profileId: data.ownerProfileId,
+      ownerId: data.ownerCustomerId,
+      actorUserId: data.adminUserId,
+      accessMode: "admin",
+      largeSha256: "f".repeat(64),
+      expectedImageRevision: 0,
+    });
+    const largeStorageId = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
+    const smallStorageId = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
+    await t.mutation(internal.storage.markUploadJob, {
+      jobId,
+      largeStorageId,
+      smallStorageId,
+    });
+    await t.run((ctx) => ctx.db.delete(data.adminCustomerId));
+
+    await expect(
+      t.mutation(internal.storage.attach, {
+        profileId: data.ownerProfileId,
+        ownerId: data.ownerCustomerId,
+        storageId: largeStorageId,
+        smallStorageId,
+        contentType: "image/png",
+        size: 8,
+        expectedImageRevision: 0,
+        uploadJobId: jobId,
+      }),
+    ).rejects.toThrow("Profile access denied");
+    await expect(
+      t.mutation(internal.storage.createUploadJob, {
+        profileId: data.ownerProfileId,
+        ownerId: data.ownerCustomerId,
+        actorUserId: data.adminUserId,
+        accessMode: "admin",
+        largeSha256: "a".repeat(64),
+        expectedImageRevision: 0,
+      }),
+    ).rejects.toThrow("Profile access denied");
+    expect((await t.run((ctx) => ctx.db.get(data.ownerProfileId)))?.imageRevision ?? 0).toBe(0);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("auditLogs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", data.ownerProfileId))
+          .collect(),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("does not finish an admin photo job after the admin role is demoted on their own profile", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const adminProfileId = await t.run(async (ctx) => {
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: data.adminCustomerId,
+        slug: "admin-owner",
+        status: "draft",
+        draft: validDraft("admin-owner"),
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(data.adminCustomerId, { profileId });
+      return profileId;
+    });
+    const jobId = await t.mutation(internal.storage.createUploadJob, {
+      profileId: adminProfileId,
+      ownerId: data.adminCustomerId,
+      actorUserId: data.adminUserId,
+      accessMode: "admin",
+      largeSha256: "b".repeat(64),
+      expectedImageRevision: 0,
+    });
+    const largeStorageId = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
+    const smallStorageId = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
+    await t.mutation(internal.storage.markUploadJob, {
+      jobId,
+      largeStorageId,
+      smallStorageId,
+    });
+    await t.run((ctx) => ctx.db.patch(data.adminCustomerId, { role: "customer" }));
+
+    await expect(
+      t.mutation(internal.storage.attach, {
+        profileId: adminProfileId,
+        ownerId: data.adminCustomerId,
+        storageId: largeStorageId,
+        smallStorageId,
+        contentType: "image/png",
+        size: 8,
+        expectedImageRevision: 0,
+        uploadJobId: jobId,
+      }),
+    ).rejects.toThrow("Profile access denied");
+    expect((await t.run((ctx) => ctx.db.get(adminProfileId)))?.imageRevision ?? 0).toBe(0);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("auditLogs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", adminProfileId))
+          .collect(),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("blocks publication for a current pending upload but not an expired one", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
@@ -552,6 +780,7 @@ describe("profile image storage", () => {
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
+    const admin = t.withIdentity(identity(data.adminUserId));
     const storageId = await t.run(async (ctx) =>
       ctx.storage.store(new Blob([pngSignature()], { type: "image/png" })),
     );
@@ -563,7 +792,13 @@ describe("profile image storage", () => {
       other.mutation(api.storage.generateUploadUrl, { profileId: data.ownerProfileId }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
+      admin.mutation(api.storage.generateUploadUrl, { profileId: data.ownerProfileId }),
+    ).rejects.toThrow("Profile access denied.");
+    await expect(
       other.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),
+    ).rejects.toThrow("Profile access denied.");
+    await expect(
+      admin.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
       owner.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),

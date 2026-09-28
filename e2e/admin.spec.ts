@@ -21,6 +21,37 @@ async function openMaraProfileDetails(page: Page) {
   await expect(page.getByRole("dialog", { name: "Mara Velasquez profile" })).toBeVisible();
 }
 
+test("administrator edits and publishes the selected customer profile details", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Edit profile" }).click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Mara Velasquez Updated");
+  await dialog.getByLabel("Bio or role", { exact: true }).fill("Updated by the administrator.");
+  await dialog.getByLabel("Email", { exact: true }).fill("mara-updated@example.test");
+  await dialog.getByRole("button", { name: "Save admin draft" }).click();
+  await expect(
+    dialog.getByText(
+      "Administrative draft changes saved. Public content is unchanged until publication.",
+    ),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(
+    dialog.getByText("Profile published. The stable public URL now serves the approved snapshot."),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Close profile details" }).click();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez Updated" })).toBeVisible();
+  await expect(page.getByText("Updated by the administrator.", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="mailto:mara-updated@example.test"]')).toBeVisible();
+});
+
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
   await signInAsAdmin(page);
 
