@@ -13,6 +13,7 @@ import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   type ProfileCustomization,
+  type ProfileContactDisplay,
   type ProfileIdentityColor,
   type ProfileIdentityField,
 } from "@/lib/profile-customization";
@@ -344,6 +345,7 @@ export function ProfileCustomizationEditor({
   const scaleError = findError("profile customization type scale");
   const treatmentError = findError("profile customization link treatment");
   const orderError = findError("profile customization content order");
+  const contactDisplayError = findError("profile customization contact display");
   const identityColorError = (field: ProfileIdentityField) =>
     field === "name"
       ? findError("profile name color", "profile name custom color")
@@ -581,6 +583,18 @@ export function ProfileCustomizationEditor({
                   ["section-first", "About/Services first"],
                 ]}
                 value={customization.contentOrder}
+              />
+              <ChoiceGroup<ProfileContactDisplay>
+                error={contactDisplayError}
+                label="Contact info display"
+                name={`${baseId}-contact-display`}
+                onChange={(value) => update({ contactDisplay: value })}
+                options={[
+                  ["labels", "Icon + label"],
+                  ["icons-circle", "Icons · circles"],
+                  ["icons-soft-square", "Icons · soft squares"],
+                ]}
+                value={customization.contactDisplay ?? "labels"}
               />
             </div>
           ) : null}
