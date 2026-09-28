@@ -93,6 +93,9 @@ export const profileCustomizationValidator = v.object({
   typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
   linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
   contentOrder: v.union(v.literal("links-first"), v.literal("section-first")),
+  contactDisplay: v.optional(
+    v.union(v.literal("labels"), v.literal("icons-circle"), v.literal("icons-soft-square")),
+  ),
   identityColors: v.optional(profileIdentityColorsValidator),
   featuredLinkId: v.optional(v.string()),
   section: v.optional(profileCustomizationSectionValidator),
