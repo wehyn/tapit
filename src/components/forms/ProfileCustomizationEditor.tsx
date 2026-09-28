@@ -23,6 +23,7 @@ import {
   type ProfileCustomizationCategory,
 } from "@/lib/profile-workspace";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
+import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
 import { Button } from "@/components/ui/Button";
@@ -36,6 +37,8 @@ export type ProfileCustomizationEditorProps = {
   mediaError?: string;
   onChange: (next: ProfileCustomization | undefined) => void;
   onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
+  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onMediaErrorClear?: () => void;
   onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   onThemeChange?: (theme: ProfileTheme) => void;
   theme?: ProfileTheme;
@@ -278,6 +281,8 @@ export function ProfileCustomizationEditor({
   mediaError,
   onChange,
   onMediaChange,
+  onMediaPendingPreviewChange,
+  onMediaErrorClear,
   onMediaUpload,
   onThemeChange,
   theme,
@@ -557,6 +562,8 @@ export function ProfileCustomizationEditor({
                   error={mediaError}
                   media={media}
                   onChange={onMediaChange}
+                  onMediaErrorClear={onMediaErrorClear}
+                  onPendingPreviewChange={onMediaPendingPreviewChange}
                   onUpload={onMediaUpload}
                 />
               ) : (

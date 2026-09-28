@@ -15,11 +15,14 @@ import {
   type ProfileMediaImage,
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
+import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 
 export type ProfileMediaEditorProps = {
   media?: ProfileMediaPresentation;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
+  onPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onMediaErrorClear?: () => void;
   busy?: boolean;
   error?: string;
 };
@@ -47,6 +50,8 @@ export function ProfileMediaEditor({
   media,
   onChange,
   onUpload,
+  onPendingPreviewChange,
+  onMediaErrorClear,
   busy = false,
   error,
 }: ProfileMediaEditorProps) {
@@ -60,9 +65,37 @@ export function ProfileMediaEditor({
   const value = copyMedia(media);
   const latestMedia = useRef<ProfileMediaPresentation | undefined>(value);
   const uploadRequests = useRef({ background: 0, slideshow: 0 });
+  const activePreviewUrl = useRef<string | undefined>(undefined);
+  const activePending = useRef<PendingProfileMediaUpload | null>(null);
+  const latestPendingPreviewChange = useRef(onPendingPreviewChange);
+  const activeRequest = useRef<
+    | {
+        target: "background" | "slideshow";
+        requestId: number;
+        previewUrl: string;
+      }
+    | undefined
+  >(undefined);
   useEffect(() => {
     latestMedia.current = copyMedia(media);
   }, [media]);
+  useEffect(() => {
+    latestPendingPreviewChange.current = onPendingPreviewChange;
+  }, [onPendingPreviewChange]);
+  useEffect(
+    () => () => {
+      uploadRequests.current.background += 1;
+      uploadRequests.current.slideshow += 1;
+      activePending.current = null;
+      activeRequest.current = undefined;
+      if (activePreviewUrl.current) {
+        URL.revokeObjectURL(activePreviewUrl.current);
+        activePreviewUrl.current = undefined;
+      }
+      latestPendingPreviewChange.current?.(null);
+    },
+    [],
+  );
   const uploadError = (target: "background" | "slideshow") =>
     uploadFailure?.target === target ? uploadFailure.message : undefined;
   const uploadDescription = (target: "background" | "slideshow") =>
@@ -74,15 +107,29 @@ export function ProfileMediaEditor({
     onChange(next);
   }
 
-  async function upload(file: File | undefined, target: "background" | "slideshow") {
-    if (!file) return;
-    const requestId = ++uploadRequests.current[target];
-    setUploadFailure(undefined);
+  function revokeActivePreview(previewUrl: string) {
+    if (activePreviewUrl.current !== previewUrl) return;
+    URL.revokeObjectURL(previewUrl);
+    activePreviewUrl.current = undefined;
+  }
+
+  function isCurrentUpload(pending: PendingProfileMediaUpload, requestId: number): boolean {
+    const currentRequest = activeRequest.current;
+    return (
+      uploadRequests.current[pending.target] === requestId &&
+      currentRequest !== undefined &&
+      currentRequest.target === pending.target &&
+      currentRequest.requestId === requestId &&
+      currentRequest.previewUrl === pending.previewUrl
+    );
+  }
+
+  async function upload(pending: PendingProfileMediaUpload, requestId: number) {
     try {
-      const image = await onUpload(file, target);
-      if (requestId !== uploadRequests.current[target]) return;
+      const image = await onUpload(pending.file, pending.target);
+      if (!isCurrentUpload(pending, requestId)) return;
       const current = latestMedia.current ?? copyMedia(media);
-      if (target === "background") {
+      if (pending.target === "background") {
         const next = {
           ...current,
           background: { ...image, positionX: 50, positionY: 50 },
@@ -99,13 +146,82 @@ export function ProfileMediaEditor({
         latestMedia.current = next;
         onChange(next);
       }
+      activePending.current = null;
+      activeRequest.current = undefined;
+      onPendingPreviewChange?.(null);
+      revokeActivePreview(pending.previewUrl);
     } catch (uploadFailure) {
-      if (requestId !== uploadRequests.current[target]) return;
+      if (!isCurrentUpload(pending, requestId)) return;
+      const message =
+        uploadFailure instanceof Error ? uploadFailure.message : "Image upload failed.";
+      const nextPending = { ...pending, state: "error" as const, error: message };
+      activePending.current = nextPending;
       setUploadFailure({
-        message: uploadFailure instanceof Error ? uploadFailure.message : "Image upload failed.",
-        target,
+        message,
+        target: pending.target,
       });
+      onPendingPreviewChange?.(nextPending);
     }
+  }
+
+  function startUpload(file: File | undefined, target: "background" | "slideshow") {
+    if (!file) return;
+    if (activePreviewUrl.current) {
+      URL.revokeObjectURL(activePreviewUrl.current);
+      activePreviewUrl.current = undefined;
+    }
+    uploadRequests.current.background += 1;
+    uploadRequests.current.slideshow += 1;
+    const previewUrl = URL.createObjectURL(file);
+    const pending: PendingProfileMediaUpload = {
+      target,
+      file,
+      previewUrl,
+      altText: file.name || `Selected ${target} image`,
+      positionX: 50,
+      positionY: 50,
+      state: "uploading",
+    };
+    const requestId = uploadRequests.current[target];
+    activePreviewUrl.current = previewUrl;
+    activePending.current = pending;
+    activeRequest.current = { target, requestId, previewUrl };
+    setUploadFailure(undefined);
+    onPendingPreviewChange?.(pending);
+    void upload(pending, requestId);
+  }
+
+  function retryUpload() {
+    const pending = activePending.current;
+    if (!pending || pending.state !== "error") return;
+    const requestId = ++uploadRequests.current[pending.target];
+    const nextPending: PendingProfileMediaUpload = {
+      ...pending,
+      state: "uploading",
+      error: undefined,
+    };
+    activePending.current = nextPending;
+    activeRequest.current = {
+      target: nextPending.target,
+      requestId,
+      previewUrl: nextPending.previewUrl,
+    };
+    setUploadFailure(undefined);
+    onPendingPreviewChange?.(nextPending);
+    void upload(nextPending, requestId);
+  }
+
+  function discardSelectedImage() {
+    const pending = activePending.current;
+    if (!pending) return;
+    uploadRequests.current.background += 1;
+    uploadRequests.current.slideshow += 1;
+    activePending.current = null;
+    activeRequest.current = undefined;
+    setUploadFailure(undefined);
+    revokeActivePreview(pending.previewUrl);
+    onPendingPreviewChange?.(null);
+    onMediaErrorClear?.();
   }
 
   function hasMeaningfulSettings(next: ProfileMediaPresentation) {
@@ -175,7 +291,7 @@ export function ProfileMediaEditor({
             className="sr-only"
             disabled={busy}
             onChange={(event) => {
-              void upload(event.target.files?.[0], "background");
+              startUpload(event.target.files?.[0], "background");
               event.currentTarget.value = "";
             }}
             ref={backgroundInput}
@@ -287,7 +403,7 @@ export function ProfileMediaEditor({
             className="sr-only"
             disabled={busy || value.slideshow.length >= MAX_PROFILE_SLIDESHOW_IMAGES}
             onChange={(event) => {
-              void upload(event.target.files?.[0], "slideshow");
+              startUpload(event.target.files?.[0], "slideshow");
               event.currentTarget.value = "";
             }}
             ref={slideshowInput}
@@ -378,11 +494,29 @@ export function ProfileMediaEditor({
         </span>
       ) : null}
       {error || uploadFailure ? (
-        <p className="text-sm font-medium text-tapit-danger" role="alert">
-          {error}
-          {error && uploadFailure ? " " : null}
-          {uploadFailure?.message}
-        </p>
+        <div
+          className={
+            uploadFailure
+              ? "grid gap-3 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] p-3 sm:flex sm:items-center sm:justify-between"
+              : undefined
+          }
+        >
+          <p className="text-sm font-medium text-tapit-danger" role="alert">
+            {error}
+            {error && uploadFailure ? " " : null}
+            {uploadFailure?.message}
+          </p>
+          {uploadFailure ? (
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={busy} onClick={retryUpload} type="button" variant="secondary">
+                Retry upload
+              </Button>
+              <Button onClick={discardSelectedImage} type="button" variant="quiet">
+                Discard selected image
+              </Button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

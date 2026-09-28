@@ -2,15 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ComponentProps,
-  type ComponentType,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
@@ -92,16 +84,6 @@ function profileForPreview(
 
   return projected === null ? null : mergePendingProfileMediaPreview(projected, pendingMedia);
 }
-
-type ProfileCustomizationEditorWithMediaPreviewProps = ComponentProps<
-  typeof ProfileCustomizationEditor
-> & {
-  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
-};
-
-// Task 4 adds this callback to ProfileCustomizationEditor; widen the local call-site type now.
-const ProfileCustomizationEditorWithMediaPreview =
-  ProfileCustomizationEditor as unknown as ComponentType<ProfileCustomizationEditorWithMediaPreviewProps>;
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
 
@@ -548,13 +530,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             ) : null}
             {draft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
-                <ProfileCustomizationEditorWithMediaPreview
+                <ProfileCustomizationEditor
                   customization={draft.customization}
                   errors={customizationErrors}
                   media={draft.media}
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaErrorClear={() => setMediaError("")}
                   onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadDemoMedia}
@@ -563,13 +546,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 />
               </Panel>
             ) : (
-              <ProfileCustomizationEditorWithMediaPreview
+              <ProfileCustomizationEditor
                 customization={draft.customization}
                 errors={customizationErrors}
                 media={draft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaErrorClear={() => setMediaError("")}
                 onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadDemoMedia}
@@ -1123,13 +1107,14 @@ function LiveProfileEditorContent({
             ) : null}
             {currentDraft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
-                <ProfileCustomizationEditorWithMediaPreview
+                <ProfileCustomizationEditor
                   customization={currentDraft.customization}
                   errors={customizationErrors}
                   media={currentDraft.media}
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaErrorClear={() => setMediaError("")}
                   onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadLiveMedia}
@@ -1138,13 +1123,14 @@ function LiveProfileEditorContent({
                 />
               </Panel>
             ) : (
-              <ProfileCustomizationEditorWithMediaPreview
+              <ProfileCustomizationEditor
                 customization={currentDraft.customization}
                 errors={customizationErrors}
                 media={currentDraft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaErrorClear={() => setMediaError("")}
                 onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadLiveMedia}
