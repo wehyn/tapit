@@ -90,6 +90,8 @@ const PENDING_MEDIA_MESSAGE =
   "Your image is still uploading. Save and publish will be available when it finishes.";
 const FAILED_MEDIA_MESSAGE =
   "Your image upload failed. Retry or discard it before saving or publishing.";
+const DEMO_MEDIA_UPLOAD_DELAY_KEY = "tapit:e2e-media-upload-delay-ms";
+const DEMO_MEDIA_UPLOAD_FAILURE_KEY = "tapit:e2e-media-upload-failure";
 
 export type ProfileEditorView = "profile" | "customize";
 
@@ -107,6 +109,16 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 function demoMediaAssetId(requestId: number): ProfileMediaImage["assetId"] {
   return `demo-media-${Date.now()}-${requestId}` as ProfileMediaImage["assetId"];
+}
+
+function demoMediaUploadControls() {
+  if (process.env.NODE_ENV === "production") return { delayMs: 0, fail: false };
+
+  const delayMs = Number(window.localStorage.getItem(DEMO_MEDIA_UPLOAD_DELAY_KEY));
+  return {
+    delayMs: Number.isFinite(delayMs) && delayMs > 0 ? delayMs : 0,
+    fail: window.localStorage.getItem(DEMO_MEDIA_UPLOAD_FAILURE_KEY) === "true",
+  };
 }
 
 function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; href: string }) {
@@ -442,6 +454,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     setMediaBusy(true);
     setMediaError("");
     try {
+      const { delayMs, fail } = demoMediaUploadControls();
+      if (delayMs > 0) await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+      if (fail) throw new Error("The media upload failed. Try again.");
       const url = await readFileAsDataUrl(file);
       if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
       return { assetId: demoMediaAssetId(requestId), altText: "", url, previewUrl: url };

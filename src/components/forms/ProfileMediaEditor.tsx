@@ -510,9 +510,9 @@ export function ProfileMediaEditor({
           }
         >
           <p className="text-sm font-medium text-tapit-danger" role="alert">
-            {error}
-            {error && uploadFailure ? " " : null}
-            {uploadFailure?.message}
+            {error && uploadFailure && error !== uploadFailure.message
+              ? `${error} ${uploadFailure.message}`
+              : error || uploadFailure?.message}
           </p>
           {uploadFailure ? (
             <div className="flex flex-wrap gap-2">
