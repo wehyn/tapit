@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import type { Doc, Id } from "./_generated/dataModel";
 
 import { mutation, query } from "./_generated/server";
@@ -134,6 +135,18 @@ export const adminList = query({
   },
 });
 
+export const adminListPaginated = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("profiles")),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    return await ctx.db
+      .query("profiles")
+      .withIndex("by_scope_and_status", (query) => query.eq("scope", account.scope))
+      .paginate(args.paginationOpts);
+  },
+});
+
 export const adminDetails = query({
   args: { profileId: v.id("profiles") },
   returns: v.object({
@@ -217,7 +230,7 @@ export const saveDraft = mutation({
     mediaRevision: v.number(),
   }),
   handler: async (ctx, args) => {
-    const { profile } = await profileAccess(ctx, args.profileId);
+    const { account, profile, userId } = await profileAccess(ctx, args.profileId);
     const imageRevision = profile.imageRevision ?? 0;
     const mediaRevision = profile.mediaRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
@@ -277,6 +290,17 @@ export const saveDraft = mutation({
       draft: draft as Doc<"profiles">["draft"],
       updatedAt: now,
     });
+    if (account.role === "admin") {
+      await ctx.db.insert("auditLogs", {
+        scope: profile.scope,
+        actorUserId: userId,
+        actorLabel: "Administrator",
+        action: "profile.draft_updated",
+        profileId: profile._id,
+        accountId: profile.ownerId,
+        occurredAt: now,
+      });
+    }
     await replaceProfileLinks(ctx, profile._id, draft.links, now);
     const nextDraftMediaIds = profileMediaAssetIds((draft as Doc<"profiles">["draft"]).media);
     for (const assetId of oldDraftMediaIds)

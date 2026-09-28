@@ -407,7 +407,8 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
 
   const savedDraft = maraDialog.getByRole("region", { name: "Saved draft content" });
   const publishedSnapshot = maraDialog.getByRole("region", { name: "Published snapshot content" });
-  await maraDialog.getByLabel("Profile slug").fill("mara-renamed-e2e");
+  const maraDetailsPanel = maraDialog.getByRole("tabpanel", { name: "Details & slug" });
+  await maraDetailsPanel.getByLabel("Profile slug").fill("mara-renamed-e2e");
   await maraDialog.getByRole("button", { name: "Save slug" }).click();
   await expect(maraDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
   await expect(savedDraft.getByText("Draft-only bio update.", { exact: true })).toBeVisible();
@@ -441,9 +442,11 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   await page.goto("/admin/profiles");
   await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
   const adminDialog = page.getByRole("dialog", { name: "Tapit Admin profile" });
-  await adminDialog.getByRole("tab", { name: "Details & slug" }).click();
-  await adminDialog.getByLabel("Profile slug").fill("mara-velasquez");
-  await adminDialog.getByRole("button", { name: "Save slug" }).click();
+  const adminDetailsTab = adminDialog.getByRole("tab", { name: "Details & slug" });
+  await adminDetailsTab.click();
+  const adminDetailsPanel = adminDialog.getByRole("tabpanel", { name: "Details & slug" });
+  await adminDetailsPanel.getByLabel("Profile slug").fill("mara-velasquez");
+  await adminDetailsPanel.getByRole("button", { name: "Save slug" }).click();
   await expect(adminDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
   await expect(adminDialog.getByText("/mara-velasquez", { exact: true })).toBeVisible();
 });

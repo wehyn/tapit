@@ -1,4 +1,5 @@
 import { httpAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -18,7 +19,11 @@ function headers(origin: string | null): Record<string, string> {
     : {};
 }
 
-export const upload = httpAction(async (ctx, request) => {
+async function handleUpload(
+  ctx: ActionCtx,
+  request: Request,
+  adminOnly: boolean,
+): Promise<Response> {
   const cors = headers(request.headers.get("Origin"));
   if (Object.keys(cors).length === 0) return new Response("Origin not allowed", { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
@@ -46,9 +51,10 @@ export const upload = httpAction(async (ctx, request) => {
   let jobId: Id<"profileMediaUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
-    const access = await ctx.runQuery(internal.profileMedia.getOwnerAccess, {
-      profileId: profileId as Id<"profiles">,
-    });
+    const accessArgs = { profileId: profileId as Id<"profiles"> };
+    const access = adminOnly
+      ? await ctx.runQuery(internal.profileMedia.getAdminAccess, accessArgs)
+      : await ctx.runQuery(internal.profileMedia.getOwnerAccess, accessArgs);
     const body = await request.arrayBuffer();
     if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_SIZE)
       return new Response("Media must be 5 MB or smaller.", { status: 413, headers: cors });
@@ -80,4 +86,7 @@ export const upload = httpAction(async (ctx, request) => {
         : 400;
     return new Response(message, { status, headers: cors });
   }
-});
+}
+
+export const upload = httpAction((ctx, request) => handleUpload(ctx, request, false));
+export const uploadAdmin = httpAction((ctx, request) => handleUpload(ctx, request, true));

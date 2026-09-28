@@ -55,6 +55,7 @@ const readableActions: Record<string, string> = {
   "invitation.accepted": "Customer invitation accepted",
   "invitation.replaced": "Customer invitation link replaced",
   "invitation.revoked": "Customer invitation revoked",
+  "profile.draft_updated": "Profile draft updated",
   "profile.links_updated": "Profile links updated",
   "profile.published": "Profile published",
   "profile.slug_changed": "Profile slug changed",

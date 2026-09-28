@@ -7,7 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireUser, sameScope } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
 import { profileMediaValidator } from "./validators";
 
 export const MAX_PROFILE_MEDIA_SIZE = 5 * 1024 * 1024;
@@ -42,7 +42,7 @@ export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId:
   return { account, profile, userId };
 }
 
-/** Internal bridge for actions that must preserve the caller's owner-only access. */
+/** Internal bridge for the customer upload action; only the profile owner can use it. */
 export const getOwnerAccess = internalQuery({
   args: { profileId: v.id("profiles") },
   returns: v.object({
@@ -51,6 +51,29 @@ export const getOwnerAccess = internalQuery({
   }),
   handler: async (ctx, args) => {
     const { profile } = await profileOwnerAccess(ctx, args.profileId);
+    return { profileId: profile._id, ownerId: profile.ownerId };
+  },
+});
+
+/** Internal bridge for the administrator upload action; access is limited to the admin scope. */
+export const getAdminAccess = internalQuery({
+  args: { profileId: v.id("profiles") },
+  returns: v.object({
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+  }),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    const profile = await ctx.db.get(args.profileId);
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (
+      profile === null ||
+      profile.scope !== account.scope ||
+      owner === null ||
+      owner.scope !== account.scope
+    ) {
+      throw new Error("Profile access denied.");
+    }
     return { profileId: profile._id, ownerId: profile.ownerId };
   },
 });
