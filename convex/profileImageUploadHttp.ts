@@ -1,4 +1,5 @@
 import { httpAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
@@ -21,7 +22,11 @@ function errorResponse(message: string, status: number, headers: Record<string, 
   return new Response(message, { status, headers });
 }
 
-export const upload = httpAction(async (ctx, request) => {
+async function handleUpload(
+  ctx: ActionCtx,
+  request: Request,
+  adminOnly: boolean,
+): Promise<Response> {
   const headers = corsHeaders(request.headers.get("Origin"));
   if (Object.keys(headers).length === 0) return new Response("Origin not allowed", { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
@@ -49,9 +54,12 @@ export const upload = httpAction(async (ctx, request) => {
   let jobId: Id<"profileImageUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
-    const access = await ctx.runQuery(internal.profileAccess.get, {
-      profileId: profileId as Id<"profiles">,
-    });
+    const access = await ctx.runQuery(
+      adminOnly ? internal.profileAccess.getAdminAccess : internal.profileAccess.getOwnerAccess,
+      {
+        profileId: profileId as Id<"profiles">,
+      },
+    );
     const body = await request.arrayBuffer();
     if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_SIZE)
       return errorResponse("Images must be 5 MB or smaller.", 413, headers);
@@ -62,6 +70,8 @@ export const upload = httpAction(async (ctx, request) => {
     jobId = await ctx.runMutation(internal.storage.createUploadJob, {
       profileId: profileId as Id<"profiles">,
       ownerId: access.ownerId,
+      actorUserId: access.userId,
+      accessMode: adminOnly ? "admin" : "owner",
       largeSha256,
       expectedImageRevision,
     });
@@ -86,11 +96,15 @@ export const upload = httpAction(async (ctx, request) => {
     const message = error instanceof Error ? error.message : "Image upload failed.";
     const status = message.includes("Authentication required")
       ? 401
-      : message.includes("Profile access denied")
+      : message.includes("Profile access denied") ||
+          message.includes("Administrator permission required")
         ? 403
         : message.includes("Photo changed elsewhere") || message.includes("Upload job")
           ? 409
           : 400;
     return errorResponse(message, status, headers);
   }
-});
+}
+
+export const upload = httpAction((ctx, request) => handleUpload(ctx, request, false));
+export const uploadAdmin = httpAction((ctx, request) => handleUpload(ctx, request, true));

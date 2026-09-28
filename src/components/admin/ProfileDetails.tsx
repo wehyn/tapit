@@ -45,6 +45,12 @@ function Definition({ label, value }: { label: string; value: string | null | un
 
 function ContentSection({ content, heading }: { content: ProfileContent; heading: string }) {
   const redirectEnabled = content.redirect?.enabled === true;
+  const customization = content.customization;
+  const section = customization?.section;
+  const featuredLink = customization?.featuredLinkId
+    ? content.links.find((link) => link.id === customization.featuredLinkId)
+    : undefined;
+  const media = content.media;
   return (
     <section
       aria-label={heading}
@@ -81,6 +87,121 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
           <Definition label="Redirect destination" value={content.redirect?.destination} />
         </div>
       </dl>
+      {customization ? (
+        <section
+          aria-label="Appearance details"
+          className="mt-8 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+        >
+          <h4 className="text-sm font-semibold text-tapit-ink">Appearance and layout</h4>
+          <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
+            <Definition label="Preset" value={customization.preset} />
+            <Definition label="Accent" value={customization.accent} />
+            <Definition label="Type scale" value={customization.typeScale} />
+            <Definition label="Link treatment" value={customization.linkTreatment} />
+            <Definition label="Content order" value={customization.contentOrder} />
+            <Definition label="Featured link" value={featuredLink?.label ?? "None"} />
+            {customization.identityColors?.name ? (
+              <Definition
+                label="Name color"
+                value={
+                  customization.identityColors.name.kind === "preset"
+                    ? customization.identityColors.name.value
+                    : customization.identityColors.name.hex
+                }
+              />
+            ) : null}
+            {customization.identityColors?.bio ? (
+              <Definition
+                label="Bio color"
+                value={
+                  customization.identityColors.bio.kind === "preset"
+                    ? customization.identityColors.bio.value
+                    : customization.identityColors.bio.hex
+                }
+              />
+            ) : null}
+          </dl>
+        </section>
+      ) : null}
+      {section ? (
+        <section
+          aria-label={section.kind === "about" ? "About section" : "Services section"}
+          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+        >
+          <h4 className="text-sm font-semibold text-tapit-ink">
+            {section.kind === "about" ? "About" : "Services"}
+          </h4>
+          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-tapit-muted">
+            {section.body || "No section copy saved."}
+          </p>
+          {section.kind === "services" && section.items?.length ? (
+            <ul className="mt-3 list-inside list-disc text-sm leading-6 text-tapit-ink">
+              {section.items.map((item, index) => (
+                <li key={`${item}-${index}`}>{item}</li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+      {media ? (
+        <section
+          aria-label="Profile media"
+          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+        >
+          <h4 className="text-sm font-semibold text-tapit-ink">Media</h4>
+          <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
+            <Definition label="Hero height" value={`${media.heroHeight}px`} />
+            <Definition
+              label="Slideshow autoplay"
+              value={media.autoplay ? "Enabled" : "Disabled"}
+            />
+            <Definition label="Slideshow images" value={String(media.slideshow.length)} />
+          </dl>
+          {media.background ? (
+            <div className="mt-5 grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center">
+              {media.background.previewUrl || media.background.url ? (
+                // The projection supplies a preview URL; storage identifiers are never rendered.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  alt={media.background.altText}
+                  className="h-24 w-full rounded-tapit border border-tapit-line object-cover"
+                  src={media.background.previewUrl ?? media.background.url}
+                />
+              ) : null}
+              <div>
+                <Definition label="Background description" value={media.background.altText} />
+                <p className="mt-2 text-xs text-tapit-muted">
+                  Crop position {media.background.positionX}% horizontal,{" "}
+                  {media.background.positionY}% vertical
+                </p>
+              </div>
+            </div>
+          ) : null}
+          {media.slideshow.length > 0 ? (
+            <ol className="mt-5 grid gap-3 sm:grid-cols-2">
+              {media.slideshow.map((image, index) => (
+                <li
+                  className="flex items-center gap-3 rounded-tapit border border-tapit-line p-3"
+                  key={`${image.assetId}-${index}`}
+                >
+                  {image.previewUrl || image.url ? (
+                    // The projection supplies a preview URL; storage identifiers are never rendered.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={image.altText}
+                      className="size-14 shrink-0 rounded-tapit object-cover"
+                      src={image.previewUrl ?? image.url}
+                    />
+                  ) : null}
+                  <span className="text-sm text-tapit-ink">
+                    {image.altText || `Image ${index + 1}`}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </section>
+      ) : null}
       <div className="mt-8 border-t border-tapit-line pt-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h4 className="text-sm font-semibold text-tapit-ink">Links</h4>
