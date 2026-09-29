@@ -66,12 +66,16 @@ If an agent-only document is already in unpushed work, preserve a copy outside t
    - Run the broadest reasonable validation for the affected project area using the repository's actual commands.
    - Review `git diff --name-status <base>...HEAD`, `git log --oneline <base>..HEAD`, and `git status --short`; replace `<base>` with the resolved base ref.
    - Confirm that the branch contains only intended commits and changes, and that unrelated baseline files are neither staged nor included.
+   - For UI changes, capture screenshots of the changed UI in its verified state. Keep them as agent-only artifacts outside commits, and inspect them for private or sensitive information before upload. A local path or a sentence saying a screenshot was captured is not an attached visual proof.
+   - On Linux, prefer the repository's existing Playwright or browser automation so the capture reflects the tested interaction and app state. For a reachable web page that needs no interaction or authenticated session, headless Chrome can capture it without a desktop display: `google-chrome --headless --window-size=<width>,<height> --screenshot=<screenshot-path> <app-url>`. Replace the placeholders with actual values. This URL-only fallback does not create interaction or login state.
+   - For native Linux desktop UI, capture through a tool connected to the active graphical session; headless Chrome only captures web pages. If the app, browser dependencies, authentication, or required display session is unavailable, report the blocker instead of substituting an unrelated or fabricated image.
    - If rebasing, resolving conflicts, or otherwise changing committed content, rerun the relevant validation and diff checks.
 
 6. Publish and open the PR only when explicitly requested.
    - Before publishing, confirm the branch, target base, remote, intended commit range, and authentication/permission path.
    - Push with an explicit upstream, such as `git push -u origin <branch>`. Never use `--force`; if the branch already exists remotely, verify ownership and ancestry before updating it.
-   - Create the PR with the available GitHub interface or `gh pr create`, using the resolved base and head branches. If no GitHub capability or authentication is available, report the blocker and do not claim that a PR was created.
+   - For UI changes, put each screenshot in the PR body as a Markdown image with descriptive alt text. With GitHub CLI, reference each local image path in the body file and pass that same path with `--attach` to `gh pr create` or `gh pr edit`; repeat `--attach` for every screenshot. GitHub CLI uploads the images and rewrites the local references to hosted URLs. For example: `gh pr create --title "<title>" --base <base> --head <head> --body-file <body-file> --attach <screenshot-path>`. For other GitHub interfaces, upload the image into the PR description and use the Markdown GitHub inserts; never leave only a machine-local path in the PR body.
+   - Verify the PR body contains hosted image attachment URLs and that the screenshots render in the PR. If upload or visual verification is unavailable, report the specific blocker and do not describe local screenshots as attached proof.
    - Verify the created PR's URL, head, base, commit range, and available check or mergeability status. Report pending, failed, or unavailable checks plainly; do not merge or make other lifecycle changes unless separately requested.
    - Leave unrelated local changes untouched and unstaged. Mention them in the handoff only when they affect the branch or PR risk.
 
@@ -107,7 +111,8 @@ Use this Markdown structure for pull request bodies. Replace each angle-bracket 
 
 ## Visual Proof (Required for UI changes)
 
-   - <screenshots or recordings for UI changes; otherwise state that the change is non-UI>
+   - ![<brief description of the changed screen and visible state>](<local screenshot path>)
+   - For non-UI changes: <state that the change is non-UI and visual proof is not applicable>
 
 ## Pre-Flight Checklist
 
@@ -116,3 +121,5 @@ Use this Markdown structure for pull request bodies. Replace each angle-bracket 
    - Not run: <check> - <reason>
 
 ```
+
+For each UI screenshot, use the same local path in the Markdown image reference and the GitHub CLI `--attach` argument. `gh pr create` and `gh pr edit` upload attached images and replace those local references with GitHub-hosted URLs. Keep screenshots out of commits; a local path in the PR body is not proof of upload. For an existing PR, use `gh pr edit <number> --body-file <body-file> --attach <screenshot-path>`. If an image cannot be uploaded or confirmed rendered, report that instead of presenting the local capture path as visual proof.
