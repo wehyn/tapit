@@ -73,14 +73,18 @@ function profileForPreview(
           },
           draft,
           legacyTheme,
+          { allowIncompleteMedia: true },
         )
-      : projectPublicProfile({
-          id: "preview",
-          ownerId: "preview",
-          status: "published",
-          draft,
-          published: { ...draft, publishedAt: new Date().toISOString() },
-        });
+      : projectPublicProfile(
+          {
+            id: "preview",
+            ownerId: "preview",
+            status: "published",
+            draft,
+            published: { ...draft, publishedAt: new Date().toISOString() },
+          },
+          { allowIncompleteMedia: true },
+        );
 
   return projected === null ? null : mergePendingProfileMediaPreview(projected, pendingMedia);
 }

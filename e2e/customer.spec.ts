@@ -521,6 +521,36 @@ test("customer can configure bounded profile media and publish it", async ({ pag
   }
 });
 
+test("incomplete background media stays in preview but blocks saving and publishing", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+  ).toBeDisabled();
+
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+});
+
 test("pending media uploads keep profile actions guarded", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);

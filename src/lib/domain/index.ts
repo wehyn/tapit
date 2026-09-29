@@ -9,6 +9,7 @@ import {
 } from "../profile-customization";
 import {
   normalizeProfileMedia,
+  type ProfileMediaNormalizationOptions,
   stripProfileMediaUrls,
   validateProfileMedia,
   type PublicProfileMediaImage,
@@ -86,6 +87,10 @@ export interface PublicProfileProjection {
   media?: PublicProfileMediaPresentation;
   links: ProfileLink[];
 }
+
+export type PublicProfileProjectionOptions = {
+  allowIncompleteMedia?: boolean;
+};
 
 export interface CardRecord {
   id: string;
@@ -364,8 +369,14 @@ function canonicalizeRedirect(content: ProfileContent): ProfileContent {
   };
 }
 
-function projectPublicProfileMedia(value: unknown): PublicProfileMediaPresentation | undefined {
-  const normalized = normalizeProfileMedia(value);
+function projectPublicProfileMedia(
+  value: unknown,
+  options: PublicProfileProjectionOptions = {},
+): PublicProfileMediaPresentation | undefined {
+  const normalizationOptions: ProfileMediaNormalizationOptions = {
+    allowIncompleteBackground: options.allowIncompleteMedia === true,
+  };
+  const normalized = normalizeProfileMedia(value, normalizationOptions);
   if (normalized === undefined) return undefined;
 
   const projectImage = (
@@ -418,10 +429,13 @@ export function hasUnpublishedChanges(
 }
 
 /** Projects only the last published snapshot; draft fields can never leak here. */
-export function projectPublicProfile(profile: ProfileRecord): PublicProfileProjection | null {
+export function projectPublicProfile(
+  profile: ProfileRecord,
+  options: PublicProfileProjectionOptions = {},
+): PublicProfileProjection | null {
   if (profile.status !== "published" || profile.published === null) return null;
   const snapshot = profile.published;
-  const media = projectPublicProfileMedia(snapshot.media);
+  const media = projectPublicProfileMedia(snapshot.media, options);
   const customization = normalizeProfileCustomization(snapshot.customization);
   return {
     id: profile.id,

@@ -40,6 +40,10 @@ export interface PublicProfileMediaPresentation {
   autoplay: boolean;
 }
 
+export type ProfileMediaNormalizationOptions = {
+  allowIncompleteBackground?: boolean;
+};
+
 export const DEFAULT_PROFILE_MEDIA = Object.freeze({
   heroHeight: DEFAULT_PROFILE_HERO_HEIGHT,
   autoplay: true,
@@ -141,28 +145,36 @@ export function validateProfileMedia(media: unknown): string[] {
   return errors;
 }
 
-function normalizeImage(value: unknown): ProfileMediaImage | undefined {
-  if (!isRecord(value) || !validAssetId(value.assetId) || !validAltText(value.altText))
-    return undefined;
+function normalizeImage(value: unknown, allowEmptyAltText = false): ProfileMediaImage | undefined {
+  if (!isRecord(value) || !validAssetId(value.assetId)) return undefined;
+  const altText = typeof value.altText === "string" ? value.altText.trim() : "";
+  const hasValidAltText = validAltText(altText);
+  if (!hasValidAltText && !(allowEmptyAltText && altText === "")) return undefined;
   return {
     assetId: value.assetId.trim() as Id<"profileMediaAssets">,
-    altText: value.altText.trim(),
+    altText,
     ...(validUrl(value.url) ? { url: value.url.trim() } : {}),
     ...(validUrl(value.previewUrl) ? { previewUrl: value.previewUrl.trim() } : {}),
   };
 }
 
-function normalizeBackground(value: unknown): ProfileMediaBackground | undefined {
-  const image = normalizeImage(value);
+function normalizeBackground(
+  value: unknown,
+  options: ProfileMediaNormalizationOptions,
+): ProfileMediaBackground | undefined {
+  const image = normalizeImage(value, options.allowIncompleteBackground === true);
   if (image === undefined || !isRecord(value)) return undefined;
   const positionX = isFiniteNumber(value.positionX) ? clamp(value.positionX, 0, 100) : 50;
   const positionY = isFiniteNumber(value.positionY) ? clamp(value.positionY, 0, 100) : 50;
   return { ...image, positionX, positionY };
 }
 
-export function normalizeProfileMedia(value: unknown): ProfileMediaPresentation | undefined {
+export function normalizeProfileMedia(
+  value: unknown,
+  options: ProfileMediaNormalizationOptions = {},
+): ProfileMediaPresentation | undefined {
   if (!isRecord(value)) return undefined;
-  const background = normalizeBackground(value.background);
+  const background = normalizeBackground(value.background, options);
   const slideshow: ProfileMediaImage[] = [];
   if (Array.isArray(value.slideshow)) {
     const assetIds = new Set<string>();
