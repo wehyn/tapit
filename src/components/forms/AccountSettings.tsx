@@ -193,7 +193,7 @@ function DemoAccountSettings() {
           title="Publication"
         >
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={unpublish} type="button" variant="quiet">
+            <Button onClick={unpublish} type="button" variant="secondary">
               Unpublish
             </Button>
             <span className="text-sm text-tapit-muted">
@@ -385,7 +385,7 @@ function LiveAccountSettings() {
           title="Publication"
         >
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={() => void unpublish()} type="button" variant="quiet">
+            <Button onClick={() => void unpublish()} type="button" variant="secondary">
               Unpublish
             </Button>
             <span className="text-sm text-tapit-muted">

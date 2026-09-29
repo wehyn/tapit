@@ -179,6 +179,16 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
+  const mobileHeader = page.locator("header").first();
+  await expect(mobileHeader).toBeVisible();
+  expect(
+    await mobileHeader.evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+      return { position: styles.position, top: styles.top };
+    }),
+  ).toEqual({ position: "sticky", top: "0px" });
+  await page.evaluate(() => window.scrollTo(0, 500));
+  expect((await mobileHeader.boundingBox())?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
   const openNavigation = page.getByRole("button", { name: "Open navigation" });
   await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
   await openNavigation.click();
