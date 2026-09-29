@@ -517,6 +517,7 @@ test("customer can configure bounded profile media and publish it", async ({ pag
   expect(storedMedia).toBeTruthy();
   expect(storedMedia).not.toHaveProperty("previewUrl");
   expect(typeof storedMedia?.url).toBe("string");
+  expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
   expect((storedMedia?.url as string).length).toBeLessThan(250_000);
 
   await page.goto("/mara-velasquez");
