@@ -13,6 +13,7 @@ import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   type ProfileCustomization,
+  type ProfileContactDisplay,
   type ProfileIdentityColor,
   type ProfileIdentityField,
 } from "@/lib/profile-customization";
@@ -22,6 +23,7 @@ import {
   type ProfileCustomizationCategory,
 } from "@/lib/profile-workspace";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
+import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
 import { Button } from "@/components/ui/Button";
@@ -35,6 +37,9 @@ export type ProfileCustomizationEditorProps = {
   mediaError?: string;
   onChange: (next: ProfileCustomization | undefined) => void;
   onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
+  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onMediaErrorClear?: () => void;
+  onMediaUploadCancel?: () => void;
   onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   onThemeChange?: (theme: ProfileTheme) => void;
   theme?: ProfileTheme;
@@ -277,6 +282,9 @@ export function ProfileCustomizationEditor({
   mediaError,
   onChange,
   onMediaChange,
+  onMediaPendingPreviewChange,
+  onMediaErrorClear,
+  onMediaUploadCancel,
   onMediaUpload,
   onThemeChange,
   theme,
@@ -344,6 +352,7 @@ export function ProfileCustomizationEditor({
   const scaleError = findError("profile customization type scale");
   const treatmentError = findError("profile customization link treatment");
   const orderError = findError("profile customization content order");
+  const contactDisplayError = findError("profile customization contact display");
   const identityColorError = (field: ProfileIdentityField) =>
     field === "name"
       ? findError("profile name color", "profile name custom color")
@@ -555,6 +564,9 @@ export function ProfileCustomizationEditor({
                   error={mediaError}
                   media={media}
                   onChange={onMediaChange}
+                  onMediaErrorClear={onMediaErrorClear}
+                  onPendingPreviewChange={onMediaPendingPreviewChange}
+                  onMediaUploadCancel={onMediaUploadCancel}
                   onUpload={onMediaUpload}
                 />
               ) : (
@@ -581,6 +593,18 @@ export function ProfileCustomizationEditor({
                   ["section-first", "About/Services first"],
                 ]}
                 value={customization.contentOrder}
+              />
+              <ChoiceGroup<ProfileContactDisplay>
+                error={contactDisplayError}
+                label="Contact info display"
+                name={`${baseId}-contact-display`}
+                onChange={(value) => update({ contactDisplay: value })}
+                options={[
+                  ["labels", "Icon + label"],
+                  ["icons-circle", "Icons · circles"],
+                  ["icons-soft-square", "Icons · soft squares"],
+                ]}
+                value={customization.contactDisplay ?? "labels"}
               />
             </div>
           ) : null}

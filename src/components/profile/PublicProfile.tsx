@@ -390,6 +390,7 @@ export function PublicProfile({
       ) : null}
       {warmStudio ? (
         <ProfileContactStrip
+          display={customization?.contactDisplay ?? "labels"}
           email={profile.email}
           phone={profile.phone}
           website={profile.website}

@@ -97,6 +97,9 @@ vi.mock("@/lib/demo/projection", () => ({
     links: draft.links.filter((link) => link.enabled),
   }),
 }));
+vi.mock("@/lib/demo/media", () => ({
+  prepareDemoMediaDataUrl: vi.fn(async () => "data:image/jpeg;base64,prepared-demo-image"),
+}));
 
 vi.mock("next/image", () => ({
   default: ({ alt }: { alt?: string }) => <span role="img" aria-label={alt ?? ""} />,
@@ -503,8 +506,14 @@ describe("ProfileEditor workspace boundaries", () => {
     render(<ProfileEditor view="customize" />);
 
     await user.click(screen.getByRole("tab", { name: "Media" }));
+    const validPng = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      ),
+      (character) => character.charCodeAt(0),
+    );
     fireEvent.change(screen.getByLabelText("Upload background image"), {
-      target: { files: [new File(["demo-image"], "background.png", { type: "image/png" })] },
+      target: { files: [new File([validPng], "background.png", { type: "image/png" })] },
     });
 
     expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
@@ -514,7 +523,7 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(
         screen
           .getAllByRole("img", { name: "Demo backdrop" })
-          .some((image) => image.getAttribute("style")?.includes("data:image/png")),
+          .some((image) => image.getAttribute("style")?.includes("data:image/")),
       ).toBe(true);
     });
 

@@ -15,6 +15,7 @@ export interface ProfileIdentityColorValidationOptions {
 export type ProfileTypeScale = "compact" | "comfortable" | "editorial";
 export type ProfileLinkTreatment = "filled" | "outlined";
 export type ProfileContentOrder = "links-first" | "section-first";
+export type ProfileContactDisplay = "labels" | "icons-circle" | "icons-soft-square";
 
 export type ProfileSection =
   { kind: "about"; body: string } | { kind: "services"; body: string; items?: string[] };
@@ -31,6 +32,7 @@ export interface ProfileCustomization {
   typeScale: ProfileTypeScale;
   linkTreatment: ProfileLinkTreatment;
   contentOrder: ProfileContentOrder;
+  contactDisplay?: ProfileContactDisplay;
   identityColors?: ProfileIdentityColors;
   featuredLinkId?: string;
   section?: ProfileSection;
@@ -51,12 +53,18 @@ export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
   typeScale: "comfortable",
   linkTreatment: "filled",
   contentOrder: "links-first",
+  contactDisplay: "labels",
 };
 
 /** Returns only a complete, render-safe customization object from runtime data. */
 export function normalizeProfileCustomization(value: unknown): ProfileCustomization | undefined {
   if (!isRecord(value)) return undefined;
-  const baseCustomization = { ...value, section: undefined, identityColors: undefined };
+  const baseCustomization = {
+    ...value,
+    section: undefined,
+    identityColors: undefined,
+    contactDisplay: undefined,
+  };
   if (validateProfileCustomization(baseCustomization as unknown as ProfileCustomization).length > 0)
     return undefined;
 
@@ -66,6 +74,7 @@ export function normalizeProfileCustomization(value: unknown): ProfileCustomizat
     typeScale: value.typeScale as ProfileTypeScale,
     linkTreatment: value.linkTreatment as ProfileLinkTreatment,
     contentOrder: value.contentOrder as ProfileContentOrder,
+    contactDisplay: normalizeContactDisplay(value.contactDisplay),
   };
   const identityColors = normalizeIdentityColors(value.identityColors);
   if (identityColors !== undefined) normalized.identityColors = identityColors;
@@ -126,6 +135,11 @@ const PROFILE_ACCENTS = new Set<ProfileAccent>(["coral", "jade", "ink"]);
 const PROFILE_TYPE_SCALES = new Set<ProfileTypeScale>(["compact", "comfortable", "editorial"]);
 const PROFILE_LINK_TREATMENTS = new Set<ProfileLinkTreatment>(["filled", "outlined"]);
 const PROFILE_CONTENT_ORDERS = new Set<ProfileContentOrder>(["links-first", "section-first"]);
+const PROFILE_CONTACT_DISPLAYS = new Set<ProfileContactDisplay>([
+  "labels",
+  "icons-circle",
+  "icons-soft-square",
+]);
 export const PROFILE_IDENTITY_COLOR_PRESETS = [
   "default",
   "coral",
@@ -143,6 +157,12 @@ export const IDENTITY_COLOR_PALETTE = {
   ink: { name: "#2c2420", bio: "#2c2420" },
 } as const;
 const IDENTITY_SURFACES = ["#fbf6ef", "#fffdf9"] as const;
+
+function normalizeContactDisplay(value: unknown): ProfileContactDisplay {
+  return PROFILE_CONTACT_DISPLAYS.has(value as ProfileContactDisplay)
+    ? (value as ProfileContactDisplay)
+    : "labels";
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -317,6 +337,12 @@ export function validateProfileCustomization(
     errors.push("The profile customization link treatment is invalid.");
   if (!PROFILE_CONTENT_ORDERS.has(value.contentOrder as ProfileContentOrder))
     errors.push("The profile customization content order is invalid.");
+  if (
+    value.contactDisplay !== undefined &&
+    !PROFILE_CONTACT_DISPLAYS.has(value.contactDisplay as ProfileContactDisplay)
+  ) {
+    errors.push("The profile customization contact display is invalid.");
+  }
   if (value.featuredLinkId !== undefined && typeof value.featuredLinkId !== "string") {
     errors.push("The featured link id is invalid.");
   }

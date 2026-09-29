@@ -29,12 +29,18 @@ import {
   updateDemoState,
 } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
+import { prepareDemoMediaDataUrl } from "@/lib/demo/media";
 import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
 import {
   stripProfileMediaUrls,
+  validateProfileMedia,
   type ProfileMediaImage,
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
+import {
+  mergePendingProfileMediaPreview,
+  type PendingProfileMediaUpload,
+} from "@/lib/profile-media-preview";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
@@ -51,31 +57,47 @@ import { splitProfileWorkspaceErrors } from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
-function profileForPreview(draft: ProfileContent, legacyTheme?: ProfileTheme) {
-  if (legacyTheme !== undefined) {
-    return projectDemoPublicProfile(
-      {
-        id: "preview",
-        ownerId: "preview",
-        status: "published",
-        theme: legacyTheme,
-        draft,
-        published: null,
-      },
-      draft,
-      legacyTheme,
-    );
-  }
-  return projectPublicProfile({
-    id: "preview",
-    ownerId: "preview",
-    status: "published",
-    draft,
-    published: { ...draft, publishedAt: new Date().toISOString() },
-  });
+function profileForPreview(
+  draft: ProfileContent,
+  legacyTheme: ProfileTheme | undefined,
+  pendingMedia: PendingProfileMediaUpload | null,
+) {
+  const projected =
+    legacyTheme !== undefined
+      ? projectDemoPublicProfile(
+          {
+            id: "preview",
+            ownerId: "preview",
+            status: "published",
+            theme: legacyTheme,
+            draft,
+            published: null,
+          },
+          draft,
+          legacyTheme,
+          { allowIncompleteMedia: true },
+        )
+      : projectPublicProfile(
+          {
+            id: "preview",
+            ownerId: "preview",
+            status: "published",
+            draft,
+            published: { ...draft, publishedAt: new Date().toISOString() },
+          },
+          { allowIncompleteMedia: true },
+        );
+
+  return projected === null ? null : mergePendingProfileMediaPreview(projected, pendingMedia);
 }
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
+const PENDING_MEDIA_MESSAGE =
+  "Your image is still uploading. Save and publish will be available when it finishes.";
+const FAILED_MEDIA_MESSAGE =
+  "Your image upload failed. Retry or discard it before saving or publishing.";
+const DEMO_MEDIA_UPLOAD_DELAY_KEY = "tapit:e2e-media-upload-delay-ms";
+const DEMO_MEDIA_UPLOAD_FAILURE_KEY = "tapit:e2e-media-upload-failure";
 
 export type ProfileEditorView = "profile" | "customize";
 
@@ -95,6 +117,16 @@ function demoMediaAssetId(requestId: number): ProfileMediaImage["assetId"] {
   return `demo-media-${Date.now()}-${requestId}` as ProfileMediaImage["assetId"];
 }
 
+function demoMediaUploadControls() {
+  if (process.env.NODE_ENV === "production") return { delayMs: 0, fail: false };
+
+  const delayMs = Number(window.localStorage.getItem(DEMO_MEDIA_UPLOAD_DELAY_KEY));
+  return {
+    delayMs: Number.isFinite(delayMs) && delayMs > 0 ? delayMs : 0,
+    fail: window.localStorage.getItem(DEMO_MEDIA_UPLOAD_FAILURE_KEY) === "true",
+  };
+}
+
 function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; href: string }) {
   const onClick = useDraftSaveLink(href);
   return (
@@ -102,6 +134,19 @@ function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; hr
       {children}
     </ButtonLink>
   );
+}
+
+function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpload | null }) {
+  if (pending?.state !== "uploading") return null;
+  return (
+    <p aria-live="polite" className="text-sm font-medium text-tapit-muted" role="status">
+      Uploading image… Keep this page open.
+    </p>
+  );
+}
+
+function unresolvedMediaMessage(pending: PendingProfileMediaUpload | null) {
+  return pending?.state === "error" ? FAILED_MEDIA_MESSAGE : PENDING_MEDIA_MESSAGE;
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
@@ -130,10 +175,28 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
+    null,
+  );
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
   const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
   const mediaRequestRef = useRef(0);
+  const cancelMediaUpload = useCallback(() => {
+    mediaRequestRef.current += 1;
+    setMediaBusy(false);
+    setMediaError("");
+  }, []);
+  useEffect(() => {
+    if (!hasUnresolvedMedia) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnresolvedMedia]);
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
@@ -172,7 +235,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   })();
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
-  const preview = profileForPreview(draft, theme);
+  const mediaErrors = validateProfileMedia(draft.media);
+  const preview = profileForPreview(draft, theme, pendingMediaPreview);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
@@ -205,7 +269,15 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   }
 
   async function saveDraft() {
-    if (cropFile !== null || imagePending || mediaBusy) return false;
+    if (hasUnresolvedMedia) {
+      setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return false;
+    }
+    if (mediaErrors.length > 0) {
+      setMessage({ tone: "error", text: mediaErrors.join(" ") });
+      return false;
+    }
+    if (cropFile !== null || imagePending) return false;
     if (!isDirty) return true;
     try {
       let assignedSlug = profile.draft.slug;
@@ -239,7 +311,11 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   useDraftSaveRegistration(saveDraft);
 
   function publish() {
-    if (cropFile !== null || imagePending || mediaBusy) return;
+    if (hasUnresolvedMedia) {
+      setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return;
+    }
+    if (cropFile !== null || imagePending) return;
     if (errors.length > 0) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
@@ -389,9 +465,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     setMediaBusy(true);
     setMediaError("");
     try {
-      const url = await readFileAsDataUrl(file);
+      const validationError = validateProfileImageFile(file);
+      if (validationError) throw new Error(validationError);
+      const { delayMs, fail } = demoMediaUploadControls();
+      if (delayMs > 0) await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+      if (fail) throw new Error("The media upload failed. Try again.");
+      const url = await prepareDemoMediaDataUrl(file);
       if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
-      return { assetId: demoMediaAssetId(requestId), altText: "", url, previewUrl: url };
+      return { assetId: demoMediaAssetId(requestId), altText: "", url };
     } catch (error) {
       const text = error instanceof Error ? error.message : "The media upload failed. Try again.";
       if (requestId === mediaRequestRef.current) setMediaError(text);
@@ -514,6 +595,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 </span>
               </Notice>
             ) : null}
+            <PendingMediaUploadStatus pending={pendingMediaPreview} />
             {draft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
                 <ProfileCustomizationEditor
@@ -523,6 +605,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaErrorClear={() => setMediaError("")}
+                  onMediaUploadCancel={cancelMediaUpload}
+                  onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadDemoMedia}
                   onThemeChange={chooseTheme}
@@ -537,6 +622,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaErrorClear={() => setMediaError("")}
+                onMediaUploadCancel={cancelMediaUpload}
+                onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadDemoMedia}
                 onThemeChange={chooseTheme}
@@ -573,16 +661,22 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${draft.slug}`}
-      hasDraftChanges={isDirty || hasChangesSincePublish}
+      hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
         errors.length > 0 ||
         publicationLabel === "Published" ||
         cropFile !== null ||
         imagePending ||
-        mediaBusy
+        hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || cropFile !== null || imagePending || mediaBusy}
+      saveDisabled={
+        !isDirty ||
+        mediaErrors.length > 0 ||
+        cropFile !== null ||
+        imagePending ||
+        hasUnresolvedMedia
+      }
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}
     />
@@ -621,6 +715,10 @@ function LiveProfileEditorContent({
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
+    null,
+  );
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
   const [mediaError, setMediaError] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
@@ -634,13 +732,31 @@ function LiveProfileEditorContent({
   const imageRevisionRef = useRef(liveProfile.imageRevision ?? 0);
   const mediaRevisionRef = useRef(liveProfile.mediaRevision ?? 0);
   const mediaRequestRef = useRef(0);
+  const mediaAbortControllerRef = useRef<AbortController | null>(null);
+  const cancelMediaUpload = useCallback(() => {
+    const controller = mediaAbortControllerRef.current;
+    mediaRequestRef.current += 1;
+    mediaAbortControllerRef.current = null;
+    controller?.abort();
+    setMediaBusy(false);
+    setMediaError("");
+  }, []);
+  useEffect(() => {
+    if (!hasUnresolvedMedia) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnresolvedMedia]);
 
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
-      mediaRequestRef.current += 1;
+      cancelMediaUpload();
     },
-    [],
+    [cancelMediaUpload],
   );
   const currentDraft = useMemo<ProfileContent>(() => {
     const assignedSlug = liveProfile.slug ?? liveProfile.draft.slug;
@@ -667,9 +783,10 @@ function LiveProfileEditorContent({
   const errors = validatePublication(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
+  const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
-  const preview = profileForPreview(currentDraft);
+  const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
   const slugLocked = true;
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
@@ -802,6 +919,9 @@ function LiveProfileEditorContent({
   ): Promise<ProfileMediaImage> {
     void target;
     const requestId = ++mediaRequestRef.current;
+    mediaAbortControllerRef.current?.abort();
+    const controller = new AbortController();
+    mediaAbortControllerRef.current = controller;
     setMediaBusy(true);
     setMediaError("");
     try {
@@ -819,6 +939,7 @@ function LiveProfileEditorContent({
           "X-Media-Revision": String(mediaRevisionRef.current),
           "X-Profile-Id": liveProfile._id,
         },
+        signal: controller.signal,
       });
       if (!response.ok)
         throw new Error((await response.text()) || "The media upload failed. Choose another file.");
@@ -827,11 +948,18 @@ function LiveProfileEditorContent({
       mediaRevisionRef.current = uploaded.mediaRevision;
       return uploaded;
     } catch (error) {
+      const wasCanceled =
+        requestId !== mediaRequestRef.current ||
+        (error instanceof Error && error.name === "AbortError");
+      if (wasCanceled) throw error;
       const text = error instanceof Error ? error.message : "The media upload failed. Try again.";
-      if (requestId === mediaRequestRef.current) setMediaError(text);
+      setMediaError(text);
       throw error;
     } finally {
-      if (requestId === mediaRequestRef.current) setMediaBusy(false);
+      if (requestId === mediaRequestRef.current) {
+        mediaAbortControllerRef.current = null;
+        setMediaBusy(false);
+      }
     }
   }
 
@@ -863,7 +991,15 @@ function LiveProfileEditorContent({
   }
 
   async function saveDraft(keepPublishPending = false): Promise<boolean> {
-    if (!keepPublishPending && (pending !== null || cropFile !== null || mediaBusy)) return false;
+    if (hasUnresolvedMedia) {
+      setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return false;
+    }
+    if (mediaErrors.length > 0) {
+      setMessage({ tone: "error", text: mediaErrors.join(" ") });
+      return false;
+    }
+    if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
     if (!isDirty) return true;
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
@@ -909,7 +1045,11 @@ function LiveProfileEditorContent({
   });
 
   async function publish() {
-    if (errors.length > 0 || pending !== null || cropFile !== null || mediaBusy) {
+    if (hasUnresolvedMedia) {
+      setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return;
+    }
+    if (errors.length > 0 || pending !== null || cropFile !== null) {
       setMessage({ tone: "error", text: errors.join(" ") });
       return;
     }
@@ -1082,6 +1222,7 @@ function LiveProfileEditorContent({
                 </span>
               </Notice>
             ) : null}
+            <PendingMediaUploadStatus pending={pendingMediaPreview} />
             {currentDraft.customization === undefined ? (
               <Panel className="shadow-none" title="Legacy appearance">
                 <ProfileCustomizationEditor
@@ -1091,6 +1232,9 @@ function LiveProfileEditorContent({
                   mediaBusy={mediaBusy}
                   mediaError={mediaError}
                   onChange={(customization) => updateField("customization", customization)}
+                  onMediaErrorClear={() => setMediaError("")}
+                  onMediaUploadCancel={cancelMediaUpload}
+                  onMediaPendingPreviewChange={setPendingMediaPreview}
                   onMediaChange={(media) => updateField("media", media)}
                   onMediaUpload={uploadLiveMedia}
                   onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
@@ -1105,6 +1249,9 @@ function LiveProfileEditorContent({
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
                 onChange={(customization) => updateField("customization", customization)}
+                onMediaErrorClear={() => setMediaError("")}
+                onMediaUploadCancel={cancelMediaUpload}
+                onMediaPendingPreviewChange={setPendingMediaPreview}
                 onMediaChange={(media) => updateField("media", media)}
                 onMediaUpload={uploadLiveMedia}
                 onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
@@ -1141,16 +1288,22 @@ function LiveProfileEditorContent({
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${currentDraft.slug}`}
-      hasDraftChanges={isDirty || hasChangesSincePublish}
+      hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
         errors.length > 0 ||
         publicationLabel === "Published" ||
         pending !== null ||
         cropFile !== null ||
-        mediaBusy
+        hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || pending !== null || cropFile !== null || mediaBusy}
+      saveDisabled={
+        !isDirty ||
+        mediaErrors.length > 0 ||
+        pending !== null ||
+        cropFile !== null ||
+        hasUnresolvedMedia
+      }
       saveLoading={pending === "save"}
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}

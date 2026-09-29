@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+import {
+  resetDemoHarness,
+  setDemoMediaUploadControl,
+  signInAsCustomer,
+} from "./support/demo-harness";
 
 async function prepareLegacyMaraProfile(page: Page) {
   await resetDemoHarness(page);
@@ -499,6 +503,23 @@ test("customer can configure bounded profile media and publish it", async ({ pag
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  const storedMedia = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving media.");
+    const state = JSON.parse(raw) as {
+      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
+      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
+    };
+    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
+    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
+  });
+  expect(storedMedia).toBeTruthy();
+  expect(storedMedia).not.toHaveProperty("previewUrl");
+  expect(typeof storedMedia?.url).toBe("string");
+  expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
+  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
 
@@ -515,6 +536,221 @@ test("customer can configure bounded profile media and publish it", async ({ pag
     await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
     await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
   }
+});
+
+test("high-entropy demo media is reduced below the storage limit", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+
+  await page.evaluate(async () => {
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Upload background image"]',
+    );
+    if (!input) throw new Error("Expected the background image input.");
+    const canvas = document.createElement("canvas");
+    canvas.width = 1600;
+    canvas.height = 1200;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Expected canvas support.");
+    const pixels = context.createImageData(canvas.width, canvas.height);
+    let seed = 17;
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      seed = (seed * 1_103_515_245 + 12_345) & 0x7fffffff;
+      pixels.data[index] = seed & 0xff;
+      pixels.data[index + 1] = (seed >>> 8) & 0xff;
+      pixels.data[index + 2] = (seed >>> 16) & 0xff;
+      pixels.data[index + 3] = 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (nextBlob) =>
+          nextBlob ? resolve(nextBlob) : reject(new Error("Could not create test media.")),
+        "image/jpeg",
+        0.82,
+      );
+    });
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], "high-entropy.jpg", { type: "image/jpeg" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await page.getByLabel("Background image description").fill("High entropy backdrop");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  const storedMedia = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving high-entropy media.");
+    const state = JSON.parse(raw) as {
+      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
+      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
+    };
+    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
+    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
+  });
+  expect(storedMedia).toBeTruthy();
+  expect(storedMedia).not.toHaveProperty("previewUrl");
+  expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
+  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+});
+
+test("incomplete background media stays in preview but blocks saving and publishing", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+  ).toBeDisabled();
+
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+});
+
+test("pending media uploads keep profile actions guarded", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await setDemoMediaUploadControl(page, { delayMs: 5000 });
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+  ).toBeDisabled();
+  const pendingHero = page.getByRole("region", { name: "Profile hero" });
+  await expect(pendingHero).toBeVisible();
+  await expect(pendingHero.locator("div.absolute").first()).toHaveCSS("background-image", /blob:/);
+  await page.screenshot({ path: "test-results/profile-media-upload-pending.png", fullPage: true });
+});
+
+test("failed media uploads can be retried without losing the local hero preview", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await setDemoMediaUploadControl(page, { fail: true });
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  const failedHero = page.getByRole("region", { name: "Profile hero" });
+  await expect(failedHero).toBeVisible();
+  await expect(failedHero.locator("div.absolute").first()).toHaveCSS("background-image", /blob:/);
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Retry upload", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+  ).toBeDisabled();
+  await page.screenshot({ path: "test-results/profile-media-upload-failed.png", fullPage: true });
+
+  await setDemoMediaUploadControl(page, { fail: false });
+  await page.getByRole("button", { name: "Retry upload", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Retry upload", exact: true })).toHaveCount(0);
+});
+
+test("compact contact actions keep labels accessible and publish their selected shape", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Layout" }).click();
+
+  const previewContacts = page
+    .getByTestId("profile-preview-frame")
+    .getByRole("navigation", { name: "Contact actions" });
+  const contactLabels = ["Email", "Phone", "Website"];
+  await expect(page.getByRole("radio", { name: "Icon + label", exact: true })).toBeChecked();
+  for (const label of contactLabels) {
+    await expect(previewContacts.getByRole("link", { name: label, exact: true })).toContainText(
+      label,
+    );
+  }
+
+  await page.getByRole("radio", { name: "Icons · circles", exact: true }).check();
+  for (const label of contactLabels) {
+    const link = previewContacts.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveText("");
+    await expect(link).toHaveClass(/rounded-full/);
+  }
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await page.getByRole("button", { name: "Publish changes", exact: true }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  const publicContacts = page.getByRole("navigation", { name: "Contact actions" });
+  for (const label of contactLabels) {
+    const link = publicContacts.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveAccessibleName(label);
+    await expect(link).toHaveText("");
+    await expect(link).toHaveClass(/rounded-full/);
+  }
+
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Layout" }).click();
+  await page.getByRole("radio", { name: "Icons · soft squares", exact: true }).check();
+  for (const label of contactLabels) {
+    const link = previewContacts.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveText("");
+    await expect(link).toHaveClass(/rounded-lg/);
+  }
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+  await page.screenshot({ path: "test-results/compact-contact-preview.png", fullPage: true });
+
+  await page.goto("/mara-velasquez");
+  for (const label of contactLabels) {
+    const link = publicContacts.getByRole("link", { name: label, exact: true });
+    await expect(link).toHaveText("");
+    await expect(link).toHaveClass(/rounded-full/);
+  }
+  await page.goto("/app/customize");
+  await page.getByRole("button", { name: "Publish changes", exact: true }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(publicContacts.getByRole("link", { name: "Email", exact: true })).toHaveClass(
+    /rounded-lg/,
+  );
 });
 
 test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
