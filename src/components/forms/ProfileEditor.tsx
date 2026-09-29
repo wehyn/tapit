@@ -32,6 +32,7 @@ import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
 import {
   stripProfileMediaUrls,
+  validateProfileMedia,
   type ProfileMediaImage,
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
@@ -233,6 +234,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   })();
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
+  const mediaErrors = validateProfileMedia(draft.media);
   const preview = profileForPreview(draft, theme, pendingMediaPreview);
   const slugLocked = profile.published !== null;
   const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
@@ -268,6 +270,10 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   async function saveDraft() {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return false;
+    }
+    if (mediaErrors.length > 0) {
+      setMessage({ tone: "error", text: mediaErrors.join(" ") });
       return false;
     }
     if (cropFile !== null || imagePending) return false;
@@ -661,7 +667,13 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
         hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || cropFile !== null || imagePending || hasUnresolvedMedia}
+      saveDisabled={
+        !isDirty ||
+        mediaErrors.length > 0 ||
+        cropFile !== null ||
+        imagePending ||
+        hasUnresolvedMedia
+      }
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}
     />
@@ -768,6 +780,7 @@ function LiveProfileEditorContent({
   const errors = validatePublication(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
+  const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
@@ -977,6 +990,10 @@ function LiveProfileEditorContent({
   async function saveDraft(keepPublishPending = false): Promise<boolean> {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
+      return false;
+    }
+    if (mediaErrors.length > 0) {
+      setMessage({ tone: "error", text: mediaErrors.join(" ") });
       return false;
     }
     if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
@@ -1277,7 +1294,13 @@ function LiveProfileEditorContent({
         hasUnresolvedMedia
       }
       publishLabel={publicationLabel}
-      saveDisabled={!isDirty || pending !== null || cropFile !== null || hasUnresolvedMedia}
+      saveDisabled={
+        !isDirty ||
+        mediaErrors.length > 0 ||
+        pending !== null ||
+        cropFile !== null ||
+        hasUnresolvedMedia
+      }
       saveLoading={pending === "save"}
       title={view === "profile" ? "Your profile" : "Customize your profile"}
       draftStatus={publicationState}

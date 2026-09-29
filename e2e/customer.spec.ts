@@ -600,6 +600,7 @@ test("failed media uploads can be retried without losing the local hero preview"
   await setDemoMediaUploadControl(page, { fail: false });
   await page.getByRole("button", { name: "Retry upload", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Retry upload", exact: true })).toHaveCount(0);
 });
