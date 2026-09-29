@@ -503,6 +503,22 @@ test("customer can configure bounded profile media and publish it", async ({ pag
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  const storedMedia = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving media.");
+    const state = JSON.parse(raw) as {
+      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
+      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
+    };
+    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
+    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
+  });
+  expect(storedMedia).toBeTruthy();
+  expect(storedMedia).not.toHaveProperty("previewUrl");
+  expect(typeof storedMedia?.url).toBe("string");
+  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
 

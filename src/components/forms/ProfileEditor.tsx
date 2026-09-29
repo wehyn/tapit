@@ -29,6 +29,7 @@ import {
   updateDemoState,
 } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
+import { prepareDemoMediaDataUrl } from "@/lib/demo/media";
 import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
 import {
   stripProfileMediaUrls,
@@ -464,12 +465,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     setMediaBusy(true);
     setMediaError("");
     try {
+      const validationError = validateProfileImageFile(file);
+      if (validationError) throw new Error(validationError);
       const { delayMs, fail } = demoMediaUploadControls();
       if (delayMs > 0) await new Promise((resolve) => window.setTimeout(resolve, delayMs));
       if (fail) throw new Error("The media upload failed. Try again.");
-      const url = await readFileAsDataUrl(file);
+      const url = await prepareDemoMediaDataUrl(file);
       if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
-      return { assetId: demoMediaAssetId(requestId), altText: "", url, previewUrl: url };
+      return { assetId: demoMediaAssetId(requestId), altText: "", url };
     } catch (error) {
       const text = error instanceof Error ? error.message : "The media upload failed. Try again.";
       if (requestId === mediaRequestRef.current) setMediaError(text);
