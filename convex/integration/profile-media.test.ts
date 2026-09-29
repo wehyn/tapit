@@ -234,6 +234,178 @@ describe("profile media hardening", () => {
     vi.unstubAllEnvs();
   });
 
+  it("audits same-scope administrator media uploads and rejects customer use of the admin route", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const crossScopeProfileId = await t.run(async (ctx) => {
+      const ownerUserId = await ctx.db.insert("users", { email: "isolated@example.com" });
+      const ownerId = await ctx.db.insert("customers", {
+        userId: ownerUserId,
+        email: "isolated@example.com",
+        role: "customer",
+        scope: "demo",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId,
+        scope: "demo",
+        slug: "isolated",
+        status: "draft",
+        draft: content("isolated"),
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(ownerId, { profileId });
+      return profileId;
+    });
+    const image = await sharp({
+      create: { width: 32, height: 32, channels: 4, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+    const request = (profileId: Id<"profiles">) => ({
+      method: "POST" as const,
+      headers: {
+        Origin: "http://localhost:3000",
+        "X-Profile-Id": profileId,
+        "X-Media-Revision": "0",
+        "Content-Type": "image/png",
+      },
+      body: new Uint8Array(image),
+    });
+
+    const customerResponse = await t
+      .withIdentity(identity(ids.ownerUserId))
+      .fetch("/admin-profile-media-upload", request(ids.ownerProfileId));
+    expect(customerResponse.status).toBe(403);
+
+    const crossScopeResponse = await t
+      .withIdentity(identity(ids.adminUserId))
+      .fetch("/admin-profile-media-upload", request(crossScopeProfileId));
+    expect(crossScopeResponse.status).toBe(403);
+
+    const adminResponse = await t
+      .withIdentity(identity(ids.adminUserId))
+      .fetch("/admin-profile-media-upload", request(ids.ownerProfileId));
+    expect(adminResponse.status).toBe(200);
+    expect((await adminResponse.json()).mediaRevision).toBe(1);
+    const audit = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_profileId", (query) => query.eq("profileId", ids.ownerProfileId))
+        .collect(),
+    );
+    expect(audit).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: "profile.media_uploaded",
+          actorUserId: ids.adminUserId,
+          accountId: ids.ownerId,
+          profileId: ids.ownerProfileId,
+        }),
+      ]),
+    );
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects administrator media jobs after the actor account is deleted", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.ownerProfileId,
+      ownerId: ids.ownerId,
+      actorUserId: ids.adminUserId,
+      accessMode: "admin",
+      sha256: "a".repeat(64),
+      expectedMediaRevision: 0,
+    });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
+    const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
+    await t.mutation(internal.profileMedia.markUploadJob, {
+      jobId,
+      storageId,
+      previewStorageId,
+    });
+    await t.run((ctx) => ctx.db.delete(ids.adminId));
+
+    await expect(
+      t.mutation(internal.profileMedia.attach, {
+        jobId,
+        storageId,
+        previewStorageId,
+        contentType: "image/png",
+        size: 6,
+        width: 100,
+        height: 100,
+      }),
+    ).rejects.toThrow("Upload job does not match this media set");
+    await expect(
+      t.mutation(internal.profileMedia.createUploadJob, {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        actorUserId: ids.adminUserId,
+        accessMode: "admin",
+        sha256: "b".repeat(64),
+        expectedMediaRevision: 0,
+      }),
+    ).rejects.toThrow("Profile access denied");
+    expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.mediaRevision ?? 0).toBe(0);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("auditLogs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", ids.ownerProfileId))
+          .collect(),
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("does not finish an admin media job after the admin role is demoted on their own profile", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.adminProfileId,
+      ownerId: ids.adminId,
+      actorUserId: ids.adminUserId,
+      accessMode: "admin",
+      sha256: "c".repeat(64),
+      expectedMediaRevision: 0,
+    });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
+    const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
+    await t.mutation(internal.profileMedia.markUploadJob, {
+      jobId,
+      storageId,
+      previewStorageId,
+    });
+    await t.run((ctx) => ctx.db.patch(ids.adminId, { role: "customer" }));
+
+    await expect(
+      t.mutation(internal.profileMedia.attach, {
+        jobId,
+        storageId,
+        previewStorageId,
+        contentType: "image/png",
+        size: 6,
+        width: 100,
+        height: 100,
+      }),
+    ).rejects.toThrow("Upload job does not match this media set");
+    expect((await t.run((ctx) => ctx.db.get(ids.adminProfileId)))?.mediaRevision ?? 0).toBe(0);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("auditLogs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", ids.adminProfileId))
+          .collect(),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("allows only the profile owner to remove media", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

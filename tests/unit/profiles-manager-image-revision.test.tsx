@@ -24,20 +24,24 @@ vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("convex/react", () => ({
   useConvex: () => convex,
   useMutation: () => mutation,
-  useQuery: () => [
-    {
-      _id: "profile-1",
-      _creationTime: 1,
-      ownerId: "customer-1",
-      slug: "mara-velasquez",
-      status: "draft",
-      imageRevision: 7,
-      mediaRevision: 11,
-      draft: { name: "Mara Velasquez", slug: "mara-velasquez", links: [] },
-      createdAt: 1,
-      updatedAt: 1,
-    },
-  ],
+  usePaginatedQuery: () => ({
+    results: [
+      {
+        _id: "profile-1",
+        _creationTime: 1,
+        ownerId: "customer-1",
+        slug: "mara-velasquez",
+        status: "draft",
+        imageRevision: 7,
+        mediaRevision: 11,
+        draft: { name: "Mara Velasquez", slug: "mara-velasquez", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ],
+    status: "Exhausted",
+    loadMore: vi.fn(),
+  }),
 }));
 
 import { ProfilesManager } from "@/components/admin/ProfilesManager";
@@ -47,6 +51,7 @@ beforeEach(() => mutation.mockClear());
 it("saves an administrative draft against the image revision shown", async () => {
   render(<ProfilesManager />);
   fireEvent.click(screen.getByRole("button", { name: /Mara Velasquez \/mara-velasquez/ }));
+  await screen.findByRole("textbox", { name: "Name" });
   fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
     target: { value: "Mara New" },
   });
@@ -64,6 +69,7 @@ it("saves an administrative draft against the image revision shown", async () =>
 it("publishes an administrative draft against the image revision shown", async () => {
   render(<ProfilesManager />);
   fireEvent.click(screen.getByRole("button", { name: /Mara Velasquez \/mara-velasquez/ }));
+  await screen.findByRole("textbox", { name: "Name" });
   fireEvent.click(screen.getByRole("button", { name: "Publish" }));
   await screen.findByText("Profile published.");
   expect(mutation).toHaveBeenCalledWith({

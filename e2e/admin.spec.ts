@@ -21,6 +21,37 @@ async function openMaraProfileDetails(page: Page) {
   await expect(page.getByRole("dialog", { name: "Mara Velasquez profile" })).toBeVisible();
 }
 
+test("administrator edits and publishes the selected customer profile details", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Edit profile" }).click();
+  await dialog.getByLabel("Name", { exact: true }).fill("Mara Velasquez Updated");
+  await dialog.getByLabel("Bio or role", { exact: true }).fill("Updated by the administrator.");
+  await dialog.getByLabel("Email", { exact: true }).fill("mara-updated@example.test");
+  await dialog.getByRole("button", { name: "Save admin draft" }).click();
+  await expect(
+    dialog.getByText(
+      "Administrative draft changes saved. Public content is unchanged until publication.",
+    ),
+  ).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(
+    dialog.getByText("Profile published. The stable public URL now serves the approved snapshot."),
+  ).toBeVisible();
+  await dialog.getByRole("button", { name: "Close profile details" }).click();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez Updated" })).toBeVisible();
+  await expect(page.getByText("Updated by the administrator.", { exact: true })).toBeVisible();
+  await expect(page.locator('a[href="mailto:mara-updated@example.test"]')).toBeVisible();
+});
+
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
   await signInAsAdmin(page);
 
@@ -407,7 +438,8 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
 
   const savedDraft = maraDialog.getByRole("region", { name: "Saved draft content" });
   const publishedSnapshot = maraDialog.getByRole("region", { name: "Published snapshot content" });
-  await maraDialog.getByLabel("Profile slug").fill("mara-renamed-e2e");
+  const maraDetailsPanel = maraDialog.getByRole("tabpanel", { name: "Details & slug" });
+  await maraDetailsPanel.getByLabel("Profile slug").fill("mara-renamed-e2e");
   await maraDialog.getByRole("button", { name: "Save slug" }).click();
   await expect(maraDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
   await expect(savedDraft.getByText("Draft-only bio update.", { exact: true })).toBeVisible();
@@ -441,9 +473,11 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   await page.goto("/admin/profiles");
   await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
   const adminDialog = page.getByRole("dialog", { name: "Tapit Admin profile" });
-  await adminDialog.getByRole("tab", { name: "Details & slug" }).click();
-  await adminDialog.getByLabel("Profile slug").fill("mara-velasquez");
-  await adminDialog.getByRole("button", { name: "Save slug" }).click();
+  const adminDetailsTab = adminDialog.getByRole("tab", { name: "Details & slug" });
+  await adminDetailsTab.click();
+  const adminDetailsPanel = adminDialog.getByRole("tabpanel", { name: "Details & slug" });
+  await adminDetailsPanel.getByLabel("Profile slug").fill("mara-velasquez");
+  await adminDetailsPanel.getByRole("button", { name: "Save slug" }).click();
   await expect(adminDialog.getByText("Profile slug changed.", { exact: true })).toBeVisible();
   await expect(adminDialog.getByText("/mara-velasquez", { exact: true })).toBeVisible();
 });

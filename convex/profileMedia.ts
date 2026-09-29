@@ -7,7 +7,7 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireUser, sameScope } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
 import { profileMediaValidator } from "./validators";
 
 export const MAX_PROFILE_MEDIA_SIZE = 5 * 1024 * 1024;
@@ -21,6 +21,23 @@ export const mediaContentTypeValidator = v.union(
 );
 type DbContext = Pick<QueryCtx | MutationCtx, "db" | "storage">;
 type Media = Doc<"profiles">["draft"]["media"];
+type UploadAccessMode = "owner" | "admin";
+
+function canUploadMediaForProfile(
+  actor: Doc<"customers"> | null,
+  actorUserId: Id<"users"> | undefined,
+  accessMode: UploadAccessMode | undefined,
+  owner: Doc<"customers">,
+  profile: Doc<"profiles">,
+): boolean {
+  if (actorUserId === undefined && accessMode === undefined) return isActiveCustomer(owner);
+  if (actor === null || !isActiveCustomer(actor)) return false;
+  if (accessMode === "owner")
+    return actor._id === owner._id && isActiveCustomer(owner) && sameScope(actor, profile);
+  if (accessMode === "admin")
+    return actor.role === "admin" && sameScope(actor, profile) && sameScope(actor, owner);
+  return false;
+}
 
 /** Resolves the authenticated account and verifies ownership of one profile. */
 export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"profiles">) {
@@ -42,16 +59,41 @@ export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId:
   return { account, profile, userId };
 }
 
-/** Internal bridge for actions that must preserve the caller's owner-only access. */
+/** Internal bridge for the customer upload action; only the profile owner can use it. */
 export const getOwnerAccess = internalQuery({
   args: { profileId: v.id("profiles") },
   returns: v.object({
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
+    userId: v.id("users"),
   }),
   handler: async (ctx, args) => {
-    const { profile } = await profileOwnerAccess(ctx, args.profileId);
-    return { profileId: profile._id, ownerId: profile.ownerId };
+    const { profile, userId } = await profileOwnerAccess(ctx, args.profileId);
+    return { profileId: profile._id, ownerId: profile.ownerId, userId };
+  },
+});
+
+/** Internal bridge for the administrator upload action; access is limited to the admin scope. */
+export const getAdminAccess = internalQuery({
+  args: { profileId: v.id("profiles") },
+  returns: v.object({
+    profileId: v.id("profiles"),
+    ownerId: v.id("customers"),
+    userId: v.id("users"),
+  }),
+  handler: async (ctx, args) => {
+    const { account, userId } = await requireAdministrator(ctx);
+    const profile = await ctx.db.get(args.profileId);
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (
+      profile === null ||
+      profile.scope !== account.scope ||
+      owner === null ||
+      owner.scope !== account.scope
+    ) {
+      throw new Error("Profile access denied.");
+    }
+    return { profileId: profile._id, ownerId: profile.ownerId, userId };
   },
 });
 
@@ -313,6 +355,8 @@ export const createUploadJob = internalMutation({
   args: {
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
+    actorUserId: v.optional(v.id("users")),
+    accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     sha256: v.string(),
     expectedMediaRevision: v.number(),
   },
@@ -324,9 +368,17 @@ export const createUploadJob = internalMutation({
       profile === null ||
       owner === null ||
       profile.ownerId !== args.ownerId ||
-      !isActiveCustomer(owner) ||
       !sameScope(owner, profile)
     )
+      throw new Error("Profile access denied.");
+    const actor =
+      args.actorUserId === undefined
+        ? null
+        : await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (query) => query.eq("userId", args.actorUserId!))
+            .unique();
+    if (!canUploadMediaForProfile(actor, args.actorUserId, args.accessMode, owner, profile))
       throw new Error("Profile access denied.");
     if (args.expectedMediaRevision !== (profile.mediaRevision ?? 0))
       throw new Error(MEDIA_REVISION_CONFLICT);
@@ -349,6 +401,8 @@ export const getUploadJob = internalQuery({
       _creationTime: v.number(),
       profileId: v.id("profiles"),
       ownerId: v.id("customers"),
+      actorUserId: v.optional(v.id("users")),
+      accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
       sha256: v.string(),
       previewSha256: v.optional(v.string()),
       storageId: v.optional(v.id("_storage")),
@@ -418,9 +472,18 @@ export const attach = internalMutation({
       job.storageId !== args.storageId ||
       job.previewStorageId !== args.previewStorageId ||
       profile.ownerId !== job.ownerId ||
-      !isActiveCustomer(owner) ||
       !sameScope(owner, profile)
     )
+      throw new Error("Upload job does not match this media set.");
+    const actorUserId = job.actorUserId;
+    const actor =
+      actorUserId === undefined
+        ? null
+        : await ctx.db
+            .query("customers")
+            .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
+            .unique();
+    if (!canUploadMediaForProfile(actor, actorUserId, job.accessMode, owner, profile))
       throw new Error("Upload job does not match this media set.");
     if ((profile.mediaRevision ?? 0) !== job.expectedMediaRevision)
       throw new Error(MEDIA_REVISION_CONFLICT);
@@ -444,6 +507,16 @@ export const attach = internalMutation({
       mediaRevision: (profile.mediaRevision ?? 0) + 1,
       updatedAt: Date.now(),
     });
+    if (actor?.role === "admin")
+      await ctx.db.insert("auditLogs", {
+        scope: profile.scope,
+        actorUserId: actor.userId,
+        actorLabel: "Administrator",
+        action: "profile.media_uploaded",
+        profileId: profile._id,
+        accountId: profile.ownerId,
+        occurredAt: Date.now(),
+      });
     await ctx.db.patch(job._id, { status: "attached" });
     const url = await ctx.storage.getUrl(args.storageId);
     const previewUrl = await ctx.storage.getUrl(args.previewStorageId);

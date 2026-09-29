@@ -10,7 +10,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useAuthToken } from "@convex-dev/auth/react";
+import { useConvex, useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ArrowRightIcon, CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 import {
@@ -23,6 +24,12 @@ import {
   type ProfileStatus,
 } from "@/lib/domain";
 import {
+  stripProfileMediaUrls,
+  type ProfileMediaImage,
+  type ProfileMediaPresentation,
+} from "@/lib/profile-media";
+import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
+import {
   getDemoProfiles,
   updateDemoProfile,
   useDemoState,
@@ -31,10 +38,11 @@ import {
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Field, TextareaField } from "@/components/ui/Field";
+import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { ProfileDetails, type AdminProfileDetailsView } from "@/components/admin/ProfileDetails";
+import { AdminProfileContentEditor } from "@/components/admin/AdminProfileContentEditor";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -44,6 +52,96 @@ type ProfileDialogTab = "edit" | "details";
 type LiveAdminProfileDetails = NonNullable<
   ReturnType<typeof useQuery<typeof api.profiles.adminDetails>>
 >;
+type AdminDraftForPersistence = ProfileContent & { media?: ProfileMediaPresentation | null };
+
+function adminDraftForPersistence(
+  content: ProfileContent,
+  hasPersistedMedia: boolean,
+): AdminDraftForPersistence {
+  const draft = { ...content, links: content.links.map((link) => ({ ...link })) };
+  delete draft.imageUrl;
+  if (content.media === undefined) {
+    if (hasPersistedMedia) return { ...draft, media: null } as unknown as AdminDraftForPersistence;
+    delete draft.media;
+    return draft;
+  }
+
+  const media = stripProfileMediaUrls(content.media);
+  if (media === undefined) {
+    if (hasPersistedMedia) return { ...draft, media: null } as unknown as AdminDraftForPersistence;
+    delete draft.media;
+  } else {
+    draft.media = media;
+  }
+  return draft;
+}
+
+function readBlobAsDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("That image could not be read. Try again."));
+    reader.onload = () =>
+      typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error("That image could not be converted. Try again."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function parseAdminImageUploadResponse(value: unknown): {
+  storageId: Id<"_storage">;
+  imageUrl: string;
+  imageRevision: number;
+} {
+  if (typeof value !== "object" || value === null)
+    throw new Error("The image service returned an invalid response.");
+  const response = value as { storageId?: unknown; imageUrl?: unknown; imageRevision?: unknown };
+  if (
+    typeof response.storageId !== "string" ||
+    response.storageId.length === 0 ||
+    typeof response.imageUrl !== "string" ||
+    response.imageUrl.length === 0 ||
+    !Number.isSafeInteger(response.imageRevision) ||
+    (response.imageRevision as number) < 0
+  )
+    throw new Error("The image service returned an invalid response.");
+  return {
+    storageId: response.storageId as Id<"_storage">,
+    imageUrl: response.imageUrl,
+    imageRevision: response.imageRevision as number,
+  };
+}
+
+function parseAdminMediaUploadResponse(value: unknown): ProfileMediaImage & {
+  mediaRevision: number;
+} {
+  if (typeof value !== "object" || value === null)
+    throw new Error("The media service returned an invalid response.");
+  const response = value as {
+    assetId?: unknown;
+    url?: unknown;
+    previewUrl?: unknown;
+    mediaRevision?: unknown;
+  };
+  if (
+    typeof response.assetId !== "string" ||
+    response.assetId.length === 0 ||
+    typeof response.url !== "string" ||
+    response.url.length === 0 ||
+    typeof response.previewUrl !== "string" ||
+    response.previewUrl.length === 0 ||
+    !Number.isSafeInteger(response.mediaRevision) ||
+    (response.mediaRevision as number) < 0
+  )
+    throw new Error("The media service returned an invalid response.");
+  return {
+    assetId: response.assetId as ProfileMediaImage["assetId"],
+    altText: "",
+    url: response.url,
+    previewUrl: response.previewUrl,
+    mediaRevision: response.mediaRevision as number,
+  };
+}
 
 function toProfileContent(content: LiveAdminProfileDetails["profile"]["draft"]): ProfileContent {
   return {
@@ -288,6 +386,7 @@ function DemoProfilesManager() {
   const [slugError, setSlugError] = useState<string | null>(null);
   const [slugSuccess, setSlugSuccess] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
   const normalizedQuery = query.trim().toLowerCase();
   const matchingProfiles = profiles.filter((candidate) =>
     `${candidate.draft.name} ${candidate.draft.slug}`.toLowerCase().includes(normalizedQuery),
@@ -317,14 +416,29 @@ function DemoProfilesManager() {
       }
     : null;
 
-  function updateDraft(field: "name" | "bio", value: string) {
+  function updateDraft<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
     if (profile === undefined) return;
     updateDemoState((current) =>
       updateDemoProfile(current, profile.id, (currentProfile) => ({
         ...currentProfile,
-        draft: { ...currentProfile.draft, [field]: field === "bio" ? value || undefined : value },
+        draft: { ...currentProfile.draft, [field]: value },
       })),
     );
+  }
+
+  async function uploadDemoPhoto(image: { blob: Blob }) {
+    return { imageUrl: await readBlobAsDataUrl(image.blob) };
+  }
+
+  async function uploadDemoMedia(file: File): Promise<ProfileMediaImage> {
+    const dataUrl = await readBlobAsDataUrl(file);
+    return {
+      assetId:
+        `demo-media-${Date.now()}-${Math.random().toString(36).slice(2)}` as ProfileMediaImage["assetId"],
+      altText: "",
+      url: dataUrl,
+      previewUrl: dataUrl,
+    };
   }
 
   function saveDraft() {
@@ -341,8 +455,6 @@ function DemoProfilesManager() {
           action: "profile.draft_updated",
           target: profile.draft.slug,
           occurredAt: new Date().toISOString(),
-          before: profile.published?.name ?? "draft",
-          after: profile.draft.name,
         },
         ...current.audits,
       ],
@@ -590,35 +702,21 @@ function DemoProfilesManager() {
                   Current slug: <code>{profile.draft.slug}</code>
                 </span>
               </div>
-              <div className="mt-6 grid gap-5 sm:max-w-lg">
-                <Field
-                  disabled={profile.published !== null}
-                  help={profile.published ? "Immutable after first publication." : undefined}
-                  id="admin-profile-name"
-                  label="Name"
-                  onChange={(event) => updateDraft("name", event.target.value)}
-                  value={profile.draft.name}
-                />
-              </div>
-              <div className="mt-5">
-                <TextareaField
-                  id="admin-profile-bio"
-                  label="Bio or role"
-                  maxLength={140}
-                  onChange={(event) => updateDraft("bio", event.target.value)}
-                  value={profile.draft.bio ?? ""}
-                />
-              </div>
+              <AdminProfileContentEditor
+                draft={profile.draft}
+                onBusyChange={setEditorBusy}
+                onChange={updateDraft}
+                onRemovePhoto={async () => Promise.resolve()}
+                onUploadMedia={uploadDemoMedia}
+                onUploadPhoto={uploadDemoPhoto}
+                profileId={profile.id}
+              />
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button onClick={saveDraft} type="button" variant="secondary">
+                <Button disabled={editorBusy} onClick={saveDraft} type="button" variant="secondary">
                   Save admin draft
                 </Button>
                 <Button
-                  disabled={
-                    profile.status === "published" &&
-                    profile.published?.name === profile.draft.name &&
-                    profile.published?.bio === profile.draft.bio
-                  }
+                  disabled={editorBusy || profile.status === "suspended"}
                   onClick={publish}
                   type="button"
                 >
@@ -704,21 +802,33 @@ function DemoProfilesManager() {
 
 function LiveProfilesManager() {
   const convex = useConvex();
-  const profiles = useQuery(api.profiles.adminList);
+  const authToken = useAuthToken();
+  const {
+    results: allProfiles,
+    status: paginationStatus,
+    loadMore,
+  } = usePaginatedQuery(api.profiles.adminListPaginated, {}, { initialNumItems: 25 });
   const save = useMutation(api.profiles.saveDraft);
   const publish = useMutation(api.profiles.publish);
   const setStatus = useMutation(api.profiles.setStatus);
   const changeSlug = useMutation(api.profiles.changeSlug);
+  const removeImage = useMutation(api.storage.removeImageAsAdmin);
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<Id<"profiles"> | null>(null);
   const selectedIdRef = useRef<Id<"profiles"> | null>(null);
   const [draftState, setDraftState] = useState<{
     profileId: Id<"profiles">;
-    serverDraftKey: string;
     draft: ProfileContent;
+    dirty: boolean;
+    serverProfileKey: string;
   } | null>(null);
+  const uploadRevisionsRef = useRef(
+    new Map<Id<"profiles">, { imageRevision: number; mediaRevision: number }>(),
+  );
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [editorBusy, setEditorBusy] = useState(false);
+  const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const [detailsSnapshot, setDetailsSnapshot] = useState<{
     profileId: Id<"profiles">;
     profileKey: string;
@@ -733,7 +843,6 @@ function LiveProfilesManager() {
   const [slugError, setSlugError] = useState<string | null>(null);
   const [slugSuccess, setSlugSuccess] = useState<string | null>(null);
   const [slugSubmittingFor, setSlugSubmittingFor] = useState<Id<"profiles"> | null>(null);
-  const allProfiles = profiles ?? [];
   const matching = allProfiles.filter((profile) =>
     `${profile.draft.name} ${profile.draft.slug}`
       .toLowerCase()
@@ -741,13 +850,6 @@ function LiveProfilesManager() {
   );
   const profile = allProfiles.find((candidate) => candidate._id === selectedId);
   const selectedProfileKey = profile === undefined ? null : JSON.stringify(profile);
-  const serverDraftKey = profile ? JSON.stringify(profile.draft) : null;
-  const currentDraft =
-    profile && draftState?.profileId === profile._id && draftState.serverDraftKey === serverDraftKey
-      ? draftState.draft
-      : profile
-        ? ({ ...profile.draft } as ProfileContent)
-        : null;
 
   useEffect(() => {
     if (selectedId === null || selectedProfileKey === null) return;
@@ -791,26 +893,131 @@ function LiveProfilesManager() {
     profileDetails === null &&
     detailsError === null;
   const detailsView = profileDetails ? toAdminProfileDetailsView(profileDetails) : null;
+  const localDraftState =
+    profile !== undefined &&
+    draftState !== null &&
+    draftState.profileId === profile._id &&
+    (draftState.dirty || draftState.serverProfileKey === selectedProfileKey)
+      ? draftState
+      : null;
+  const currentDraft =
+    profile === undefined
+      ? null
+      : localDraftState !== null
+        ? localDraftState.draft
+        : profileDetails === null
+          ? null
+          : toProfileContent(profileDetails.profile.draft);
+  const hasUnsavedChanges = localDraftState?.dirty ?? false;
 
-  if (profiles === undefined)
+  function uploadRevisionsFor(selected: NonNullable<typeof profile>) {
+    const existing = uploadRevisionsRef.current.get(selected._id);
+    if (existing) return existing;
+    const initial = {
+      imageRevision: selected.imageRevision ?? 0,
+      mediaRevision: selected.mediaRevision ?? 0,
+    };
+    uploadRevisionsRef.current.set(selected._id, initial);
+    return initial;
+  }
+
+  if (paginationStatus === "LoadingFirstPage")
     return <div className="p-8 text-sm text-tapit-muted">Loading profiles…</div>;
+
+  async function uploadPhoto(prepared: { blob: Blob; contentType: string }) {
+    if (!profile) throw new Error("Select a profile before uploading a photo.");
+    if (authToken === null) throw new Error("Authentication is required to upload a photo.");
+    const revisions = uploadRevisionsFor(profile);
+    const siteUrl = requirePairedConvexSiteUrl(
+      process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
+      process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
+    );
+    const response = await fetch(`${siteUrl}/admin-profile-image-upload`, {
+      method: "POST",
+      body: prepared.blob,
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": prepared.contentType,
+        "X-Image-Revision": String(revisions.imageRevision),
+        "X-Profile-Id": profile._id,
+      },
+    });
+    if (!response.ok)
+      throw new Error((await response.text()) || "The image upload failed. Choose another file.");
+    const uploaded = parseAdminImageUploadResponse(await response.json());
+    revisions.imageRevision = uploaded.imageRevision;
+    return { imageUrl: uploaded.imageUrl, storageId: uploaded.storageId };
+  }
+
+  async function removePhoto() {
+    if (!profile) throw new Error("Select a profile before removing its photo.");
+    const revisions = uploadRevisionsFor(profile);
+    const result = await removeImage({
+      profileId: profile._id,
+      expectedImageRevision: revisions.imageRevision,
+    });
+    revisions.imageRevision = result.imageRevision;
+  }
+
+  async function uploadMedia(file: File): Promise<ProfileMediaImage> {
+    if (!profile) throw new Error("Select a profile before uploading media.");
+    if (authToken === null) throw new Error("Authentication is required to upload media.");
+    const revisions = uploadRevisionsFor(profile);
+    const siteUrl = requirePairedConvexSiteUrl(
+      process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
+      process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
+    );
+    const response = await fetch(`${siteUrl}/admin-profile-media-upload`, {
+      method: "POST",
+      body: file,
+      headers: {
+        Authorization: `Bearer ${authToken}`,
+        "Content-Type": file.type,
+        "X-Media-Revision": String(revisions.mediaRevision),
+        "X-Profile-Id": profile._id,
+      },
+    });
+    if (!response.ok)
+      throw new Error((await response.text()) || "The media upload failed. Choose another file.");
+    const uploaded = parseAdminMediaUploadResponse(await response.json());
+    revisions.mediaRevision = uploaded.mediaRevision;
+    return uploaded;
+  }
+
+  async function persistDraft(selected: NonNullable<typeof profile>, draft: ProfileContent) {
+    const revisions = uploadRevisionsFor(selected);
+    const persisted = await save({
+      profileId: selected._id,
+      draft: adminDraftForPersistence(draft, selected.draft.media !== undefined),
+      expectedImageRevision: revisions.imageRevision,
+      expectedMediaRevision: revisions.mediaRevision,
+    });
+    revisions.imageRevision = persisted.imageRevision;
+    revisions.mediaRevision = persisted.mediaRevision;
+  }
+
   async function saveDraft() {
-    if (!profile || !currentDraft) return;
-    const profileId = profile._id;
+    if (!profile || !currentDraft || editorBusy || pendingAction !== null) return;
+    const selectedProfile = profile;
     const draftToSave = currentDraft;
+    setPendingAction("save");
     try {
-      await save({
-        profileId,
-        draft: draftToSave,
-        expectedImageRevision: profile.imageRevision ?? 0,
-        expectedMediaRevision: profile.mediaRevision ?? 0,
-      });
+      await persistDraft(selectedProfile, draftToSave);
+      setDraftState((previous) =>
+        previous !== null &&
+        previous.profileId === selectedProfile._id &&
+        previous.draft === draftToSave
+          ? { ...previous, dirty: false }
+          : previous,
+      );
       setMessage({ tone: "success", text: "Administrative draft changes saved." });
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Draft could not be saved.",
       });
+    } finally {
+      setPendingAction(null);
     }
   }
   async function changeStatus(status: "draft" | "published" | "unpublished" | "suspended") {
@@ -832,26 +1039,33 @@ function LiveProfilesManager() {
     if (profile === undefined) return;
     const profileId = profile._id;
     const previousSlug = profile.slug;
-    const previousDraftKey = JSON.stringify(profile.draft);
     const draftBeforeRename = currentDraft;
     setSlugSubmittingFor(profileId);
     setSlugError(null);
     setSlugSuccess(null);
     try {
       const result = await changeSlug({ profileId, slug: slugValue });
-      const nextDraftKey = JSON.stringify({ ...profile.draft, slug: result.slug });
       setDraftState((previous) => {
         if (selectedIdRef.current !== profileId) return previous;
-        const latestDraft =
-          previous?.profileId === profileId && previous.serverDraftKey === previousDraftKey
-            ? previous.draft
-            : draftBeforeRename;
+        let latestDraft = draftBeforeRename;
+        let dirty = false;
+        let serverProfileKey = selectedProfileKey ?? "";
+        if (
+          previous !== null &&
+          previous.profileId === profileId &&
+          (previous.dirty || previous.serverProfileKey === selectedProfileKey)
+        ) {
+          latestDraft = previous.draft;
+          dirty = previous.dirty;
+          serverProfileKey = previous.serverProfileKey;
+        }
         return latestDraft === null
           ? previous
           : {
               profileId,
-              serverDraftKey: nextDraftKey,
               draft: { ...latestDraft, slug: result.slug },
+              dirty,
+              serverProfileKey,
             };
       });
       if (selectedIdRef.current === profileId) {
@@ -871,22 +1085,27 @@ function LiveProfilesManager() {
   }
 
   async function publishProfile() {
-    if (!profile || !currentDraft) return;
-    const profileId = profile._id;
+    if (!profile || !currentDraft || editorBusy || pendingAction !== null) return;
+    const selectedProfile = profile;
+    const profileId = selectedProfile._id;
     const draftToPublish = currentDraft;
+    const shouldSaveDraft =
+      draftState !== null && draftState.profileId === profileId && draftState.dirty;
+    setPendingAction("publish");
     try {
-      if (JSON.stringify(draftToPublish) !== JSON.stringify(profile.draft)) {
-        await save({
-          profileId,
-          draft: draftToPublish,
-          expectedImageRevision: profile.imageRevision ?? 0,
-          expectedMediaRevision: profile.mediaRevision ?? 0,
-        });
+      if (shouldSaveDraft) {
+        await persistDraft(selectedProfile, draftToPublish);
+        setDraftState((previous) =>
+          previous !== null && previous.profileId === profileId && previous.draft === draftToPublish
+            ? { ...previous, dirty: false }
+            : previous,
+        );
       }
+      const revisions = uploadRevisionsFor(selectedProfile);
       await publish({
         profileId,
-        expectedImageRevision: profile.imageRevision ?? 0,
-        expectedMediaRevision: profile.mediaRevision ?? 0,
+        expectedImageRevision: revisions.imageRevision,
+        expectedMediaRevision: revisions.mediaRevision,
       });
       setMessage({ tone: "success", text: "Profile published." });
     } catch (error) {
@@ -894,18 +1113,34 @@ function LiveProfilesManager() {
         tone: "error",
         text: error instanceof Error ? error.message : "Profile could not be published.",
       });
+    } finally {
+      setPendingAction(null);
     }
   }
-  function updateDraft(field: "name" | "bio", value: string) {
-    if (!profile || !currentDraft || serverDraftKey === null) return;
-    setDraftState({
-      profileId: profile._id,
-      serverDraftKey,
-      draft: {
-        ...currentDraft,
-        [field]: field === "bio" ? value || undefined : value,
-      },
+  function updateDraft<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
+    if (!profile || !currentDraft) return;
+    const profileId = profile._id;
+    const baseDraft = currentDraft;
+    setDraftState((previous) => {
+      if (selectedIdRef.current !== profileId) return previous;
+      let source = baseDraft;
+      let serverProfileKey = selectedProfileKey ?? "";
+      if (
+        previous !== null &&
+        previous.profileId === profileId &&
+        (previous.dirty || previous.serverProfileKey === selectedProfileKey)
+      ) {
+        source = previous.draft;
+        serverProfileKey = previous.serverProfileKey;
+      }
+      return {
+        profileId,
+        draft: { ...source, [field]: value },
+        dirty: true,
+        serverProfileKey,
+      };
     });
+    setMessage(null);
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
@@ -932,7 +1167,11 @@ function LiveProfilesManager() {
       <Panel className="p-3 sm:p-4" title="Profile registry">
         <div className="mt-3 grid gap-2">
           {matching.length === 0 ? (
-            <Notice>No profiles match this search.</Notice>
+            <Notice>
+              {query.trim() !== "" && paginationStatus === "CanLoadMore"
+                ? "No profiles on the loaded pages match. Load more profiles to continue searching."
+                : "No profiles match this search."}
+            </Notice>
           ) : (
             matching.map((candidate) => (
               <button
@@ -944,9 +1183,11 @@ function LiveProfilesManager() {
                 onClick={() => {
                   selectedIdRef.current = candidate._id;
                   setSelectedId(candidate._id);
+                  setDraftState(null);
                   setSlugValue(candidate.slug);
                   setSlugError(null);
                   setSlugSuccess(null);
+                  setMessage(null);
                   setDetailsFailure(null);
                 }}
                 type="button"
@@ -963,21 +1204,33 @@ function LiveProfilesManager() {
               </button>
             ))
           )}
+          {paginationStatus !== "Exhausted" ? (
+            <Button
+              disabled={paginationStatus !== "CanLoadMore"}
+              onClick={() => loadMore(25)}
+              type="button"
+              variant="secondary"
+            >
+              {paginationStatus === "LoadingMore" ? "Loading more profiles…" : "Load more profiles"}
+            </Button>
+          ) : null}
         </div>
       </Panel>
 
-      {profile && currentDraft ? (
+      {profile ? (
         <ProfileDialog
           active={confirmation === null}
           onClose={() => {
             selectedIdRef.current = null;
             setSelectedId(null);
+            setDraftState(null);
             setSlugValue("");
             setSlugError(null);
             setSlugSuccess(null);
+            setMessage(null);
             setDetailsFailure(null);
           }}
-          title={`${currentDraft.name || "Unnamed"} profile`}
+          title={`${currentDraft?.name || profile.draft.name || "Unnamed"} profile`}
           editor={
             <>
               {message ? (
@@ -985,41 +1238,52 @@ function LiveProfilesManager() {
                   <Notice tone={message.tone}>{message.text}</Notice>
                 </div>
               ) : null}
-              <div className="mt-6 grid gap-5 sm:max-w-lg">
-                <Field
-                  id="admin-profile-name"
-                  label="Name"
-                  onChange={(event) => updateDraft("name", event.target.value)}
-                  value={currentDraft.name}
-                />
-              </div>
-              <div className="mt-5">
-                <TextareaField
-                  id="admin-profile-bio"
-                  label="Bio or role"
-                  maxLength={140}
-                  onChange={(event) => updateDraft("bio", event.target.value)}
-                  value={currentDraft.bio ?? ""}
-                />
-              </div>
+              {currentDraft ? (
+                <fieldset className="min-w-0" disabled={pendingAction !== null}>
+                  <AdminProfileContentEditor
+                    draft={currentDraft}
+                    onBusyChange={setEditorBusy}
+                    onChange={updateDraft}
+                    onRemovePhoto={removePhoto}
+                    onUploadMedia={uploadMedia}
+                    onUploadPhoto={uploadPhoto}
+                    profileId={profile._id}
+                  />
+                </fieldset>
+              ) : (
+                <Notice>{detailsError ?? "Loading profile details…"}</Notice>
+              )}
               <div className="mt-5 flex flex-wrap gap-3">
-                <Button onClick={saveDraft} type="button" variant="secondary">
-                  Save admin draft
+                <Button
+                  disabled={
+                    editorBusy ||
+                    pendingAction !== null ||
+                    currentDraft === null ||
+                    !hasUnsavedChanges
+                  }
+                  loading={pendingAction === "save"}
+                  onClick={saveDraft}
+                  type="button"
+                  variant="secondary"
+                >
+                  {pendingAction === "save" ? "Saving…" : "Save admin draft"}
                 </Button>
                 <Button
                   disabled={
                     profile.status === "suspended" ||
-                    (profile.status === "published" &&
-                      profile.published?.name === currentDraft.name &&
-                      profile.published?.bio === currentDraft.bio)
+                    editorBusy ||
+                    pendingAction !== null ||
+                    currentDraft === null
                   }
+                  loading={pendingAction === "publish"}
                   onClick={publishProfile}
                   type="button"
                 >
-                  Publish
+                  {pendingAction === "publish" ? "Publishing…" : "Publish"}
                 </Button>
                 {profile.status === "published" || profile.status === "draft" ? (
                   <Button
+                    disabled={pendingAction !== null}
                     onClick={() => setConfirmation("unpublish")}
                     type="button"
                     variant="quiet"
@@ -1029,6 +1293,7 @@ function LiveProfilesManager() {
                 ) : null}
                 {profile.status === "unpublished" ? (
                   <Button
+                    disabled={pendingAction !== null}
                     onClick={() => void changeStatus("published")}
                     type="button"
                     variant="secondary"
@@ -1037,6 +1302,7 @@ function LiveProfilesManager() {
                   </Button>
                 ) : (
                   <Button
+                    disabled={pendingAction !== null}
                     onClick={() =>
                       profile.status === "suspended"
                         ? changeStatus(profile.published ? "published" : "draft")
@@ -1059,7 +1325,7 @@ function LiveProfilesManager() {
                 <Notice tone="error">{detailsError}</Notice>
               ) : detailsView !== null ? (
                 <ProfileDetails
-                  isSubmitting={slugSubmittingFor === selectedId}
+                  isSubmitting={slugSubmittingFor === selectedId || pendingAction !== null}
                   onSlugChange={(value) => {
                     setSlugValue(value);
                     setSlugError(null);
