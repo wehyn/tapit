@@ -12,19 +12,19 @@
 
 ## File map and boundaries
 
-| File | Responsibility in this plan |
-| --- | --- |
-| `src/lib/profile-customization.ts` | Define, normalize, validate, and default the contact display choice. |
-| `convex/validators.ts` | Accept the new persisted customization value on drafts and published snapshots. |
-| `src/lib/profile-workspace.ts` | Classify new customization errors under Layout. |
-| `src/components/profile/ProfileContactStrip.tsx` | Render full labels or either compact icon treatment with accessible names. |
-| `src/components/forms/ProfileCustomizationEditor.tsx` | Expose the three contact display choices in the existing Layout controls. |
-| `src/lib/profile-media-preview.ts` | Pure client-only type/helper for merging pending local media into a public preview projection. |
-| `src/components/forms/ProfileMediaEditor.tsx` | Create/revoke local object URLs, retain failed files for retry, and report pending preview state. |
-| `src/components/forms/ProfileEditor.tsx` | Coordinate pending media state, preview projection, action guards, refresh warning, and demo/live parity. |
-| `e2e/support/demo-harness.ts` | Set deterministic demo upload delay/failure controls for E2E. |
-| `e2e/customer.spec.ts` | Verify pending upload UX, failure recovery, contact display choices, and publication privacy. |
-| `docs/superpowers/specs/2026-09-28-upload-preview-and-compact-contact-design.md` | Approved design source of truth; do not change behavior beyond it. |
+| File                                                                             | Responsibility in this plan                                                                               |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `src/lib/profile-customization.ts`                                               | Define, normalize, validate, and default the contact display choice.                                      |
+| `convex/validators.ts`                                                           | Accept the new persisted customization value on drafts and published snapshots.                           |
+| `src/lib/profile-workspace.ts`                                                   | Classify new customization errors under Layout.                                                           |
+| `src/components/profile/ProfileContactStrip.tsx`                                 | Render full labels or either compact icon treatment with accessible names.                                |
+| `src/components/forms/ProfileCustomizationEditor.tsx`                            | Expose the three contact display choices in the existing Layout controls.                                 |
+| `src/lib/profile-media-preview.ts`                                               | Pure client-only type/helper for merging pending local media into a public preview projection.            |
+| `src/components/forms/ProfileMediaEditor.tsx`                                    | Create/revoke local object URLs, retain failed files for retry, and report pending preview state.         |
+| `src/components/forms/ProfileEditor.tsx`                                         | Coordinate pending media state, preview projection, action guards, refresh warning, and demo/live parity. |
+| `e2e/support/demo-harness.ts`                                                    | Set deterministic demo upload delay/failure controls for E2E.                                             |
+| `e2e/customer.spec.ts`                                                           | Verify pending upload UX, failure recovery, contact display choices, and publication privacy.             |
+| `docs/superpowers/specs/2026-09-28-upload-preview-and-compact-contact-design.md` | Approved design source of truth; do not change behavior beyond it.                                        |
 
 The plan deliberately does not change `convex/profileMediaUploadHttp.ts`, media ownership checks, media revision semantics, or cloud cleanup.
 
@@ -270,8 +270,9 @@ Change `profileForPreview` in `ProfileEditor.tsx` to accept `pendingMedia: Pendi
 In both `DemoProfileEditor` and `LiveProfileEditorContent`, add:
 
 ```tsx
-const [pendingMediaPreview, setPendingMediaPreview] =
-  useState<PendingProfileMediaUpload | null>(null);
+const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
+  null,
+);
 const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
 ```
 
@@ -504,9 +505,9 @@ test("customer sees local media while upload is pending", async ({ page }) => {
   await setDemoMediaUploadControl(page, { delayMs: 500 });
   await page.goto("/app/customize");
   await page.getByRole("tab", { name: "Media" }).click();
-  await page.getByLabel("Upload background image").setInputFiles(
-    "tests/fixtures/profile-images/opaque-landscape.png",
-  );
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
 
   await expect(page.getByRole("status")).toContainText("Uploading image");
   await expect(page.getByRole("button", { name: "Save draft" })).toBeDisabled();
