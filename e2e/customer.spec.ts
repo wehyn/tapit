@@ -538,6 +538,67 @@ test("customer can configure bounded profile media and publish it", async ({ pag
   }
 });
 
+test("high-entropy demo media is reduced below the storage limit", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+
+  await page.evaluate(async () => {
+    const input = document.querySelector<HTMLInputElement>(
+      'input[aria-label="Upload background image"]',
+    );
+    if (!input) throw new Error("Expected the background image input.");
+    const canvas = document.createElement("canvas");
+    canvas.width = 1600;
+    canvas.height = 1200;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Expected canvas support.");
+    const pixels = context.createImageData(canvas.width, canvas.height);
+    let seed = 17;
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      seed = (seed * 1_103_515_245 + 12_345) & 0x7fffffff;
+      pixels.data[index] = seed & 0xff;
+      pixels.data[index + 1] = (seed >>> 8) & 0xff;
+      pixels.data[index + 2] = (seed >>> 16) & 0xff;
+      pixels.data[index + 3] = 255;
+    }
+    context.putImageData(pixels, 0, 0);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (nextBlob) =>
+          nextBlob ? resolve(nextBlob) : reject(new Error("Could not create test media.")),
+        "image/jpeg",
+        0.82,
+      );
+    });
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([blob], "high-entropy.jpg", { type: "image/jpeg" }));
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await page.getByLabel("Background image description").fill("High entropy backdrop");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+
+  const storedMedia = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving high-entropy media.");
+    const state = JSON.parse(raw) as {
+      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
+      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
+    };
+    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
+    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
+  });
+  expect(storedMedia).toBeTruthy();
+  expect(storedMedia).not.toHaveProperty("previewUrl");
+  expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
+  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+});
+
 test("incomplete background media stays in preview but blocks saving and publishing", async ({
   page,
 }) => {
