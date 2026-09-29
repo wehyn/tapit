@@ -179,6 +179,16 @@ test("customer sidebar stays grouped and usable across desktop and mobile", asyn
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
+  const mobileHeader = page.locator("header").first();
+  await expect(mobileHeader).toBeVisible();
+  expect(
+    await mobileHeader.evaluate((element) => {
+      const styles = window.getComputedStyle(element);
+      return { position: styles.position, top: styles.top };
+    }),
+  ).toEqual({ position: "sticky", top: "0px" });
+  await page.evaluate(() => window.scrollTo(0, 500));
+  expect((await mobileHeader.boundingBox())?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
   const openNavigation = page.getByRole("button", { name: "Open navigation" });
   await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
   await openNavigation.click();
@@ -808,6 +818,28 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
   await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Faccount$/);
+  await page.goto("/mara-velasquez");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+});
+
+test("customer can unpublish from Account", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await page.goto("/app/account");
+  await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Unpublish", exact: true }).click();
+  await expect(
+    page.getByText("Profile unpublished. Visitors now see the unavailable page.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await page.goto("/app/profile");
+  await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unpublish", exact: true })).toHaveCount(0);
   await page.goto("/mara-velasquez");
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),

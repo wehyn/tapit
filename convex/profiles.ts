@@ -4,7 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 
 import { mutation, query } from "./_generated/server";
 import schema from "./schema";
-import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
 import { profileAccess } from "./profileAccess";
 import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
@@ -466,6 +466,50 @@ export const publish = mutation({
       after: "published",
     });
     return published;
+  },
+});
+
+export const unpublishMine = mutation({
+  args: {},
+  returns: v.object({ status: profileStatusValidator }),
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const customer = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (query) => query.eq("userId", userId))
+      .unique();
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      !isActiveCustomer(customer) ||
+      customer.profileId === undefined
+    ) {
+      throw new Error("Customer profile not found.");
+    }
+    const profile = await ctx.db.get(customer.profileId);
+    if (profile === null || profile.ownerId !== customer._id || !sameScope(customer, profile)) {
+      throw new Error("Customer profile not found.");
+    }
+    if (profile.status !== "published") throw new Error("Profile is not currently published.");
+
+    const now = Date.now();
+    await ctx.db.patch(profile._id, {
+      status: "unpublished",
+      unpublishedAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: profile.scope,
+      actorUserId: userId,
+      actorLabel: customer.email,
+      action: "profile.unpublished",
+      profileId: profile._id,
+      accountId: customer._id,
+      occurredAt: now,
+      before: "published",
+      after: "unpublished",
+    });
+    return { status: "unpublished" as const };
   },
 });
 

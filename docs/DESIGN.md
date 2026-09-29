@@ -204,9 +204,9 @@ Empty state: explain that metrics appear after visitors view the profile or sele
 
 Purpose: provide account controls and deletion/support entry points.
 
-Content: account email, password-change form, support destination, deletion explanation, and confirmation action.
+Content: account email, published-profile unpublish control, password-change form, support destination, deletion explanation, and confirmation action.
 
-Actions: change password, request and confirm deletion, and open support.
+Actions: unpublish the published profile, change password, request and confirm deletion, and open support.
 
 Constraint: no card assignment or status controls. Self-service account email changes are TBD.
 

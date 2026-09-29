@@ -464,7 +464,7 @@ describe("ProfileEditor workspace boundaries", () => {
   );
 
   it.each(["demo", "live"] as const)(
-    "keeps Unpublish available for published profiles in the %s branch",
+    "keeps Unpublish on Account instead of Profile in the %s branch",
     async (branch) => {
       mocks.liveProfile = {
         ...demoProfile,
@@ -474,16 +474,7 @@ describe("ProfileEditor workspace boundaries", () => {
       };
       renderBranch(branch, "profile");
 
-      fireEvent.click(screen.getByRole("button", { name: "Unpublish" }));
-
-      if (branch === "demo") {
-        expect(mocks.updateDemoState).toHaveBeenCalled();
-      } else {
-        await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalled());
-        expect(mocks.saveDraft).toHaveBeenCalledWith(
-          expect.objectContaining({ profileId: "live-profile" }),
-        );
-      }
+      expect(screen.queryByRole("button", { name: "Unpublish" })).not.toBeInTheDocument();
     },
   );
 

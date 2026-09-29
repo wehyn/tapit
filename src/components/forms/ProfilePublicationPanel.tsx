@@ -2,7 +2,6 @@ import { CheckCircleIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 
 import type { ProfileStatus } from "@/lib/domain";
-import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -14,7 +13,6 @@ export type ProfilePublicationPanelProps = {
   customizationErrors: readonly string[];
   hasChangesSincePublish: boolean;
   onOpenCustomize: ReactNode;
-  onUnpublish?: () => void;
 };
 
 export function ProfilePublicationPanel({
@@ -24,7 +22,6 @@ export function ProfilePublicationPanel({
   customizationErrors,
   hasChangesSincePublish,
   onOpenCustomize,
-  onUnpublish,
 }: ProfilePublicationPanelProps) {
   const hasErrors = errors.length > 0 || customizationErrors.length > 0;
 
@@ -68,13 +65,6 @@ export function ProfilePublicationPanel({
               : "Ready to publish. The required name and one valid enabled link are present."}
           </p>
         )
-      ) : null}
-      {status === "published" && onUnpublish ? (
-        <div className="mt-6">
-          <Button onClick={onUnpublish} type="button" variant="quiet">
-            Unpublish
-          </Button>
-        </div>
       ) : null}
     </Panel>
   );

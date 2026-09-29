@@ -134,7 +134,7 @@ export function SidebarNav({
         ) : null}
       </aside>
 
-      <header className="flex min-h-16 items-center justify-between border-b border-tapit-line bg-tapit-surface px-5 lg:hidden">
+      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-tapit-line bg-tapit-surface px-5 lg:hidden">
         <Brand />
         <div className="flex items-center gap-2">
           {mobileHeaderActions}
