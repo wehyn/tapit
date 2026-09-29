@@ -384,38 +384,6 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     }
   }
 
-  function unpublish() {
-    try {
-      updateDemoState((current) => ({
-        ...updateDemoProfile(current, profile.id, (currentProfile) => ({
-          ...currentProfile,
-          status: "unpublished",
-        })),
-        audits: [
-          {
-            id: `audit-${Date.now()}`,
-            actor: session?.email ?? profile.draft.name,
-            action: "profile.unpublished",
-            target: profile.draft.slug,
-            occurredAt: new Date().toISOString(),
-            before: "published",
-            after: "unpublished",
-          },
-          ...current.audits,
-        ],
-      }));
-      setMessage({
-        tone: "success",
-        text: "Profile unpublished. Visitors now see the unavailable page.",
-      });
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
-      });
-    }
-  }
-
   function copyUrl() {
     const url = `${window.location.origin}/${draft.slug}`;
     if (navigator.clipboard) {
@@ -576,7 +544,6 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               onOpenCustomize={
                 <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
-              onUnpublish={profile.status === "published" ? unpublish : undefined}
               publicationState={publicationState}
               status={profile.status}
             />
@@ -703,7 +670,6 @@ function LiveProfileEditorContent({
 }) {
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
-  const setStatusMutation = useMutation(api.profiles.setStatus);
   const removeImage = useMutation(api.storage.removeImage);
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
@@ -1077,26 +1043,6 @@ function LiveProfileEditorContent({
     }
   }
 
-  async function unpublish() {
-    if (pending !== null) return;
-    setPending("publish");
-    setMessage(null);
-    try {
-      await setStatusMutation({ profileId: liveProfile._id, status: "unpublished" });
-      setMessage({
-        tone: "success",
-        text: "Profile unpublished. Visitors now see the unavailable page.",
-      });
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
-      });
-    } finally {
-      setPending(null);
-    }
-  }
-
   const imageContent = (
     <div className="border-t border-tapit-line/70 pt-5">
       <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
@@ -1203,7 +1149,6 @@ function LiveProfileEditorContent({
               onOpenCustomize={
                 <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
-              onUnpublish={liveProfile.status === "published" ? () => void unpublish() : undefined}
               publicationState={publicationState}
               status={liveProfile.status}
             />

@@ -813,3 +813,25 @@ test("customer analytics and account controls stay scoped to the customer", asyn
     page.getByRole("heading", { name: "This profile is currently unavailable" }),
   ).toBeVisible();
 });
+
+test("customer can unpublish from Account", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await page.goto("/app/account");
+  await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Unpublish", exact: true }).click();
+  await expect(
+    page.getByText("Profile unpublished. Visitors now see the unavailable page.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+
+  await page.goto("/app/profile");
+  await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Unpublish", exact: true })).toHaveCount(0);
+  await page.goto("/mara-velasquez");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+});

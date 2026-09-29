@@ -13,6 +13,7 @@
 ### Task 1: Remove the action from the Profile publication status panel
 
 **Files:**
+
 - Modify: `src/components/forms/ProfilePublicationPanel.tsx`
 - Modify: `src/components/forms/ProfileEditor.tsx`
 - Test: `tests/unit/profile-editor.test.tsx`
@@ -34,6 +35,7 @@ Expected: the test suite passes with the updated Profile behavior.
 ### Task 2: Add the Unpublish action to Account in demo mode
 
 **Files:**
+
 - Modify: `src/components/forms/AccountSettings.tsx`
 
 - [ ] **Step 1: Add demo publication state and feedback**
@@ -51,6 +53,7 @@ Start the app with `NEXT_PUBLIC_DEMO_MODE=true npm run dev`, sign in to the demo
 ### Task 3: Add the Unpublish action to Account in live mode
 
 **Files:**
+
 - Modify: `src/components/forms/AccountSettings.tsx`
 - Modify: `convex/profiles.ts`
 
@@ -75,6 +78,7 @@ Expected: no lint or TypeScript errors.
 ### Task 4: Run project verification
 
 **Files:**
+
 - No additional files.
 
 - [ ] **Step 1: Run the full verification command**

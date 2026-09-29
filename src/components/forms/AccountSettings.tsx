@@ -40,6 +40,10 @@ function DemoAccountSettings() {
   } | null>(null);
   const [deletionOpen, setDeletionOpen] = useState(false);
   const [deletionMessage, setDeletionMessage] = useState("");
+  const [publicationMessage, setPublicationMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
 
   if (session === null || account === undefined) return null;
   const customer = account;
@@ -120,6 +124,38 @@ function DemoAccountSettings() {
     );
   }
 
+  function unpublish() {
+    try {
+      updateDemoState((current) => ({
+        ...updateDemoProfile(current, profile.id, (currentProfile) => ({
+          ...currentProfile,
+          status: "unpublished",
+        })),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: session?.email ?? profile.draft.name,
+            action: "profile.unpublished",
+            target: profile.draft.slug,
+            occurredAt: new Date().toISOString(),
+            before: "published",
+            after: "unpublished",
+          },
+          ...current.audits,
+        ],
+      }));
+      setPublicationMessage({
+        tone: "success",
+        text: "Profile unpublished. Visitors now see the unavailable page.",
+      });
+    } catch (error) {
+      setPublicationMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
+      });
+    }
+  }
+
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
       <Panel
@@ -147,6 +183,25 @@ function DemoAccountSettings() {
           </div>
         </dl>
       </Panel>
+
+      {publicationMessage ? (
+        <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
+      ) : null}
+      {profile.status === "published" ? (
+        <Panel
+          description="Take your public profile offline when you need to pause public access."
+          title="Publication"
+        >
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button onClick={unpublish} type="button" variant="quiet">
+              Unpublish
+            </Button>
+            <span className="text-sm text-tapit-muted">
+              Visitors will see the unavailable profile page.
+            </span>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel title="Change password">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
@@ -258,13 +313,34 @@ function DemoAccountSettings() {
 function LiveAccountSettings() {
   const hostedDemo = isHostedDemoMode();
   const account = useQuery(api.customers.myAccount);
+  const profile = useQuery(api.profiles.mine);
   const supportUrl = useQuery(api.settings.support);
   const requestDeletion = useMutation(api.customers.requestDeletion);
+  const unpublishMine = useMutation(api.profiles.unpublishMine);
   const [deletionOpen, setDeletionOpen] = useState(false);
   const [message, setMessage] = useState("");
-  if (account === undefined || supportUrl === undefined)
+  const [publicationMessage, setPublicationMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+  } | null>(null);
+  if (account === undefined || profile === undefined || supportUrl === undefined)
     return <div className="p-8 text-sm text-tapit-muted">Loading account settings…</div>;
   if (account === null) return <Notice tone="error">Your account could not be loaded.</Notice>;
+  async function unpublish() {
+    setPublicationMessage(null);
+    try {
+      await unpublishMine({});
+      setPublicationMessage({
+        tone: "success",
+        text: "Profile unpublished. Visitors now see the unavailable page.",
+      });
+    } catch (error) {
+      setPublicationMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Profile could not be unpublished.",
+      });
+    }
+  }
   async function confirmDeletion() {
     try {
       await requestDeletion({});
@@ -300,6 +376,24 @@ function LiveAccountSettings() {
           </div>
         </dl>
       </Panel>
+      {publicationMessage ? (
+        <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
+      ) : null}
+      {profile?.status === "published" ? (
+        <Panel
+          description="Take your public profile offline when you need to pause public access."
+          title="Publication"
+        >
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Button onClick={() => void unpublish()} type="button" variant="quiet">
+              Unpublish
+            </Button>
+            <span className="text-sm text-tapit-muted">
+              Visitors will see the unavailable profile page.
+            </span>
+          </div>
+        </Panel>
+      ) : null}
       {hostedDemo ? (
         <Panel
           description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
