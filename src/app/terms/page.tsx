@@ -12,9 +12,9 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-tapit-paper text-tapit-ink">
       <PublicHeader />
-      <article className="mx-auto max-w-3xl px-5 pb-24 pt-20 text-base leading-8 sm:px-8 sm:pt-28">
+      <article className="mx-auto my-8 w-[calc(100%-2.5rem)] max-w-3xl rounded-[1.75rem] border border-tapit-line bg-tapit-surface px-5 pb-12 pt-10 text-base leading-8 sm:my-12 sm:px-10 sm:py-12">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-tapit-accent">Terms</p>
-        <h1 className="mt-5 text-5xl font-normal tracking-[-0.06em] sm:text-6xl">
+        <h1 className="mt-5 text-4xl font-normal tracking-[-0.06em] sm:text-6xl">
           Tapit terms of use
         </h1>
         <p className="mt-5 text-sm text-tapit-muted">Effective 25 September 2026</p>
@@ -28,7 +28,7 @@ export default function TermsPage() {
           .
         </p>
 
-        <section className="mt-12" aria-labelledby="service">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="service">
           <h2 className="text-2xl font-medium tracking-tight" id="service">
             The service
           </h2>
@@ -40,7 +40,7 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="account">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="account">
           <h2 className="text-2xl font-medium tracking-tight" id="account">
             Your account and content
           </h2>
@@ -52,7 +52,7 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="use">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="use">
           <h2 className="text-2xl font-medium tracking-tight" id="use">
             Acceptable use
           </h2>
@@ -64,7 +64,7 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="availability">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="availability">
           <h2 className="text-2xl font-medium tracking-tight" id="availability">
             Availability
           </h2>
@@ -75,7 +75,7 @@ export default function TermsPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="privacy">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="privacy">
           <h2 className="text-2xl font-medium tracking-tight" id="privacy">
             Privacy and changes
           </h2>

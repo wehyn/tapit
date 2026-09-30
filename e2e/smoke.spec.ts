@@ -82,6 +82,40 @@ test("visitors can reach the privacy notice and terms from the public homepage",
   page,
 }) => {
   await page.goto("/");
+
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+
+    if (width === 390) {
+      const heroLines = page.getByRole("heading", {
+        name: "Share one profile. Update it anytime.",
+      });
+      await expect
+        .poll(() =>
+          heroLines.locator("span").evaluateAll((spans) =>
+            spans.map((span) => {
+              const range = document.createRange();
+              range.selectNodeContents(span);
+              return range.getClientRects().length;
+            }),
+          ),
+        )
+        .toEqual([1, 1]);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+  await page.getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Back to Tapit" }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole("link", { name: "Privacy", exact: true }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();

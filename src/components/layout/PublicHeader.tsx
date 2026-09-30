@@ -124,7 +124,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
   }, [menuOpen]);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-tapit-ink/10 bg-tapit-surface">
+    <header className="sticky top-0 z-40 w-full border-b border-tapit-line bg-tapit-paper/95 backdrop-blur">
       <div className="mx-auto flex w-full max-w-[95rem] items-center px-[clamp(1.25rem,5vw,5.25rem)] py-2.5 xl:max-w-none xl:pr-[6vw] sm:py-3.5">
         <PublicBrand />
         <nav
@@ -137,7 +137,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
             return (
               <PublicNavLink
                 activeHref={activeHref}
-                className="inline-flex min-h-11 items-center text-base text-tapit-muted transition hover:text-tapit-ink"
+                className="inline-flex min-h-11 items-center text-sm font-medium text-tapit-muted transition hover:text-tapit-ink"
                 href={href}
                 item={item}
                 key={item.href}
@@ -168,7 +168,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
         <div className="border-t border-tapit-line lg:hidden" id="public-mobile-menu">
           <nav
             aria-label="Mobile navigation"
-            className="mx-auto grid w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)]"
+            className="mx-auto grid w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)] pb-2"
           >
             {navItems.map((item) => {
               const href =
@@ -176,7 +176,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
               return (
                 <PublicNavLink
                   activeHref={activeHref}
-                  className="flex min-h-12 items-center border-b border-tapit-line py-3 text-base font-medium text-tapit-ink last:border-b-0"
+                  className="flex min-h-12 items-center border-b border-tapit-line py-3 text-sm font-medium text-tapit-ink last:border-b-0"
                   href={href}
                   item={item}
                   key={item.href}

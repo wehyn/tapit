@@ -29,7 +29,7 @@ export function AuthShell({
       <PublicHeader />
       <main className="px-5 py-6 sm:px-10 sm:py-8">
         <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-          <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[1fr_0.8fr] lg:gap-28">
+          <section className="grid flex-1 items-center gap-10 py-10 sm:gap-12 sm:py-14 lg:grid-cols-[1fr_0.8fr] lg:gap-24">
             <div className="max-w-lg">
               <Fingerprint
                 aria-hidden="true"
@@ -44,7 +44,7 @@ export function AuthShell({
                     ? "Make it yours"
                     : "Welcome back"}
               </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] text-tapit-ink sm:text-6xl">
+              <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink sm:text-6xl">
                 {variant === "google"
                   ? "Sign in to Tapit"
                   : mode === "signup"
@@ -59,7 +59,7 @@ export function AuthShell({
                     : "Manage your profile, links, and publication state from one calm workspace."}
               </p>
             </div>
-            <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
+            <div className="rounded-[1.75rem] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(21,25,24,0.05)] sm:p-8 lg:p-9">
               {variant === "google" ? null : (
                 <div className="mb-6 grid gap-2 sm:grid-cols-2">
                   <button

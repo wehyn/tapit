@@ -69,7 +69,7 @@ export default function HomePage() {
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
           <div className="grid flex-1 items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
-              <h1 className="max-w-[40rem] text-[clamp(3.5rem,5.6vw,6rem)] leading-[0.93] font-normal tracking-[-0.075em] text-balance">
+              <h1 className="max-w-[40rem] text-[clamp(2.1rem,9.7vw,5.5rem)] leading-[1.02] font-normal tracking-[-0.075em] text-balance sm:text-[clamp(3rem,5.6vw,5.5rem)] sm:leading-[0.96]">
                 <span className="block">Share one profile.</span>
                 <span className="block">Update it anytime.</span>
               </h1>

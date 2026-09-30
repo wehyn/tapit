@@ -12,11 +12,11 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-tapit-paper text-tapit-ink">
       <PublicHeader />
-      <article className="mx-auto max-w-3xl px-5 pb-24 pt-20 text-base leading-8 sm:px-8 sm:pt-28">
+      <article className="mx-auto my-8 w-[calc(100%-2.5rem)] max-w-3xl rounded-[1.75rem] border border-tapit-line bg-tapit-surface px-5 pb-12 pt-10 text-base leading-8 sm:my-12 sm:px-10 sm:py-12">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-tapit-accent">
           Privacy
         </p>
-        <h1 className="mt-5 text-5xl font-normal tracking-[-0.06em] sm:text-6xl">
+        <h1 className="mt-5 text-4xl font-normal tracking-[-0.06em] sm:text-6xl">
           Tapit privacy notice
         </h1>
         <p className="mt-5 text-sm text-tapit-muted">Effective 25 September 2026</p>
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           or visit a published profile.
         </p>
 
-        <section className="mt-14" aria-labelledby="operator">
+        <section className="mt-14 border-t border-tapit-line pt-6" aria-labelledby="operator">
           <h2 className="text-2xl font-medium tracking-tight" id="operator">
             Who operates Tapit
           </h2>
@@ -40,7 +40,7 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="information">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="information">
           <h2 className="text-2xl font-medium tracking-tight" id="information">
             Information Tapit handles
           </h2>
@@ -72,7 +72,7 @@ export default function PrivacyPage() {
           </ul>
         </section>
 
-        <section className="mt-12" aria-labelledby="purpose">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="purpose">
           <h2 className="text-2xl font-medium tracking-tight" id="purpose">
             Why Tapit uses it
           </h2>
@@ -85,7 +85,7 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="sharing">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="sharing">
           <h2 className="text-2xl font-medium tracking-tight" id="sharing">
             Who can access it
           </h2>
@@ -99,7 +99,7 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="retention">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="retention">
           <h2 className="text-2xl font-medium tracking-tight" id="retention">
             How long information is kept
           </h2>
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
           </ul>
         </section>
 
-        <section className="mt-12" aria-labelledby="choices">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="choices">
           <h2 className="text-2xl font-medium tracking-tight" id="choices">
             Your choices and requests
           </h2>
@@ -160,7 +160,7 @@ export default function PrivacyPage() {
           </p>
         </section>
 
-        <section className="mt-12" aria-labelledby="changes">
+        <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="changes">
           <h2 className="text-2xl font-medium tracking-tight" id="changes">
             Changes to this notice
           </h2>
