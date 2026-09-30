@@ -48,6 +48,11 @@ test("administrator edits and publishes the selected customer profile details", 
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
   await signInAsAdmin(page);
 
+  const sidebar = page.getByTestId("workspace-sidebar");
+  await expect
+    .poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe("rgb(240, 237, 229)");
+
   const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
   await expect(desktopNavigation).toBeVisible();
   await expect(desktopNavigation.getByRole("heading", { name: "Operations" })).toBeVisible();

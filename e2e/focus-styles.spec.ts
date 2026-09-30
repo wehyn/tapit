@@ -10,6 +10,7 @@ type FocusStyles = {
   isFocusVisible: boolean;
   rootAccent: string;
   rootFocus: string;
+  rootPaper: string;
 };
 
 async function readFocusStyles(surface: Locator): Promise<FocusStyles> {
@@ -35,6 +36,7 @@ async function readFocusStyles(surface: Locator): Promise<FocusStyles> {
       isFocusVisible: element.matches(":focus-visible"),
       rootAccent: rootStyles.getPropertyValue("--tapit-accent").trim(),
       rootFocus: rootStyles.getPropertyValue("--tapit-focus").trim(),
+      rootPaper: rootStyles.getPropertyValue("--tapit-paper").trim(),
     };
   });
 }
@@ -62,6 +64,20 @@ async function expectNoOrangeFocus(page: Page, route: string) {
 
 async function expectKeyboardVisibleFocus(page: Page) {
   const signInButton = page.getByRole("button", { name: "Sign in", exact: true });
+  const displayHeading = page.locator("main h1").first();
+  await expect(displayHeading).toBeVisible();
+  const displayFont = await displayHeading.evaluate(
+    (element) => getComputedStyle(element).fontFamily,
+  );
+  expect(displayFont.toLowerCase(), "major heading display font").toContain("georgia");
+  const controlFont = await signInButton.evaluate(
+    (element) => getComputedStyle(element).fontFamily,
+  );
+  expect(controlFont.toLowerCase(), "button remains sans-serif").not.toContain("georgia");
+  const inputFont = await page
+    .getByLabel("Email")
+    .evaluate((element) => getComputedStyle(element).fontFamily);
+  expect(inputFont.toLowerCase(), "input remains sans-serif").not.toContain("georgia");
   for (let count = 0; count < 12; count += 1) {
     await page.keyboard.press("Tab");
     if (await signInButton.evaluate((element) => document.activeElement === element)) break;
@@ -69,10 +85,11 @@ async function expectKeyboardVisibleFocus(page: Page) {
   await expect(signInButton).toBeFocused();
   const focusStyles = await readFocusStyles(signInButton);
   expect(focusStyles.isFocusVisible, "keyboard sign-in button").toBe(true);
-  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#236d54");
+  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#315e48");
   expect(focusStyles.rootFocus.toLowerCase(), "Tapit focus token").toBe(
     focusStyles.rootAccent.toLowerCase(),
   );
+  expect(focusStyles.rootPaper.toLowerCase(), "Warm Editorial page canvas").toBe("#f0ede5");
   expect(focusStyles.hasVisibleIndicator, "keyboard sign-in button").toBe(true);
   expect(focusStyles.colors, "keyboard sign-in button").not.toMatch(ORANGE_FOCUS);
 }
