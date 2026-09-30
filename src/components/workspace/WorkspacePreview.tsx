@@ -111,8 +111,9 @@ export function WorkspacePreview({
                 <span className="h-1.5 w-10 rounded-full bg-[#78827d]" />
               </div>
               <div
-                className="overflow-hidden rounded-[1.65rem] bg-tapit-surface"
+                className="h-[min(42rem,calc(100dvh-12rem))] min-h-[28rem] overflow-y-auto overscroll-contain rounded-[1.65rem] bg-tapit-surface [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                 data-testid="profile-preview-device"
+                tabIndex={0}
               >
                 {publicProfile}
               </div>

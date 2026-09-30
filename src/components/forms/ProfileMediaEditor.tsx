@@ -273,12 +273,20 @@ export function ProfileMediaEditor({
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5">
+      <section
+        className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
+        aria-labelledby={`${baseId}-background-heading`}
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold text-tapit-ink">Background image</h3>
+            <h3
+              className="text-base font-semibold text-tapit-ink"
+              id={`${baseId}-background-heading`}
+            >
+              Background image
+            </h3>
             <p className="mt-1 text-xs leading-5 text-tapit-muted">
-              Add a wide hero image and adjust its crop. JPEG, PNG, or WebP.
+              Add a wide image to the top of your profile. JPEG, PNG, or WebP.
             </p>
           </div>
           <Button
@@ -307,11 +315,11 @@ export function ProfileMediaEditor({
           />
         </div>
         {value.background ? (
-          <div className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:p-4">
+          <div className="grid gap-5">
             {imageSource(value.background) ? (
               <div
                 aria-label={value.background.altText}
-                className="h-32 rounded-tapit bg-cover bg-center"
+                className="h-40 rounded-tapit border border-tapit-line bg-cover bg-center"
                 role="img"
                 style={{
                   backgroundImage: `url(${JSON.stringify(imageSource(value.background))})`,
@@ -322,15 +330,17 @@ export function ProfileMediaEditor({
             <Field
               id={`${baseId}-background-alt`}
               label="Background image description"
+              help="Describe the image for people using a screen reader."
               maxLength={160}
               onChange={(event) =>
                 update({ background: { ...value.background!, altText: event.target.value } })
               }
               value={value.background.altText}
             />
-            <div className="grid gap-4 sm:grid-cols-2">
+            <fieldset className="grid gap-4 border-t border-tapit-line pt-4 sm:grid-cols-2">
+              <legend className="text-sm font-semibold text-tapit-ink">Image position</legend>
               <label
-                className="grid gap-2 text-sm font-semibold text-tapit-ink"
+                className="grid gap-2 text-sm font-medium text-tapit-ink"
                 htmlFor={`${baseId}-crop-x`}
               >
                 Crop horizontal position: {value.background.positionX}%
@@ -348,7 +358,7 @@ export function ProfileMediaEditor({
                 />
               </label>
               <label
-                className="grid gap-2 text-sm font-semibold text-tapit-ink"
+                className="grid gap-2 text-sm font-medium text-tapit-ink"
                 htmlFor={`${baseId}-crop-y`}
               >
                 Crop vertical position: {value.background.positionY}%
@@ -365,24 +375,30 @@ export function ProfileMediaEditor({
                   value={value.background.positionY}
                 />
               </label>
-            </div>
-            <Button onClick={removeBackground} type="button" variant="quiet">
+            </fieldset>
+            <Button
+              className="justify-self-start"
+              onClick={removeBackground}
+              type="button"
+              variant="quiet"
+            >
               <TrashIcon aria-hidden="true" size={16} />
               Remove background
             </Button>
           </div>
         ) : null}
-      </div>
-
-      <Field
-        id={`${baseId}-hero-height`}
-        label={`Hero height: ${value.heroHeight}px`}
-        max={MAX_PROFILE_HERO_HEIGHT}
-        min={MIN_PROFILE_HERO_HEIGHT}
-        onChange={(event) => update({ heroHeight: Number(event.target.value) })}
-        type="range"
-        value={value.heroHeight}
-      />
+        <div className="border-t border-tapit-line pt-4">
+          <Field
+            id={`${baseId}-hero-height`}
+            label={`Hero height: ${value.heroHeight}px`}
+            max={MAX_PROFILE_HERO_HEIGHT}
+            min={MIN_PROFILE_HERO_HEIGHT}
+            onChange={(event) => update({ heroHeight: Number(event.target.value) })}
+            type="range"
+            value={value.heroHeight}
+          />
+        </div>
+      </section>
 
       <div className="grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">

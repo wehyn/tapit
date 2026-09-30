@@ -4,7 +4,7 @@ import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { AtIcon, KeyIcon, LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
+import { LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
 
 import {
   getDemoProfileForSession,
@@ -20,7 +20,6 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api } from "../../../convex/_generated/api";
 
 function DemoAccountSettings() {
@@ -158,28 +157,13 @@ function DemoAccountSettings() {
 
   return (
     <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel
-        description="Your email identifies the one profile attached to this account."
-        title="Account"
-      >
-        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
-          <AtIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
-          Account identity and access status
-        </div>
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+      <Panel title="Account">
+        <dl className="mt-6 grid gap-4">
           <div className="rounded-tapit bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Email
             </dt>
             <dd className="mt-2 font-semibold text-tapit-ink">{customer.email}</dd>
-          </div>
-          <div className="rounded-tapit bg-tapit-paper p-4">
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-              Deletion status
-            </dt>
-            <dd className="mt-2">
-              <StatusBadge status={customer.deletionStatus} />
-            </dd>
           </div>
         </dl>
       </Panel>
@@ -204,10 +188,6 @@ function DemoAccountSettings() {
       ) : null}
 
       <Panel title="Change password">
-        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
-          <KeyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
-          Keep your workspace access secure.
-        </div>
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={savePassword}>
           {passwordMessage ? (
             <Notice tone={passwordMessage.tone}>{passwordMessage.text}</Notice>
@@ -265,11 +245,7 @@ function DemoAccountSettings() {
         </div>
       </Panel>
 
-      <Panel
-        className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
-        description="Deletion immediately hides your public profile and deactivates assigned cards. An administrator must review the request before account data is permanently removed."
-        title="Delete account"
-      >
+      <Panel className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
           <TrashIcon aria-hidden="true" size={20} weight="bold" />
           This action is reviewed separately from everyday account settings.
@@ -355,24 +331,13 @@ function LiveAccountSettings() {
   }
   return (
     <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel
-        description="Your email identifies the one profile attached to this account."
-        title="Account"
-      >
-        <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+      <Panel title="Account">
+        <dl className="mt-6 grid gap-4">
           <div className="rounded-tapit bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Email
             </dt>
             <dd className="mt-2 font-semibold text-tapit-ink">{account.email}</dd>
-          </div>
-          <div className="rounded-tapit bg-tapit-paper p-4">
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-              Deletion status
-            </dt>
-            <dd className="mt-2">
-              <StatusBadge status={account.deletionStatus} />
-            </dd>
           </div>
         </dl>
       </Panel>

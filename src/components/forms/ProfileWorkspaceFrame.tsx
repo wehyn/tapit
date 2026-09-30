@@ -52,11 +52,11 @@ export function ProfileWorkspaceFrame({
     <div
       className={`[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
+      <h1 className="sr-only">{title}</h1>
       <div className="grid self-start gap-6">
-        <div className="pb-1">
-          <h1 className="sr-only">{title}</h1>
+        <div className="pb-1 min-[1400px]:hidden">
           <a
-            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent min-[1400px]:hidden"
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent"
             href="#workspace-preview"
           >
             <EyeIcon aria-hidden="true" size={17} weight="bold" />

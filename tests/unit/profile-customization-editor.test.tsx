@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -108,90 +108,37 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.queryByRole("button", { name: "Default name color" })).not.toBeInTheDocument();
   });
 
-  it("reports the responsive tablist orientation and cleans up its media listener", () => {
-    let matches = false;
-    const listeners = new Set<EventListener>();
-    const mediaQuery = {
-      get matches() {
-        return matches;
-      },
-      addEventListener: vi.fn((_type: string, listener: EventListener) => {
-        listeners.add(listener);
-      }),
-      removeEventListener: vi.fn((_type: string, listener: EventListener) => {
-        listeners.delete(listener);
-      }),
-    } as unknown as MediaQueryList;
-    const matchMedia = vi.fn(() => mediaQuery);
-    vi.stubGlobal("matchMedia", matchMedia);
-
+  it("keeps the categories horizontal and moves focus along that axis", async () => {
+    const user = userEvent.setup();
     const { unmount } = render(<ControlledEditor onChange={vi.fn()} />);
-    const tablist = screen.getByRole("tablist", { name: "Customization categories" });
 
-    expect(matchMedia).toHaveBeenCalledWith("(min-width: 1024px)");
-    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
-    expect(mediaQuery.addEventListener).toHaveBeenCalledWith("change", expect.any(Function));
-
-    matches = true;
-    act(() => {
-      listeners.forEach((listener) => listener(new Event("change")));
-    });
-    expect(tablist).toHaveAttribute("aria-orientation", "vertical");
-
-    matches = false;
-    act(() => {
-      listeners.forEach((listener) => listener(new Event("change")));
-    });
-    expect(tablist).toHaveAttribute("aria-orientation", "horizontal");
-
-    const listener = [...listeners][0];
-    unmount();
-    expect(mediaQuery.removeEventListener).toHaveBeenCalledWith("change", listener);
-    expect(listeners).toHaveLength(0);
-  });
-
-  it.each([
-    ["horizontal", false, "ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"],
-    ["vertical", true, "ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"],
-  ] as const)(
-    "moves focus only along the %s tablist axis",
-    async (_orientation, matches, blockedForward, blockedBackward, forward, backward) => {
-      const user = userEvent.setup();
-      const mediaQuery = {
-        matches,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      } as unknown as MediaQueryList;
-      vi.stubGlobal(
-        "matchMedia",
-        vi.fn(() => mediaQuery),
+    try {
+      expect(screen.getByRole("tablist", { name: "Customization categories" })).toHaveAttribute(
+        "aria-orientation",
+        "horizontal",
       );
-      const { unmount } = render(<ControlledEditor onChange={vi.fn()} />);
+      const overviewTab = screen.getByRole("tab", { name: "Overview" });
+      overviewTab.focus();
+      await user.keyboard("{ArrowDown}");
+      expect(overviewTab).toHaveFocus();
+      await user.keyboard("{ArrowUp}");
+      expect(overviewTab).toHaveFocus();
 
-      try {
-        const overviewTab = screen.getByRole("tab", { name: "Overview" });
-        overviewTab.focus();
-        await user.keyboard(`{${blockedForward}}`);
-        expect(overviewTab).toHaveFocus();
-        await user.keyboard(`{${blockedBackward}}`);
-        expect(overviewTab).toHaveFocus();
+      await user.keyboard("{ArrowRight}");
+      const identityTab = screen.getByRole("tab", { name: "Identity" });
+      expect(identityTab).toHaveFocus();
 
-        await user.keyboard(`{${forward}}`);
-        const identityTab = screen.getByRole("tab", { name: "Identity" });
-        expect(identityTab).toHaveFocus();
+      await user.keyboard("{ArrowLeft}");
+      expect(overviewTab).toHaveFocus();
 
-        await user.keyboard(`{${backward}}`);
-        expect(overviewTab).toHaveFocus();
-
-        await user.keyboard("{End}");
-        expect(screen.getByRole("tab", { name: "Layout" })).toHaveFocus();
-        await user.keyboard("{Home}");
-        expect(overviewTab).toHaveFocus();
-      } finally {
-        unmount();
-      }
-    },
-  );
+      await user.keyboard("{End}");
+      expect(screen.getByRole("tab", { name: "Layout" })).toHaveFocus();
+      await user.keyboard("{Home}");
+      expect(overviewTab).toHaveFocus();
+    } finally {
+      unmount();
+    }
+  });
 
   it.each([
     ["ArrowRight", "Identity"],
