@@ -29,3 +29,11 @@ export async function signInAsCustomer(page: Page) {
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
 }
+
+export async function signInAsAdmin(page: Page) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+}

@@ -769,6 +769,7 @@ test("compact contact actions keep labels accessible and publish their selected 
 });
 
 test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
   await signInAsCustomer(page);
   await page.goto("/app/profile");
   const photo = page.getByRole("img", { name: "Mara Velasquez profile" }).first();
@@ -777,6 +778,12 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
   await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
   await expect(cropDialog).toBeVisible();
+  const cropDialogBox = await cropDialog.boundingBox();
+  expect(cropDialogBox).not.toBeNull();
+  expect(cropDialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(cropDialogBox!.x + cropDialogBox!.width).toBeLessThanOrEqual(320);
+  await expect(cropDialog.getByRole("button", { name: "Cancel" })).toBeInViewport();
+  await expect(cropDialog.getByRole("button", { name: "Apply", exact: true })).toBeInViewport();
   await cropDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", previousSource ?? "");
@@ -856,12 +863,38 @@ test("customer utility workspaces fit phone and desktop widths", async ({ page }
 
   for (const route of ["/app/analytics", "/app/account", "/app/account/build-card"] as const) {
     await page.goto(route);
-    for (const width of [390, 1280]) {
+    for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.locator("main").first()).toBeVisible();
-      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-        width,
-      );
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      if (scrollWidth > width) {
+        const overflowingElements = await page.evaluate(() => {
+          const viewportWidth = window.innerWidth;
+          return Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+            .map((element) => {
+              const bounds = element.getBoundingClientRect();
+              return {
+                tag: element.tagName,
+                className: String(element.className).slice(0, 120),
+                text: (element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
+                left: Math.round(bounds.left),
+                right: Math.round(bounds.right),
+                width: Math.round(bounds.width),
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+                overflow: Math.max(
+                  Math.round(bounds.right - viewportWidth),
+                  element.scrollWidth - element.clientWidth,
+                ),
+              };
+            })
+            .filter((element) => element.overflow > 0)
+            .sort((left, right) => right.overflow - left.overflow)
+            .slice(0, 30);
+        });
+        console.log(`Horizontal overflow on ${route} at ${width}px`, overflowingElements);
+      }
+      expect(scrollWidth).toBeLessThanOrEqual(width);
     }
   }
 });

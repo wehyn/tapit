@@ -52,8 +52,10 @@
 
 1. Start from `feature/quiet-precision-ui-redesign`, created at the approved spec commit `02b243f`. Keep `docs/quiet-precision-ui-redesign` at that same commit as the original approved-spec branch. Preserve the saved reference asset and this plan.
 2. Run `npm ci` if `node_modules/next` is absent. Locate the installed styling guide with `rg --files node_modules/next/dist/docs | rg -i '(css|styling|tailwind)'` and read the relevant guide before changing app code.
+   Install dependencies inside each Git worktree; Next rejects a `node_modules` symlink that points outside the worktree root.
 3. Keep E2E local/demo-only. Do not use `npm run test:e2e:live`, hosted demo, Preview, Production, or account provisioning for this redesign.
 4. Use existing demo fixtures and route flows. Update selectors only when accessible names or structure intentionally change; preserve their meaning and keyboard operation.
+5. For parallel implementation, keep file ownership disjoint: root owns `e2e/accessibility.spec.ts`; Task 5 owns `e2e/public-profile.spec.ts`; Tasks 6–7 share `e2e/customer.spec.ts` and `QrControls.tsx` under one customer owner; Tasks 8–10 share `e2e/admin.spec.ts` under one administrator owner.
 
 ## Tasks
 
@@ -124,12 +126,12 @@
 - Consumes: Task 1 primitives and Task 2 brand tokens; existing marketing content, image assets, footer destinations, legal copy, and route URLs.
 - Produces: a cohesive public-facing marketing and legal experience with unchanged copy meaning and navigation targets.
 
-- [ ] **Step 1: Add E2E layout checks before editing.** In `e2e/smoke.spec.ts`, verify the homepage has no horizontal overflow at 390px and 1280px, the header navigation remains usable, and Privacy and Terms links still reach their existing pages.
-- [ ] **Step 2: Run the smoke check.** Run `npm run test:e2e:demo -- --project=chromium e2e/smoke.spec.ts`. Expected: current copy, header links, and legal destinations pass at the tested widths.
-- [ ] **Step 3: Restyle the public header, homepage, and footer.** Use the existing hero image, profile-card asset, sections, headings, links, and footer content; adjust visual hierarchy, width, spacing, color, and phone layout without adding sections, pricing, or new calls to action.
-- [ ] **Step 4: Restyle Privacy and Terms reading layouts.** Preserve legal wording and links while applying the public header, readable line length, heading levels, lists, and mobile spacing.
-- [ ] **Step 5: Run the smoke E2E suite.** Run `npm run test:e2e:demo -- --project=chromium e2e/smoke.spec.ts`; expected: all existing content and link assertions pass at desktop/mobile widths.
-- [ ] **Step 6: Commit the public-site slice.** Stage only the listed files and commit as `style: refresh public site and legal pages`.
+- [x] **Step 1: Add E2E layout checks before editing.** In `e2e/smoke.spec.ts`, verify the homepage has no horizontal overflow at 390px and 1280px, the header navigation remains usable, and Privacy and Terms links still reach their existing pages.
+- [x] **Step 2: Run the smoke check.** Run `npm run test:e2e:demo -- --project=chromium e2e/smoke.spec.ts`. Expected: current copy, header links, and legal destinations pass at the tested widths.
+- [x] **Step 3: Restyle the public header, homepage, and footer.** Use the existing hero image, profile-card asset, sections, headings, links, and footer content; adjust visual hierarchy, width, spacing, color, and phone layout without adding sections, pricing, or new calls to action.
+- [x] **Step 4: Restyle Privacy and Terms reading layouts.** Preserve legal wording and links while applying the public header, readable line length, heading levels, lists, and mobile spacing.
+- [x] **Step 5: Run the smoke E2E suite.** Run `npm run test:e2e:demo -- --project=chromium e2e/smoke.spec.ts`; expected: all existing content and link assertions pass at desktop/mobile widths.
+- [x] **Step 6: Commit the public-site slice.** Stage only the listed files and commit as `style: refresh public site and legal pages`.
 
 ### Task 4: Restyle login, setup, and onboarding
 
@@ -145,18 +147,17 @@
 - Modify: `src/components/auth/OnboardingForm.tsx`
 - Modify: `src/components/auth/AuthLoadingState.tsx`
 - Modify: `e2e/signup.spec.ts`
-- Modify: `e2e/accessibility.spec.ts`
 
 **Interfaces:**
 
 - Consumes: Task 1 fields, buttons, notices, and focus styles; Task 3 brand tokens; existing auth modes, `next` return path, invitation states, form validation, and loading behavior.
 - Produces: consistent sign-in, signup, setup, onboarding, and authentication-loading screens without changing auth transitions or form semantics.
 
-- [ ] **Step 1: Add E2E checks for auth form layout and states.** Extend `e2e/signup.spec.ts` to check login, signup, and setup content at 390px and 1280px with no horizontal overflow; retain exact accessible field labels and validation assertions.
-- [ ] **Step 2: Run the auth and accessibility checks before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/signup.spec.ts e2e/accessibility.spec.ts`. Expected: sign-in, signup, setup, labels, and current recovery messages remain present at the measured widths.
-- [ ] **Step 3: Apply the auth shell and form visual system.** Restyle panel width, heading hierarchy, field groups, password guidance, validation, provider action, submit state, and loading feedback; preserve signup/sign-in switching and callback destinations.
-- [ ] **Step 4: Re-run auth E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/signup.spec.ts e2e/accessibility.spec.ts`; expected: signup, existing-account login, one-time setup, and axe assertions pass.
-- [ ] **Step 5: Commit the auth slice.** Stage only the listed files and commit as `style: refine authentication and setup screens`.
+- [x] **Step 1: Add E2E checks for auth form layout and states.** Extend `e2e/signup.spec.ts` to check login, signup, and setup content at 390px and 1280px with no horizontal overflow; retain exact accessible field labels and validation assertions.
+- [x] **Step 2: Run the auth and accessibility checks before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/signup.spec.ts e2e/accessibility.spec.ts`. Expected: sign-in, signup, setup, labels, and current recovery messages remain present at the measured widths.
+- [x] **Step 3: Apply the auth shell and form visual system.** Restyle panel width, heading hierarchy, field groups, password guidance, validation, provider action, submit state, and loading feedback; preserve signup/sign-in switching and callback destinations.
+- [x] **Step 4: Re-run auth E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/signup.spec.ts e2e/accessibility.spec.ts`; expected: signup, existing-account login, one-time setup, and axe assertions pass.
+- [x] **Step 5: Commit the auth slice.** Stage only the listed files and commit as `style: refine authentication and setup screens`.
 
 ### Task 5: Restyle public profiles and resolver states
 
@@ -178,19 +179,18 @@
 - Modify: `src/components/profile/UnpublishedCardClaim.tsx`
 - Modify: `src/components/state/StatePage.tsx`
 - Modify: `e2e/public-profile.spec.ts`
-- Modify: `e2e/accessibility.spec.ts`
 
 **Interfaces:**
 
 - Consumes: existing published-only profile projection, customer-selected profile theme, card resolver, consent control, vCard export, link tracking, and state-page copy.
 - Produces: a refined phone-first profile and coherent published/unavailable/inactive/error/loading states with the same privacy boundary and actions.
 
-- [ ] **Step 1: Add responsive and state-preservation E2E assertions first.** Extend `e2e/public-profile.spec.ts` to check 320px and 390px widths, direct URL/card resolver presentation parity, a published profile's enabled links and Save contact, and that inactive/unavailable states do not reveal profile identity. Keep the assertions semantic.
-- [ ] **Step 2: Run the public-profile E2E tests before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/public-profile.spec.ts e2e/accessibility.spec.ts`. Expected: current privacy, direct/card parity, and public actions pass at the added viewport sizes.
-- [ ] **Step 3: Restyle the published profile.** Apply clearer identity hierarchy, readable name/role/bio, accessible profile image, ordered link controls, Save contact, and existing optional contact sections; keep customer profile themes and direct/card URL parity intact.
-- [ ] **Step 4: Restyle resolver and state pages.** Use the same typography, spacing, and controlled status treatment while retaining fixed safe copy on inactive/unavailable paths and the current friendly recovery route on errors.
-- [ ] **Step 5: Run public-profile and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/public-profile.spec.ts e2e/accessibility.spec.ts`; expected: the public profile remains scan-friendly at narrow widths, states disclose no private data, and existing publish/claim/vCard flows pass.
-- [ ] **Step 6: Commit the public-profile slice.** Stage only the listed files and commit as `style: refine public profile and resolver states`.
+- [x] **Step 1: Add responsive and state-preservation E2E assertions first.** Extend `e2e/public-profile.spec.ts` to check 320px and 390px widths, direct URL/card resolver presentation parity, a published profile's enabled links and Save contact, and that inactive/unavailable states do not reveal profile identity. Keep the assertions semantic.
+- [x] **Step 2: Run the public-profile E2E tests before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/public-profile.spec.ts e2e/accessibility.spec.ts`. Expected: current privacy, direct/card parity, and public actions pass at the added viewport sizes.
+- [x] **Step 3: Restyle the published profile.** Apply clearer identity hierarchy, readable name/role/bio, accessible profile image, ordered link controls, Save contact, and existing optional contact sections; keep customer profile themes and direct/card URL parity intact.
+- [x] **Step 4: Restyle resolver and state pages.** Use the same typography, spacing, and controlled status treatment while retaining fixed safe copy on inactive/unavailable paths and the current friendly recovery route on errors.
+- [x] **Step 5: Run public-profile and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/public-profile.spec.ts e2e/accessibility.spec.ts`; expected: the public profile remains scan-friendly at narrow widths, states disclose no private data, and existing publish/claim/vCard flows pass.
+- [x] **Step 6: Commit the public-profile slice.** Stage only the listed files and commit as `style: refine public profile and resolver states`.
 
 ### Task 6: Restyle customer profile editing, customization, and links
 
@@ -214,19 +214,18 @@
 - Modify: `src/components/forms/LinksEditor.tsx`
 - Modify: `src/components/workspace/WorkspacePreview.tsx`
 - Modify: `e2e/customer.spec.ts`
-- Modify: `e2e/public-profile.spec.ts`
 
 **Interfaces:**
 
 - Consumes: Task 1 controls, Task 2 customer shell, existing draft-save context, validators, profile customization/theme values, image upload/crop flow, link ordering, and publish panel.
 - Produces: customer editing workspaces that clarify fields, preview, autosave/draft state, validation, and publish actions without altering persistence or publication rules.
 
-- [ ] **Step 1: Add E2E checks before editing.** Extend `e2e/customer.spec.ts` for `/app/profile`, `/app/customize`, and `/app/links` at 390px and 1467px; assert no horizontal overflow, preview visibility, reachable Save draft/Publish controls, and keyboard link ordering.
-- [ ] **Step 2: Run customer E2E before styles.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/public-profile.spec.ts`. Expected: current editor, keyboard ordering, and published-version behavior pass at the added viewport sizes.
-- [ ] **Step 3: Refine Profile and Customize composition.** Group identity, public URL, media, appearance, and publication controls by purpose; keep preview available at desktop and provide an intentional compact preview action on phones without hiding save/publish state.
-- [ ] **Step 4: Refine Links management.** Make each link's label, URL, icon, enabled state, and move controls easy to scan. Keep move-up/move-down keyboard alternatives and explicit save/publish behavior.
-- [ ] **Step 5: Re-run editor E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts`; expected: draft edits remain private until publish, preview reflects the correct version, and the full editor is keyboard accessible.
-- [ ] **Step 6: Commit the profile-editing slice.** Stage only the listed files and commit as `style: refine profile and links workspaces`.
+- [x] **Step 1: Add E2E checks before editing.** Extend `e2e/customer.spec.ts` for `/app/profile`, `/app/customize`, and `/app/links` at 390px and 1467px; assert no horizontal overflow, preview visibility, reachable Save draft/Publish controls, and keyboard link ordering.
+- [x] **Step 2: Run customer E2E before styles.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/public-profile.spec.ts`. Expected: current editor, keyboard ordering, and published-version behavior pass at the added viewport sizes.
+- [x] **Step 3: Refine Profile and Customize composition.** Group identity, public URL, media, appearance, and publication controls by purpose; keep preview available at desktop and provide an intentional compact preview action on phones without hiding save/publish state.
+- [x] **Step 4: Refine Links management.** Make each link's label, URL, icon, enabled state, and move controls easy to scan. Keep move-up/move-down keyboard alternatives and explicit save/publish behavior.
+- [x] **Step 5: Re-run editor E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/public-profile.spec.ts e2e/accessibility.spec.ts`; expected: draft edits remain private until publish, preview reflects the correct version, and the full editor is keyboard accessible.
+- [x] **Step 6: Commit the profile-editing slice.** Stage only the listed files and commit as `style: refine profile and links workspaces`.
 
 ### Task 7: Restyle customer analytics, account, and card building
 
@@ -248,12 +247,12 @@
 - Consumes: shared shell and controls; existing aggregate analytics queries/time ranges, account update/deletion/unpublish semantics, card design validation, QR generation, and build-card route differences.
 - Produces: readable analytics, safe account settings, and consistent standalone/embedded card-builder screens without changing data or action contracts.
 
-- [ ] **Step 1: Add customer-utility E2E assertions.** Extend `e2e/customer.spec.ts` to check analytics time-range controls, account unpublish/delete confirmation naming, the authenticated Build card route, and 390px/1280px overflow on these screens.
-- [ ] **Step 2: Run the customer utility checks before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts`. Expected: current analytics, account, and card-builder flows pass at the added viewport sizes.
-- [ ] **Step 3: Restyle analytics and account controls.** Clarify metric hierarchy and range selection without adding visitor-level data; separate routine account settings from unpublish and deletion actions, preserving confirmation copy and focus behavior.
-- [ ] **Step 4: Restyle card-builder surfaces.** Align editor, preview, QR options, and dialogs with the shared system. Preserve validation and the embedded `/app/account/build-card` shell versus standalone `/build-card` public header behavior.
-- [ ] **Step 5: Re-run customer utility E2E and accessibility checks.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/accessibility.spec.ts`; expected: account actions remain explicit, QR/card previews work, and all controls retain accessible labels and focus.
-- [ ] **Step 6: Commit the customer utility slice.** Stage only the listed files and commit as `style: refine analytics account and card builder`.
+- [x] **Step 1: Add customer-utility E2E assertions.** Extend `e2e/customer.spec.ts` to check analytics time-range controls, account unpublish/delete confirmation naming, the authenticated Build card route, and 390px/1280px overflow on these screens.
+- [x] **Step 2: Run the customer utility checks before styling.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts`. Expected: current analytics, account, and card-builder flows pass at the added viewport sizes.
+- [x] **Step 3: Restyle analytics and account controls.** Clarify metric hierarchy and range selection without adding visitor-level data; separate routine account settings from unpublish and deletion actions, preserving confirmation copy and focus behavior.
+- [x] **Step 4: Restyle card-builder surfaces.** Align editor, preview, QR options, and dialogs with the shared system. Preserve validation and the embedded `/app/account/build-card` shell versus standalone `/build-card` public header behavior.
+- [x] **Step 5: Re-run customer utility E2E and accessibility checks.** Run `npm run test:e2e:demo -- --project=chromium e2e/customer.spec.ts e2e/accessibility.spec.ts`; expected: account actions remain explicit, QR/card previews work, and all controls retain accessible labels and focus.
+- [x] **Step 6: Commit the customer utility slice.** Stage only the listed files and commit as `style: refine analytics account and card builder`.
 
 ### Task 8: Restyle administrator customers and profiles
 
@@ -266,19 +265,18 @@
 - Modify: `src/components/admin/ProfileDetails.tsx`
 - Modify: `src/components/admin/AdminProfileContentEditor.tsx`
 - Modify: `e2e/admin.spec.ts`
-- Modify: `e2e/accessibility.spec.ts`
 
 **Interfaces:**
 
 - Consumes: Task 1 controls and Task 2 administrator shell; existing customer creation/invitation, profile registry/search, profile details tabs, profile content editor, role gates, and status semantics.
 - Produces: scannable customer/profile operations with accessible filtering, record status, detail inspection, and profile editing.
 
-- [ ] **Step 1: Add customer/profile viewport assertions first.** In `e2e/admin.spec.ts`, check Customers and Profiles at 390px and 1280px, verify search and status text remain available, and open the existing profile detail tabs by their accessible names.
-- [ ] **Step 2: Run the focused admin journeys.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`. Expected: invitation creation, profile inspection, and profile editing still pass before restyling.
-- [ ] **Step 3: Restyle the customer page.** Make account creation, invitation state, search, customer identity, and row actions read in a clear order. Preserve current forms, invitation outcomes, and admin-only access.
-- [ ] **Step 4: Restyle the profile registry and detail editor.** Clarify profile status, customer association, searchable rows, tabs, field groups, and save/publish controls. Preserve all current fields, audit links, and publication/suspension rules.
-- [ ] **Step 5: Re-run admin E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: customer creation and profile detail/editor actions remain operable by keyboard at desktop and phone widths.
-- [ ] **Step 6: Commit the customer/profile admin slice.** Stage only the listed files and commit as `style: refine admin customer and profile views`.
+- [x] **Step 1: Add customer/profile viewport assertions first.** In `e2e/admin.spec.ts`, check Customers and Profiles at 390px and 1280px, verify search and status text remain available, and open the existing profile detail tabs by their accessible names.
+- [x] **Step 2: Run the focused admin journeys.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`. Expected: invitation creation, profile inspection, and profile editing still pass before restyling.
+- [x] **Step 3: Restyle the customer page.** Make account creation, invitation state, search, customer identity, and row actions read in a clear order. Preserve current forms, invitation outcomes, and admin-only access.
+- [x] **Step 4: Restyle the profile registry and detail editor.** Clarify profile status, customer association, searchable rows, tabs, field groups, and save/publish controls. Preserve all current fields, audit links, and publication/suspension rules.
+- [x] **Step 5: Re-run admin E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: customer creation and profile detail/editor actions remain operable by keyboard at desktop and phone widths.
+- [x] **Step 6: Commit the customer/profile admin slice.** Stage only the listed files and commit as `style: refine admin customer and profile views`.
 
 ### Task 9: Restyle card registry operations
 
@@ -286,20 +284,18 @@
 
 - Modify: `src/app/admin/cards/page.tsx`
 - Modify: `src/components/admin/CardsManager.tsx`
-- Modify: `src/components/qr/QrControls.tsx`
 - Modify: `e2e/admin.spec.ts`
-- Modify: `e2e/accessibility.spec.ts`
 
 **Interfaces:**
 
 - Consumes: shared admin shell and controls; existing unique card URL validation, assignment, QR preview/download, replacement, deactivation, and audit-link behavior.
 - Produces: a clear card registry with readable assignment/status context and correctly named confirmation, preview, and download actions.
 
-- [ ] **Step 1: Add card-operation viewport assertions first.** In `e2e/admin.spec.ts`, verify card registration validation, duplicate rejection, assignment context, QR preview/download controls, and replacement/deactivation confirmation at 390px and 1280px.
-- [ ] **Step 2: Run the focused card E2E flow.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts`. Expected: the existing register/assign/replace/deactivate/audit journey and its privacy assertions pass before the styling pass.
-- [ ] **Step 3: Restyle the card registry and QR controls.** Improve table/form grouping, assignment and replacement relationship, status readability, QR preview, and PNG/SVG actions. Keep confirmation text naming the exact card and its immediate inactive effect.
-- [ ] **Step 4: Re-run card and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: invalid and duplicate URLs are still refused and confirmed card actions retain keyboard focus behavior.
-- [ ] **Step 5: Commit the card registry slice.** Stage only the listed files and commit as `style: refine admin card registry`.
+- [x] **Step 1: Add card-operation viewport assertions first.** In `e2e/admin.spec.ts`, verify card registration validation, duplicate rejection, assignment context, QR preview/download controls, and replacement/deactivation confirmation at 390px and 1280px.
+- [x] **Step 2: Run the focused card E2E flow.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts`. Expected: the existing register/assign/replace/deactivate/audit journey and its privacy assertions pass before the styling pass.
+- [x] **Step 3: Restyle the card registry and QR controls.** Improve table/form grouping, assignment and replacement relationship, status readability, QR preview, and PNG/SVG actions. Keep confirmation text naming the exact card and its immediate inactive effect.
+- [x] **Step 4: Re-run card and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: invalid and duplicate URLs are still refused and confirmed card actions retain keyboard focus behavior.
+- [x] **Step 5: Commit the card registry slice.** Stage only the listed files and commit as `style: refine admin card registry`.
 
 ### Task 10: Restyle administrator analytics, audit log, and settings
 
@@ -312,19 +308,18 @@
 - Modify: `src/components/admin/AuditLog.tsx`
 - Modify: `src/components/admin/SettingsManager.tsx`
 - Modify: `e2e/admin.spec.ts`
-- Modify: `e2e/accessibility.spec.ts`
 
 **Interfaces:**
 
 - Consumes: shared admin shell and controls; existing aggregate metrics/filters, audit events, support destination, and settings save feedback.
 - Produces: readable analytics and governance pages with consistent metric, filter, event, empty, and save states.
 
-- [ ] **Step 1: Add analytics/governance viewport assertions first.** In `e2e/admin.spec.ts`, verify aggregate-only metrics, time-range filters, audit actor/action/time fields, settings field labels, and save feedback at 390px and 1280px.
-- [ ] **Step 2: Run focused admin E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`. Expected: authorized aggregate analytics, audit history, and settings save journeys pass before styling.
-- [ ] **Step 3: Restyle analytics and audit pages.** Improve metric grouping, filter placement, chart/table labels, and audit-row scanning while retaining aggregate-only data and existing filter behavior.
-- [ ] **Step 4: Restyle the settings page.** Apply shared field, save, and feedback patterns to the existing support/contact destination setting; do not add platform settings.
-- [ ] **Step 5: Re-run focused admin and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: analytics remain aggregated, audit fields remain visible, and settings saves produce the existing result.
-- [ ] **Step 6: Commit the analytics/governance slice.** Stage only the listed files and commit as `style: refine admin analytics and governance`.
+- [x] **Step 1: Add analytics/governance viewport assertions first.** In `e2e/admin.spec.ts`, verify aggregate-only metrics, time-range filters, audit actor/action/time fields, settings field labels, and save feedback at 390px and 1280px.
+- [x] **Step 2: Run focused admin E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`. Expected: authorized aggregate analytics, audit history, and settings save journeys pass before styling.
+- [x] **Step 3: Restyle analytics and audit pages.** Improve metric grouping, filter placement, chart/table labels, and audit-row scanning while retaining aggregate-only data and existing filter behavior.
+- [x] **Step 4: Restyle the settings page.** Apply shared field, save, and feedback patterns to the existing support/contact destination setting; do not add platform settings.
+- [x] **Step 5: Re-run focused admin and accessibility E2E.** Run `npm run test:e2e:demo -- --project=chromium e2e/admin.spec.ts e2e/accessibility.spec.ts`; expected: analytics remain aggregated, audit fields remain visible, and settings saves produce the existing result.
+- [x] **Step 6: Commit the analytics/governance slice.** Stage only the listed files and commit as `style: refine admin analytics and governance`.
 
 ### Task 11: Capture responsive evidence and update the design record
 
@@ -340,13 +335,15 @@
 - Consumes: completed route-family designs and existing demo fixture data/helpers.
 - Produces: a repeatable screenshot set, JSON E2E report, route-wide accessibility evidence, and a current design record that documents Quiet Precision as implemented.
 
-- [ ] **Step 1: Add a route-wide visual artifact E2E.** Create stable Playwright cases for homepage desktop/mobile, public profile mobile, login mobile, customer profile editor desktop/mobile, and administrator profiles desktop/mobile. Save screenshots as `landing-desktop.png`, `landing-mobile.png`, `public-profile-mobile.png`, `login-mobile.png`, `customer-profile-desktop.png`, `customer-profile-mobile.png`, `admin-profiles-desktop.png`, and `admin-profiles-mobile.png`. Reuse `signInAsCustomer` and the extracted `signInAsAdmin` helper. The admin helper signs in as `admin@tapit.local` with the demo password `tapit-demo` and verifies `/admin/customers`.
-- [ ] **Step 2: Create the artifact directory.** Run `mkdir -p test-results/ui-redesign` before Playwright so every named screenshot has an existing parent directory.
-- [ ] **Step 3: Capture local demo evidence.** Run `PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/ui-redesign/e2e-results.json npm run test:e2e:demo -- --project=chromium e2e/ui-redesign-artifacts.spec.ts e2e/accessibility.spec.ts`; expected: screenshots and JSON report are written, all selected routes load, and axe reports no new violations. Keep screenshots and reports out of git.
-- [ ] **Step 4: Review coverage and update `docs/DESIGN.md`.** Replace the unspecified visual tokens and typeface notes with the contrast-checked values, shell breakpoint/navigation decisions, typography rules, and public/customer/admin component patterns that are actually implemented. Keep established behavior and route documentation accurate.
-- [ ] **Step 5: Run full local verification serially.** Run `npm run test:e2e:demo`, then `npm run verify`; do not run Next-backed checks concurrently because they share `.next/`. Confirm `NEXT_PUBLIC_DEMO_MODE=true` locally and do not use Production for any E2E or provisioning.
-- [ ] **Step 6: Review phone behavior separately.** Use the real-device checklist for a physical browser pass of the public profile and account editor; report that evidence separately from local demo E2E. Do not claim Preview/Production acceptance from local screenshots.
-- [ ] **Step 7: Commit the final UI evidence and design record.** Stage the new E2E spec/helper, `docs/DESIGN.md`, and any required E2E updates only; leave generated screenshots/reports untracked or ignored; commit as `test: record quiet precision UI evidence`.
+- [x] **Step 1: Add a route-wide visual artifact E2E.** Create stable Playwright cases for homepage desktop/mobile, public profile mobile, login mobile, customer profile editor desktop/mobile, and administrator profiles desktop/mobile. Save screenshots as `landing-desktop.png`, `landing-mobile.png`, `public-profile-mobile.png`, `login-mobile.png`, `customer-profile-desktop.png`, `customer-profile-mobile.png`, `admin-profiles-desktop.png`, and `admin-profiles-mobile.png`. Reuse `signInAsCustomer` and the extracted `signInAsAdmin` helper. The admin helper signs in as `admin@tapit.local` with the demo password `tapit-demo` and verifies `/admin/customers`.
+- [x] **Step 2: Create the artifact directory.** Run `mkdir -p test-results/ui-redesign` before Playwright so every named screenshot has an existing parent directory.
+- [x] **Step 3: Capture local demo evidence.** Run `PLAYWRIGHT_JSON_OUTPUT_FILE=test-results/ui-redesign/e2e-results.json npm run test:e2e:demo -- --project=chromium e2e/ui-redesign-artifacts.spec.ts e2e/accessibility.spec.ts`; expected: screenshots and JSON report are written, all selected routes load, and axe reports no new violations. Keep screenshots and reports out of git.
+- [x] **Step 4: Review coverage and update `docs/DESIGN.md`.** Replace the unspecified visual tokens and typeface notes with the contrast-checked values, shell breakpoint/navigation decisions, typography rules, and public/customer/admin component patterns that are actually implemented. Keep established behavior and route documentation accurate.
+- [x] **Step 5: Run full local verification serially.** Run `npm run test:e2e:demo`, then `npm run verify`; do not run Next-backed checks concurrently because they share `.next/`. Confirm `NEXT_PUBLIC_DEMO_MODE=true` locally and do not use Production for any E2E or provisioning.
+- [ ] **Step 6: Review phone behavior separately.** Not run: no physical-device pass was available. Local browser evidence is recorded separately; no Preview/Production acceptance is claimed.
+- [x] **Step 7: Commit the final UI evidence and design record.** Stage the new E2E spec/helper, `docs/DESIGN.md`, and any required E2E updates only; leave generated screenshots/reports untracked or ignored; commit as `test: record quiet precision UI evidence`.
+
+Implementation completed on 2026-09-30. The integrated local demo suite passed 59 tests with one hosted-demo-only skip; the final screenshot/accessibility suite passed 10 tests; `npm run verify` completed formatting, lint, typecheck, 452 unit tests, and production build. Independent review found no material regressions. Screenshots and the JSON report are saved under ignored `test-results/ui-redesign/`. Physical-device and Preview/Production acceptance were not run.
 
 ## Coverage Review
 
