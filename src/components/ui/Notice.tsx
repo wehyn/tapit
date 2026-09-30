@@ -6,9 +6,9 @@ export function Notice({
   tone?: "neutral" | "success" | "error";
 }) {
   const classes = {
-    neutral: "border-tapit-line bg-tapit-paper text-tapit-muted",
-    success: "border-[#b9d1c0] bg-[#e8f1eb] text-[#17352b]",
-    error: "border-[#e5b4b1] bg-[#fff1f0] text-tapit-danger",
+    neutral: "border-tapit-line bg-tapit-soft-surface text-tapit-ink",
+    success: "border-[#c7dfd0] bg-tapit-success-soft text-tapit-success-ink",
+    error: "border-[#e5b4b1] bg-tapit-danger-soft text-tapit-danger",
   }[tone];
   return (
     <div

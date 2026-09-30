@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 const controlClasses =
-  "mt-2 min-h-12 w-full rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink shadow-sm outline-none placeholder:text-tapit-muted/80 transition-colors focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20 disabled:cursor-not-allowed disabled:bg-tapit-soft-surface disabled:opacity-70";
+  "mt-2 min-h-12 w-full rounded-[10px] border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink outline-none placeholder:text-tapit-muted transition-colors focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20 disabled:cursor-not-allowed disabled:bg-tapit-soft-surface disabled:opacity-70";
 
 export function Field({
   error,
@@ -23,7 +23,7 @@ export function Field({
           undefined
         }
         aria-invalid={Boolean(error)}
-        className={`${controlClasses} ${error ? "border-tapit-danger" : ""}`}
+        className={`${controlClasses} ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
       />
       {help ? (
         <p className="mt-1.5 text-xs leading-5 text-tapit-muted" id={helpId}>
@@ -59,7 +59,7 @@ export function TextareaField({
           undefined
         }
         aria-invalid={Boolean(error)}
-        className={`${controlClasses} min-h-28 resize-y ${error ? "border-tapit-danger" : ""}`}
+        className={`${controlClasses} min-h-28 resize-y ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
       />
       {help ? (
         <p className="mt-1.5 text-xs leading-5 text-tapit-muted" id={helpId}>

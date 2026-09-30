@@ -1,18 +1,24 @@
 @import "tailwindcss";
 
 :root {
-  --tapit-ink: #151918;
-  --tapit-muted: #687571;
-  --tapit-paper: #f6f8f7;
+  --tapit-ink: #17231e;
+  --tapit-muted: #626f67;
   --tapit-surface: #ffffff;
-  --tapit-soft-surface: #e9eeec;
-  --tapit-line: #d6deda;
-  --tapit-accent: #187461;
-  --tapit-accent-strong: #0f5a4a;
-  --tapit-accent-soft: #dcefe9;
+  --tapit-paper: #eef0ed;
+  --tapit-soft-surface: #f5f7f5;
+  --tapit-line: #e4e9e5;
+  --tapit-accent: #236d54;
+  --tapit-accent-strong: #174d3b;
+  --tapit-accent-soft: #e4f1ea;
+  --tapit-warm: #d6ac76;
+  --tapit-success-soft: #e4f1ea;
+  --tapit-success-ink: #174d3b;
+  --tapit-warning-soft: #fff4df;
+  --tapit-warning-ink: #784b13;
   --tapit-danger: #a33c38;
+  --tapit-danger-soft: #fff1f0;
   --tapit-focus: var(--tapit-accent);
-  --tapit-radius: 12px;
+  --tapit-radius: 16px;
 }
 
 @theme inline {
@@ -25,7 +31,13 @@
   --color-tapit-accent: var(--tapit-accent);
   --color-tapit-accent-strong: var(--tapit-accent-strong);
   --color-tapit-accent-soft: var(--tapit-accent-soft);
+  --color-tapit-warm: var(--tapit-warm);
+  --color-tapit-success-soft: var(--tapit-success-soft);
+  --color-tapit-success-ink: var(--tapit-success-ink);
+  --color-tapit-warning-soft: var(--tapit-warning-soft);
+  --color-tapit-warning-ink: var(--tapit-warning-ink);
   --color-tapit-danger: var(--tapit-danger);
+  --color-tapit-danger-soft: var(--tapit-danger-soft);
   --color-tapit-focus: var(--tapit-focus);
   --radius-tapit: var(--tapit-radius);
 }
@@ -61,6 +73,14 @@ body {
     sans-serif;
   line-height: 1.5;
   text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {

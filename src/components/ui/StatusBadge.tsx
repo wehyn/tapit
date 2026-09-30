@@ -7,20 +7,20 @@ export function StatusBadge({
 }) {
   const classes =
     {
-      active: "bg-tapit-accent-soft text-tapit-accent-strong",
-      published: "bg-tapit-accent-soft text-tapit-accent-strong",
-      draft: "bg-tapit-paper text-tapit-muted",
-      invited: "bg-[#fff4df] text-[#784b13]",
-      inactive: "bg-[#fff1f0] text-tapit-danger",
-      replaced: "bg-[#fff1f0] text-tapit-danger",
-      unpublished: "bg-[#fff4df] text-[#784b13]",
-      suspended: "bg-[#fff1f0] text-tapit-danger",
-      requested: "bg-[#fff4df] text-[#784b13]",
-      deleted: "bg-[#fff1f0] text-tapit-danger",
+      active: "bg-tapit-success-soft text-tapit-success-ink",
+      published: "bg-tapit-success-soft text-tapit-success-ink",
+      draft: "bg-tapit-soft-surface text-tapit-ink",
+      invited: "bg-tapit-warning-soft text-tapit-warning-ink",
+      inactive: "bg-tapit-danger-soft text-tapit-danger",
+      replaced: "bg-tapit-danger-soft text-tapit-danger",
+      unpublished: "bg-tapit-warning-soft text-tapit-warning-ink",
+      suspended: "bg-tapit-danger-soft text-tapit-danger",
+      requested: "bg-tapit-warning-soft text-tapit-warning-ink",
+      deleted: "bg-tapit-danger-soft text-tapit-danger",
     }[status] ?? "bg-tapit-paper text-tapit-muted";
   const emphasisClasses = prominent
-    ? "rounded-full bg-tapit-accent px-4 py-2 text-sm tracking-[0.04em] text-white shadow-[0_8px_24px_rgba(24,116,97,0.18)]"
-    : `rounded-tapit px-2.5 py-1 text-xs capitalize ${classes}`;
+    ? "rounded-full bg-tapit-accent px-4 py-2 text-sm tracking-[0.04em] text-white shadow-[0_2px_5px_rgba(23,35,30,0.08)]"
+    : `rounded-full px-2.5 py-1 text-xs capitalize ${classes}`;
 
   return (
     <span className={`inline-flex items-center gap-2 font-semibold ${emphasisClasses}`}>
