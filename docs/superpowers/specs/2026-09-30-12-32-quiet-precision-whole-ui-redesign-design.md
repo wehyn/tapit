@@ -1,6 +1,6 @@
 # Tapit Quiet Precision Whole UI Redesign
 
-**Status:** Draft for user review
+**Status:** Approved for implementation
 **Date:** 2026-09-30
 **Selected direction:** B — Quiet Precision
 **Design reference:** [Quiet Precision mock designs](../../design-references/tapit-quiet-precision-mockups.html)
@@ -29,17 +29,17 @@ Use a bright neutral canvas with white content surfaces, a restrained green acce
 
 The saved mockup supplies starting values for visual exploration:
 
-| Token | Starting value |
-| --- | --- |
-| Page canvas | `#EEF0ED` |
-| Primary surface | `#FFFFFF` |
-| Secondary surface | `#F5F7F5` |
-| Main text | `#17231E` |
-| Muted text | `#78847D` |
-| Border | `#E4E9E5` |
-| Accent | `#236D54` |
-| Strong accent | `#174D3B` |
-| Soft accent | `#E4F1EA` |
+| Token             | Starting value |
+| ----------------- | -------------- |
+| Page canvas       | `#EEF0ED`      |
+| Primary surface   | `#FFFFFF`      |
+| Secondary surface | `#F5F7F5`      |
+| Main text         | `#17231E`      |
+| Muted text        | `#78847D`      |
+| Border            | `#E4E9E5`      |
+| Accent            | `#236D54`      |
+| Strong accent     | `#174D3B`      |
+| Soft accent       | `#E4F1EA`      |
 
 Treat these as design-token candidates, not unvalidated final values. Confirm contrast for text, controls, focus, errors, statuses, disabled states, and customer-selectable profile themes before implementation. Use the current system sans-serif stack for application UI unless implementation discovery shows an existing brand font contract. The selected direction does not add fonts, dependencies, or a new theme catalog.
 
@@ -123,4 +123,4 @@ Login, setup, and onboarding should feel like part of the same service without i
 
 The durable, interactive reference artifact is [docs/design-references/tapit-quiet-precision-mockups.html](../../design-references/tapit-quiet-precision-mockups.html). It contains switchable Quiet Precision, Warm Editorial, and Ink + Electric treatments plus representative customer, public, and admin screens. Quiet Precision is the approved direction for this spec; the other treatments remain comparison material only.
 
-This document is ready for user review. The implementation plan is a separate next artifact and will be written after the user reviews and approves this spec. No product code is authorized by this document alone.
+The user approved this direction and scope on 2026-09-30. Implementation follows the separate plan at `docs/superpowers/plans/2026-09-30-12-46-quiet-precision-whole-ui-redesign.md`.
