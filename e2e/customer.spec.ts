@@ -850,3 +850,18 @@ test("customer can unpublish from Account", async ({ page }) => {
     page.getByRole("heading", { name: "This profile is currently unavailable" }),
   ).toBeVisible();
 });
+
+test("customer utility workspaces fit phone and desktop widths", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/analytics", "/app/account", "/app/account/build-card"] as const) {
+    await page.goto(route);
+    for (const width of [390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.locator("main").first()).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    }
+  }
+});

@@ -50,7 +50,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
   }
 
   return (
-    <div className="mt-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4">
+    <div className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper/60 p-4 sm:p-5">
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
         <QrCodeIcon aria-hidden="true" size={18} /> QR fallback
       </p>

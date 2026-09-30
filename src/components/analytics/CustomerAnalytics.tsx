@@ -71,9 +71,9 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
+    <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 sm:p-5">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
-      <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+      <dd className="mt-2 text-3xl font-semibold tracking-tight text-tapit-ink">
         {value.toLocaleString()}
       </dd>
     </div>
@@ -179,7 +179,7 @@ function DemoCustomerAnalytics() {
       </Panel>
 
       <Panel title="Engagement summary">
-        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
@@ -351,7 +351,7 @@ function LiveCustomerAnalytics() {
         </div>
       </Panel>
       <Panel title="Engagement summary">
-        <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
