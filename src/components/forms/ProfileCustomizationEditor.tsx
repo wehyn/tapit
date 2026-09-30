@@ -54,7 +54,6 @@ const categoryLabels: Record<ProfileCustomizationCategory, string> = {
 
 const radioClass =
   "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
-const LARGE_VIEWPORT_QUERY = "(min-width: 1024px)";
 
 function RadioChoice({
   checked,
@@ -300,20 +299,7 @@ export function ProfileCustomizationEditor({
   const focusOverviewAfterTransitionRef = useRef(false);
   const [selectedCategory, setSelectedCategory] =
     useState<ProfileCustomizationCategory>("overview");
-  const [tablistOrientation, setTablistOrientation] = useState<"horizontal" | "vertical">(
-    "horizontal",
-  );
   const activeCategory = customization ? selectedCategory : "overview";
-
-  useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(LARGE_VIEWPORT_QUERY);
-    const updateOrientation = () =>
-      setTablistOrientation(query.matches ? "vertical" : "horizontal");
-    updateOrientation();
-    query.addEventListener?.("change", updateOrientation);
-    return () => query.removeEventListener?.("change", updateOrientation);
-  }, []);
 
   useEffect(() => {
     const focusTarget = focusTargetRef.current;
@@ -373,12 +359,8 @@ export function ProfileCustomizationEditor({
     if (currentIndex < 0) return;
 
     let nextIndex = currentIndex;
-    const movesForward =
-      (tablistOrientation === "horizontal" && event.key === "ArrowRight") ||
-      (tablistOrientation === "vertical" && event.key === "ArrowDown");
-    const movesBackward =
-      (tablistOrientation === "horizontal" && event.key === "ArrowLeft") ||
-      (tablistOrientation === "vertical" && event.key === "ArrowUp");
+    const movesForward = event.key === "ArrowRight";
+    const movesBackward = event.key === "ArrowLeft";
     if (movesForward) {
       nextIndex = (currentIndex + 1) % enabledCategories.length;
     } else if (movesBackward) {
@@ -415,11 +397,11 @@ export function ProfileCustomizationEditor({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[9rem_minmax(0,1fr)]">
+    <div className="grid min-w-0 gap-5">
       <nav
         aria-label="Customization categories"
-        aria-orientation={tablistOrientation}
-        className="flex min-w-0 gap-2 overflow-x-auto pb-1 lg:grid lg:content-start"
+        aria-orientation="horizontal"
+        className="flex min-w-0 gap-2 overflow-x-auto pb-1"
         role="tablist"
       >
         {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
@@ -432,7 +414,7 @@ export function ProfileCustomizationEditor({
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
-              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-tapit border px-3 text-left text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-tapit-accent lg:w-full ${
+              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-tapit border px-4 text-left text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-tapit-accent ${
                 selected
                   ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink"
                   : "border-tapit-line bg-tapit-surface text-tapit-muted hover:border-tapit-accent hover:text-tapit-ink"
