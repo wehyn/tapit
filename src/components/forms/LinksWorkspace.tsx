@@ -104,7 +104,7 @@ export function LinksWorkspace({
     redirectError || hasValidRedirectDestination ? "profile-redirect-feedback" : undefined;
 
   return (
-    <div className="[&_section>h2]:font-serif mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
+    <div className="[&_section>h2]:font-[Georgia] mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
       <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
         <section aria-labelledby="links-workspace-title">
           <h1 className="sr-only" id="links-workspace-title">
@@ -123,7 +123,7 @@ export function LinksWorkspace({
             <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-5 sm:py-6">
               <div className="min-w-0 max-w-2xl">
                 <h2
-                  className="text-lg font-semibold tracking-[-0.02em] text-tapit-ink"
+                  className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink"
                   id="profile-redirect-title"
                 >
                   Redirect card taps and scans

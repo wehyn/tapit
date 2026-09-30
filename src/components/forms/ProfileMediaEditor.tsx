@@ -273,7 +273,7 @@ export function ProfileMediaEditor({
 
   return (
     <div className="grid gap-5">
-      <div className="grid gap-3">
+      <div className="grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-tapit-ink">Background image</h3>
@@ -384,7 +384,7 @@ export function ProfileMediaEditor({
         value={value.heroHeight}
       />
 
-      <div className="grid gap-3">
+      <div className="grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-tapit-ink">Slideshow</h3>

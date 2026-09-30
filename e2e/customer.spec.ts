@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import {
   resetDemoHarness,
   setDemoMediaUploadControl,
+  signInAsAdmin,
   signInAsCustomer,
 } from "./support/demo-harness";
 
@@ -171,6 +172,75 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
+test("standalone card builder keeps its public shell and upload preview usable", async ({
+  page,
+}) => {
+  await signInAsCustomer(page);
+  await page.goto("/build-card");
+
+  await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: /Your Tapit profile navigation/ })).toHaveCount(
+    0,
+  );
+  const heading = page.getByRole("heading", { name: "Bring your card to life" });
+  await expect(heading).toBeVisible();
+  await expect
+    .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
+    .toMatch(/^Georgia/i);
+
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+
+  await page
+    .getByLabel("Upload your design")
+    .setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  const preview = page.getByRole("dialog", { name: "Looks good?" });
+  await expect(preview).toBeVisible();
+  await expect(preview.getByRole("img", { name: "Preview of transparent-logo.png" })).toBeVisible();
+  await preview.getByRole("button", { name: /Order a card now/ }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Ordering is coming soon" }),
+  ).toBeVisible();
+  await preview.getByRole("button", { name: "Choose another design" }).click();
+  await expect(preview).toHaveCount(0);
+});
+
+test("active-card QR downloads keep the warm surface and remain available", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsAdmin(page);
+  await page.goto("/admin/cards");
+
+  await page.locator("details").filter({ hasText: "mara-card-7f2q" }).locator("summary").click();
+  const qrTitle = page.getByText("QR fallback", { exact: true }).first();
+  await expect(qrTitle).toBeVisible();
+  const qrPanel = qrTitle.locator("xpath=..");
+  await expect
+    .poll(() => qrPanel.evaluate((panel) => getComputedStyle(panel).backgroundColor))
+    .toBe("rgb(240, 237, 229)");
+  const png = page.getByRole("link", { name: "Download PNG" }).first();
+  await expect(qrPanel).toContainText("/c/mara-card-7f2q?source=qr");
+  await expect(png).toHaveAttribute("href", /^data:image\/png;base64,/);
+  await expect(png).toHaveAttribute("download", /\.png$/);
+  await expect(page.getByRole("button", { name: "Download SVG" }).first()).toBeEnabled();
+  await expect
+    .poll(() => png.evaluate((anchor) => getComputedStyle(anchor).borderTopLeftRadius))
+    .toBe("18px");
+  await expect(page.getByRole("img", { name: /QR code for/ }).first()).toBeVisible();
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await png.scrollIntoViewIfNeeded();
+    await expect(png).toBeInViewport();
+    const panelBox = await qrPanel.boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox!.x).toBeGreaterThanOrEqual(0);
+    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(width);
+  }
+});
+
 test("customer sidebar uses the Warm Editorial surface and stays grouped across desktop and mobile", async ({
   page,
 }) => {
@@ -286,6 +356,13 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   ]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Profile identity", exact: true })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/^Georgia/i);
   await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
   await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
   const frame = page.getByTestId("profile-preview-frame");
@@ -400,6 +477,13 @@ test("customer drafts stay private until link and profile publication", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/links");
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Redirect card taps and scans", exact: true })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/^Georgia/i);
   await expect(page.getByRole("heading", { name: "Your links", exact: true })).toHaveCount(0);
   await expect(
     page.getByText(
@@ -483,6 +567,14 @@ test("customer customization drafts stay private until the profile is published"
   await signInAsCustomer(page);
 
   await page.goto("/app/customize");
+  await expect
+    .poll(() =>
+      page
+        .getByRole("tabpanel")
+        .first()
+        .evaluate((panel) => getComputedStyle(panel).backgroundColor),
+    )
+    .toBe("rgb(255, 253, 248)");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -849,6 +941,13 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
 
   await imageInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(cropDialog).toBeVisible();
+  await expect
+    .poll(() =>
+      cropDialog
+        .getByRole("heading", { name: "Adjust profile photo" })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/^Georgia/i);
   await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
@@ -858,6 +957,13 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await signInAsCustomer(page);
   await page.getByRole("link", { name: "Analytics" }).click();
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Profile analytics" })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/^Georgia/i);
   await expect(page.getByText("Profile views")).toBeVisible();
   for (const copy of [
     "Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history.",
@@ -878,6 +984,13 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await page.getByRole("link", { name: "Account" }).click();
   await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Delete account" })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/^Georgia/i);
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();

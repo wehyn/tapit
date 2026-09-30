@@ -462,7 +462,7 @@ export function ProfileCustomizationEditor({
         <section
           aria-labelledby={`${baseId}-tab-${category}`}
           aria-label={`${categoryLabels[category]} settings`}
-          className="outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
+          className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
           hidden={activeCategory !== category}
           id={`${baseId}-panel-${category}`}
           key={category}

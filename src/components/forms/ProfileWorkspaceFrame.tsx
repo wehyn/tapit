@@ -52,7 +52,7 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`[&_section>h2]:font-serif mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">

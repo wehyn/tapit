@@ -53,12 +53,12 @@ export function ProfilePublicationPanel({
       ) : null}
       {!hasErrors ? (
         status === "published" && !hasChangesSincePublish ? (
-          <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+          <p className="mt-5 flex items-center gap-2 text-sm text-tapit-accent-strong">
             <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
             Your published profile is up to date.
           </p>
         ) : (
-          <p className="mt-5 flex items-center gap-2 text-sm text-[#17352b]">
+          <p className="mt-5 flex items-center gap-2 text-sm text-tapit-accent-strong">
             <CheckCircleIcon aria-hidden="true" size={18} weight="fill" />
             {status === "published"
               ? "Your saved changes are ready to publish."
