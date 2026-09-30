@@ -127,10 +127,15 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
-test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
+test("customer sidebar uses the Quiet Precision surface and stays grouped across desktop and mobile", async ({
+  page,
+}) => {
   await signInAsCustomer(page);
   await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
   const island = page.getByTestId("workspace-sidebar");
+  await expect
+    .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe("rgb(245, 247, 245)");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
   expect(desktopBox!.x).toBeGreaterThan(0);
