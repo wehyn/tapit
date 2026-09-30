@@ -248,22 +248,26 @@ test("legacy customer typography and selected theme remain intact in preview and
   );
   await expect(preview).toHaveCSS("color", "rgb(242, 246, 241)");
 
-  const paths = [];
-  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
-    await page.goto(path);
-    const heading = page.getByRole("heading", { name: "Mara Velasquez" });
-    await expect(heading).toHaveCSS("font-family", /ui-sans-serif/);
-    await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
-    await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
-    paths.push(await readPublicProfileSnapshot(page));
-  }
+  await page.goto("/mara-velasquez");
+  const directHeading = page.getByRole("heading", { name: "Mara Velasquez" });
+  await expect(directHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
+  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  const directProfile = await readPublicProfileSnapshot(page);
 
-  expect(paths[0]).toEqual(paths[1]);
-  expect(paths[0].headingFontFamily).toBe(previewFontFamily);
-  expect(paths[0].pageBackground).toBe("rgb(23, 33, 31)");
-  expect(paths[0].panelBackground).toBe("rgb(34, 48, 43)");
-  expect(paths[0].panelRadius).toBe("18px");
-  expect(paths[0].pageClass).toContain("bg-[#17211f]");
+  await page.goto("/c/mara-card-7f2q");
+  const cardHeading = page.getByRole("heading", { name: "Mara Velasquez" });
+  await expect(cardHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
+  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  const cardProfile = await readPublicProfileSnapshot(page);
+
+  expect(directProfile).toEqual(cardProfile);
+  expect(directProfile.headingFontFamily).toBe(previewFontFamily);
+  expect(directProfile.pageBackground).toBe("rgb(23, 33, 31)");
+  expect(directProfile.panelBackground).toBe("rgb(34, 48, 43)");
+  expect(directProfile.panelRadius).toBe("18px");
+  expect(directProfile.pageClass).toContain("bg-[#17211f]");
 });
 
 test("tagged profile activity appears by source and aggregates to one daily trend point", async ({
