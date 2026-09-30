@@ -55,7 +55,7 @@ export function WorkspacePreview({
   );
 
   return (
-    <section className="h-fit min-w-0 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_5px_24px_rgba(21,25,24,0.045)] min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:[zoom:0.86]">
+    <section className="h-fit min-w-0 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_8px_28px_rgba(40,53,44,0.035)] min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:[zoom:0.86]">
       <div className="flex items-center justify-between gap-3 border-b border-tapit-line px-5 py-4 sm:px-6">
         <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-tapit-ink">
           <EyeIcon aria-hidden="true" size={18} weight="bold" />

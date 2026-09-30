@@ -52,11 +52,11 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`[&_section>h2]:font-serif mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">
-          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
+          <h1 className="tapit-display text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
             {title}
           </h1>
           <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">{description}</p>
@@ -85,7 +85,7 @@ export function ProfileWorkspaceFrame({
         )}
       </div>
       {shouldShowActions ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-surface/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
           <section aria-label="Draft actions" className="mx-auto max-w-[1440px]" role="region">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-sm">

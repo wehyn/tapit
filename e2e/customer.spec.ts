@@ -915,6 +915,15 @@ test("customer utility workspaces fit phone and desktop widths", async ({ page }
 
   for (const route of ["/app/analytics", "/app/account", "/app/account/build-card"] as const) {
     await page.goto(route);
+    if (route === "/app/account/build-card") {
+      await expect
+        .poll(() =>
+          page
+            .getByRole("heading", { name: "Bring your card to life" })
+            .evaluate((heading) => getComputedStyle(heading).fontFamily),
+        )
+        .toMatch(/Georgia|Times New Roman/i);
+    }
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.locator("main").first()).toBeVisible();
