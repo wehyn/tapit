@@ -190,23 +190,26 @@ function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) 
 
 function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) {
   return (
-    <div className="grid gap-2 sm:grid-cols-2 min-[1100px]:hidden">
+    <div className="grid gap-3 sm:grid-cols-2 min-[1100px]:hidden">
       {entries.map((entry) => (
         <button
           aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
           aria-expanded={entry.selected}
           aria-haspopup="dialog"
           aria-label={`Select ${entry.name} profile`}
-          className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
+          className={`grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-tapit border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
           key={entry.id}
           onClick={entry.onOpen}
           type="button"
         >
           <span className="min-w-0">
+            <span className="block text-[10px] font-semibold tracking-[0.14em] text-tapit-muted uppercase">
+              Profile
+            </span>
             <span className="block truncate font-semibold text-tapit-ink">{entry.name}</span>
             <span className="mt-1 block truncate text-sm text-tapit-muted">/{entry.slug}</span>
           </span>
-          <span className="flex shrink-0 items-center gap-2">
+          <span className="flex shrink-0 flex-col items-end gap-2">
             <StatusBadge status={entry.status} />
             <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
           </span>
@@ -1094,7 +1097,15 @@ function LiveProfilesManager() {
   }
 
   if (paginationStatus === "LoadingFirstPage")
-    return <div className="p-8 text-sm text-tapit-muted">Loading profiles…</div>;
+    return (
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Review publication state and open a profile to inspect, edit, or moderate it."
+          title="Profiles"
+        />
+        <Notice>Loading profiles…</Notice>
+      </div>
+    );
 
   async function uploadPhoto(prepared: { blob: Blob; contentType: string }) {
     if (!profile) throw new Error("Select a profile before uploading a photo.");

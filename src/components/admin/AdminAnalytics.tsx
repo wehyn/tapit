@@ -432,32 +432,37 @@ function DemoAdminAnalytics() {
       >
         <SourceBreakdown totals={sourceTotals} />
       </Panel>
-      <dl className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-6">
-          <UsersThreeIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-          <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-          <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
-            {totals.views.toLocaleString()}
-          </dd>
-          <p className="mt-2 text-xs text-tapit-muted">All active entry paths</p>
-        </div>
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-6">
-          <ActivityIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-          <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-          <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
-            {totals.uniqueViews.toLocaleString()}
-          </dd>
-          <p className="mt-2 text-xs text-tapit-muted">Privacy-preserving estimate</p>
-        </div>
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-6">
-          <CardsIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-          <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-          <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
-            {totals.clicks.toLocaleString()}
-          </dd>
-          <p className="mt-2 text-xs text-tapit-muted">Destination selections</p>
-        </div>
-      </dl>
+      <Panel
+        description="A compact view of profile reach and destination activity for the selected time range."
+        title="Engagement overview"
+      >
+        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+            <UsersThreeIcon aria-hidden="true" className="text-tapit-accent" size={22} />
+            <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
+            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+              {totals.views.toLocaleString()}
+            </dd>
+            <p className="mt-2 text-xs text-tapit-muted">All active entry paths</p>
+          </div>
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+            <ActivityIcon aria-hidden="true" className="text-tapit-accent" size={22} />
+            <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
+            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+              {totals.uniqueViews.toLocaleString()}
+            </dd>
+            <p className="mt-2 text-xs text-tapit-muted">Privacy-preserving estimate</p>
+          </div>
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+            <CardsIcon aria-hidden="true" className="text-tapit-accent" size={22} />
+            <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
+            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+              {totals.clicks.toLocaleString()}
+            </dd>
+            <p className="mt-2 text-xs text-tapit-muted">Destination selections</p>
+          </div>
+        </dl>
+      </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
@@ -469,7 +474,7 @@ function DemoAdminAnalytics() {
           {profiles.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="flex w-full flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4 text-left transition-colors hover:border-tapit-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4 text-left transition-colors hover:border-tapit-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile.id}
               onClick={() => setSelectedProfile(profile)}
               type="button"
@@ -489,7 +494,7 @@ function DemoAdminAnalytics() {
           ))}
           {state.cards.map((card) => (
             <div
-              className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4"
               key={card.id}
             >
               <div>
@@ -581,7 +586,15 @@ function LiveAdminAnalytics() {
     [pages.results, selectedProfileId],
   );
   if (profiles === undefined || cards === undefined || pages.status === "LoadingFirstPage")
-    return <div className="p-8 text-sm text-tapit-muted">Loading operational analytics…</div>;
+    return (
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Review aggregate profile engagement and operational activity over time."
+          title="Analytics"
+        />
+        <Notice>Loading operational analytics…</Notice>
+      </div>
+    );
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <AdminPageHeader
@@ -607,26 +620,31 @@ function LiveAdminAnalytics() {
           </SelectField>
         </div>
       </Panel>
-      <dl className="grid gap-2 sm:grid-cols-3">
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
-          <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-          <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
-            {totals.views.toLocaleString()}
-          </dd>
-        </div>
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
-          <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-          <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
-            {totals.uniqueViews.toLocaleString()}
-          </dd>
-        </div>
-        <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5">
-          <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-          <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
-            {totals.clicks.toLocaleString()}
-          </dd>
-        </div>
-      </dl>
+      <Panel
+        description="A compact view of profile reach and destination activity for the selected time range."
+        title="Engagement overview"
+      >
+        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+            <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
+            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+              {totals.views.toLocaleString()}
+            </dd>
+          </div>
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+            <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
+            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+              {totals.uniqueViews.toLocaleString()}
+            </dd>
+          </div>
+          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+            <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
+            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+              {totals.clicks.toLocaleString()}
+            </dd>
+          </div>
+        </dl>
+      </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
@@ -635,7 +653,7 @@ function LiveAdminAnalytics() {
           {profiles.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="flex w-full flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-left hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-left hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile._id}
               onClick={() => setSelectedProfileId(profile._id)}
               type="button"
@@ -651,7 +669,7 @@ function LiveAdminAnalytics() {
           ))}
           {cards.map((card) => (
             <div
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
               key={card._id}
             >
               <div>

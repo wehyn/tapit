@@ -170,6 +170,62 @@ test("administrator pages present a visible editorial page heading", async ({ pa
   }
 });
 
+test("administrator records and governance details stay readable on phones", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto("/admin/customers");
+  const mara = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+  await expect(mara).toBeVisible();
+  await expect(mara.getByRole("button")).toContainText("Mara Velasquez");
+  await expect(mara.getByText("active", { exact: true })).toBeVisible();
+  await expect(mara.getByText("published", { exact: true })).toBeVisible();
+  await expect(mara.getByRole("link", { name: "View profile" })).toBeVisible();
+  const maraSelector = mara.getByRole("button");
+  await maraSelector.click();
+  await expect(maraSelector).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Selected customer" })).toBeVisible();
+
+  await page.goto("/admin/profiles");
+  const maraProfile = page.getByRole("button", { name: "Select Mara Velasquez profile" });
+  await expect(maraProfile).toContainText("published");
+  await maraProfile.click();
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  await expect(dialog.getByRole("tab", { name: "Edit profile" })).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "Details & slug" })).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await expect(card).toBeVisible();
+  await expect(card.locator("summary")).toContainText("Mara Velasquez");
+  await expect(card.locator("summary")).toContainText("active");
+});
+
+test("administrator analytics, audit, and settings keep their scoped feedback clear", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+
+  await page.goto("/admin/analytics");
+  await expect(page.getByRole("heading", { name: "Engagement overview" })).toBeVisible();
+  await expect(page.getByText(/Cross-customer totals are aggregate-only/)).toBeVisible();
+  await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
+  await expect(page.getByText("Unique views", { exact: true })).toBeVisible();
+  await expect(page.getByText("Link clicks", { exact: true })).toBeVisible();
+  await expect(page.getByText(/visitor identity|raw event history/i)).toBeVisible();
+
+  await page.goto("/admin/audit-log");
+  const auditEntry = page.locator("details").first();
+  await expect(auditEntry.getByText(/^By /)).toBeVisible();
+  await expect(auditEntry.locator("time")).toBeVisible();
+  await expect(auditEntry.getByText("View details")).toBeVisible();
+
+  await page.goto("/admin/settings");
+  await page.getByLabel("Support destination").fill("mailto:support@example.test");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByText("Support destination saved.")).toBeVisible();
+});
+
 test("administrator profile registry uses scannable desktop rows", async ({ page }) => {
   await signInAsAdmin(page);
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -473,6 +529,9 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.getByLabel("New pre-encoded card URL").fill("/c/replacement-card-xyz");
   await page.getByRole("button", { name: "Review replacement" }).click();
   await expect(page.getByRole("dialog", { name: "Replace this card?" })).toBeVisible();
+  const replacementDialog = page.getByRole("dialog", { name: "Replace this card?" });
+  await expect(replacementDialog).toContainText("mara-card-7f2q");
+  await expect(replacementDialog).toContainText("/c/replacement-card-xyz");
   await page.getByRole("dialog").getByRole("button", { name: "Replace card" }).click();
   await expect(page.getByText("Card mara-card-7f2q was replaced.")).toBeVisible();
 

@@ -422,11 +422,11 @@ function DemoCardsManager() {
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(40,53,44,0.035)] transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus">
+                  <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-tapit-ink">
                         {profileLabel}{" "}
@@ -436,7 +436,7 @@ function DemoCardsManager() {
                       </p>
                       <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
+                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <StatusBadge status={card.status} />
                       <CaretDownIcon
                         aria-hidden="true"
@@ -734,7 +734,15 @@ function LiveCardsManager() {
   }
 
   if (cards === undefined || profiles === undefined || customerPages.status === "LoadingFirstPage")
-    return <div className="min-h-[60vh] bg-tapit-paper" />;
+    return (
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+          title="Cards"
+        />
+        <Notice>Loading card registry…</Notice>
+      </div>
+    );
   async function run(operation: () => Promise<unknown>, success: string) {
     setPending(true);
     setMessage(null);
@@ -880,7 +888,7 @@ function LiveCardsManager() {
                   key={card._id}
                 >
                   <details className="group">
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-4 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus">
+                    <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-tapit-ink">
                           {profileLabel}{" "}
@@ -890,7 +898,7 @@ function LiveCardsManager() {
                         </p>
                         <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
                       </div>
-                      <div className="flex shrink-0 items-center gap-3">
+                      <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
                         <StatusBadge status={card.status} />
                         <CaretDownIcon
                           aria-hidden="true"
