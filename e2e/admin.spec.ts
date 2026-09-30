@@ -97,6 +97,33 @@ test("administrator sidebar preserves operations and governance navigation", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
+test("administrator records and governance pages remain usable at phone and desktop widths", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+
+  const pages = [
+    { path: "/admin/customers", heading: "Customer accounts", marker: "Search customers" },
+    { path: "/admin/profiles", heading: "Profile registry", marker: "Search profiles" },
+    { path: "/admin/cards", heading: "Card registry", marker: "Search cards" },
+    { path: "/admin/analytics", heading: "Operational analytics", marker: "Time range" },
+    { path: "/admin/audit-log", heading: "Audit log", marker: "Search audit entries" },
+    { path: "/admin/settings", heading: "Support contact", marker: "Support destination" },
+  ];
+
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const item of pages) {
+      await page.goto(item.path);
+      await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.getByLabel(item.marker)).toBeVisible();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+        width,
+      );
+    }
+  }
+});
+
 test("administrator can inspect only the selected profile analytics and traffic sources", async ({
   page,
 }) => {

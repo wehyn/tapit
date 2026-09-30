@@ -195,11 +195,11 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
   const changes = getAuditChanges(entry.action, entry.before, entry.after);
   return (
     <details
-      className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+      className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent">
-        <span>
+        <span className="min-w-0">
           <span className="block font-semibold text-tapit-ink">
             {readableAuditAction(entry.action)}
           </span>
@@ -212,7 +212,7 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
                 : ""}
           </span>
         </span>
-        <span className="flex items-center gap-3 text-xs text-tapit-muted">
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tapit-muted">
           <time dateTime={occurredAt.toISOString()}>{occurredAt.toLocaleString()}</time>
           <span className="text-tapit-accent">{isOpen ? "Hide details" : "View details"}</span>
         </span>
