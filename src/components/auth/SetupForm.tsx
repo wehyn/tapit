@@ -112,7 +112,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
             <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Hosted demo setup
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
               Choose a password
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
@@ -242,7 +242,7 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
             <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Set up your account
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
               Choose a password
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
@@ -368,7 +368,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
             <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Set up your account
             </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
               Join Tapit with Google
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">

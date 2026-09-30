@@ -103,7 +103,7 @@ export function OnboardingForm() {
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Finish your profile
           </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
+          <h1 className="tapit-display mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
             Choose your display name
           </h1>
           <p className="mt-4 text-sm leading-6 text-tapit-muted">

@@ -7,6 +7,9 @@ test("mobile homepage brings the Tapit profile card into the hero", async ({ pag
   await expect(
     page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
+  ).toHaveClass(/tapit-display/);
   const heroHeading = page.getByRole("heading", {
     name: "Share one profile. Update it anytime.",
   });

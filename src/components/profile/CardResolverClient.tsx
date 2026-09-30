@@ -231,7 +231,9 @@ function CardRedirectLoading() {
         <div className="grid h-24 w-24 place-items-center rounded-full bg-tapit-accent-soft">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-tapit-line border-t-tapit-accent" />
         </div>
-        <h1 className="mt-8 text-3xl font-semibold tracking-tight text-tapit-ink">Redirecting</h1>
+        <h1 className="tapit-display mt-8 text-3xl font-semibold tracking-tight text-tapit-ink">
+          Redirecting
+        </h1>
         <p className="mt-3 text-sm text-tapit-muted" role="status">
           Taking you to the destination...
         </p>
