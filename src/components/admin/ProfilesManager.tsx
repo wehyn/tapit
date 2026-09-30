@@ -320,7 +320,7 @@ function ProfileDialog({
           </Button>
         </div>
         <div className="shrink-0 border-b border-tapit-line px-5 sm:px-8">
-          <div aria-label="Profile sections" className="flex gap-6" role="tablist">
+          <div aria-label="Profile sections" className="flex gap-4 sm:gap-6" role="tablist">
             <button
               aria-controls="admin-profile-editor-panel"
               aria-selected={selectedTab === "edit"}
@@ -631,7 +631,7 @@ function DemoProfilesManager() {
       </Panel>
 
       <Panel className="p-3 sm:p-4" title="Profile registry">
-        <div className="mt-3 grid gap-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {matchingProfiles.length === 0 ? <Notice>No profiles match this search.</Notice> : null}
           {matchingProfiles.map((candidate) => (
             <button
@@ -640,7 +640,7 @@ function DemoProfilesManager() {
               aria-controls={candidate.id === profile?.id ? "admin-profile-dialog" : undefined}
               aria-expanded={candidate.id === profile?.id}
               aria-haspopup="dialog"
-              className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border p-3 text-left transition-colors ${candidate.id === profile?.id ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-paper hover:border-tapit-accent/50"}`}
+              className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border p-3.5 text-left transition-colors ${candidate.id === profile?.id ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
               key={candidate.id}
               onClick={() => {
                 setSelectedProfileId(candidate.id);

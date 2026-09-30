@@ -260,7 +260,7 @@ function DemoCustomersManager() {
         description="Search by email. New invitations remain separate from profile publication and card assignment."
         title="Customer accounts"
       >
-        <div className="mt-6 flex items-end gap-3">
+        <div className="mt-6 flex flex-wrap items-end gap-3">
           <UsersThreeIcon
             aria-hidden="true"
             className="mb-3 hidden text-tapit-muted sm:block"
@@ -292,7 +292,7 @@ function DemoCustomersManager() {
                 : state.cards.filter((card) => card.profileId === profile.id).length;
             return (
               <article
-                className={`rounded-tapit border bg-tapit-paper p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent shadow-[0_8px_24px_rgba(24,116,97,0.10)]" : "border-tapit-line hover:border-tapit-accent/50"}`}
+                className={`rounded-tapit border bg-tapit-surface p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent" : "border-tapit-line hover:border-tapit-accent/50"}`}
                 key={customer.id}
               >
                 <button
@@ -313,12 +313,12 @@ function DemoCustomersManager() {
                     <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
                   </span>
                 </button>
-                <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-tapit-line pt-4 text-sm">
+                <dl className="mt-4 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
                       Setup
                     </dt>
-                    <dd className="mt-1 text-tapit-ink">
+                    <dd className="mt-1 break-words text-tapit-ink">
                       {customer.setupToken ? "Invitation pending" : "Complete"}
                     </dd>
                   </div>
