@@ -70,6 +70,22 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     await expect(save).toBeVisible();
     await expect(publish).toBeVisible();
 
+    if (route === "/app/profile") {
+      const profileUrl = page.getByRole("link", { name: "/mara-velasquez", exact: true });
+      const urlTextCenter = await profileUrl.evaluate((anchor) => {
+        const range = document.createRange();
+        range.selectNodeContents(anchor);
+        const bounds = range.getBoundingClientRect();
+        return bounds.top + bounds.height / 2;
+      });
+      const urlIcon = profileUrl.locator("xpath=../..").locator("svg").first();
+      const urlIconBounds = await urlIcon.boundingBox();
+      expect(urlIconBounds).not.toBeNull();
+      expect(
+        Math.abs(urlTextCenter - (urlIconBounds!.y + urlIconBounds!.height / 2)),
+      ).toBeLessThanOrEqual(2);
+    }
+
     const previewBox = await preview.boundingBox();
     const saveBox = await save.boundingBox();
     const publishBox = await publish.boundingBox();

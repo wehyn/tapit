@@ -128,7 +128,7 @@ export function WorkspacePreview({
             <LinkSimpleIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
             <div className="min-w-0">
               <a
-                className="block truncate text-sm font-medium text-tapit-accent-strong hover:underline"
+                className="flex min-h-11 items-center truncate text-sm font-medium text-tapit-accent-strong hover:underline"
                 href={profileUrl}
               >
                 {profileUrl}
