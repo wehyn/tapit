@@ -15,6 +15,7 @@ import {
 } from "@/lib/demo/store";
 
 import { SelectField } from "@/components/ui/Field";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -395,6 +396,10 @@ function DemoAdminAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review aggregate profile engagement and operational activity over time."
+        title="Analytics"
+      />
       <Panel
         description="Cross-customer totals are aggregate-only. No visitor identity or raw event history is available in this console."
         title="Operational analytics"
@@ -579,6 +584,10 @@ function LiveAdminAnalytics() {
     return <div className="p-8 text-sm text-tapit-muted">Loading operational analytics…</div>;
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review aggregate profile engagement and operational activity over time."
+        title="Analytics"
+      />
       <Panel description="Cross-customer totals are aggregate-only." title="Operational analytics">
         {pages.status !== "Exhausted" ? (
           <Notice>Loading the complete analytics range…</Notice>

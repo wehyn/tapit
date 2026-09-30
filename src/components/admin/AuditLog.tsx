@@ -10,6 +10,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { useDemoState } from "@/lib/demo/store";
 
 import { Field } from "@/components/ui/Field";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 
@@ -282,6 +283,10 @@ function DemoAuditLog() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review who changed account, profile, card, and operational settings."
+        title="Audit log"
+      />
       <Panel
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
@@ -327,6 +332,10 @@ function LiveAuditLog() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review who changed account, profile, card, and operational settings."
+        title="Audit log"
+      />
       <Panel
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"

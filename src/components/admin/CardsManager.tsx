@@ -24,6 +24,7 @@ import {
 } from "@/lib/demo/store";
 
 import { Button } from "@/components/ui/Button";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -342,6 +343,10 @@ function DemoCardsManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+        title="Cards"
+      />
       <Panel
         className="min-w-0"
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
@@ -777,6 +782,10 @@ function LiveCardsManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+        title="Cards"
+      />
       <Panel className="min-w-0" title="Register card URL">
         <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
           <div className="min-w-0 flex-1 sm:min-w-72">

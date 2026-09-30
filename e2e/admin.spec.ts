@@ -101,19 +101,19 @@ test("administrator records and governance pages remain usable at phone and desk
   await signInAsAdmin(page);
 
   const pages = [
-    { path: "/admin/customers", heading: "Customer accounts", marker: "Search customers" },
-    { path: "/admin/profiles", heading: "Profile registry", marker: "Search profiles" },
-    { path: "/admin/cards", heading: "Card registry", marker: "Search cards" },
-    { path: "/admin/analytics", heading: "Operational analytics", marker: "Time range" },
+    { path: "/admin/customers", heading: "Customers", marker: "Search customers" },
+    { path: "/admin/profiles", heading: "Profiles", marker: "Search profiles" },
+    { path: "/admin/cards", heading: "Cards", marker: "Search cards" },
+    { path: "/admin/analytics", heading: "Analytics", marker: "Time range" },
     { path: "/admin/audit-log", heading: "Audit log", marker: "Search audit entries" },
-    { path: "/admin/settings", heading: "Support contact", marker: "Support destination" },
+    { path: "/admin/settings", heading: "Settings", marker: "Support destination" },
   ];
 
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     for (const item of pages) {
       await page.goto(item.path);
-      await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.getByRole("heading", { name: item.heading, level: 1 })).toBeVisible();
       await expect(page.getByLabel(item.marker)).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       if (scrollWidth > width) {
@@ -145,6 +145,28 @@ test("administrator records and governance pages remain usable at phone and desk
       }
       expect(scrollWidth).toBeLessThanOrEqual(width);
     }
+  }
+});
+
+test("administrator pages present a visible editorial page heading", async ({ page }) => {
+  await signInAsAdmin(page);
+
+  const pages = [
+    { path: "/admin/customers", title: "Customers" },
+    { path: "/admin/profiles", title: "Profiles" },
+    { path: "/admin/cards", title: "Cards" },
+    { path: "/admin/analytics", title: "Analytics" },
+    { path: "/admin/audit-log", title: "Audit log" },
+    { path: "/admin/settings", title: "Settings" },
+  ];
+
+  for (const item of pages) {
+    await page.goto(item.path);
+    const heading = page.getByRole("heading", { name: item.title, level: 1 });
+    await expect(heading).toBeVisible();
+    await expect
+      .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
+      .toMatch(/ui-serif|Georgia|serif/i);
   }
 });
 

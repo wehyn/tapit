@@ -10,6 +10,7 @@ import { CheckCircleIcon, GearSixIcon, LifebuoyIcon } from "@phosphor-icons/reac
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
 
 import { Button } from "@/components/ui/Button";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
@@ -54,6 +55,10 @@ function DemoSettingsManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage support destinations and review current launch readiness notes."
+        title="Settings"
+      />
       <Panel
         description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
         title="Support contact"
@@ -122,6 +127,10 @@ function LiveSettingsManager() {
     return <div className="p-8 text-sm text-tapit-muted">Loading settings…</div>;
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage support destinations and review current launch readiness notes."
+        title="Settings"
+      />
       <Panel
         description="This destination is used for generic support states and account help."
         title="Support contact"

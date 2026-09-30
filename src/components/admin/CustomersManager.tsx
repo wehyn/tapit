@@ -17,6 +17,7 @@ import {
 } from "@/lib/demo/store";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -183,6 +184,10 @@ function DemoCustomersManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage customer access, invitations, and account status."
+        title="Customers"
+      />
       <Panel
         description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
         title="Create customer"
@@ -605,6 +610,10 @@ function LiveCustomersManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage customer access, invitations, and account status."
+        title="Customers"
+      />
       <Panel title="Create customer">
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
           <div className="min-w-72 flex-1">
