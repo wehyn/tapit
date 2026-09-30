@@ -17,21 +17,24 @@ export function StatePage({
   title: string;
 }) {
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5 py-10">
+    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-8 sm:px-6 sm:py-10">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-7 shadow-[0_20px_60px_rgba(21,25,24,0.06)] sm:p-10"
+        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9"
       >
         <Brand />
-        <div className="mt-16 flex items-start gap-4">
+        <div className="mt-12 flex items-start gap-4 sm:mt-14">
           <div
             aria-hidden="true"
-            className="grid size-12 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent"
+            className="grid size-11 shrink-0 place-items-center rounded-full border border-tapit-line bg-tapit-soft-surface text-tapit-accent"
           >
             <WarningCircle size={24} weight="bold" />
           </div>
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-tapit-ink" id="state-title">
+            <h1
+              className="break-words text-2xl font-semibold leading-tight tracking-tight text-tapit-ink"
+              id="state-title"
+            >
               {title}
             </h1>
             <p className="mt-3 text-left text-sm leading-6 text-tapit-muted">{message}</p>
@@ -39,7 +42,7 @@ export function StatePage({
         </div>
         {actionHref && actionLabel ? (
           <Link
-            className="mt-9 inline-flex min-h-12 items-center gap-2 rounded-full bg-tapit-accent px-5 py-3 text-sm font-semibold text-white hover:bg-tapit-accent-strong"
+            className="mt-8 inline-flex min-h-12 max-w-full items-center gap-2 rounded-full bg-tapit-accent px-5 py-3 text-sm font-semibold text-white hover:bg-tapit-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
             href={actionHref}
           >
             {actionHref === "/" ? (

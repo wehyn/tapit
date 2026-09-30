@@ -306,9 +306,9 @@ export function PublicProfile({
           rel="noreferrer"
           target="_blank"
         >
-          <span className="flex items-center gap-3">
+          <span className="flex min-w-0 items-center gap-3">
             <LinkIcon aria-hidden="true" size={phonePreview || !preview ? 20 : 18} />
-            <span>{link.label}</span>
+            <span className="break-words text-left">{link.label}</span>
           </span>
           <ArrowUpRight
             aria-hidden="true"
@@ -357,14 +357,14 @@ export function PublicProfile({
       >
         {preview ? (
           <h2
-            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
             style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}
           </h2>
         ) : (
           <h1
-            className={`${typeScaleClasses} font-semibold tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
             style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}
@@ -372,7 +372,7 @@ export function PublicProfile({
         )}
         {profile.bio ? (
           <p
-            className={`${hasIntegratedBackground ? (preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7") : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} ${hasIntegratedBackground ? "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]" : mutedClasses}`}
+            className={`${hasIntegratedBackground ? (preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7") : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} break-words ${hasIntegratedBackground ? "drop-shadow-[0_1px_8px_rgba(0,0,0,0.45)]" : mutedClasses}`}
             style={warmStudio ? { color: appearance.bioColor } : undefined}
           >
             {profile.bio}
@@ -455,7 +455,7 @@ export function PublicProfile({
       className={`${phonePreview ? "min-h-0 p-0" : preview ? "min-h-0 px-3 py-3 sm:px-4 sm:py-5" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
     >
       <div
-        className={`mx-auto flex w-full ${phonePreview ? "max-w-none" : "max-w-xl"} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
+        className={`mx-auto flex w-full ${phonePreview ? "max-w-none" : "max-w-md"} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
       >
         {hasIntegratedBackground ? (
           <ProfileMediaSurface
@@ -470,7 +470,7 @@ export function PublicProfile({
           </ProfileMediaSurface>
         ) : (
           <section
-            className={`${profileFrameClasses} ${phonePreview ? "px-4 py-5" : preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-10 sm:py-10"} ${panelClasses}`}
+            className={`${profileFrameClasses} ${phonePreview ? "px-4 py-6" : preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-8 sm:py-9"} ${panelClasses}`}
           >
             {hasLegacyBackground ? (
               <ProfileMediaSurface
