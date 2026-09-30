@@ -107,7 +107,7 @@ export function ProfileImageCropDialog({
     crop.y + crop.size <= sourceDimensions.height;
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-tapit-ink/60 p-4 backdrop-blur-[2px]">
       <div
         ref={dialogRef}
         aria-labelledby="profile-image-crop-title"

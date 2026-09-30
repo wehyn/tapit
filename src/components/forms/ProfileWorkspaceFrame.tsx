@@ -52,7 +52,7 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`mx-auto grid w-full max-w-[1480px] gap-8 px-5 pt-7 sm:px-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(26rem,1fr)] min-[1400px]:gap-10 min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`mx-auto grid w-full max-w-[1480px] gap-7 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:gap-10 min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">
@@ -64,7 +64,7 @@ export function ProfileWorkspaceFrame({
         {message}
         {controls}
       </div>
-      <div className="h-fit">
+      <div className="h-fit min-w-0">
         {preview ? (
           <WorkspacePreview
             mode={previewMode}

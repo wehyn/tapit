@@ -104,7 +104,7 @@ export function LinksWorkspace({
     redirectError || hasValidRedirectDestination ? "profile-redirect-feedback" : undefined;
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] px-4 pb-28 pt-8 sm:px-8 lg:px-10 lg:pt-10">
+    <div className="mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
       <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
         <section aria-labelledby="links-workspace-title">
           <h1 className="sr-only" id="links-workspace-title">
@@ -118,7 +118,7 @@ export function LinksWorkspace({
           </div>
           <section
             aria-labelledby="profile-redirect-title"
-            className="mt-7 overflow-hidden rounded-tapit border border-tapit-line bg-white shadow-[0_18px_50px_rgba(21,25,24,0.05)]"
+            className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-white shadow-[0_4px_20px_rgba(21,25,24,0.035)]"
           >
             <div className="flex flex-wrap items-start justify-between gap-4 px-4 py-5 sm:px-5 sm:py-6">
               <div className="min-w-0 max-w-2xl">
@@ -187,7 +187,7 @@ export function LinksWorkspace({
             </div>
           ) : null}
           <div
-            className="mt-7 overflow-hidden rounded-tapit border border-tapit-line bg-white shadow-[0_18px_50px_rgba(21,25,24,0.05)]"
+            className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-white shadow-[0_4px_20px_rgba(21,25,24,0.035)]"
             aria-label="Editable profile links"
           >
             <div className="hidden border-b border-tapit-line bg-tapit-surface px-5 py-4 text-sm font-medium text-tapit-muted md:grid md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
