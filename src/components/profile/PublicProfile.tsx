@@ -470,7 +470,7 @@ export function PublicProfile({
           </ProfileMediaSurface>
         ) : (
           <section
-            className={`${profileFrameClasses} ${phonePreview ? "px-4 py-6" : preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-8 sm:py-9"} ${panelClasses}`}
+            className={`${profileFrameClasses} ${phonePreview ? "px-4 py-6" : preview ? "px-4 py-5 sm:px-6 sm:py-7" : "px-5 py-8 sm:px-10 sm:py-10"} ${panelClasses}`}
           >
             {hasLegacyBackground ? (
               <ProfileMediaSurface

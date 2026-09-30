@@ -86,10 +86,10 @@ export function ProfileImageCropDialog({
     dragStartRef.current = { x: clientX, y: clientY };
   }
 
-  function dragTo(clientX: number, clientY: number) {
+  function dragTo(clientX: number, clientY: number, surfaceSize: number) {
     const start = dragStartRef.current;
     if (!start) return;
-    const scale = crop.size / 280;
+    const scale = crop.size / (surfaceSize > 0 ? surfaceSize : 280);
     moveCrop("x", (start.x - clientX) * scale);
     moveCrop("y", (start.y - clientY) * scale);
     dragStartRef.current = { x: clientX, y: clientY };
@@ -125,7 +125,7 @@ export function ProfileImageCropDialog({
 
         <div
           aria-label="Crop profile photo"
-          className="relative mx-auto mt-5 grid size-[280px] place-items-center overflow-hidden border-4 border-white bg-[length:16px_16px] [background-image:linear-gradient(45deg,#e7e4dc_25%,transparent_25%),linear-gradient(-45deg,#e7e4dc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e4dc_75%),linear-gradient(-45deg,transparent_75%,#e7e4dc_75%)] [background-position:0_0,0_8px,8px_-8px,-8px_0] focus:outline-2 focus:outline-offset-4 focus:outline-tapit-accent"
+          className="relative mx-auto mt-5 grid aspect-square w-[min(280px,calc(100vw-5rem))] place-items-center overflow-hidden border-4 border-white bg-[length:16px_16px] [background-image:linear-gradient(45deg,#e7e4dc_25%,transparent_25%),linear-gradient(-45deg,#e7e4dc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e4dc_75%),linear-gradient(-45deg,transparent_75%,#e7e4dc_75%)] [background-position:0_0,0_8px,8px_-8px,-8px_0] focus:outline-2 focus:outline-offset-4 focus:outline-tapit-accent"
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft") moveCrop("x", -1);
             if (event.key === "ArrowRight") moveCrop("x", 1);
@@ -141,12 +141,16 @@ export function ProfileImageCropDialog({
               event.currentTarget.setPointerCapture(event.pointerId);
             }
           }}
-          onPointerMove={(event) => dragTo(event.clientX, event.clientY)}
+          onPointerMove={(event) =>
+            dragTo(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect().width)
+          }
           onPointerUp={() => {
             dragStartRef.current = null;
           }}
           onMouseDown={(event) => startDrag(event.clientX, event.clientY)}
-          onMouseMove={(event) => dragTo(event.clientX, event.clientY)}
+          onMouseMove={(event) =>
+            dragTo(event.clientX, event.clientY, event.currentTarget.getBoundingClientRect().width)
+          }
           onMouseUp={() => {
             dragStartRef.current = null;
           }}
