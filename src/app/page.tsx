@@ -38,7 +38,7 @@ function FeatureSection({
     <section className="border-t border-tapit-line py-24 sm:py-32" id={id}>
       <div className="mx-auto grid w-full max-w-[95rem] gap-12 px-[clamp(1.25rem,5vw,5.25rem)] lg:grid-cols-[0.8fr_1.2fr] lg:items-start lg:gap-24">
         <div className="max-w-lg">
-          <h2 className="text-4xl font-normal tracking-[-0.055em] text-tapit-ink sm:text-6xl">
+          <h2 className="tapit-display text-4xl font-normal tracking-[-0.055em] text-tapit-ink sm:text-6xl">
             {title}
           </h2>
         </div>
@@ -69,7 +69,7 @@ export default function HomePage() {
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
           <div className="grid flex-1 content-start items-start gap-5 pt-28 pb-12 sm:gap-14 sm:pt-32 sm:pb-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:content-center lg:items-center lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
-              <h1 className="max-w-[40rem] text-[clamp(2.1rem,9.7vw,5.5rem)] leading-[1.02] font-normal tracking-[-0.075em] text-balance sm:text-[clamp(3rem,5.6vw,5.5rem)] sm:leading-[0.96]">
+              <h1 className="tapit-display max-w-[40rem] text-[clamp(2.1rem,9.7vw,5.5rem)] leading-[1.02] font-normal tracking-[-0.075em] text-balance sm:text-[clamp(3rem,5.6vw,5.5rem)] sm:leading-[0.96]">
                 <span className="block">Share one profile.</span>
                 <span className="block">Update it anytime.</span>
               </h1>
@@ -99,7 +99,7 @@ export default function HomePage() {
               Put your work, socials, and best contact path behind one clear destination.
             </p>
           </div>
-          <div className="mt-8 rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-7 sm:p-9">
+          <div className="rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-7 sm:p-9">
             <UserPlus aria-hidden="true" className="text-tapit-accent" size={28} />
             <h3 className="mt-20 text-2xl font-medium tracking-tight">A better first hello.</h3>
             <p className="mt-3 max-w-xs text-sm leading-6 text-tapit-muted">
@@ -141,7 +141,7 @@ export default function HomePage() {
         id="teams"
       >
         <div className="mx-auto w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)]">
-          <h2 className="mx-auto max-w-3xl text-center text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
+          <h2 className="tapit-display mx-auto max-w-3xl text-center text-5xl font-normal tracking-[-0.06em] sm:text-7xl">
             Everyone gets one clear way to be found.
           </h2>
         </div>

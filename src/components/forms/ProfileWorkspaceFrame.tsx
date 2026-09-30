@@ -8,7 +8,6 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 
 export type ProfileWorkspaceFrameProps = {
   title: string;
-  description: string;
   controls: ReactNode;
   message?: ReactNode;
   preview: PublicProfileProjection | null;
@@ -29,7 +28,6 @@ export type ProfileWorkspaceFrameProps = {
 
 export function ProfileWorkspaceFrame({
   title,
-  description,
   controls,
   message,
   preview,
@@ -52,14 +50,11 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">
-          <h1 className="text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-            {title}
-          </h1>
-          <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">{description}</p>
+          <h1 className="sr-only">{title}</h1>
           <a
             className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent min-[1400px]:hidden"
             href="#workspace-preview"
@@ -85,7 +80,7 @@ export function ProfileWorkspaceFrame({
         )}
       </div>
       {shouldShowActions ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-surface/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
           <section aria-label="Draft actions" className="mx-auto max-w-[1440px]" role="region">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-sm">

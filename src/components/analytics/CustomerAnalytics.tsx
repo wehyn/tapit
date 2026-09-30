@@ -71,7 +71,7 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 sm:p-5">
+    <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
       <dd className="mt-2 text-3xl font-semibold tracking-tight text-tapit-ink">
         {value.toLocaleString()}
@@ -122,7 +122,7 @@ function DemoCustomerAnalytics() {
     .sort((left, right) => right.clicks - left.clicks);
 
   return (
-    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+    <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
       <Panel title="Profile analytics">
         <div className="mt-6 max-w-xs">
           <SelectField
@@ -296,7 +296,7 @@ function LiveCustomerAnalytics() {
     return <Notice tone="error">Your profile analytics are unavailable.</Notice>;
 
   return (
-    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+    <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
       <Panel title="Profile analytics">
         <div className="mt-6 max-w-xs">
           <SelectField

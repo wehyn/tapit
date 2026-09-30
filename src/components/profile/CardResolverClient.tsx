@@ -211,7 +211,7 @@ function CardResolverLoading() {
     >
       <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9">
         <div className="h-24 w-24 animate-pulse rounded-full bg-tapit-soft-surface" />
-        <div className="mt-8 h-10 w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
+        <div className="mt-8 h-10 w-full max-w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
         <p className="mt-5 text-sm text-tapit-muted" role="status">
           Loading card...
         </p>
@@ -231,7 +231,9 @@ function CardRedirectLoading() {
         <div className="grid h-24 w-24 place-items-center rounded-full bg-tapit-accent-soft">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-tapit-line border-t-tapit-accent" />
         </div>
-        <h1 className="mt-8 text-3xl font-semibold tracking-tight text-tapit-ink">Redirecting</h1>
+        <h1 className="tapit-display mt-8 text-3xl font-semibold tracking-tight text-tapit-ink">
+          Redirecting
+        </h1>
         <p className="mt-3 text-sm text-tapit-muted" role="status">
           Taking you to the destination...
         </p>

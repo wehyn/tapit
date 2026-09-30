@@ -25,6 +25,53 @@ async function publishWarmStudioProfile(page: Page) {
   ).toBeVisible();
 }
 
+async function prepareLegacyNightProfile(page: Page) {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Legacy profile migration test.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo state to be persisted before legacy setup.");
+    const state = JSON.parse(raw);
+    const customer = state.customers.find(
+      (candidate: { email?: string }) => candidate.email === "mara@example.test",
+    );
+    const stripCustomization = (profile: {
+      id?: string;
+      draft?: object;
+      published?: object | null;
+    }) => {
+      if (profile.id !== customer?.profileId) return profile;
+      const draft = { ...profile.draft } as { customization?: unknown };
+      delete draft.customization;
+      const next = { ...profile, draft } as typeof profile & { published?: object | null };
+      if (profile.published) {
+        const published = { ...profile.published } as { customization?: unknown };
+        delete published.customization;
+        next.published = published;
+      }
+      return next;
+    };
+    state.profiles = state.profiles.map(stripCustomization);
+    state.profile = stripCustomization(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("button", { name: "Night", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Night", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+}
+
 async function readPublicProfileSnapshot(page: Page) {
   return page.getByRole("main").evaluate((main) => {
     const text = (element: Element | null) =>
@@ -55,6 +102,12 @@ async function readPublicProfileSnapshot(page: Page) {
       links: links('ul[aria-label="Profile links"] a'),
       section,
       pageClass: main.getAttribute("class"),
+      pageBackground: getComputedStyle(main).backgroundColor,
+      headingFontFamily: heading ? getComputedStyle(heading).fontFamily : null,
+      panelBackground: details
+        ? null
+        : getComputedStyle(main.querySelector("section")!).backgroundColor,
+      panelRadius: details ? null : getComputedStyle(main.querySelector("section")!).borderRadius,
     };
   });
 }
@@ -100,6 +153,10 @@ test("public profile keeps its primary actions usable at narrow phone widths", a
     await page.goto("/mara-velasquez");
 
     await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveCSS(
+      "font-family",
+      /ui-sans-serif/,
+    );
     const linkedIn = page.getByRole("link", { name: "LinkedIn" });
     await expect(linkedIn).toBeVisible();
     await expect(linkedIn.locator("svg").last()).toHaveClass(/text-white\/80/);
@@ -124,46 +181,93 @@ test("direct and active card paths show the same published profile", async ({ pa
 test("customized direct and active card paths preserve presentation parity", async ({ page }) => {
   await publishWarmStudioProfile(page);
 
-  const paths = [];
-  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
-    paths.push(await readPublicProfileSnapshot(page));
-  }
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const paths = [];
+    for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveCSS(
+        "font-family",
+        /ui-sans-serif/,
+      );
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+        .toBeLessThanOrEqual(width);
+      paths.push(await readPublicProfileSnapshot(page));
+    }
 
-  expect(paths[0]).toEqual(paths[1]);
-  expect(paths[0]).toMatchObject({
-    name: "Mara Velasquez",
-    bio: "Brand systems for independent teams.",
-    imageSrc: "/images/tapit-demo-mara-avatar.png",
-    contacts: [
-      { label: "Email", href: "mailto:mara@example.test", featured: null },
-      { label: "Phone", href: "tel:+63 917 555 0184", featured: null },
-      { label: "Website", href: "https://mara-velasquez.example", featured: null },
-    ],
-    featured: [
-      {
-        label: "Book a conversation",
-        href: "https://cal.com/mara-velasquez",
-        featured: "true",
+    expect(paths[0]).toEqual(paths[1]);
+    expect(paths[0]).toMatchObject({
+      name: "Mara Velasquez",
+      headingFontFamily: expect.stringMatching(/ui-sans-serif/),
+      bio: "Brand systems for independent teams.",
+      imageSrc: "/images/tapit-demo-mara-avatar.png",
+      contacts: [
+        { label: "Email", href: "mailto:mara@example.test", featured: null },
+        { label: "Phone", href: "tel:+63 917 555 0184", featured: null },
+        { label: "Website", href: "https://mara-velasquez.example", featured: null },
+      ],
+      featured: [
+        {
+          label: "Book a conversation",
+          href: "https://cal.com/mara-velasquez",
+          featured: "true",
+        },
+      ],
+      links: [
+        {
+          label: "LinkedIn",
+          href: "https://www.linkedin.com/in/mara-velasquez",
+          featured: null,
+        },
+        { label: "Portfolio", href: "https://mara-velasquez.example", featured: null },
+        { label: "Email", href: "mailto:mara@example.test", featured: null },
+      ],
+      section: {
+        label: "About",
+        body: "A published studio introduction.",
+        expanded: "false",
       },
-    ],
-    links: [
-      {
-        label: "LinkedIn",
-        href: "https://www.linkedin.com/in/mara-velasquez",
-        featured: null,
-      },
-      { label: "Portfolio", href: "https://mara-velasquez.example", featured: null },
-      { label: "Email", href: "mailto:mara@example.test", featured: null },
-    ],
-    section: {
-      label: "About",
-      body: "A published studio introduction.",
-      expanded: "false",
-    },
-    pageClass: expect.stringContaining("bg-[#fbf6ef]"),
-  });
+      pageClass: expect.stringContaining("bg-[#fbf6ef]"),
+      pageBackground: "rgb(251, 246, 239)",
+    });
+  }
+});
+
+test("legacy customer typography and selected theme remain intact in preview and card paths", async ({
+  page,
+}) => {
+  await prepareLegacyNightProfile(page);
+  const preview = page
+    .getByTestId("profile-preview-frame")
+    .getByRole("heading", { name: "Mara Velasquez" });
+  await expect(preview).toHaveCSS("font-family", /ui-sans-serif/);
+  const previewFontFamily = await preview.evaluate(
+    (heading) => getComputedStyle(heading).fontFamily,
+  );
+  await expect(preview).toHaveCSS("color", "rgb(242, 246, 241)");
+
+  await page.goto("/mara-velasquez");
+  const directHeading = page.getByRole("heading", { name: "Mara Velasquez" });
+  await expect(directHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
+  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  const directProfile = await readPublicProfileSnapshot(page);
+
+  await page.goto("/c/mara-card-7f2q");
+  const cardHeading = page.getByRole("heading", { name: "Mara Velasquez" });
+  await expect(cardHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
+  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  const cardProfile = await readPublicProfileSnapshot(page);
+
+  expect(directProfile).toEqual(cardProfile);
+  expect(directProfile.headingFontFamily).toBe(previewFontFamily);
+  expect(directProfile.pageBackground).toBe("rgb(23, 33, 31)");
+  expect(directProfile.panelBackground).toBe("rgb(34, 48, 43)");
+  expect(directProfile.panelRadius).toBe("18px");
+  expect(directProfile.pageClass).toContain("bg-[#17211f]");
 });
 
 test("tagged profile activity appears by source and aggregates to one daily trend point", async ({

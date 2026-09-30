@@ -86,7 +86,10 @@ export function CardPreviewDialog({
         role="dialog"
         tabIndex={-1}
       >
-        <h2 className="text-2xl font-semibold tracking-tight text-tapit-ink" id={titleId}>
+        <h2
+          className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink"
+          id={titleId}
+        >
           Looks good?
         </h2>
         <Button

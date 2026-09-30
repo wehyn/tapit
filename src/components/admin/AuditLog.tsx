@@ -10,6 +10,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { useDemoState } from "@/lib/demo/store";
 
 import { Field } from "@/components/ui/Field";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 
@@ -195,10 +196,10 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
   const changes = getAuditChanges(entry.action, entry.before, entry.after);
   return (
     <details
-      className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+      className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(40,53,44,0.035)] sm:p-5"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent">
+      <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <span className="min-w-0">
           <span className="block font-semibold text-tapit-ink">
             {readableAuditAction(entry.action)}
@@ -212,9 +213,16 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
                 : ""}
           </span>
         </span>
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-tapit-muted">
-          <time dateTime={occurredAt.toISOString()}>{occurredAt.toLocaleString()}</time>
-          <span className="text-tapit-accent">{isOpen ? "Hide details" : "View details"}</span>
+        <span className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
+          <time
+            className="rounded-full bg-tapit-paper px-3 py-1.5 text-xs font-medium text-tapit-muted"
+            dateTime={occurredAt.toISOString()}
+          >
+            {occurredAt.toLocaleString()}
+          </time>
+          <span className="text-xs font-semibold text-tapit-accent">
+            {isOpen ? "Hide details" : "View details"}
+          </span>
         </span>
       </summary>
       <div className="mt-4 border-t border-tapit-line pt-4">
@@ -282,6 +290,10 @@ function DemoAuditLog() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review who changed account, profile, card, and operational settings."
+        title="Audit log"
+      />
       <Panel
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
@@ -313,7 +325,15 @@ function LiveAuditLog() {
   const [search, setSearch] = useState("");
   const audits = useQuery(api.audit.list, { search: search.trim() || undefined });
   if (audits === undefined)
-    return <div className="p-8 text-sm text-tapit-muted">Loading audit history…</div>;
+    return (
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Review who changed account, profile, card, and operational settings."
+          title="Audit log"
+        />
+        <Notice>Loading audit history…</Notice>
+      </div>
+    );
 
   const entries: AuditEntry[] = audits.map((audit) => ({
     id: audit._id,
@@ -327,6 +347,10 @@ function LiveAuditLog() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Review who changed account, profile, card, and operational settings."
+        title="Audit log"
+      />
       <Panel
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"

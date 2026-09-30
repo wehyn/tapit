@@ -35,7 +35,7 @@ export function PublicBrand() {
   return (
     <Link
       aria-label="Tapit home"
-      className="inline-flex min-h-11 items-center text-[1.75rem] font-semibold tracking-[-0.06em] text-tapit-ink"
+      className="tapit-display inline-flex min-h-11 items-center text-[1.75rem] font-semibold tracking-[-0.06em] text-tapit-ink"
       href="/"
     >
       Tapit

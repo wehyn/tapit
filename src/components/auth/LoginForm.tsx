@@ -154,7 +154,7 @@ function DemoLoginForm({
       supportUrl={state.supportUrl}
     >
       {mode === "signup" ? (
-        <form className="grid gap-5" onSubmit={signUp}>
+        <form className="grid gap-6" onSubmit={signUp}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             id="signup-name"
@@ -208,7 +208,7 @@ function DemoLoginForm({
           </Button>
         </form>
       ) : (
-        <form className="grid gap-5" onSubmit={signIn}>
+        <form className="grid gap-6" onSubmit={signIn}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             autoComplete="email"
@@ -521,7 +521,7 @@ function LiveLoginForm({
       {loading && mode === "signin" && authStep === "form" ? (
         <p className="text-sm text-tapit-muted">Checking your session…</p>
       ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (
-        <div className="grid gap-5">
+        <div className="grid gap-6">
           <Notice>
             Password reset email delivery is disabled in hosted demo mode. Use the password you
             chose through your setup link.
@@ -531,7 +531,7 @@ function LiveLoginForm({
           </Button>
         </div>
       ) : authStep === "reset-request" ? (
-        <form className="grid gap-5" onSubmit={submit}>
+        <form className="grid gap-6" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           <p className="text-sm leading-6 text-tapit-muted">
             Enter your email and we’ll send reset instructions if an account matches.
@@ -554,7 +554,7 @@ function LiveLoginForm({
       ) : authStep === "signup-verification" ||
         authStep === "signin-verification" ||
         authStep === "reset-verification" ? (
-        <form className="grid gap-5" onSubmit={submit}>
+        <form className="grid gap-6" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {pendingAuth?.kind === "reset" ? (
             <div
@@ -639,7 +639,7 @@ function LiveLoginForm({
           )}
         </form>
       ) : (
-        <form className="grid gap-5" onSubmit={submit}>
+        <form className="grid gap-6" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {mode === "signup" ? (
             <>

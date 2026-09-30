@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 const controlClasses =
-  "mt-2 min-h-12 w-full rounded-[10px] border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink outline-none placeholder:text-tapit-muted transition-colors focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20 disabled:cursor-not-allowed disabled:bg-tapit-soft-surface disabled:opacity-70";
+  "mt-2 min-h-12 w-full rounded-[12px] border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink outline-none placeholder:text-tapit-muted transition-colors focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20 disabled:cursor-not-allowed disabled:bg-tapit-soft-surface disabled:opacity-70";
 
 export function Field({
   error,

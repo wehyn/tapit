@@ -48,6 +48,11 @@ test("administrator edits and publishes the selected customer profile details", 
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
   await signInAsAdmin(page);
 
+  const sidebar = page.getByTestId("workspace-sidebar");
+  await expect
+    .poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe("rgb(240, 237, 229)");
+
   const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
   await expect(desktopNavigation).toBeVisible();
   await expect(desktopNavigation.getByRole("heading", { name: "Operations" })).toBeVisible();
@@ -96,19 +101,19 @@ test("administrator records and governance pages remain usable at phone and desk
   await signInAsAdmin(page);
 
   const pages = [
-    { path: "/admin/customers", heading: "Customer accounts", marker: "Search customers" },
-    { path: "/admin/profiles", heading: "Profile registry", marker: "Search profiles" },
-    { path: "/admin/cards", heading: "Card registry", marker: "Search cards" },
-    { path: "/admin/analytics", heading: "Operational analytics", marker: "Time range" },
+    { path: "/admin/customers", heading: "Customers", marker: "Search customers" },
+    { path: "/admin/profiles", heading: "Profiles", marker: "Search profiles" },
+    { path: "/admin/cards", heading: "Cards", marker: "Search cards" },
+    { path: "/admin/analytics", heading: "Analytics", marker: "Time range" },
     { path: "/admin/audit-log", heading: "Audit log", marker: "Search audit entries" },
-    { path: "/admin/settings", heading: "Support contact", marker: "Support destination" },
+    { path: "/admin/settings", heading: "Settings", marker: "Support destination" },
   ];
 
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     for (const item of pages) {
       await page.goto(item.path);
-      await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.getByRole("heading", { name: item.heading, level: 1 })).toBeVisible();
       await expect(page.getByLabel(item.marker)).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       if (scrollWidth > width) {
@@ -141,6 +146,84 @@ test("administrator records and governance pages remain usable at phone and desk
       expect(scrollWidth).toBeLessThanOrEqual(width);
     }
   }
+});
+
+test("administrator pages present a visible editorial page heading", async ({ page }) => {
+  await signInAsAdmin(page);
+
+  const pages = [
+    { path: "/admin/customers", title: "Customers" },
+    { path: "/admin/profiles", title: "Profiles" },
+    { path: "/admin/cards", title: "Cards" },
+    { path: "/admin/analytics", title: "Analytics" },
+    { path: "/admin/audit-log", title: "Audit log" },
+    { path: "/admin/settings", title: "Settings" },
+  ];
+
+  for (const item of pages) {
+    await page.goto(item.path);
+    const heading = page.getByRole("heading", { name: item.title, level: 1 });
+    await expect(heading).toBeVisible();
+    await expect
+      .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
+      .toMatch(/ui-serif|Georgia|serif/i);
+  }
+});
+
+test("administrator records and governance details stay readable on phones", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+
+  await page.goto("/admin/customers");
+  const mara = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+  await expect(mara).toBeVisible();
+  await expect(mara.getByRole("button")).toContainText("Mara Velasquez");
+  await expect(mara.getByText("active", { exact: true })).toBeVisible();
+  await expect(mara.getByText("published", { exact: true })).toBeVisible();
+  await expect(mara.getByRole("link", { name: "View profile" })).toBeVisible();
+  const maraSelector = mara.getByRole("button");
+  await maraSelector.click();
+  await expect(maraSelector).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("heading", { name: "Selected customer" })).toBeVisible();
+
+  await page.goto("/admin/profiles");
+  const maraProfile = page.getByRole("button", { name: "Select Mara Velasquez profile" });
+  await expect(maraProfile).toContainText("published");
+  await maraProfile.click();
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  await expect(dialog.getByRole("tab", { name: "Edit profile" })).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "Details & slug" })).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await expect(card).toBeVisible();
+  await expect(card.locator("summary")).toContainText("Mara Velasquez");
+  await expect(card.locator("summary")).toContainText("active");
+});
+
+test("administrator analytics, audit, and settings keep their scoped feedback clear", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+
+  await page.goto("/admin/analytics");
+  await expect(page.getByRole("heading", { name: "Engagement overview" })).toBeVisible();
+  await expect(page.getByText(/Cross-customer totals are aggregate-only/)).toBeVisible();
+  await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
+  await expect(page.getByText("Unique views", { exact: true })).toBeVisible();
+  await expect(page.getByText("Link clicks", { exact: true })).toBeVisible();
+  await expect(page.getByText(/visitor identity|raw event history/i)).toBeVisible();
+
+  await page.goto("/admin/audit-log");
+  const auditEntry = page.locator("details").first();
+  await expect(auditEntry.getByText(/^By /)).toBeVisible();
+  await expect(auditEntry.locator("time")).toBeVisible();
+  await expect(auditEntry.getByText("View details")).toBeVisible();
+
+  await page.goto("/admin/settings");
+  await page.getByLabel("Support destination").fill("mailto:support@example.test");
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await expect(page.getByText("Support destination saved.")).toBeVisible();
 });
 
 test("administrator profile registry uses scannable desktop rows", async ({ page }) => {
@@ -446,6 +529,9 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.getByLabel("New pre-encoded card URL").fill("/c/replacement-card-xyz");
   await page.getByRole("button", { name: "Review replacement" }).click();
   await expect(page.getByRole("dialog", { name: "Replace this card?" })).toBeVisible();
+  const replacementDialog = page.getByRole("dialog", { name: "Replace this card?" });
+  await expect(replacementDialog).toContainText("mara-card-7f2q");
+  await expect(replacementDialog).toContainText("/c/replacement-card-xyz");
   await page.getByRole("dialog").getByRole("button", { name: "Replace card" }).click();
   await expect(page.getByText("Card mara-card-7f2q was replaced.")).toBeVisible();
 

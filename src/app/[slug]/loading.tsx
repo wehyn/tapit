@@ -7,8 +7,8 @@ export default function PublicProfileLoading() {
         role="status"
       >
         <div className="size-20 animate-pulse rounded-full bg-tapit-soft-surface" />
-        <div className="mx-auto mt-6 h-8 w-48 animate-pulse rounded-tapit bg-tapit-soft-surface" />
-        <div className="mx-auto mt-3 h-4 w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
+        <div className="mx-auto mt-6 h-8 w-full max-w-48 animate-pulse rounded-tapit bg-tapit-soft-surface" />
+        <div className="mx-auto mt-3 h-4 w-full max-w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
         <div className="mt-10 grid gap-3">
           <div className="h-14 animate-pulse rounded-tapit bg-tapit-soft-surface" />
           <div className="h-14 animate-pulse rounded-tapit bg-tapit-soft-surface" />

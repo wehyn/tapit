@@ -10,6 +10,7 @@ import { CheckCircleIcon, GearSixIcon, LifebuoyIcon } from "@phosphor-icons/reac
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
 
 import { Button } from "@/components/ui/Button";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
@@ -54,14 +55,22 @@ function DemoSettingsManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage support destinations and review current launch readiness notes."
+        title="Settings"
+      />
       <Panel
         description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
         title="Support contact"
       >
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-          <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4 text-sm leading-6 text-tapit-muted">
-            <GearSixIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
+          <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
+            <GearSixIcon
+              aria-hidden="true"
+              className="mt-0.5 shrink-0 text-tapit-accent"
+              size={22}
+            />
             <span>One destination is used for public support states and account help.</span>
           </div>
           <Field
@@ -119,9 +128,21 @@ function LiveSettingsManager() {
     }
   }
   if (configured === undefined)
-    return <div className="p-8 text-sm text-tapit-muted">Loading settings…</div>;
+    return (
+      <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Manage support destinations and review current launch readiness notes."
+          title="Settings"
+        />
+        <Notice>Loading settings…</Notice>
+      </div>
+    );
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage support destinations and review current launch readiness notes."
+        title="Settings"
+      />
       <Panel
         description="This destination is used for generic support states and account help."
         title="Support contact"

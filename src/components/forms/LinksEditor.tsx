@@ -37,6 +37,27 @@ function copyLinks(links: readonly ProfileLink[]): ProfileLink[] {
   return links.map((link) => ({ ...link }));
 }
 
+function reorderProfileLinks(
+  links: ProfileLink[],
+  sourceId: string,
+  targetId: string,
+  insertAfter: boolean,
+): ProfileLink[] {
+  const sourceIndex = links.findIndex((link) => link.id === sourceId);
+  const targetIndex = links.findIndex((link) => link.id === targetId);
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return links;
+
+  let insertionIndex = targetIndex + Number(insertAfter);
+  if (sourceIndex < insertionIndex) insertionIndex -= 1;
+  if (sourceIndex === insertionIndex) return links;
+
+  const next = [...links];
+  const [moved] = next.splice(sourceIndex, 1);
+  if (moved === undefined) return links;
+  next.splice(insertionIndex, 0, moved);
+  return next;
+}
+
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
 const MAX_PROFILE_LINKS = 100;
 const LINK_ICON_VALUES: readonly LinkIcon[] = [
@@ -236,6 +257,12 @@ function DemoLinksEditor() {
     setMessage(null);
   }
 
+  function reorderLink(sourceId: string, targetId: string, insertAfter: boolean) {
+    draftRevisionRef.current += 1;
+    setLinks((current) => reorderProfileLinks(current, sourceId, targetId, insertAfter));
+    setMessage(null);
+  }
+
   const saveDraft = useCallback(async () => {
     if (!isDirty) return true;
     if (redirectError !== null || Object.keys(validation).length > 0) {
@@ -353,6 +380,7 @@ function DemoLinksEditor() {
       onUpdateRedirect={updateRedirect}
       onAddLink={addLink}
       onMoveLink={moveLink}
+      onReorderLink={reorderLink}
       onRemoveLink={removeLink}
       onSaveDraft={saveDraft}
       onPublish={publish}
@@ -504,6 +532,15 @@ export function LiveLinksEditorContent({
     });
     setMessage(null);
   }
+
+  function reorderLink(sourceId: string, targetId: string, insertAfter: boolean) {
+    draftRevisionRef.current += 1;
+    setLinks((currentLinks) =>
+      reorderProfileLinks(currentLinks ?? normalizedDraftLinks, sourceId, targetId, insertAfter),
+    );
+    setMessage(null);
+  }
+
   const persistLinks = useCallback(
     async (linksToSave: ProfileLink[], redirectToSave: ProfileRedirect) => {
       let nextLinks = linksToSave;
@@ -619,6 +656,7 @@ export function LiveLinksEditorContent({
       onUpdateRedirect={updateRedirect}
       onAddLink={addLink}
       onMoveLink={moveLink}
+      onReorderLink={reorderLink}
       onRemoveLink={removeLink}
       onSaveDraft={saveDraft}
       onPublish={publish}

@@ -50,7 +50,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
   }
 
   return (
-    <div className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper/60 p-4 sm:p-5">
+    <div className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5">
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
         <QrCodeIcon aria-hidden="true" size={18} /> QR fallback
       </p>
@@ -73,7 +73,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <a
-          className={`inline-flex min-h-11 items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition ${png ? "bg-tapit-accent text-white hover:bg-tapit-accent-strong" : "pointer-events-none bg-tapit-line text-tapit-muted"}`}
+          className={`inline-flex min-h-11 items-center justify-center rounded-tapit px-4 py-2.5 text-sm font-semibold transition ${png ? "bg-tapit-accent text-white hover:bg-tapit-accent-strong" : "pointer-events-none bg-tapit-line text-tapit-muted"}`}
           download={`${label}.png`}
           href={png || undefined}
         >

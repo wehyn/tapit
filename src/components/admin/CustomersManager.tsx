@@ -17,6 +17,7 @@ import {
 } from "@/lib/demo/store";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -183,6 +184,10 @@ function DemoCustomersManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage customer access, invitations, and account status."
+        title="Customers"
+      />
       <Panel
         description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
         title="Create customer"
@@ -292,11 +297,12 @@ function DemoCustomersManager() {
                 : state.cards.filter((card) => card.profileId === profile.id).length;
             return (
               <article
-                className={`rounded-tapit border bg-tapit-surface p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent" : "border-tapit-line hover:border-tapit-accent/50"}`}
+                className={`min-w-0 rounded-tapit border bg-tapit-surface p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent bg-tapit-accent-soft/20" : "border-tapit-line hover:border-tapit-accent/50"}`}
                 key={customer.id}
               >
                 <button
-                  className="flex min-h-11 w-full items-start justify-between gap-4 text-left"
+                  aria-pressed={selectedCustomer?.id === customer.id}
+                  className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-left focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
                   onClick={() => setSelectedCustomerId(customer.id)}
                   type="button"
                 >
@@ -313,7 +319,7 @@ function DemoCustomersManager() {
                     <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
                   </span>
                 </button>
-                <dl className="mt-4 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
                       Setup
@@ -394,7 +400,7 @@ function DemoCustomersManager() {
                     }
                   />
                 </div>
-                <dl className="mt-5 grid gap-4 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
+                <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
                   <div>
                     <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
                       Account
@@ -488,7 +494,15 @@ function LiveCustomersManager() {
     requestsStatus === "LoadingFirstPage" ||
     invitationsStatus === "LoadingFirstPage"
   )
-    return <div className="p-8 text-sm text-tapit-muted">Loading customer operations…</div>;
+    return (
+      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+        <AdminPageHeader
+          description="Manage customer access, invitations, and account status."
+          title="Customers"
+        />
+        <Notice>Loading customer operations…</Notice>
+      </div>
+    );
 
   async function createCustomer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -605,6 +619,10 @@ function LiveCustomersManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+      <AdminPageHeader
+        description="Manage customer access, invitations, and account status."
+        title="Customers"
+      />
       <Panel title="Create customer">
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
           <div className="min-w-72 flex-1">
@@ -688,7 +706,7 @@ function LiveCustomersManager() {
           ) : null}
           {customers.map((customer) => (
             <article
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              className="grid min-w-0 gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
               key={customer._id}
             >
               <div>
@@ -725,7 +743,12 @@ function LiveCustomersManager() {
                   );
                 })()}
               </div>
-              <StatusBadge status={customer.status} />
+              <div className="flex items-center justify-between gap-3 sm:justify-end">
+                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted sm:hidden">
+                  Account status
+                </span>
+                <StatusBadge status={customer.status} />
+              </div>
               {(() => {
                 const invitation = invitationByCustomer.get(customer._id);
                 const invitationActive = invitation?.invalidatedAt === null;

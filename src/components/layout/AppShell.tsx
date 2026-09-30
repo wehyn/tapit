@@ -72,13 +72,11 @@ export function AppShell({
         sidebarFooter={sidebarFooter}
         title={title}
       />
-      <main className="lg:ml-[92px] lg:[&_.fixed.inset-x-0]:left-[92px] xl:ml-[260px] xl:[&_.fixed.inset-x-0]:left-[260px]">
+      <main className="min-h-[100dvh] lg:ml-[72px] lg:[&_.fixed.inset-x-0]:left-[72px] xl:ml-[252px] xl:[&_.fixed.inset-x-0]:left-[252px]">
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
-            <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              {eyebrow}
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink sm:text-4xl">
+            <p className="tapit-eyebrow">{eyebrow}</p>
+            <h1 className="tapit-display mt-3 text-3xl font-medium leading-tight text-tapit-ink sm:text-4xl">
               {title}
             </h1>
           </div>

@@ -32,7 +32,7 @@ export function StatePage({
           </div>
           <div>
             <h1
-              className="break-words text-2xl font-semibold leading-tight tracking-tight text-tapit-ink"
+              className="tapit-display break-words text-2xl font-semibold leading-tight tracking-tight text-tapit-ink"
               id="state-title"
             >
               {title}

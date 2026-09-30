@@ -98,12 +98,12 @@ export function OnboardingForm() {
 
   return (
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-10 sm:px-10">
-      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-[1.75rem] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(21,25,24,0.05)] sm:p-9">
+      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(40,53,44,0.07)] sm:p-9">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Finish your profile
           </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
+          <h1 className="tapit-display mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
             Choose your display name
           </h1>
           <p className="mt-4 text-sm leading-6 text-tapit-muted">

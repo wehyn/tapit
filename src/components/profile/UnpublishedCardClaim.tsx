@@ -40,7 +40,7 @@ function ClaimScreen({ challenge, code, error, onChange, onSubmit, submitting }:
         <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
           Card setup
         </p>
-        <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
+        <h1 className="tapit-display mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
           Are you the owner of this card?
         </h1>
         <p className="mt-4 text-sm leading-6 text-tapit-muted">
@@ -204,7 +204,7 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Card setup
           </p>
-          <h1 className="mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
+          <h1 className="tapit-display mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
             Are you the owner of this card?
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-tapit-muted">

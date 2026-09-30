@@ -85,7 +85,7 @@ export function SidebarNav({
       {groups.map((group) => (
         <section className="mb-7 last:mb-0" key={group.label}>
           <h2
-            className={`mb-2 px-3 text-[0.68rem] font-semibold tracking-[0.18em] text-tapit-muted uppercase ${surface === "desktop" ? "lg:sr-only xl:not-sr-only" : ""}`}
+            className={`mb-2 px-3 text-[0.68rem] font-semibold tracking-[0.16em] text-tapit-muted uppercase ${surface === "desktop" ? "lg:sr-only xl:not-sr-only" : ""}`}
           >
             {group.label}
           </h2>
@@ -110,23 +110,19 @@ export function SidebarNav({
     <>
       <aside
         data-testid="workspace-sidebar"
-        className="fixed inset-y-4 left-4 z-20 hidden w-[60px] flex-col rounded-2xl border border-tapit-line bg-tapit-soft-surface px-2 py-5 shadow-[0_10px_30px_rgba(23,35,30,0.05)] lg:flex xl:w-[228px] xl:px-5 xl:py-6"
+        className="fixed inset-y-0 left-0 z-20 hidden w-[72px] flex-col border-r border-tapit-line bg-tapit-paper px-2 py-6 shadow-none lg:flex xl:w-[244px] xl:px-5 xl:py-7"
       >
         <div className="overflow-hidden lg:hidden xl:block">
           <Brand />
         </div>
         <div
           aria-hidden="true"
-          className="hidden size-11 items-center justify-center rounded-[9px] bg-tapit-accent text-sm font-bold text-white lg:flex xl:hidden"
+          className="hidden size-11 items-center justify-center rounded-[12px] bg-tapit-accent text-sm font-bold text-white lg:flex xl:hidden"
         >
           t
         </div>
-        {eyebrow ? (
-          <p className="mt-10 hidden px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase xl:block">
-            {eyebrow}
-          </p>
-        ) : null}
-        <div className="mt-6 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
+        {eyebrow ? <p className="tapit-eyebrow mt-10 hidden px-3 xl:block">{eyebrow}</p> : null}
+        <div className="mt-7 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
         {sidebarFooter ? (
           <div className="mt-5 border-t border-tapit-line pt-3 xl:mt-8 xl:pt-5">
             {sidebarFooter}
@@ -142,7 +138,7 @@ export function SidebarNav({
             aria-controls={drawerId}
             aria-expanded={open}
             aria-label="Open navigation"
-            className="inline-flex size-11 items-center justify-center rounded-[10px] border border-tapit-line bg-tapit-surface text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
+            className="inline-flex size-11 items-center justify-center rounded-[12px] border border-tapit-line bg-tapit-surface text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
             onClick={() => setOpen(true)}
             ref={openerRef}
             type="button"
@@ -165,7 +161,7 @@ export function SidebarNav({
           <div
             aria-label={`${title} navigation menu`}
             aria-modal="true"
-            className="relative flex h-full w-[min(85vw,340px)] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-6 shadow-[0_10px_30px_rgba(23,35,30,0.08)]"
+            className="relative flex h-full w-[min(85vw,340px)] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-6 shadow-[0_10px_30px_rgba(40,53,44,0.08)]"
             ref={drawerRef}
             role="dialog"
           >
@@ -173,7 +169,7 @@ export function SidebarNav({
               <Brand />
               <button
                 aria-label="Close navigation"
-                className="inline-flex size-11 items-center justify-center rounded-[10px] border border-tapit-line text-2xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
+                className="inline-flex size-11 items-center justify-center rounded-[12px] border border-tapit-line text-2xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
                 onClick={close}
                 ref={closeButtonRef}
                 type="button"
@@ -181,11 +177,7 @@ export function SidebarNav({
                 ×
               </button>
             </div>
-            {eyebrow ? (
-              <p className="mt-10 px-3 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-                {eyebrow}
-              </p>
-            ) : null}
+            {eyebrow ? <p className="tapit-eyebrow mt-10 px-3">{eyebrow}</p> : null}
             <div className="mt-6 flex-1 overflow-y-auto">{renderGroups("mobile")}</div>
             {sidebarFooter ? (
               <div className="mt-8 border-t border-tapit-line pt-5">{sidebarFooter}</div>
@@ -214,7 +206,7 @@ function NavLink({
     <Link
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-11 items-center gap-3 rounded-[9px] px-3 py-2.5 text-sm transition-colors ${compact ? "lg:justify-center lg:px-0 xl:justify-start xl:px-3" : ""} ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent-strong" : "text-tapit-muted hover:bg-white/70 hover:text-tapit-ink"}`}
+      className={`flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm transition-colors ${compact ? "lg:justify-center lg:px-0 xl:justify-start xl:px-3" : ""} ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent-strong" : "text-tapit-muted hover:bg-tapit-surface hover:text-tapit-ink"}`}
       href={item.href}
       onClick={(event) => {
         const wasDefaultPrevented = event.defaultPrevented;
