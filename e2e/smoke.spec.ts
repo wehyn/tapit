@@ -35,6 +35,29 @@ test("mobile homepage brings the Tapit profile card into the hero", async ({ pag
   await page.screenshot({ path: "test-results/ui-redesign/home-desktop.png" });
 });
 
+test("homepage feature cards share the same size and top alignment on desktop", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1268, height: 953 });
+  await page.goto("/");
+
+  const linksCard = page
+    .getByRole("heading", { name: "Links that stay useful.", exact: true })
+    .locator("..");
+  const helloCard = page
+    .getByRole("heading", { name: "A better first hello.", exact: true })
+    .locator("..");
+  const [linksBounds, helloBounds] = await Promise.all([
+    linksCard.boundingBox(),
+    helloCard.boundingBox(),
+  ]);
+
+  expect(linksBounds).not.toBeNull();
+  expect(helloBounds).not.toBeNull();
+  expect(helloBounds!.y).toBe(linksBounds!.y);
+  expect(helloBounds!.height).toBe(linksBounds!.height);
+});
+
 test("landing page keeps the core sections without placeholder copy or pricing", async ({
   page,
 }) => {

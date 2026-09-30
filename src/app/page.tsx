@@ -99,7 +99,7 @@ export default function HomePage() {
               Put your work, socials, and best contact path behind one clear destination.
             </p>
           </div>
-          <div className="mt-8 rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-7 sm:p-9">
+          <div className="rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-7 sm:p-9">
             <UserPlus aria-hidden="true" className="text-tapit-accent" size={28} />
             <h3 className="mt-20 text-2xl font-medium tracking-tight">A better first hello.</h3>
             <p className="mt-3 max-w-xs text-sm leading-6 text-tapit-muted">
