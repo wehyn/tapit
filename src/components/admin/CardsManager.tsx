@@ -347,7 +347,10 @@ function DemoCardsManager() {
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
         title="Register card URL"
       >
-        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={registerCard}>
+        <form
+          className="mt-6 flex max-w-3xl flex-wrap items-end gap-3 sm:gap-4"
+          onSubmit={registerCard}
+        >
           <div className="min-w-72 flex-1">
             <Field
               id="card-url"
@@ -407,14 +410,14 @@ function DemoCardsManager() {
             value={query}
           />
         </div>
-        <div className="mt-6 grid gap-2">
+        <div className="mt-5 grid gap-3">
           {cards.length === 0 ? <Notice>No registered cards match this search.</Notice> : null}
           {cards.map((card) => {
             const profile = getDemoProfileById(state, card.profileId);
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">
