@@ -525,6 +525,44 @@ test("link drag handles reorder destinations", async ({ page }) => {
   expect(labels).toEqual(["LinkedIn", "Book a conversation", "Email", "Portfolio"]);
 });
 
+test("link rows shift while the drag is still held", async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1467, height: 899 });
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const linkTable = page.locator('[aria-label="Editable profile links"]');
+  const handle = linkTable.getByRole("button", { name: "Reorder LinkedIn" });
+  const portfolio = linkTable
+    .locator("article")
+    .filter({ has: page.getByRole("textbox", { name: "Label for Portfolio" }) });
+  const handleBox = await handle.boundingBox();
+  const portfolioBox = await portfolio.boundingBox();
+  expect(handleBox).not.toBeNull();
+  expect(portfolioBox).not.toBeNull();
+
+  const startX = handleBox!.x + handleBox!.width / 2;
+  const startY = handleBox!.y + handleBox!.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX, startY + 12, { steps: 4 });
+  await page.mouse.move(portfolioBox!.x + 45, portfolioBox!.y + portfolioBox!.height * 0.75, {
+    steps: 8,
+  });
+  await page.waitForTimeout(250);
+  await page.mouse.move(portfolioBox!.x + 46, portfolioBox!.y + portfolioBox!.height * 0.75 + 1);
+
+  const labels = () =>
+    linkTable
+      .locator('input[id$="-label"]')
+      .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
+  await expect.poll(labels).toEqual(["Portfolio", "LinkedIn", "Book a conversation", "Email"]);
+  const artifact = testInfo.outputPath("links-mid-drag.png");
+  await page.screenshot({ path: artifact });
+  await testInfo.attach("links-mid-drag", { path: artifact, contentType: "image/png" });
+  await page.mouse.up();
+  await expect.poll(labels).toEqual(["Portfolio", "LinkedIn", "Book a conversation", "Email"]);
+});
+
 test("customer drafts stay private until link and profile publication", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/");

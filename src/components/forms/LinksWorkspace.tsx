@@ -1,5 +1,7 @@
 "use client";
 
+import { useLayoutEffect, useRef, useState } from "react";
+
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -99,11 +101,69 @@ export function LinksWorkspace({
   onSaveDraft,
   onPublish,
 }: LinksWorkspaceProps) {
+  const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
+  const draggedLinkIdRef = useRef<string | null>(null);
+  const dropCompletedRef = useRef(false);
+  const originalOrderRef = useRef<string[]>([]);
+  const linksListRef = useRef<HTMLElement | null>(null);
+  const rowRefs = useRef(new Map<string, HTMLElement>());
+  const previousPositionsRef = useRef<Map<string, number> | null>(null);
   const hasValidRedirectDestination =
     redirect.destination.trim().length > 0 &&
     validateRedirectDestination(redirect.destination) === null;
   const redirectDescribedBy =
     redirectError || hasValidRedirectDestination ? "profile-redirect-feedback" : undefined;
+
+  function captureRowPositions() {
+    previousPositionsRef.current = new Map(
+      [...rowRefs.current].map(([id, row]) => [id, row.getBoundingClientRect().top]),
+    );
+  }
+
+  useLayoutEffect(() => {
+    const previousPositions = previousPositionsRef.current;
+    previousPositionsRef.current = null;
+    if (!previousPositions || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    for (const [id, row] of rowRefs.current) {
+      const previousTop = previousPositions.get(id);
+      if (previousTop === undefined) continue;
+      row.getAnimations().forEach((animation) => animation.cancel());
+      if (id === draggedLinkIdRef.current) continue;
+      const delta = previousTop - row.getBoundingClientRect().top;
+      if (Math.abs(delta) < 1) continue;
+      row.animate([{ transform: `translateY(${delta}px)` }, { transform: "translateY(0)" }], {
+        duration: 180,
+        easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+      });
+    }
+  }, [links]);
+
+  function finishDrag(event: React.DragEvent<HTMLButtonElement>) {
+    const sourceId = draggedLinkIdRef.current;
+    const listBounds = linksListRef.current?.getBoundingClientRect();
+    const releasedInList =
+      listBounds !== undefined &&
+      event.clientX >= listBounds.left &&
+      event.clientX <= listBounds.right &&
+      event.clientY >= listBounds.top &&
+      event.clientY <= listBounds.bottom;
+    if (sourceId && !dropCompletedRef.current && !releasedInList) {
+      const originalIndex = originalOrderRef.current.indexOf(sourceId);
+      const neighborId =
+        originalIndex > 0
+          ? originalOrderRef.current[originalIndex - 1]
+          : originalOrderRef.current[1];
+      if (neighborId) {
+        captureRowPositions();
+        onReorderLink(sourceId, neighborId, originalIndex > 0);
+      }
+    }
+    draggedLinkIdRef.current = null;
+    dropCompletedRef.current = false;
+    originalOrderRef.current = [];
+    setDraggedLinkId(null);
+  }
 
   return (
     <div className="[&_section>h2]:font-[Georgia] mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
@@ -184,6 +244,7 @@ export function LinksWorkspace({
           <section
             aria-label="Editable profile links"
             className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(40,53,44,0.035)]"
+            ref={linksListRef}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">
               <h2 className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink">
@@ -218,22 +279,38 @@ export function LinksWorkspace({
               const LinkIcon = linkIconMap[selectedIcon];
               return (
                 <article
-                  className="group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6"
+                  className={`group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6 ${draggedLinkId === link.id ? "bg-tapit-accent-soft/60 opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : ""}`}
                   key={link.id}
                   onDragOver={(event) => {
                     event.preventDefault();
                     event.dataTransfer.dropEffect = "move";
+                    const sourceId = draggedLinkIdRef.current;
+                    if (!sourceId || sourceId === link.id) return;
+                    const sourceIndex = links.findIndex((candidate) => candidate.id === sourceId);
+                    const targetIndex = links.findIndex((candidate) => candidate.id === link.id);
+                    if (sourceIndex < 0 || targetIndex < 0) return;
+                    const row = event.currentTarget;
+                    const transform = getComputedStyle(row).transform;
+                    const animatedY =
+                      transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+                    const bounds = row.getBoundingClientRect();
+                    const midpoint = bounds.top - animatedY + bounds.height / 2;
+                    if (
+                      sourceIndex < targetIndex
+                        ? event.clientY < midpoint
+                        : event.clientY > midpoint
+                    )
+                      return;
+                    captureRowPositions();
+                    onReorderLink(sourceId, link.id, sourceIndex < targetIndex);
                   }}
                   onDrop={(event) => {
                     event.preventDefault();
-                    const sourceId = event.dataTransfer.getData("text/plain");
-                    if (!sourceId || sourceId === link.id) return;
-                    const rowBounds = event.currentTarget.getBoundingClientRect();
-                    onReorderLink(
-                      sourceId,
-                      link.id,
-                      event.clientY >= rowBounds.top + rowBounds.height / 2,
-                    );
+                    dropCompletedRef.current = true;
+                  }}
+                  ref={(element) => {
+                    if (element) rowRefs.current.set(link.id, element);
+                    else rowRefs.current.delete(link.id);
                   }}
                 >
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
@@ -244,7 +321,21 @@ export function LinksWorkspace({
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
                         event.dataTransfer.setData("text/plain", link.id);
+                        draggedLinkIdRef.current = link.id;
+                        originalOrderRef.current = links.map((candidate) => candidate.id);
+                        dropCompletedRef.current = false;
+                        const row = event.currentTarget.closest("article");
+                        if (row) {
+                          const bounds = row.getBoundingClientRect();
+                          event.dataTransfer.setDragImage(
+                            row,
+                            Math.max(0, event.clientX - bounds.left),
+                            Math.max(0, event.clientY - bounds.top),
+                          );
+                        }
+                        setDraggedLinkId(link.id);
                       }}
+                      onDragEnd={finishDrag}
                       onKeyDown={(event) => {
                         if (event.key === "ArrowUp") {
                           event.preventDefault();
@@ -411,7 +502,7 @@ export function LinksWorkspace({
           )}
         </section>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-white/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 text-sm">
             <CheckCircleIcon

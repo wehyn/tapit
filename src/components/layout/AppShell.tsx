@@ -72,7 +72,7 @@ export function AppShell({
         sidebarFooter={sidebarFooter}
         title={title}
       />
-      <main className="min-h-[100dvh] lg:ml-[72px] lg:[&_.fixed.inset-x-0]:left-[72px] xl:ml-[252px] xl:[&_.fixed.inset-x-0]:left-[252px]">
+      <main className="min-h-[100dvh] lg:ml-[72px] lg:[&_.fixed.inset-x-0]:left-[72px] xl:ml-[244px] xl:[&_.fixed.inset-x-0]:left-[244px]">
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
             <p className="tapit-eyebrow">{eyebrow}</p>
