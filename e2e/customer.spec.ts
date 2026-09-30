@@ -245,7 +245,7 @@ test("customer sidebar uses the Warm Editorial surface and stays grouped across 
   page,
 }) => {
   await signInAsCustomer(page);
-  await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
   const island = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
@@ -450,6 +450,81 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await expect(page).toHaveURL(/\/app\/profile$/);
 });
 
+test("profile editors remove redundant visible titles and subtitles", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  for (const [route, title, subtitle] of [
+    ["/app/profile", "Your profile", "Edit your details and see how your profile looks to others."],
+    ["/app/customize", "Customize your profile", "Tune the look and feel of your public profile."],
+  ] as const) {
+    await page.goto(route);
+    const heading = page.getByRole("heading", { name: title, exact: true });
+    await expect(heading).toBeAttached();
+    const headingBox = await heading.boundingBox();
+    expect(headingBox).not.toBeNull();
+    expect(headingBox!.width).toBeLessThanOrEqual(1);
+    expect(headingBox!.height).toBeLessThanOrEqual(1);
+    await expect(page.getByText(subtitle, { exact: true })).toHaveCount(0);
+  }
+});
+
+test("the link table contains its add action", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const linkTable = page.locator('[aria-label="Editable profile links"]');
+  const addLink = linkTable.getByRole("button", { name: "Add link", exact: true });
+  await expect(addLink).toBeVisible();
+  const originalCount = await linkTable.locator("article").count();
+  await addLink.click();
+  await expect(linkTable.locator("article")).toHaveCount(originalCount + 1);
+});
+
+test("the last link action menu stays visible above the draft bar", async ({ page }) => {
+  await page.setViewportSize({ width: 1467, height: 899 });
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const linkTable = page.locator('[aria-label="Editable profile links"]');
+  await page.getByRole("button", { name: "Add link", exact: true }).click();
+  const lastRow = linkTable.locator("article").last();
+  await lastRow.locator("summary").click();
+
+  const saveButton = page.getByRole("button", { name: "Save draft", exact: true });
+  const saveBox = await saveButton.boundingBox();
+  expect(saveBox).not.toBeNull();
+  for (const action of ["Move up", "Move down", "Delete"]) {
+    const button = lastRow.getByRole("button", { name: action, exact: true });
+    await expect(button).toBeVisible();
+    await expect(button).toBeInViewport({ ratio: 1 });
+    const actionBox = await button.boundingBox();
+    expect(actionBox).not.toBeNull();
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(saveBox!.y);
+  }
+});
+
+test("link drag handles reorder destinations", async ({ page }) => {
+  await page.setViewportSize({ width: 1467, height: 899 });
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const linkTable = page.locator('[aria-label="Editable profile links"]');
+  const portfolioRow = linkTable
+    .locator("article")
+    .filter({ has: page.getByRole("textbox", { name: "Label for Portfolio" }) });
+  const emailRow = linkTable
+    .locator("article")
+    .filter({ has: page.getByRole("textbox", { name: "Label for Email" }) });
+  const dragHandle = portfolioRow.getByRole("button", { name: "Reorder Portfolio" });
+  await expect(dragHandle).toBeVisible();
+  await dragHandle.dragTo(emailRow, { targetPosition: { x: 40, y: 64 } });
+
+  const labels = await linkTable
+    .locator('input[id$="-label"]')
+    .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
+  expect(labels).toEqual(["LinkedIn", "Book a conversation", "Email", "Portfolio"]);
+});
+
 test("customer drafts stay private until link and profile publication", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/");
@@ -458,10 +533,6 @@ test("customer drafts stay private until link and profile publication", async ({
     "/app/profile",
   );
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
-  await expect(
-    page.getByText("Edit your details and see how your profile looks to others.", { exact: true }),
-  ).toBeVisible();
   await expect(
     page.getByText("These controls stay deliberately small so every theme remains readable.", {
       exact: true,

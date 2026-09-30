@@ -49,6 +49,7 @@ export type LinksWorkspaceProps = {
   onUpdateRedirect: (patch: Partial<ProfileRedirect>) => void;
   onAddLink: () => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
+  onReorderLink: (sourceId: string, targetId: string, insertAfter: boolean) => void;
   onRemoveLink: (id: string) => void;
   onSaveDraft: () => Promise<boolean>;
   onPublish: () => void | Promise<void>;
@@ -93,6 +94,7 @@ export function LinksWorkspace({
   onUpdateRedirect,
   onAddLink,
   onMoveLink,
+  onReorderLink,
   onRemoveLink,
   onSaveDraft,
   onPublish,
@@ -110,12 +112,6 @@ export function LinksWorkspace({
           <h1 className="sr-only" id="links-workspace-title">
             Links
           </h1>
-          <div className="flex flex-wrap items-end justify-end gap-5">
-            <Button onClick={onAddLink} type="button">
-              <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              Add link
-            </Button>
-          </div>
           <section
             aria-labelledby="profile-redirect-title"
             className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(40,53,44,0.035)]"
@@ -180,16 +176,24 @@ export function LinksWorkspace({
               ) : null}
             </div>
           </section>
-          <h2 className="sr-only">Profile links</h2>
           {message ? (
             <div className="mt-6">
               <Notice tone={message.tone}>{message.text}</Notice>
             </div>
           ) : null}
-          <div
-            className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(40,53,44,0.035)]"
+          <section
             aria-label="Editable profile links"
+            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(40,53,44,0.035)]"
           >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">
+              <h2 className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink">
+                Profile links
+              </h2>
+              <Button onClick={onAddLink} type="button">
+                <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                Add link
+              </Button>
+            </div>
             <div className="hidden border-b border-tapit-line bg-tapit-surface px-5 py-4 text-sm font-medium text-tapit-muted md:grid md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
               <span aria-hidden="true" />
               <span>Link</span>
@@ -216,14 +220,46 @@ export function LinksWorkspace({
                 <article
                   className="group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6"
                   key={link.id}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = "move";
+                  }}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    const sourceId = event.dataTransfer.getData("text/plain");
+                    if (!sourceId || sourceId === link.id) return;
+                    const rowBounds = event.currentTarget.getBoundingClientRect();
+                    onReorderLink(
+                      sourceId,
+                      link.id,
+                      event.clientY >= rowBounds.top + rowBounds.height / 2,
+                    );
+                  }}
                 >
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
-                    <div
-                      className="hidden pt-3 text-tapit-muted md:block"
-                      title="Use actions to reorder"
+                    <button
+                      aria-label={`Reorder ${link.label || "link"}`}
+                      className="hidden size-10 touch-none cursor-grab place-items-center rounded-tapit text-tapit-muted transition hover:bg-tapit-paper hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
+                      draggable
+                      onDragStart={(event) => {
+                        event.dataTransfer.effectAllowed = "move";
+                        event.dataTransfer.setData("text/plain", link.id);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowUp") {
+                          event.preventDefault();
+                          onMoveLink(link.id, -1);
+                        }
+                        if (event.key === "ArrowDown") {
+                          event.preventDefault();
+                          onMoveLink(link.id, 1);
+                        }
+                      }}
+                      title="Drag to reorder, or press the up and down arrow keys"
+                      type="button"
                     >
                       <DotsSixVerticalIcon aria-hidden="true" size={18} weight="bold" />
-                    </div>
+                    </button>
                     <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
                       <div className="relative grid size-10 shrink-0 place-items-center rounded-tapit bg-tapit-accent-soft text-tapit-accent">
                         <LinkIcon aria-hidden="true" size={19} weight="bold" />
@@ -303,7 +339,9 @@ export function LinksWorkspace({
                       >
                         <DotsThreeVerticalIcon aria-hidden="true" size={20} weight="bold" />
                       </summary>
-                      <div className="absolute right-0 z-10 mt-2 grid min-w-36 gap-1 rounded-tapit border border-tapit-line bg-white p-2 shadow-xl">
+                      <div
+                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-tapit border border-tapit-line bg-white p-2 shadow-xl ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
+                      >
                         <Button
                           className="justify-start !min-h-10 !px-3"
                           disabled={index === 0}
@@ -348,7 +386,7 @@ export function LinksWorkspace({
                 </article>
               );
             })}
-          </div>
+          </section>
           {publicationErrors.length > 0 ? (
             <ul className="mt-4 grid gap-2 text-sm text-tapit-muted">
               {publicationErrors.map((error) => (

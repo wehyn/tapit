@@ -8,7 +8,6 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 
 export type ProfileWorkspaceFrameProps = {
   title: string;
-  description: string;
   controls: ReactNode;
   message?: ReactNode;
   preview: PublicProfileProjection | null;
@@ -29,7 +28,6 @@ export type ProfileWorkspaceFrameProps = {
 
 export function ProfileWorkspaceFrame({
   title,
-  description,
   controls,
   message,
   preview,
@@ -56,10 +54,7 @@ export function ProfileWorkspaceFrame({
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">
-          <h1 className="tapit-display text-4xl font-medium tracking-[-0.055em] text-tapit-ink sm:text-5xl">
-            {title}
-          </h1>
-          <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">{description}</p>
+          <h1 className="sr-only">{title}</h1>
           <a
             className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent min-[1400px]:hidden"
             href="#workspace-preview"

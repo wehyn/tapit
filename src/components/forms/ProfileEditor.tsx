@@ -617,11 +617,6 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           />
         ) : null
       }
-      description={
-        view === "profile"
-          ? "Edit your details and see how your profile looks to others."
-          : "Tune the look and feel of your public profile."
-      }
       onPreviewModeChange={setPreviewMode}
       onPublish={publish}
       onSave={() => void saveDraft()}
@@ -1221,11 +1216,6 @@ function LiveProfileEditorContent({
             }}
           />
         ) : null
-      }
-      description={
-        view === "profile"
-          ? "Edit your details and see how your profile looks to others."
-          : "Tune the look and feel of your public profile."
       }
       onPreviewModeChange={setPreviewMode}
       onPublish={publish}
