@@ -1,5 +1,37 @@
 import { expect, test } from "@playwright/test";
 
+test("authentication and setup screens fit narrow mobile and desktop widths", async ({ page }) => {
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/login");
+    await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+
+    await page.goto("/login?mode=signup");
+    await expect(page.getByRole("heading", { name: "Create your Tapit profile" })).toBeVisible();
+    await expect(page.getByLabel("Display name")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Create your profile", exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+
+    await page.goto("/setup/demo-setup-token");
+    await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
+    await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Set password", exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+});
+
 test("customer signup starts from the public login page", async ({ page }) => {
   await page.goto("/login?mode=signup");
 

@@ -69,8 +69,10 @@ async function expectKeyboardVisibleFocus(page: Page) {
   await expect(signInButton).toBeFocused();
   const focusStyles = await readFocusStyles(signInButton);
   expect(focusStyles.isFocusVisible, "keyboard sign-in button").toBe(true);
-  expect(focusStyles.rootAccent, "Tapit accent token").toBe("#187461");
-  expect(focusStyles.rootFocus, "Tapit focus token").toBe(focusStyles.rootAccent);
+  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#236d54");
+  expect(focusStyles.rootFocus.toLowerCase(), "Tapit focus token").toBe(
+    focusStyles.rootAccent.toLowerCase(),
+  );
   expect(focusStyles.hasVisibleIndicator, "keyboard sign-in button").toBe(true);
   expect(focusStyles.colors, "keyboard sign-in button").not.toMatch(ORANGE_FOCUS);
 }

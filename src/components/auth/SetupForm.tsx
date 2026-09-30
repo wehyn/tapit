@@ -107,7 +107,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-2xl flex-col">
         <Brand />
-        <section className="grid flex-1 items-center gap-8 py-14">
+        <section className="grid flex-1 items-center gap-8 py-10 sm:py-14">
           <div>
             <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Hosted demo setup
@@ -119,7 +119,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
               This isolated hosted demo uses its password flow for demonstration only.
             </p>
           </div>
-          <div className="grid gap-5">
+          <div className="grid gap-5 rounded-[1.75rem] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(21,25,24,0.05)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your setup link…</p>
             ) : stateCopy ? (
@@ -231,7 +231,7 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
         <Brand />
-        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[0.9fr_0.8fr] lg:gap-28">
+        <section className="grid flex-1 items-center gap-10 py-10 sm:gap-12 sm:py-14 lg:grid-cols-[0.9fr_0.8fr] lg:gap-24">
           <div className="max-w-lg">
             <Fingerprint
               aria-hidden="true"
@@ -249,7 +249,7 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               This one-time link gives you access to your Tapit profile workspace.
             </p>
           </div>
-          <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
+          <div className="rounded-[1.75rem] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(21,25,24,0.05)] sm:p-8">
             {account ? (
               <p className="mt-6 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
                 Account email: <strong className="text-tapit-ink">{account.email}</strong>
@@ -357,7 +357,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
     <main className="min-h-[100dvh] bg-tapit-paper px-5 py-6 sm:px-10 sm:py-8">
       <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
         <Brand />
-        <section className="grid flex-1 items-center gap-12 py-14 lg:grid-cols-[0.9fr_0.8fr] lg:gap-28">
+        <section className="grid flex-1 items-center gap-10 py-10 sm:gap-12 sm:py-14 lg:grid-cols-[0.9fr_0.8fr] lg:gap-24">
           <div className="max-w-lg">
             <Fingerprint
               aria-hidden="true"
@@ -375,7 +375,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               Your invitation stays reusable until an administrator revokes it.
             </p>
           </div>
-          <div className="border-t border-tapit-line pt-8 lg:border-t-0 lg:border-l lg:pl-12">
+          <div className="rounded-[1.75rem] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(21,25,24,0.05)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your invitation…</p>
             ) : stateCopy ? (

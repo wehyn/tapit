@@ -1,5 +1,37 @@
 import { expect, test } from "@playwright/test";
 
+test("mobile homepage brings the Tapit profile card into the hero", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
+  ).toBeVisible();
+  const heroHeading = page.getByRole("heading", {
+    name: "Share one profile. Update it anytime.",
+  });
+  const mobileHeader = page.locator("header").first();
+  const heroBounds = (await heroHeading.boundingBox())!;
+  const headerBounds = (await mobileHeader.boundingBox())!;
+  expect(heroBounds.y).toBeGreaterThanOrEqual(headerBounds.y + headerBounds.height);
+  await expect(
+    page.getByRole("img", {
+      name: "Photographed Tapit profile card for Taylor Kim resting on pale stone.",
+    }),
+  ).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/home-mobile.png" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await expect(
+    page.getByRole("img", {
+      name: "Photographed Tapit profile card for Taylor Kim resting on pale stone.",
+    }),
+  ).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/home-desktop.png" });
+});
+
 test("landing page keeps the core sections without placeholder copy or pricing", async ({
   page,
 }) => {
@@ -82,6 +114,40 @@ test("visitors can reach the privacy notice and terms from the public homepage",
   page,
 }) => {
   await page.goto("/");
+
+  for (const width of [390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+
+    if (width === 390) {
+      const heroLines = page.getByRole("heading", {
+        name: "Share one profile. Update it anytime.",
+      });
+      await expect
+        .poll(() =>
+          heroLines.locator("span").evaluateAll((spans) =>
+            spans.map((span) => {
+              const range = document.createRange();
+              range.selectNodeContents(span);
+              return range.getClientRects().length;
+            }),
+          ),
+        )
+        .toEqual([1, 1]);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.getByRole("navigation", { name: "Mobile navigation" })).toBeVisible();
+  await page.getByRole("link", { name: "Privacy", exact: true }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();
+
+  await page.getByRole("link", { name: "Back to Tapit" }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
   await page.getByRole("link", { name: "Privacy", exact: true }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();

@@ -60,7 +60,7 @@ function DemoSettingsManager() {
       >
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-          <div className="flex items-center gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-sm text-tapit-muted">
+          <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4 text-sm leading-6 text-tapit-muted">
             <GearSixIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
             <span>One destination is used for public support states and account help.</span>
           </div>

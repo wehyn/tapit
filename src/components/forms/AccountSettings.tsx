@@ -157,7 +157,7 @@ function DemoAccountSettings() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
       <Panel
         description="Your email identifies the one profile attached to this account."
         title="Account"
@@ -266,7 +266,7 @@ function DemoAccountSettings() {
       </Panel>
 
       <Panel
-        className="border-tapit-danger/30"
+        className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
         description="Deletion immediately hides your public profile and deactivates assigned cards. An administrator must review the request before account data is permanently removed."
         title="Delete account"
       >
@@ -354,7 +354,7 @@ function LiveAccountSettings() {
     }
   }
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
       <Panel
         description="Your email identifies the one profile attached to this account."
         title="Account"
@@ -415,7 +415,7 @@ function LiveAccountSettings() {
         </div>
       </Panel>
       <Panel
-        className="border-tapit-danger/30"
+        className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
         description="Deletion hides your profile and deactivates assigned cards immediately."
         title="Delete account"
       >

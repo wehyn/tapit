@@ -174,6 +174,7 @@ function ProfileIdentityForm({
             value={draft.name}
           />
           <TextareaField
+            compact
             id="profile-bio"
             label="Bio or role"
             help="A short introduction people can scan quickly."
@@ -309,7 +310,7 @@ export function ProfileDetailsEditor({
   }
 
   return (
-    <div className="grid gap-3">
+    <div className="grid gap-4 sm:gap-5">
       <ProfileIdentityForm
         copyMessage={copyMessage}
         draft={draft}

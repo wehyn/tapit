@@ -54,7 +54,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
   return (
     <section
       aria-label={heading}
-      className="rounded-tapit border border-tapit-line bg-tapit-paper p-5 sm:p-7"
+      className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-7"
     >
       <h3 className="text-base font-semibold text-tapit-ink">{heading}</h3>
       <dl className="mt-6 grid min-w-0 gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -90,7 +90,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {customization ? (
         <section
           aria-label="Appearance details"
-          className="mt-8 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+          className="mt-8 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Appearance and layout</h4>
           <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -126,7 +126,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {section ? (
         <section
           aria-label={section.kind === "about" ? "About section" : "Services section"}
-          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">
             {section.kind === "about" ? "About" : "Services"}
@@ -146,7 +146,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {media ? (
         <section
           aria-label="Profile media"
-          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Media</h4>
           <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">

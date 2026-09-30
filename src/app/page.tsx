@@ -14,7 +14,7 @@ function ProfileCard() {
         className="object-contain drop-shadow-[0_28px_24px_rgba(21,25,24,0.16)]"
         fill
         priority
-        sizes="(min-width: 1280px) 31rem, (min-width: 1024px) 26rem, 24rem"
+        sizes="(min-width: 1280px) 31rem, (min-width: 1024px) 26rem, 11rem"
         src="/images/tapit-profile-card-cutout-v3.png"
       />
       <figcaption className="sr-only">
@@ -67,9 +67,9 @@ export default function HomePage() {
           className="absolute inset-0 bg-gradient-to-r from-tapit-paper/95 via-tapit-paper/65 to-transparent lg:via-tapit-paper/35"
         />
         <div className="relative z-20 mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
-          <div className="grid flex-1 items-center gap-14 py-16 sm:py-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:gap-8 lg:py-20">
+          <div className="grid flex-1 content-start items-start gap-5 pt-28 pb-12 sm:gap-14 sm:pt-32 sm:pb-20 lg:grid-cols-[minmax(0,1.18fr)_minmax(20rem,0.82fr)] lg:content-center lg:items-center lg:gap-8 lg:py-20">
             <div className="max-w-2xl lg:-translate-y-8 xl:translate-y-4">
-              <h1 className="max-w-[40rem] text-[clamp(3.5rem,5.6vw,6rem)] leading-[0.93] font-normal tracking-[-0.075em] text-balance">
+              <h1 className="max-w-[40rem] text-[clamp(2.1rem,9.7vw,5.5rem)] leading-[1.02] font-normal tracking-[-0.075em] text-balance sm:text-[clamp(3rem,5.6vw,5.5rem)] sm:leading-[0.96]">
                 <span className="block">Share one profile.</span>
                 <span className="block">Update it anytime.</span>
               </h1>
@@ -77,6 +77,10 @@ export default function HomePage() {
                 Your links, contact details, and more in one tap.
                 <br className="hidden sm:block" /> Simple, elegant, always up to date.
               </p>
+            </div>
+
+            <div className="relative mx-auto block h-[16.5rem] w-[10.9rem] aspect-[859/1299] lg:hidden">
+              <ProfileCard />
             </div>
 
             <div className="relative hidden h-[min(38rem,calc(100dvh-17rem))] w-auto origin-center aspect-[859/1299] justify-self-end lg:flex lg:-translate-x-[1vw] lg:-translate-y-8 lg:rotate-[-1deg] xl:-translate-x-[4vw] xl:-translate-y-6">

@@ -347,8 +347,11 @@ function DemoCardsManager() {
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
         title="Register card URL"
       >
-        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={registerCard}>
-          <div className="min-w-72 flex-1">
+        <form
+          className="mt-6 flex max-w-3xl flex-wrap items-end gap-3 sm:gap-4"
+          onSubmit={registerCard}
+        >
+          <div className="min-w-0 flex-1 sm:min-w-72">
             <Field
               id="card-url"
               label="Pre-encoded card URL"
@@ -360,7 +363,7 @@ function DemoCardsManager() {
           <Button onClick={generateCardUrl} type="button" variant="secondary">
             Generate secure URL
           </Button>
-          <div className="min-w-64">
+          <div className="min-w-0 sm:min-w-64">
             <label
               className="block text-sm font-semibold text-tapit-ink"
               htmlFor="card-assignment-profile"
@@ -407,14 +410,14 @@ function DemoCardsManager() {
             value={query}
           />
         </div>
-        <div className="mt-6 grid gap-2">
+        <div className="mt-5 grid gap-3">
           {cards.length === 0 ? <Notice>No registered cards match this search.</Notice> : null}
           {cards.map((card) => {
             const profile = getDemoProfileById(state, card.profileId);
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">
@@ -620,7 +623,7 @@ function DemoCardsManager() {
           title="Replacement card URL"
         >
           <div className="mt-5 flex max-w-3xl flex-wrap items-end gap-3">
-            <div className="min-w-72 flex-1">
+            <div className="min-w-0 flex-1 sm:min-w-72">
               <Field
                 id="replacement-card-url"
                 label="New pre-encoded card URL"
@@ -776,7 +779,7 @@ function LiveCardsManager() {
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
       <Panel className="min-w-0" title="Register card URL">
         <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
-          <div className="min-w-72 flex-1">
+          <div className="min-w-0 flex-1 sm:min-w-72">
             <Field
               id="live-card-url"
               label="Pre-encoded card URL"
@@ -785,7 +788,7 @@ function LiveCardsManager() {
               value={cardUrl}
             />
           </div>
-          <div className="min-w-64">
+          <div className="min-w-0 sm:min-w-64">
             <label
               className="block text-sm font-semibold text-tapit-ink"
               htmlFor="live-card-assignment-profile"

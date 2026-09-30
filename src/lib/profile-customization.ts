@@ -49,7 +49,7 @@ export interface ResolvedProfileAppearance {
 
 export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
   preset: "warm-studio",
-  accent: "coral",
+  accent: "jade",
   typeScale: "comfortable",
   linkTreatment: "filled",
   contentOrder: "links-first",

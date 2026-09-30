@@ -1,12 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-
-async function signInAsAdmin(page: Page) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("admin@tapit.local");
-  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/admin\/customers$/);
-}
+import { signInAsAdmin } from "./support/demo-harness";
 
 async function signInAsCustomer(page: Page) {
   await page.goto("/login");
@@ -95,6 +88,79 @@ test("administrator sidebar preserves operations and governance navigation", asy
     "false",
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("administrator records and governance pages remain usable at phone and desktop widths", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+
+  const pages = [
+    { path: "/admin/customers", heading: "Customer accounts", marker: "Search customers" },
+    { path: "/admin/profiles", heading: "Profile registry", marker: "Search profiles" },
+    { path: "/admin/cards", heading: "Card registry", marker: "Search cards" },
+    { path: "/admin/analytics", heading: "Operational analytics", marker: "Time range" },
+    { path: "/admin/audit-log", heading: "Audit log", marker: "Search audit entries" },
+    { path: "/admin/settings", heading: "Support contact", marker: "Support destination" },
+  ];
+
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    for (const item of pages) {
+      await page.goto(item.path);
+      await expect(page.getByRole("heading", { name: item.heading })).toBeVisible();
+      await expect(page.getByLabel(item.marker)).toBeVisible();
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      if (scrollWidth > width) {
+        const overflowingElements = await page.evaluate(() => {
+          const viewportWidth = window.innerWidth;
+          return Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+            .map((element) => {
+              const bounds = element.getBoundingClientRect();
+              return {
+                tag: element.tagName,
+                className: String(element.className).slice(0, 120),
+                text: (element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
+                left: Math.round(bounds.left),
+                right: Math.round(bounds.right),
+                width: Math.round(bounds.width),
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+                overflow: Math.max(
+                  Math.round(bounds.right - viewportWidth),
+                  element.scrollWidth - element.clientWidth,
+                ),
+              };
+            })
+            .filter((element) => element.overflow > 0)
+            .sort((left, right) => right.overflow - left.overflow)
+            .slice(0, 30);
+        });
+        console.log(`Horizontal overflow on ${item.path} at ${width}px`, overflowingElements);
+      }
+      expect(scrollWidth).toBeLessThanOrEqual(width);
+    }
+  }
+});
+
+test("administrator profile registry uses scannable desktop rows", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin/profiles");
+
+  const registry = page.getByRole("table", { name: "Profile registry" });
+  await expect(registry).toBeVisible();
+  await expect(registry.getByRole("columnheader", { name: "Profile" })).toBeVisible();
+  await expect(registry.getByRole("columnheader", { name: "Public URL" })).toBeVisible();
+  await expect(registry.getByRole("row", { name: /Mara Velasquez.*published/i })).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/admin-profiles-desktop.png" });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(registry).toBeHidden();
+  await expect(page.getByRole("button", { name: "Select Mara Velasquez profile" })).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/admin-profiles-mobile.png" });
 });
 
 test("administrator can inspect only the selected profile analytics and traffic sources", async ({
@@ -504,9 +570,16 @@ test("administrator approves a customer deletion request", async ({ page }) => {
     .click();
   await page.getByRole("link", { name: "Customers" }).click();
   const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+  await page.setViewportSize({ width: 320, height: 844 });
   await customer.getByRole("button", { name: "Approve deletion" }).click();
-  await expect(page.getByRole("dialog", { name: "Approve account deletion?" })).toBeVisible();
-  await page.getByRole("dialog").getByRole("button", { name: "Approve deletion" }).click();
+  const approvalDialog = page.getByRole("dialog", { name: "Approve account deletion?" });
+  await expect(approvalDialog).toBeVisible();
+  const approvalDialogBox = await approvalDialog.boundingBox();
+  expect(approvalDialogBox).not.toBeNull();
+  expect(approvalDialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(approvalDialogBox!.x + approvalDialogBox!.width).toBeLessThanOrEqual(320);
+  await expect(approvalDialog.getByRole("button", { name: "Approve deletion" })).toBeInViewport();
+  await approvalDialog.getByRole("button", { name: "Approve deletion" }).click();
   await expect(
     page.getByText(
       "Deletion approved. The account is closed and its profile and cards remain unavailable.",

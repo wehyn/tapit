@@ -94,6 +94,22 @@ test("mobile identity alignment centers the public profile header", async ({ pag
   await expect(bio).toHaveCSS("text-align", "left");
 });
 
+test("public profile keeps its primary actions usable at narrow phone widths", async ({ page }) => {
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/mara-velasquez");
+
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    const linkedIn = page.getByRole("link", { name: "LinkedIn" });
+    await expect(linkedIn).toBeVisible();
+    await expect(linkedIn.locator("svg").last()).toHaveClass(/text-white\/80/);
+    await expect(page.getByRole("button", { name: "Save contact" })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+  }
+});
+
 test("direct and active card paths show the same published profile", async ({ page }) => {
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
@@ -231,6 +247,31 @@ test("inactive cards never reveal their former profile and vCard includes approv
   expect(unfoldedVCard).toContain("item3.X-ABLabel:Book a conversation");
   expect(unfoldedVCard).toContain("item4.URL:mailto:mara@example.test");
   expect(unfoldedVCard).toContain("item4.X-ABLabel:Email");
+});
+
+test("unavailable profiles do not reveal their previously published identity", async ({ page }) => {
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await page.evaluate(() => {
+    const stateKey = "tapit:demo-state:v1";
+    const state = JSON.parse(window.localStorage.getItem(stateKey) ?? "{}");
+    const profile = state.profiles?.find(
+      (candidate: { id: string }) => candidate.id === "profile-mara",
+    );
+    const owner = state.customers?.find(
+      (candidate: { id: string }) => candidate.id === profile?.ownerId,
+    );
+    if (!owner) throw new Error("Expected the demo profile owner to exist.");
+    owner.deletionStatus = "requested";
+    window.localStorage.setItem(stateKey, JSON.stringify(state));
+  });
+  await page.reload();
+
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+  await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
+  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
 });
 
 test("vCard export converts a published WebP photo to an embedded PNG", async ({ page }) => {

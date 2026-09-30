@@ -239,7 +239,7 @@ describe("ProfileCustomizationEditor", () => {
     render(<ControlledEditor onChange={onChange} />);
 
     expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "Coral" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Jade" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Comfortable" })).toBeChecked();
     expect(screen.getByRole("radio", { name: "Filled" })).toBeChecked();
 

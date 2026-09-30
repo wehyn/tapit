@@ -111,7 +111,7 @@ describe("demo self-service signup", () => {
         links: [],
         customization: {
           preset: "warm-studio",
-          accent: "coral",
+          accent: "jade",
           typeScale: "comfortable",
           linkTreatment: "filled",
           contentOrder: "links-first",

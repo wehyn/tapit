@@ -4,11 +4,13 @@ import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
 type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-tapit-accent text-white hover:bg-tapit-accent-strong",
+  primary:
+    "border border-tapit-accent bg-tapit-accent text-white shadow-[0_2px_5px_rgba(23,35,30,0.08)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
   secondary:
-    "border border-tapit-line bg-tapit-surface text-tapit-ink hover:border-tapit-accent hover:bg-tapit-paper",
-  quiet: "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink",
-  danger: "bg-tapit-danger text-white hover:bg-[#812d29]",
+    "border border-tapit-line bg-tapit-surface text-tapit-ink hover:border-tapit-accent hover:bg-tapit-soft-surface",
+  quiet: "text-tapit-muted hover:bg-tapit-soft-surface hover:text-tapit-ink",
+  danger:
+    "border border-tapit-danger bg-tapit-danger text-white hover:border-[#812d29] hover:bg-[#812d29]",
 };
 
 export function Button({
@@ -25,7 +27,7 @@ export function Button({
   return (
     <button
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-12 items-center justify-center rounded-tapit px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${variant === "primary" ? "rounded-full" : ""} ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.985] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
       data-state={loading ? "loading" : "ready"}
       {...props}
       disabled={loading || props.disabled}
@@ -56,7 +58,7 @@ export function ButtonLink({
 }) {
   return (
     <Link
-      className={`inline-flex min-h-12 items-center justify-center rounded-tapit px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px ${variant === "primary" ? "rounded-full" : ""} ${variantClasses[variant]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-px active:scale-[0.985] ${variantClasses[variant]} ${className}`}
       href={href}
       onClick={onClick}
     >

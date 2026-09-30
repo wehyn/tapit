@@ -49,10 +49,187 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 type Confirmation = "unpublish" | "suspend" | null;
 type ProfileDialogTab = "edit" | "details";
+type ProfileRegistryEntry = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  selected: boolean;
+  onOpen: () => void;
+};
 type LiveAdminProfileDetails = NonNullable<
   ReturnType<typeof useQuery<typeof api.profiles.adminDetails>>
 >;
 type AdminDraftForPersistence = ProfileContent & { media?: ProfileMediaPresentation | null };
+
+function ProfileRegistryControls({
+  description,
+  message,
+  onQueryChange,
+  query,
+}: {
+  description: string;
+  message?: ReactNode;
+  onQueryChange: (value: string) => void;
+  query: string;
+}) {
+  return (
+    <section className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_1px_3px_rgba(23,35,30,0.04)] sm:p-7">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
+        <div className="min-w-0">
+          <p className="text-xs font-semibold tracking-[0.16em] text-tapit-accent uppercase">
+            Operations
+          </p>
+          <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-tapit-ink">
+            Profile management
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-tapit-muted">{description}</p>
+        </div>
+        <div className="w-full lg:max-w-sm lg:shrink-0">
+          <Field
+            id="profile-search"
+            label="Search profiles"
+            onChange={(event) => onQueryChange(event.target.value)}
+            placeholder="Search name or slug"
+            type="search"
+            value={query}
+          />
+        </div>
+      </div>
+      {message ? <div className="mt-5">{message}</div> : null}
+    </section>
+  );
+}
+
+function profileInitials(name: string) {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "TP"
+  );
+}
+
+function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) {
+  return (
+    <div className="hidden overflow-x-auto rounded-[14px] border border-tapit-line min-[1100px]:block">
+      <table
+        aria-label="Profile registry"
+        className="w-full min-w-[700px] border-collapse text-left"
+      >
+        <thead className="bg-tapit-paper/75 text-[11px] font-semibold tracking-[0.12em] text-tapit-muted uppercase">
+          <tr>
+            <th className="px-5 py-3.5" scope="col">
+              Profile
+            </th>
+            <th className="px-5 py-3.5" scope="col">
+              Public URL
+            </th>
+            <th className="px-5 py-3.5" scope="col">
+              Status
+            </th>
+            <th className="px-5 py-3.5 text-right" scope="col">
+              Action
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-tapit-line bg-tapit-surface">
+          {entries.map((entry) => (
+            <tr
+              className={`transition-colors hover:bg-tapit-paper/55 ${entry.selected ? "bg-tapit-accent-soft/45" : ""}`}
+              key={entry.id}
+            >
+              <td className="px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="grid size-10 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-xs font-semibold tracking-wide text-tapit-accent-strong"
+                  >
+                    {profileInitials(entry.name)}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-tapit-ink">
+                      {entry.name}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-tapit-muted">
+                      /{entry.slug}
+                    </span>
+                  </span>
+                </div>
+              </td>
+              <td className="px-5 py-3.5">
+                <span className="font-mono text-xs text-tapit-muted">tapit.com/{entry.slug}</span>
+              </td>
+              <td className="px-5 py-3.5">
+                <StatusBadge status={entry.status} />
+              </td>
+              <td className="px-5 py-3.5 text-right">
+                <button
+                  aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
+                  aria-expanded={entry.selected}
+                  aria-haspopup="dialog"
+                  aria-label={`${entry.name} /${entry.slug}`}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-tapit-line px-3.5 text-xs font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
+                  onClick={entry.onOpen}
+                  type="button"
+                >
+                  Open profile
+                  <ArrowRightIcon aria-hidden="true" size={15} />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) {
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 min-[1100px]:hidden">
+      {entries.map((entry) => (
+        <button
+          aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
+          aria-expanded={entry.selected}
+          aria-haspopup="dialog"
+          aria-label={`Select ${entry.name} profile`}
+          className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border p-3.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
+          key={entry.id}
+          onClick={entry.onOpen}
+          type="button"
+        >
+          <span className="min-w-0">
+            <span className="block truncate font-semibold text-tapit-ink">{entry.name}</span>
+            <span className="mt-1 block truncate text-sm text-tapit-muted">/{entry.slug}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            <StatusBadge status={entry.status} />
+            <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ProfileRegistry({
+  emptyMessage,
+  entries,
+}: {
+  emptyMessage: ReactNode;
+  entries: ProfileRegistryEntry[];
+}) {
+  if (entries.length === 0) return <Notice>{emptyMessage}</Notice>;
+  return (
+    <>
+      <ProfileRegistryTable entries={entries} />
+      <ProfileRegistryCards entries={entries} />
+    </>
+  );
+}
 
 function adminDraftForPersistence(
   content: ProfileContent,
@@ -320,7 +497,7 @@ function ProfileDialog({
           </Button>
         </div>
         <div className="shrink-0 border-b border-tapit-line px-5 sm:px-8">
-          <div aria-label="Profile sections" className="flex gap-6" role="tablist">
+          <div aria-label="Profile sections" className="flex gap-4 sm:gap-6" role="tablist">
             <button
               aria-controls="admin-profile-editor-panel"
               aria-selected={selectedTab === "edit"}
@@ -392,6 +569,19 @@ function DemoProfilesManager() {
     `${candidate.draft.name} ${candidate.draft.slug}`.toLowerCase().includes(normalizedQuery),
   );
   const profile = profiles.find((candidate) => candidate.id === selectedProfileId);
+  const registryEntries: ProfileRegistryEntry[] = matchingProfiles.map((candidate) => ({
+    id: candidate.id,
+    name: candidate.draft.name || "Unnamed profile",
+    slug: candidate.draft.slug,
+    status: candidate.status,
+    selected: candidate.id === selectedProfileId,
+    onOpen: () => {
+      setSelectedProfileId(candidate.id);
+      setSlugValue(candidate.draft.slug);
+      setSlugError(null);
+      setSlugSuccess(null);
+    },
+  }));
 
   const owner = profile
     ? state.customers.find((customer) => customer.id === profile.ownerId)
@@ -609,63 +799,23 @@ function DemoProfilesManager() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
+      <ProfileRegistryControls
         description="Moderation actions affect the public state immediately and are recorded with the administrator and before/after status."
-        title="Profile management"
-      >
-        {message && profile === undefined ? (
-          <div className="mt-6">
+        message={
+          message && profile === undefined ? (
             <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-        <div className="mt-6 max-w-md">
-          <Field
-            id="profile-search"
-            label="Search profiles"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search name or slug"
-            type="search"
-            value={query}
-          />
-        </div>
-      </Panel>
+          ) : null
+        }
+        onQueryChange={setQuery}
+        query={query}
+      />
 
       <Panel className="p-3 sm:p-4" title="Profile registry">
-        <div className="mt-3 grid gap-2">
-          {matchingProfiles.length === 0 ? <Notice>No profiles match this search.</Notice> : null}
-          {matchingProfiles.map((candidate) => (
-            <button
-              aria-describedby={`profile-status-${candidate.id}`}
-              aria-label={`${candidate.draft.name || "Unnamed profile"} /${candidate.draft.slug}`}
-              aria-controls={candidate.id === profile?.id ? "admin-profile-dialog" : undefined}
-              aria-expanded={candidate.id === profile?.id}
-              aria-haspopup="dialog"
-              className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border p-3 text-left transition-colors ${candidate.id === profile?.id ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-paper hover:border-tapit-accent/50"}`}
-              key={candidate.id}
-              onClick={() => {
-                setSelectedProfileId(candidate.id);
-                setSlugValue(candidate.draft.slug);
-                setSlugError(null);
-                setSlugSuccess(null);
-              }}
-              type="button"
-            >
-              <span className="min-w-0">
-                <span className="block truncate font-semibold text-tapit-ink">
-                  {candidate.draft.name || "Unnamed profile"}
-                </span>
-                <span className="mt-1 block truncate text-sm text-tapit-muted">
-                  /{candidate.draft.slug}
-                </span>
-              </span>
-              <span className="flex shrink-0 items-center gap-2">
-                <span id={`profile-status-${candidate.id}`}>
-                  <StatusBadge status={candidate.status} />
-                </span>
-                <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
-              </span>
-            </button>
-          ))}
+        <div className="mt-4">
+          <ProfileRegistry
+            emptyMessage="No profiles match this search."
+            entries={registryEntries}
+          />
         </div>
       </Panel>
 
@@ -849,6 +999,23 @@ function LiveProfilesManager() {
       .includes(query.trim().toLowerCase()),
   );
   const profile = allProfiles.find((candidate) => candidate._id === selectedId);
+  const registryEntries: ProfileRegistryEntry[] = matching.map((candidate) => ({
+    id: candidate._id,
+    name: candidate.draft.name || "Unnamed profile",
+    slug: candidate.draft.slug,
+    status: candidate.status,
+    selected: candidate._id === selectedId,
+    onOpen: () => {
+      selectedIdRef.current = candidate._id;
+      setSelectedId(candidate._id);
+      setDraftState(null);
+      setSlugValue(candidate.slug);
+      setSlugError(null);
+      setSlugSuccess(null);
+      setMessage(null);
+      setDetailsFailure(null);
+    },
+  }));
   const selectedProfileKey = profile === undefined ? null : JSON.stringify(profile);
 
   useEffect(() => {
@@ -1144,67 +1311,29 @@ function LiveProfilesManager() {
   }
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <Panel
+      <ProfileRegistryControls
         description="Moderation actions are authorized and audited by Convex."
-        title="Profile management"
-      >
-        {message && profile === undefined ? (
-          <div className="mt-6">
+        message={
+          message && profile === undefined ? (
             <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-        <div className="mt-6 max-w-md">
-          <Field
-            id="profile-search"
-            label="Search profiles"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search name or slug"
-            type="search"
-            value={query}
+          ) : null
+        }
+        onQueryChange={setQuery}
+        query={query}
+      />
+      <Panel className="p-3 sm:p-4" title="Profile registry">
+        <div className="mt-4">
+          <ProfileRegistry
+            emptyMessage={
+              query.trim() !== "" && paginationStatus === "CanLoadMore"
+                ? "No profiles on the loaded pages match. Load more profiles to continue searching."
+                : "No profiles match this search."
+            }
+            entries={registryEntries}
           />
         </div>
-      </Panel>
-      <Panel className="p-3 sm:p-4" title="Profile registry">
-        <div className="mt-3 grid gap-2">
-          {matching.length === 0 ? (
-            <Notice>
-              {query.trim() !== "" && paginationStatus === "CanLoadMore"
-                ? "No profiles on the loaded pages match. Load more profiles to continue searching."
-                : "No profiles match this search."}
-            </Notice>
-          ) : (
-            matching.map((candidate) => (
-              <button
-                aria-controls={candidate._id === profile?._id ? "admin-profile-dialog" : undefined}
-                aria-expanded={candidate._id === profile?._id}
-                aria-haspopup="dialog"
-                className="flex min-h-16 w-full items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-3 text-left"
-                key={candidate._id}
-                onClick={() => {
-                  selectedIdRef.current = candidate._id;
-                  setSelectedId(candidate._id);
-                  setDraftState(null);
-                  setSlugValue(candidate.slug);
-                  setSlugError(null);
-                  setSlugSuccess(null);
-                  setMessage(null);
-                  setDetailsFailure(null);
-                }}
-                type="button"
-              >
-                <span>
-                  <span className="block font-semibold text-tapit-ink">
-                    {candidate.draft.name || "Unnamed profile"}
-                  </span>
-                  <span className="mt-1 block text-sm text-tapit-muted">
-                    /{candidate.draft.slug}
-                  </span>
-                </span>
-                <StatusBadge status={candidate.status} />
-              </button>
-            ))
-          )}
-          {paginationStatus !== "Exhausted" ? (
+        {paginationStatus !== "Exhausted" ? (
+          <div className="mt-4">
             <Button
               disabled={paginationStatus !== "CanLoadMore"}
               onClick={() => loadMore(25)}
@@ -1213,8 +1342,8 @@ function LiveProfilesManager() {
             >
               {paginationStatus === "LoadingMore" ? "Loading more profiles…" : "Load more profiles"}
             </Button>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </Panel>
 
       {profile ? (

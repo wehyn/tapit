@@ -403,30 +403,51 @@ Inactive-card and unavailable-profile are separate states. A card can be inactiv
 
 ### Overall character
 
-Tapit should feel clean, professional, calm, and trustworthy during a quick business introduction. The public page is a polished digital business card, not a social feed or full website builder.
+Tapit uses the approved **Quiet Precision** direction: calm, clear, and warm, with direct labels, readable surfaces, and restrained depth. The public page remains a digital business card, while customer and operations workspaces use the same visual system with role-specific navigation and information hierarchy.
 
-Exact logo, colors, typeface, corner radius, shadow treatment, and final theme catalog are TBD. Themes must remain restrained and preserve contrast.
+The durable screen reference is [`docs/design-references/tapit-quiet-precision-mockups.html`](design-references/tapit-quiet-precision-mockups.html). Its exploratory customer overview does not add a route or change the `/app` redirect.
+
+The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. The interface uses the platform system sans-serif stack; it adds no external font or design dependency. Customer-selected profile themes remain independent of the application palette.
+
+### Implemented tokens
+
+| Role | CSS token | Value |
+| --- | --- | --- |
+| Main text | `--tapit-ink` | `#17231e` |
+| Secondary text | `--tapit-muted` | `#626f67` |
+| Main surface | `--tapit-surface` | `#ffffff` |
+| Page canvas | `--tapit-paper` | `#eef0ed` |
+| Soft surface | `--tapit-soft-surface` | `#f5f7f5` |
+| Borders | `--tapit-line` | `#e4e9e5` |
+| Primary accent | `--tapit-accent` | `#236d54` |
+| Strong accent | `--tapit-accent-strong` | `#174d3b` |
+| Accent surface | `--tapit-accent-soft` | `#e4f1ea` |
+| Focus ring | `--tapit-focus` | `--tapit-accent` |
+| Shared panel radius | `--tapit-radius` | `16px` |
+
+Status colors use paired fills and text: success `#e4f1ea` / `#174d3b`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Muted text is `#626f67`; it provides at least 4.5:1 contrast on the shared white, canvas, and soft surfaces. Controls use compact 9–10px corners, panels use the shared 16px radius, and shadows remain light and limited to elevated menus, dialogs, and consent surfaces.
 
 ### Layout and spacing
 
-- Use a centered public profile column with generous breathing room.
-- Keep link buttons visually consistent and easy to scan.
-- Use a consistent spacing scale across forms, rows, cards, and sections.
-- Keep one primary action per context: Publish, Add link, Register/Assign, or Save contact.
-- Use consistent corner radius, border, focus, and shadow decisions across custom components; exact values are TBD.
+- Use a centered, single-column public profile with a 448px maximum width and generous breathing room.
+- Keep link buttons visually consistent and easy to scan. Identity appears before links; Save contact stays visually distinct from external destinations.
+- Reuse the Tailwind spacing scale across form groups, rows, cards, and sections.
+- Keep one clear primary action per context: Publish, Add link, Register/Assign, or Save contact.
+- Use a full sidebar at 1280px and above, a compact icon rail from 1024px, and the existing sticky mobile header plus accessible drawer below 1024px. Customer and administrator navigation remain distinct.
+- Keep page headers, forms, previews, tables, and dialogs usable from 320 CSS pixels upward. Collapse administrative records into readable cards where needed; avoid page-level horizontal scrolling.
 
 ### Color
 
-- Use a neutral application base and restrained accent for primary actions.
-- Allow profile themes to alter controlled colors without reducing contrast.
-- Pair status colors with text or iconography.
-- Validate or constrain customer-selected colors when they reduce legibility.
+- Use the neutral application base and green accent tokens above for shared controls and navigation.
+- Keep customer profile themes separate from the application palette; selected themes may change the published profile's presentation only.
+- Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
+- Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
 
 ### Typography
 
-- Use a legible sans-serif system or selected brand typeface; exact choice is TBD.
-- Establish levels for name, role/bio, link labels, navigation, form labels, helper text, errors, and status text.
-- Avoid overly small public-profile metadata.
+- Use the system stack `ui-sans-serif`, `-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, and `sans-serif`.
+- Use compact uppercase tracking for small section labels, clear heading levels for page context, and comfortable line height for body copy and legal content.
+- Keep public identity and link labels readable; use small metadata only for secondary status and timestamps.
 
 ### Components and interaction
 
@@ -524,7 +545,7 @@ Exact logo, colors, typeface, corner radius, shadow treatment, and final theme c
 
 ## Open questions
 
-- Exact Tapit logo, color palette, typeface, corner radius, shadows, and theme catalog are TBD.
+- Do not introduce a custom font or expand the profile theme catalog without a separate design decision.
 - Production domain and final public URL branding are TBD.
 - Maximum links per profile is TBD.
 - Setup-link expiry, resend, and invalidation behavior are TBD.

@@ -55,6 +55,11 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     await page.goto(route);
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Layout preview draft");
+      const nameBox = await page.getByLabel("Name").boundingBox();
+      const bioBox = await page.getByLabel("Bio or role").boundingBox();
+      expect(nameBox).not.toBeNull();
+      expect(bioBox).not.toBeNull();
+      expect(bioBox!.height).toBeLessThanOrEqual(nameBox!.height * 2);
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
@@ -64,6 +69,22 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     await expect(preview).toBeVisible();
     await expect(save).toBeVisible();
     await expect(publish).toBeVisible();
+
+    if (route === "/app/profile") {
+      const profileUrl = page.getByRole("link", { name: "/mara-velasquez", exact: true });
+      const urlTextCenter = await profileUrl.evaluate((anchor) => {
+        const range = document.createRange();
+        range.selectNodeContents(anchor);
+        const bounds = range.getBoundingClientRect();
+        return bounds.top + bounds.height / 2;
+      });
+      const urlIcon = profileUrl.locator("xpath=../..").locator("svg").first();
+      const urlIconBounds = await urlIcon.boundingBox();
+      expect(urlIconBounds).not.toBeNull();
+      expect(
+        Math.abs(urlTextCenter - (urlIconBounds!.y + urlIconBounds!.height / 2)),
+      ).toBeLessThanOrEqual(2);
+    }
 
     const previewBox = await preview.boundingBox();
     const saveBox = await save.boundingBox();
@@ -89,6 +110,29 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
   }
 });
 
+test("profile preview can be reached from the editor header on phones", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+
+  const previewShortcut = page.getByRole("link", { name: "View preview", exact: true });
+  await expect(previewShortcut).toBeVisible();
+  await previewShortcut.click();
+  await expect(page).toHaveURL(/#workspace-preview$/);
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/app/profile");
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  const webPreviewShortcut = page.getByRole("link", { name: "View preview", exact: true });
+  await page.screenshot({
+    path: "test-results/ui-redesign/customer-profile-web-preview-shortcut.png",
+  });
+  await webPreviewShortcut.click();
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
+  await page.screenshot({ path: "test-results/ui-redesign/customer-profile-web-preview.png" });
+});
+
 test("profile draft actions only appear when a draft needs action", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -103,7 +147,7 @@ test("profile draft actions only appear when a draft needs action", async ({ pag
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Draft action bar test");
     } else {
-      await page.getByRole("radio", { name: "Jade" }).check();
+      await page.getByRole("radio", { name: "Coral" }).check();
     }
 
     await expect(actions).toBeVisible();
@@ -127,10 +171,15 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
-test("customer sidebar stays grouped and usable across desktop and mobile", async ({ page }) => {
+test("customer sidebar uses the Quiet Precision surface and stays grouped across desktop and mobile", async ({
+  page,
+}) => {
   await signInAsCustomer(page);
   await expect(page.getByRole("heading", { name: "Your profile" })).toBeVisible();
   const island = page.getByTestId("workspace-sidebar");
+  await expect
+    .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toBe("rgb(245, 247, 245)");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
   expect(desktopBox!.x).toBeGreaterThan(0);
@@ -240,6 +289,8 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
   await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
   const frame = page.getByTestId("profile-preview-frame");
+  const previewDevice = page.getByTestId("profile-preview-device");
+  await expect(previewDevice).toBeVisible();
   const phoneWidth = (await frame.boundingBox())!.width;
   await page.getByRole("button", { name: "desktop", exact: true }).click();
   await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveAttribute(
@@ -247,7 +298,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     "true",
   );
   await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(phoneWidth);
+  await expect(previewDevice).toBeHidden();
   await page.getByRole("button", { name: "phone", exact: true }).click();
+  await expect(previewDevice).toBeVisible();
   await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
   await page.getByRole("button", { name: "Copy URL" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
@@ -265,8 +318,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.screenshot({
-    path: "test-results/profile-editor-refresh-desktop.png",
+    path: "test-results/ui-redesign/profile-editor-desktop.png",
     fullPage: true,
   });
   for (const width of [1117, 390]) {
@@ -279,7 +333,10 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     (await page.getByRole("link", { name: "/mara-velasquez" }).boundingBox())!.width,
   ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: "test-results/profile-editor-refresh-mobile.png", fullPage: true });
+  await page.screenshot({
+    path: "test-results/ui-redesign/profile-editor-mobile.png",
+    fullPage: true,
+  });
 });
 
 test("profile URL remains available when clipboard access fails", async ({ page }) => {
@@ -764,6 +821,7 @@ test("compact contact actions keep labels accessible and publish their selected 
 });
 
 test("customer can cancel or apply a square profile photo crop", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 });
   await signInAsCustomer(page);
   await page.goto("/app/profile");
   const photo = page.getByRole("img", { name: "Mara Velasquez profile" }).first();
@@ -772,6 +830,12 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
   await imageInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
   await expect(cropDialog).toBeVisible();
+  const cropDialogBox = await cropDialog.boundingBox();
+  expect(cropDialogBox).not.toBeNull();
+  expect(cropDialogBox!.x).toBeGreaterThanOrEqual(0);
+  expect(cropDialogBox!.x + cropDialogBox!.width).toBeLessThanOrEqual(320);
+  await expect(cropDialog.getByRole("button", { name: "Cancel" })).toBeInViewport();
+  await expect(cropDialog.getByRole("button", { name: "Apply", exact: true })).toBeInViewport();
   await cropDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", previousSource ?? "");
@@ -844,4 +908,45 @@ test("customer can unpublish from Account", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),
   ).toBeVisible();
+});
+
+test("customer utility workspaces fit phone and desktop widths", async ({ page }) => {
+  await signInAsCustomer(page);
+
+  for (const route of ["/app/analytics", "/app/account", "/app/account/build-card"] as const) {
+    await page.goto(route);
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(page.locator("main").first()).toBeVisible();
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      if (scrollWidth > width) {
+        const overflowingElements = await page.evaluate(() => {
+          const viewportWidth = window.innerWidth;
+          return Array.from(document.body.querySelectorAll<HTMLElement>("*"))
+            .map((element) => {
+              const bounds = element.getBoundingClientRect();
+              return {
+                tag: element.tagName,
+                className: String(element.className).slice(0, 120),
+                text: (element.textContent ?? "").trim().replace(/\s+/g, " ").slice(0, 60),
+                left: Math.round(bounds.left),
+                right: Math.round(bounds.right),
+                width: Math.round(bounds.width),
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+                overflow: Math.max(
+                  Math.round(bounds.right - viewportWidth),
+                  element.scrollWidth - element.clientWidth,
+                ),
+              };
+            })
+            .filter((element) => element.overflow > 0)
+            .sort((left, right) => right.overflow - left.overflow)
+            .slice(0, 30);
+        });
+        console.log(`Horizontal overflow on ${route} at ${width}px`, overflowingElements);
+      }
+      expect(scrollWidth).toBeLessThanOrEqual(width);
+    }
+  }
 });
