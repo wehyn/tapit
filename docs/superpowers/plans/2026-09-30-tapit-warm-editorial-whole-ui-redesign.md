@@ -293,7 +293,7 @@
 - [x] **Step 4: Compare and document the result.** Compare the desktop customer profile-editor capture with the selected prototype and inspect the mobile captures for intentional responsive composition. Record contrast-checked Warm Editorial tokens, serif heading use, shared component treatments, current navigation breakpoints, and profile-theme independence in `docs/DESIGN.md`.
 - [x] **Step 5: Walk every route family in local demo.** Confirm homepage/legal, login/setup, published and non-public profile states, customer editor/utilities, both card-builder routes, and administrator pages/states. Confirm `/app` and `/admin` retain their existing redirects.
 - [x] **Step 6: Run integrated verification serially.** Run `npm run test:e2e:demo`, then `npm run verify`. Expected: E2E and the repository verification script complete successfully; no Production or physical-device claims are made.
-- [ ] **Step 7: Commit the approved design record and evidence changes.** Commit the approved spec, plan, prototype reference, updated `TASKS.md`/`docs/DESIGN.md`, and E2E evidence assertions in scoped documentation and test commits. Keep generated screenshots and reports ignored.
+- [x] **Step 7: Commit the approved design record and evidence changes.** Commit the approved spec, plan, prototype reference, updated `TASKS.md`/`docs/DESIGN.md`, and E2E evidence assertions in scoped documentation and test commits. Keep generated screenshots and reports ignored.
 
 ## Coverage Review
 
