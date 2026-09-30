@@ -100,7 +100,9 @@ test("public profile keeps its primary actions usable at narrow phone widths", a
     await page.goto("/mara-velasquez");
 
     await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "LinkedIn" })).toBeVisible();
+    const linkedIn = page.getByRole("link", { name: "LinkedIn" });
+    await expect(linkedIn).toBeVisible();
+    await expect(linkedIn.locator("svg").last()).toHaveClass(/text-white\/80/);
     await expect(page.getByRole("button", { name: "Save contact" })).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))

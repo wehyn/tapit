@@ -1,5 +1,37 @@
 import { expect, test } from "@playwright/test";
 
+test("mobile homepage brings the Tapit profile card into the hero", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+
+  await expect(
+    page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
+  ).toBeVisible();
+  const heroHeading = page.getByRole("heading", {
+    name: "Share one profile. Update it anytime.",
+  });
+  const mobileHeader = page.locator("header").first();
+  const heroBounds = (await heroHeading.boundingBox())!;
+  const headerBounds = (await mobileHeader.boundingBox())!;
+  expect(heroBounds.y).toBeGreaterThanOrEqual(headerBounds.y + headerBounds.height);
+  await expect(
+    page.getByRole("img", {
+      name: "Photographed Tapit profile card for Taylor Kim resting on pale stone.",
+    }),
+  ).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/home-mobile.png" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await expect(
+    page.getByRole("img", {
+      name: "Photographed Tapit profile card for Taylor Kim resting on pale stone.",
+    }),
+  ).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/home-desktop.png" });
+});
+
 test("landing page keeps the core sections without placeholder copy or pricing", async ({
   page,
 }) => {

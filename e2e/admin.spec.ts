@@ -143,6 +143,26 @@ test("administrator records and governance pages remain usable at phone and desk
   }
 });
 
+test("administrator profile registry uses scannable desktop rows", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin/profiles");
+
+  const registry = page.getByRole("table", { name: "Profile registry" });
+  await expect(registry).toBeVisible();
+  await expect(registry.getByRole("columnheader", { name: "Profile" })).toBeVisible();
+  await expect(registry.getByRole("columnheader", { name: "Public URL" })).toBeVisible();
+  await expect(registry.getByRole("row", { name: /Mara Velasquez.*published/i })).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/admin-profiles-desktop.png" });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(registry).toBeHidden();
+  await expect(page.getByRole("button", { name: "Select Mara Velasquez profile" })).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/ui-redesign/admin-profiles-mobile.png" });
+});
+
 test("administrator can inspect only the selected profile analytics and traffic sources", async ({
   page,
 }) => {

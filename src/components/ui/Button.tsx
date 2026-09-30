@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.985] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
       data-state={loading ? "loading" : "ready"}
       {...props}
       disabled={loading || props.disabled}
@@ -58,7 +58,7 @@ export function ButtonLink({
 }) {
   return (
     <Link
-      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px ${variantClasses[variant]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[10px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-px active:scale-[0.985] ${variantClasses[variant]} ${className}`}
       href={href}
       onClick={onClick}
     >

@@ -42,6 +42,18 @@ export function WorkspacePreview({
     }
   }
 
+  const publicProfile = (
+    <PublicProfile
+      preview
+      previewMode={mode}
+      profile={preview}
+      profileUrl={profileUrl}
+      theme={theme}
+      trackClicks={false}
+      trackView={false}
+    />
+  );
+
   return (
     <section className="h-fit min-w-0 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_5px_24px_rgba(21,25,24,0.045)] min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:[zoom:0.86]">
       <div className="flex items-center justify-between gap-3 border-b border-tapit-line px-5 py-4 sm:px-6">
@@ -93,15 +105,21 @@ export function WorkspacePreview({
             mode === "phone" ? "max-w-[24.375rem]" : "max-w-[34rem]"
           }`}
         >
-          <PublicProfile
-            preview
-            previewMode={mode}
-            profile={preview}
-            profileUrl={profileUrl}
-            theme={theme}
-            trackClicks={false}
-            trackView={false}
-          />
+          {mode === "phone" ? (
+            <div className="mx-auto w-full max-w-[22.5rem] rounded-[2.25rem] border-[5px] border-[#26312c] bg-[#26312c] p-[5px] shadow-[0_24px_48px_rgba(16,27,22,0.2)]">
+              <div aria-hidden="true" className="flex h-5 items-center justify-center">
+                <span className="h-1.5 w-10 rounded-full bg-[#78827d]" />
+              </div>
+              <div
+                className="overflow-hidden rounded-[1.65rem] bg-tapit-surface"
+                data-testid="profile-preview-device"
+              >
+                {publicProfile}
+              </div>
+            </div>
+          ) : (
+            publicProfile
+          )}
         </div>
       </div>
       {showProfileUrl ? (

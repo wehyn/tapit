@@ -40,11 +40,17 @@ export function Field({
 }
 
 export function TextareaField({
+  compact = false,
   error,
   help,
   label,
   ...props
-}: TextareaHTMLAttributes<HTMLTextAreaElement> & { error?: string; help?: string; label: string }) {
+}: TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  compact?: boolean;
+  error?: string;
+  help?: string;
+  label: string;
+}) {
   const errorId = props.id ? `${props.id}-error` : undefined;
   const helpId = props.id ? `${props.id}-help` : undefined;
   return (
@@ -59,7 +65,7 @@ export function TextareaField({
           undefined
         }
         aria-invalid={Boolean(error)}
-        className={`${controlClasses} min-h-28 resize-y ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
+        className={`${controlClasses} ${compact ? "min-h-20" : "min-h-28"} resize-y ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
       />
       {help ? (
         <p className="mt-1.5 text-xs leading-5 text-tapit-muted" id={helpId}>

@@ -294,6 +294,11 @@ export function PublicProfile({
       link.icon !== undefined && Object.prototype.hasOwnProperty.call(linkIcons, link.icon)
         ? linkIcons[link.icon as keyof typeof linkIcons]
         : LinkSimple;
+    const arrowClasses = warmStudio
+      ? appearance.linkTreatment === "outlined"
+        ? `${warmAccent.arrow} text-current/80`
+        : "group-hover:text-white text-white/80"
+      : `group-hover:text-tapit-accent ${featured ? "text-white/80" : mutedClasses}`;
     return (
       <li key={link.id}>
         <a
@@ -312,7 +317,7 @@ export function PublicProfile({
           </span>
           <ArrowUpRight
             aria-hidden="true"
-            className={`transition motion-reduce:transition-none ${warmStudio ? warmAccent.arrow : "group-hover:text-tapit-accent"} ${featured ? (warmStudio && appearance.linkTreatment === "outlined" ? "text-current/80" : "text-white/80") : mutedClasses}`}
+            className={`transition motion-reduce:transition-none ${arrowClasses}`}
             size={phonePreview || !preview ? 19 : 17}
           />
         </a>

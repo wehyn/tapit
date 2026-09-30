@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { CheckCircleIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon, EyeIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import { Button } from "@/components/ui/Button";
@@ -52,7 +52,7 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`mx-auto grid w-full max-w-[1480px] gap-7 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:gap-10 min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`mx-auto grid w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
       <div className="grid self-start gap-6">
         <div className="pb-1">
@@ -60,11 +60,18 @@ export function ProfileWorkspaceFrame({
             {title}
           </h1>
           <p className="mt-2 max-w-xl text-base leading-7 text-tapit-muted">{description}</p>
+          <a
+            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent min-[1400px]:hidden"
+            href="#workspace-preview"
+          >
+            <EyeIcon aria-hidden="true" size={17} weight="bold" />
+            View preview
+          </a>
         </div>
         {message}
         {controls}
       </div>
-      <div className="h-fit min-w-0">
+      <div className="h-fit min-w-0 scroll-mt-24" id="workspace-preview">
         {preview ? (
           <WorkspacePreview
             mode={previewMode}

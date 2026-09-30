@@ -13,6 +13,9 @@ export const metadata: Metadata = {
     template: "%s · Tapit",
   },
   description: "A calm, updateable digital profile for professional introductions.",
+  icons: {
+    icon: "/favicon.svg",
+  },
   robots: {
     index: false,
     follow: false,

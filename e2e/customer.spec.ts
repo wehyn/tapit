@@ -55,6 +55,11 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     await page.goto(route);
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Layout preview draft");
+      const nameBox = await page.getByLabel("Name").boundingBox();
+      const bioBox = await page.getByLabel("Bio or role").boundingBox();
+      expect(nameBox).not.toBeNull();
+      expect(bioBox).not.toBeNull();
+      expect(bioBox!.height).toBeLessThanOrEqual(nameBox!.height * 2);
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
@@ -89,6 +94,29 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
   }
 });
 
+test("profile preview can be reached from the editor header on phones", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+
+  const previewShortcut = page.getByRole("link", { name: "View preview", exact: true });
+  await expect(previewShortcut).toBeVisible();
+  await previewShortcut.click();
+  await expect(page).toHaveURL(/#workspace-preview$/);
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/app/profile");
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  const webPreviewShortcut = page.getByRole("link", { name: "View preview", exact: true });
+  await page.screenshot({
+    path: "test-results/ui-redesign/customer-profile-web-preview-shortcut.png",
+  });
+  await webPreviewShortcut.click();
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
+  await page.screenshot({ path: "test-results/ui-redesign/customer-profile-web-preview.png" });
+});
+
 test("profile draft actions only appear when a draft needs action", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -103,7 +131,7 @@ test("profile draft actions only appear when a draft needs action", async ({ pag
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Draft action bar test");
     } else {
-      await page.getByRole("radio", { name: "Jade" }).check();
+      await page.getByRole("radio", { name: "Coral" }).check();
     }
 
     await expect(actions).toBeVisible();
@@ -245,6 +273,8 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
   await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
   const frame = page.getByTestId("profile-preview-frame");
+  const previewDevice = page.getByTestId("profile-preview-device");
+  await expect(previewDevice).toBeVisible();
   const phoneWidth = (await frame.boundingBox())!.width;
   await page.getByRole("button", { name: "desktop", exact: true }).click();
   await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveAttribute(
@@ -252,7 +282,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     "true",
   );
   await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(phoneWidth);
+  await expect(previewDevice).toBeHidden();
   await page.getByRole("button", { name: "phone", exact: true }).click();
+  await expect(previewDevice).toBeVisible();
   await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
   await page.getByRole("button", { name: "Copy URL" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
@@ -270,8 +302,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     }),
   ).toBeVisible();
   await page.evaluate(() => window.scrollTo(0, 0));
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.screenshot({
-    path: "test-results/profile-editor-refresh-desktop.png",
+    path: "test-results/ui-redesign/profile-editor-desktop.png",
     fullPage: true,
   });
   for (const width of [1117, 390]) {
@@ -284,7 +317,10 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     (await page.getByRole("link", { name: "/mara-velasquez" }).boundingBox())!.width,
   ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({ path: "test-results/profile-editor-refresh-mobile.png", fullPage: true });
+  await page.screenshot({
+    path: "test-results/ui-redesign/profile-editor-mobile.png",
+    fullPage: true,
+  });
 });
 
 test("profile URL remains available when clipboard access fails", async ({ page }) => {
