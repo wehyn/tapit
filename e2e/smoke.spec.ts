@@ -148,6 +148,11 @@ test("visitors can reach the privacy notice and terms from the public homepage",
   await page.getByRole("link", { name: "Privacy", exact: true }).click();
   await expect(page).toHaveURL(/\/privacy$/);
   await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tapit privacy notice" })).toHaveCSS(
+    "font-family",
+    /Georgia/,
+  );
+  await expect(page.locator("article")).toHaveCSS("max-width", "768px");
 
   await page.getByRole("link", { name: "Back to Tapit" }).click();
   await page.setViewportSize({ width: 1280, height: 900 });

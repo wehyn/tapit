@@ -12,7 +12,7 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-tapit-paper text-tapit-ink">
       <PublicHeader />
-      <article className="mx-auto my-8 w-[calc(100%-2.5rem)] max-w-3xl rounded-[1.75rem] border border-tapit-line bg-tapit-surface px-5 pb-12 pt-10 text-base leading-8 sm:my-12 sm:px-10 sm:py-12">
+      <article className="mx-auto my-8 w-[calc(100%-2.5rem)] max-w-3xl rounded-tapit border border-tapit-line bg-tapit-surface px-5 pb-12 pt-10 text-base leading-8 sm:my-12 sm:px-10 sm:py-12">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-tapit-accent">Terms</p>
         <h1 className="tapit-display mt-5 text-4xl font-normal tracking-[-0.06em] sm:text-6xl">
           Tapit terms of use

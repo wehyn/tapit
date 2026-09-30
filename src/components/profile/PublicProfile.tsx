@@ -362,14 +362,14 @@ export function PublicProfile({
       >
         {preview ? (
           <h2
-            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`tapit-display ${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
             style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}
           </h2>
         ) : (
           <h1
-            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
+            className={`tapit-display ${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight ${hasIntegratedBackground ? "drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]" : ""}`}
             style={warmStudio ? { color: appearance.nameColor } : undefined}
           >
             {profile.name}

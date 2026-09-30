@@ -6,8 +6,28 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toHaveCSS(
+      "font-family",
+      /Georgia/,
+    );
+    await expect(page.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute(
+      "href",
+      "/privacy",
+    );
+    await expect(page.getByRole("link", { name: "Terms", exact: true })).toHaveAttribute(
+      "href",
+      "/terms",
+    );
+    await expect(page.locator("main section > div").nth(1)).toHaveCSS("border-radius", "18px");
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
+    await expect(page.locator("form")).toHaveCSS("row-gap", "24px");
+    if (width === 320) {
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(
+        page.getByRole("alert").filter({ hasText: "Enter a valid email address." }),
+      ).toBeVisible();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
@@ -24,6 +44,10 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 
     await page.goto("/setup/demo-setup-token");
     await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose a password" })).toHaveCSS(
+      "font-family",
+      /Georgia/,
+    );
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Set password", exact: true })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(

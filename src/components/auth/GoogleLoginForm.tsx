@@ -37,7 +37,7 @@ export function GoogleLoginForm({
 
   return (
     <AuthShell mode="signin" variant="google" onModeChange={() => undefined}>
-      <div className="grid gap-5">
+      <div className="grid gap-6">
         {reason === "invitation-required" ? (
           <Notice tone="error">Use your invitation link to continue with Google.</Notice>
         ) : reason === "account-inactive" ? (

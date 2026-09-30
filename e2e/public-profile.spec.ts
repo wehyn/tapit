@@ -55,6 +55,12 @@ async function readPublicProfileSnapshot(page: Page) {
       links: links('ul[aria-label="Profile links"] a'),
       section,
       pageClass: main.getAttribute("class"),
+      pageBackground: getComputedStyle(main).backgroundColor,
+      headingFontFamily: heading ? getComputedStyle(heading).fontFamily : null,
+      panelBackground: details
+        ? null
+        : getComputedStyle(main.querySelector("section")!).backgroundColor,
+      panelRadius: details ? null : getComputedStyle(main.querySelector("section")!).borderRadius,
     };
   });
 }
@@ -100,6 +106,10 @@ test("public profile keeps its primary actions usable at narrow phone widths", a
     await page.goto("/mara-velasquez");
 
     await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveCSS(
+      "font-family",
+      /Georgia/,
+    );
     const linkedIn = page.getByRole("link", { name: "LinkedIn" });
     await expect(linkedIn).toBeVisible();
     await expect(linkedIn.locator("svg").last()).toHaveClass(/text-white\/80/);
@@ -124,46 +134,58 @@ test("direct and active card paths show the same published profile", async ({ pa
 test("customized direct and active card paths preserve presentation parity", async ({ page }) => {
   await publishWarmStudioProfile(page);
 
-  const paths = [];
-  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
-    await page.goto(path);
-    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
-    paths.push(await readPublicProfileSnapshot(page));
-  }
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const paths = [];
+    for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveCSS(
+        "font-family",
+        /Georgia/,
+      );
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+        .toBeLessThanOrEqual(width);
+      paths.push(await readPublicProfileSnapshot(page));
+    }
 
-  expect(paths[0]).toEqual(paths[1]);
-  expect(paths[0]).toMatchObject({
-    name: "Mara Velasquez",
-    bio: "Brand systems for independent teams.",
-    imageSrc: "/images/tapit-demo-mara-avatar.png",
-    contacts: [
-      { label: "Email", href: "mailto:mara@example.test", featured: null },
-      { label: "Phone", href: "tel:+63 917 555 0184", featured: null },
-      { label: "Website", href: "https://mara-velasquez.example", featured: null },
-    ],
-    featured: [
-      {
-        label: "Book a conversation",
-        href: "https://cal.com/mara-velasquez",
-        featured: "true",
+    expect(paths[0]).toEqual(paths[1]);
+    expect(paths[0]).toMatchObject({
+      name: "Mara Velasquez",
+      headingFontFamily: expect.stringMatching(/Georgia/),
+      bio: "Brand systems for independent teams.",
+      imageSrc: "/images/tapit-demo-mara-avatar.png",
+      contacts: [
+        { label: "Email", href: "mailto:mara@example.test", featured: null },
+        { label: "Phone", href: "tel:+63 917 555 0184", featured: null },
+        { label: "Website", href: "https://mara-velasquez.example", featured: null },
+      ],
+      featured: [
+        {
+          label: "Book a conversation",
+          href: "https://cal.com/mara-velasquez",
+          featured: "true",
+        },
+      ],
+      links: [
+        {
+          label: "LinkedIn",
+          href: "https://www.linkedin.com/in/mara-velasquez",
+          featured: null,
+        },
+        { label: "Portfolio", href: "https://mara-velasquez.example", featured: null },
+        { label: "Email", href: "mailto:mara@example.test", featured: null },
+      ],
+      section: {
+        label: "About",
+        body: "A published studio introduction.",
+        expanded: "false",
       },
-    ],
-    links: [
-      {
-        label: "LinkedIn",
-        href: "https://www.linkedin.com/in/mara-velasquez",
-        featured: null,
-      },
-      { label: "Portfolio", href: "https://mara-velasquez.example", featured: null },
-      { label: "Email", href: "mailto:mara@example.test", featured: null },
-    ],
-    section: {
-      label: "About",
-      body: "A published studio introduction.",
-      expanded: "false",
-    },
-    pageClass: expect.stringContaining("bg-[#fbf6ef]"),
-  });
+      pageClass: expect.stringContaining("bg-[#fbf6ef]"),
+      pageBackground: "rgb(251, 246, 239)",
+    });
+  }
 });
 
 test("tagged profile activity appears by source and aggregates to one daily trend point", async ({

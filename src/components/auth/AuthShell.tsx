@@ -59,7 +59,7 @@ export function AuthShell({
                     : "Manage your profile, links, and publication state from one calm workspace."}
               </p>
             </div>
-            <div className="rounded-[22px] border border-tapit-line bg-tapit-surface p-5 shadow-[0_18px_42px_rgba(40,53,44,0.07)] sm:p-8 lg:p-9">
+            <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(40,53,44,0.07)] sm:p-8 lg:p-9">
               {variant === "google" ? null : (
                 <div className="mb-6 grid gap-2 sm:grid-cols-2">
                   <button
