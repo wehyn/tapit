@@ -623,6 +623,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${draft.slug}`}
+      hasPublishedProfile={profile.published !== null && profile.status === "published"}
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
         errors.length > 0 ||
@@ -1223,6 +1224,11 @@ function LiveProfileEditorContent({
       preview={preview}
       previewMode={previewMode}
       profileUrl={`/${currentDraft.slug}`}
+      hasPublishedProfile={
+        liveProfile.published !== null &&
+        liveProfile.published !== undefined &&
+        liveProfile.status === "published"
+      }
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
         errors.length > 0 ||

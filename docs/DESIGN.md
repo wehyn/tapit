@@ -403,30 +403,30 @@ Inactive-card and unavailable-profile are separate states. A card can be inactiv
 
 ### Overall character
 
-Tapit uses the approved **Warm Editorial** direction: natural-paper backgrounds, warm white surfaces, forest-green actions, restrained clay accents, and a clear hierarchy built from whitespace and type. The public page remains a digital business card, while customer and operations workspaces use the same visual system with role-specific navigation and information hierarchy.
+Tapit uses a premium **Light Tech** direction: bright neutral canvas, white surfaces, deep ink type, emerald actions, soft green accents, generous whitespace, and restrained glass and gradients. Physical-card photography and an illustrative profile preview show how the NFC card connects to a useful mobile profile. The customer and operations workspaces share the same foundations while keeping role-specific navigation and information hierarchy.
 
-The selected visual anchor is [`docs/design-references/tapit-warm-editorial-profile-editor.png`](design-references/tapit-warm-editorial-profile-editor.png). It is a direction reference, not a new route specification; the existing `/app` redirect and navigation destinations remain authoritative.
+The existing `/app` redirect and navigation destinations remain authoritative. No external fonts, animation packages, or new visual dependencies were added.
 
-The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. The interface uses the platform system sans-serif stack for body copy and controls and a system Georgia/Times stack for major display headings. It adds no external font or design dependency. Customer-selected profile themes remain independent of the application palette.
+The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. Customer-selected profile themes remain independent of the application palette and retain their former palette values.
 
 ### Implemented tokens
 
 | Role | CSS token | Value |
 | --- | --- | --- |
-| Main text | `--tapit-ink` | `#28352c` |
-| Secondary text | `--tapit-muted` | `#5e6b63` |
-| Main surface | `--tapit-surface` | `#fffdf8` |
-| Page canvas | `--tapit-paper` | `#f0ede5` |
-| Soft surface | `--tapit-soft-surface` | `#f7f3e9` |
-| Borders | `--tapit-line` | `#e6e0d3` |
-| Primary accent | `--tapit-accent` | `#315e48` |
-| Strong accent | `--tapit-accent-strong` | `#244635` |
-| Accent surface | `--tapit-accent-soft` | `#e5eadf` |
-| Warm accent | `--tapit-warm` | `#c89961` |
+| Main text | `--tapit-ink` | `#10211c` |
+| Secondary text | `--tapit-muted` | `#506158` |
+| Main surface | `--tapit-surface` | `#ffffff` |
+| Page canvas | `--tapit-paper` | `#f5f8f6` |
+| Soft surface | `--tapit-soft-surface` | `#eaf3ee` |
+| Borders | `--tapit-line` | `#dce7e1` |
+| Primary accent | `--tapit-accent` | `#176b52` |
+| Strong accent | `--tapit-accent-strong` | `#10543f` |
+| Accent surface | `--tapit-accent-soft` | `#e1f2e9` |
+| Warm accent | `--tapit-warm` | `#c9a875` |
 | Focus ring | `--tapit-focus` | `--tapit-accent` |
 | Shared panel radius | `--tapit-radius` | `18px` |
 
-Status colors use paired fills and text: success `#e5eadf` / `#244635`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Muted text is `#5e6b63`; the selected value is darker than the initial mockup candidate to meet AA contrast on the warm canvas. Controls use smaller corners than prominent panels, and shadows stay light and limited to elevated surfaces.
+Status colors use paired fills and text: success `#e1f2e9` / `#10543f`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Muted text is `#506158`. Controls use smaller corners than prominent panels, and shadows stay light and limited to elevated surfaces.
 
 ### Layout and spacing
 
@@ -439,17 +439,25 @@ Status colors use paired fills and text: success `#e5eadf` / `#244635`, warning 
 
 ### Color
 
-- Use the neutral application base and green accent tokens above for shared controls and navigation.
-- Keep customer profile themes separate from the application palette; selected themes may change the published profile's presentation only.
+- Use the neutral application base and emerald accent tokens above for shared controls and navigation.
+- Pin the former application colors locally within public profiles so the paper, moss, night, and warm-studio themes keep their existing appearance after the shared token update.
 - Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
 - Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
 
 ### Typography
 
 - Use the system stack `ui-sans-serif`, `-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, and `sans-serif` for body text, fields, navigation, statuses, and buttons.
-- Use the `.tapit-display` Georgia/Times system serif utility for major application page headings and editorial display moments. Do not apply it to customer-selected public profile typography.
+- Use the same system sans-serif stack for `.tapit-display`, application page headings, and marketing display text.
 - Use compact uppercase tracking for small section labels, clear heading levels for page context, and comfortable line height for body copy and legal content.
 - Keep public identity and link labels readable; use small metadata only for secondary status and timestamps.
+
+### Marketing landing page
+
+The home page order is sticky public navigation, hero, factual product facts, features, card/profile showcase, benefits, three-step explanation, FAQ, closing CTA, and footer. The hero message is “A better introduction, in one tap.” The capability band explains NFC, QR fallback, no-app access, and editable profile details; it does not invent customer counts, endorsements, or logos. Pricing and testimonial sections are intentionally omitted.
+
+The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. “Explore card designs” and the footer’s “Design a card” link remain secondary paths to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
+
+Scroll reveals and staggered entrances progressively enhance the home page. Server-rendered content starts visible; the observer reveals offscreen sections. Reduced-motion mode disables reveal, ambient, and entry motion. Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
 
 ### Components and interaction
 
@@ -463,7 +471,7 @@ Status colors use paired fills and text: success `#e5eadf` / `#244635`, warning 
 
 ### Applied screen families
 
-- **Public:** carry the paper-and-forest Tapit framing through the homepage, legal pages, published profile, card resolver, and unavailable, inactive, loading, and error states. The profile's selected theme and typography remain customer-controlled.
+- **Public:** use the Light Tech system for the homepage, legal pages, and unavailable, inactive, loading, and error states. Published profiles and card-resolver destinations remain phone-first and use their customer-selected themes.
 - **Authentication:** use the same type, surfaces, fields, focus ring, and action hierarchy for sign-in, customer signup, invitation setup, and onboarding, including validation and recovery feedback.
 - **Customer workspace:** group profile identity, customization, media and crop, links, draft and publication controls, analytics, account settings, and QR/card-building tools into the shared workspace system. Keep both the embedded and standalone card builders within the existing navigation model.
 - **Administrator workspace:** apply the shared shell and controls to customer records and invitations, profile registry and details, card operations, aggregate analytics, audit history, and settings. Preserve the distinct operations and governance navigation groups.
@@ -472,9 +480,9 @@ These are visual treatments of existing paths and states. They do not add destin
 
 ### Local visual evidence
 
-The customer profile editor was compared with the selected prototype at the same 1487 × 1058 viewport. Responsive screenshots cover the public homepage at desktop and phone sizes, a public profile and sign-in on phone, and customer Profile and administrator Profiles at desktop and phone sizes. The landing captures wait for the visible profile-card image to finish loading. PNGs and the E2E JSON report are generated under the ignored `test-results/warm-editorial-redesign/` directory.
+Responsive browser screenshots cover the homepage, public profile, card-design page, sign-in, customer Profile, and administrator Profiles at the viewport sizes recorded by `e2e/ui-redesign-artifacts.spec.ts`. The landing capture waits for the illustrative card image to finish loading. PNGs and the Playwright JSON report are generated under the ignored `test-results/premium-conversion-ui/` directory.
 
-The route-family and accessibility checks ran against the local demo. No Preview, Production, or physical-device validation is represented by these captures.
+The route-family and accessibility checks run against the local demo. No Preview, Production, or physical-device validation is represented by these captures.
 
 ## Component inventory
 

@@ -62,7 +62,7 @@ export function ConfirmDialog({
         aria-describedby="confirm-description"
         aria-labelledby="confirm-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_48px_rgba(23,35,30,0.18)] sm:p-8"
+        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_72px_rgba(16,33,28,0.16)] sm:p-8"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}

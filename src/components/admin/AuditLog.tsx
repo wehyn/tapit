@@ -196,7 +196,7 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
   const changes = getAuditChanges(entry.action, entry.before, entry.after);
   return (
     <details
-      className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(40,53,44,0.035)] sm:p-5"
+      className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(16,33,28,0.035)] sm:p-5"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
       <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">

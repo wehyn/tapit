@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
-const screenshotPath = (name: string) => `test-results/warm-editorial-redesign/${name}`;
+const screenshotPath = (name: string) => `test-results/premium-conversion-ui/${name}`;
 
 async function captureScreenshot(
   page: Page,
@@ -14,35 +14,37 @@ async function captureScreenshot(
   await page.screenshot({ fullPage, path: screenshotPath(name), caret });
 }
 
-async function waitForHeroProfileCard(page: Page) {
-  const card = page.locator(
-    'img[alt="Photographed Tapit profile card for Taylor Kim resting on pale stone."]:visible',
-  );
-  await expect(card).toBeVisible();
-  await expect
-    .poll(() => card.evaluate((image) => (image as HTMLImageElement).naturalWidth))
-    .toBeGreaterThan(0);
+async function waitForHeroProfileScreen(page: Page) {
+  const screen = page.getByTestId("tapit-hero-phone-screen");
+  await expect(screen).toBeVisible();
+  await expect(screen.getByText("Mara Velasquez", { exact: true })).toBeVisible();
+  await expect(screen).toContainText("Save contact");
 }
 
 test("capture the landing page at desktop and mobile sizes", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
+    page.getByRole("heading", { name: "A better introduction, in one tap." }),
   ).toBeVisible();
-  await waitForHeroProfileCard(page);
+  await waitForHeroProfileScreen(page);
   await captureScreenshot(page, "landing-desktop.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Share one profile. Update it anytime." }),
+    page.getByRole("heading", { name: "A better introduction, in one tap." }),
   ).toBeVisible();
-  await waitForHeroProfileCard(page);
+  await waitForHeroProfileScreen(page);
   await captureScreenshot(page, "landing-mobile.png");
 });
 
-test("capture a public profile on mobile", async ({ page }) => {
+test("capture a public profile at desktop and mobile sizes", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await captureScreenshot(page, "public-profile-desktop.png");
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
@@ -54,6 +56,18 @@ test("capture sign-in on mobile", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
   await captureScreenshot(page, "login-mobile.png", "initial");
+});
+
+test("capture card design at desktop and mobile sizes", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/build-card");
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await captureScreenshot(page, "card-design-desktop.png");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/build-card");
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await captureScreenshot(page, "card-design-mobile.png");
 });
 
 test("capture the customer profile editor at desktop and mobile sizes", async ({ page }) => {

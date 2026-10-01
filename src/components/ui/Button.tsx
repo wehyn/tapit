@@ -5,7 +5,7 @@ type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "border border-tapit-accent bg-tapit-accent text-white shadow-[0_8px_20px_rgba(36,70,53,0.12)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
+    "border border-tapit-accent bg-tapit-accent text-white shadow-[0_8px_20px_rgba(16,84,63,0.14)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
   secondary:
     "border border-tapit-line bg-tapit-surface text-tapit-ink hover:border-tapit-accent hover:bg-tapit-soft-surface",
   quiet: "text-tapit-muted hover:bg-tapit-soft-surface hover:text-tapit-ink",

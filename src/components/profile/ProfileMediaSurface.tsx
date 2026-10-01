@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from "react";
+import { useId, type CSSProperties, type ReactNode } from "react";
 
 import type { PublicProfileMediaPresentation } from "@/lib/profile-media";
 
@@ -10,6 +10,7 @@ export function ProfileMediaSurface({
   className,
   compact = false,
   fullSurface = false,
+  responsivePortrait = false,
 }: {
   background: NonNullable<PublicProfileMediaPresentation["background"]>;
   children?: ReactNode;
@@ -18,19 +19,29 @@ export function ProfileMediaSurface({
   className?: string;
   compact?: boolean;
   fullSurface?: boolean;
+  responsivePortrait?: boolean;
 }) {
   const height = Math.min(520, Math.max(220, heroHeight));
   const descriptionId = useId();
-  const imageHeight = fullSurface ? height + (compact ? 88 : 112) : height;
-  const fadeHeight = fullSurface ? height + (compact ? 112 : 144) : height;
+  const imageHeight = height;
+  const fadeHeight = height;
+  const fullSurfaceContentOffset = fullSurface
+    ? responsivePortrait
+      ? "pt-[calc(var(--tapit-profile-hero-height)-2.5rem)] sm:pt-[calc(var(--tapit-profile-hero-height)-3rem)]"
+      : "pt-[calc(var(--tapit-profile-hero-height)-2.5rem)]"
+    : "";
 
   return (
     <section
       aria-describedby={descriptionId}
       aria-label="Profile hero"
-      className={`${compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-tapit border border-[#e5d6c5]"}`}
+      className={`${fullSurface ? "relative isolate" : compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-tapit border border-[#e5d6c5]"}`}
       role="region"
-      style={fullSurface ? undefined : { height }}
+      style={
+        fullSurface
+          ? ({ "--tapit-profile-hero-height": `${height}px` } as CSSProperties)
+          : { height }
+      }
       data-hero-height={height}
     >
       <div
@@ -62,7 +73,7 @@ export function ProfileMediaSurface({
         }}
       />
       <div
-        className={`relative z-10 ${
+        className={`relative z-10 ${fullSurfaceContentOffset} ${
           fullSurface
             ? compact
               ? "px-4 pb-6"
@@ -71,7 +82,6 @@ export function ProfileMediaSurface({
               ? `-mt-14 px-4 pb-1 ${compact ? "pt-0" : "sm:-mt-16 sm:px-6"}`
               : ""
         }`}
-        style={fullSurface ? { paddingTop: Math.max(height - (compact ? 56 : 72), 0) } : undefined}
       >
         {children}
       </div>

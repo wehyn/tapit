@@ -1,7 +1,7 @@
 # Tapit Premium Conversion UI Design
 
 Date: 2026-10-01
-Status: Approved in conversation; awaiting written-spec review
+Status: Approved
 
 ## Goal
 
@@ -45,7 +45,7 @@ The public profile remains its own phone-first experience. Customer-selected pro
 
 The section order is:
 
-1. **Sticky navigation:** Tapit brand, Product, How it works, FAQ, sign-in/account link, and a visible card-design action.
+1. **Sticky navigation:** Tapit brand, Product, How it works, FAQ, sign-in/account link, and a visible customer-profile action.
 2. **Hero:** “A better introduction, in one tap.” Supporting copy explains that an NFC card opens one profile for social links, contact details, and the next step, and that profile updates do not require re-encoding the card. Use a physical-card visual beside a clearly illustrative profile preview.
 3. **Product-proof band:** short factual points: NFC tap plus QR fallback, no app required for recipients, and profile links can be updated. Do not present these as third-party endorsements or usage statistics.
 4. **Features:** social profiles, work/portfolio links, direct contact actions, and a save-contact option when the profile contains supported contact information.
@@ -53,10 +53,10 @@ The section order is:
 6. **Benefits:** explain the value for independent professionals and small businesses, including keeping contact destinations current and making a useful next step easy to find.
 7. **How it works:** set up or manage a profile, add the links and details to share, then tap or scan the card. Keep this accurate to the existing product.
 8. **FAQ:** answer what a recipient sees, app requirements, NFC/QR behavior, editable details, how a visitor saves a contact, and the current card-design/ordering state. Do not promise universal NFC hardware support; describe QR as the fallback and say physical ordering is coming soon.
-9. **Closing CTA:** reinforce the single-profile benefit and direct to the existing card-design experience.
+9. **Closing CTA:** reinforce the single-profile benefit and direct to the customer profile.
 10. **Footer:** product navigation, sign-in/account, privacy, and terms.
 
-The primary CTA is **“Start your card design”** and links to `/build-card`. That existing route offers Canva templates and an image upload; it visibly states that custom card ordering is coming soon. Marketing copy and surrounding UI must preserve that limitation and must not imply a visitor can currently buy or order a card there. A secondary CTA may link to the product walkthrough/section on the same page.
+The primary CTA is **“Go to your profile”** and links to `/app/profile`. Authenticated customers land in their profile editor. Signed-out visitors follow the existing customer-route guard to login, with `/app/profile` preserved as the return destination. Keep design exploration secondary: “Explore card designs” and the footer’s “Design a card” link open `/build-card`, where the existing Canva and upload choices remain available and custom card ordering is clearly marked as coming soon. Do not imply a visitor can currently buy or order a card.
 
 Pricing and testimonial sections are intentionally omitted per the user's choice. Social proof is represented only by the factual capability band above. No placeholder prices, customer names, quotes, aggregate usage numbers, or logos may be added.
 
@@ -101,7 +101,7 @@ No product behavior may depend on hover. Navigation, disclosure, menu, form, and
 ## Acceptance criteria
 
 1. The homepage contains the approved sections in order, except pricing and testimonials, and uses only product facts supported by current behavior.
-2. The primary CTA opens `/build-card`, where existing Canva/upload actions and the “ordering soon” state remain clear.
+2. Every primary “Go to your profile” CTA targets `/app/profile`; signed-in customers reach the editor and signed-out visitors retain that destination through the existing login guard. Secondary design-exploration links continue to open `/build-card`, where Canva/upload choices and the “ordering soon” state remain clear.
 3. Desktop, tablet, and phone layouts remain legible and usable from 320 CSS pixels without horizontal page scrolling.
 4. The home page, shared public chrome, authentication, customer, admin, card-design, and public utility route families follow the new light-tech visual system.
 5. Published profile themes and typography remain unchanged by the shared workspace palette update.

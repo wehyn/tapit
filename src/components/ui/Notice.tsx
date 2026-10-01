@@ -7,7 +7,7 @@ export function Notice({
 }) {
   const classes = {
     neutral: "border-tapit-line bg-tapit-soft-surface text-tapit-ink",
-    success: "border-[#c7dfd0] bg-tapit-success-soft text-tapit-success-ink",
+    success: "border-[#b7ddc8] bg-tapit-success-soft text-tapit-success-ink",
     error: "border-[#e5b4b1] bg-tapit-danger-soft text-tapit-danger",
   }[tone];
   return (

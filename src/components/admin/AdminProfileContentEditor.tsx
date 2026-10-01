@@ -206,7 +206,7 @@ function PhotoEditor({
       ) : null}
       {applied ? (
         <p
-          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#17352b]"
+          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-tapit-accent-strong"
           role="status"
         >
           <CheckCircleIcon aria-hidden="true" size={16} weight="fill" /> Photo applied

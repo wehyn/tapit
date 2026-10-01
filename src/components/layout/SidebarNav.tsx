@@ -117,9 +117,9 @@ export function SidebarNav({
         </div>
         <div
           aria-hidden="true"
-          className="hidden size-11 items-center justify-center rounded-[12px] bg-tapit-accent text-sm font-bold text-white lg:flex xl:hidden"
+          className="hidden size-11 items-center justify-center rounded-[13px] bg-gradient-to-br from-tapit-accent to-[#168a7a] text-white shadow-[0_6px_16px_rgba(16,84,63,0.18)] lg:flex xl:hidden"
         >
-          t
+          <Icon name="fingerprint" size={20} weight="bold" />
         </div>
         {eyebrow ? <p className="tapit-eyebrow mt-10 hidden px-3 xl:block">{eyebrow}</p> : null}
         <div className="mt-7 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
@@ -161,7 +161,7 @@ export function SidebarNav({
           <div
             aria-label={`${title} navigation menu`}
             aria-modal="true"
-            className="relative flex h-full w-[min(85vw,340px)] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-6 shadow-[0_10px_30px_rgba(40,53,44,0.08)]"
+            className="relative flex h-full w-[min(85vw,340px)] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-6 shadow-[0_10px_30px_rgba(16,33,28,0.08)]"
             ref={drawerRef}
             role="dialog"
           >

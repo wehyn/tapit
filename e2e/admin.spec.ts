@@ -51,7 +51,7 @@ test("administrator sidebar preserves operations and governance navigation", asy
   const sidebar = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor))
-    .toBe("rgb(240, 237, 229)");
+    .toBe("rgb(245, 248, 246)");
 
   const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
   await expect(desktopNavigation).toBeVisible();
@@ -148,7 +148,7 @@ test("administrator records and governance pages remain usable at phone and desk
   }
 });
 
-test("administrator pages present a visible editorial page heading", async ({ page }) => {
+test("administrator pages present a visible light-tech page heading", async ({ page }) => {
   await signInAsAdmin(page);
 
   const pages = [
@@ -166,7 +166,7 @@ test("administrator pages present a visible editorial page heading", async ({ pa
     await expect(heading).toBeVisible();
     await expect
       .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
-      .toMatch(/ui-serif|Georgia|serif/i);
+      .toMatch(/system-ui|sans-serif|Arial/i);
   }
 });
 
