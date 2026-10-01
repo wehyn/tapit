@@ -2,6 +2,7 @@ import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { getProfileImageMapping, resolveProfileImageUrl } from "./profileImages";
 import { resolveOwnedProfileMedia, resolvePublishedProfileMedia } from "./profileMedia";
+import { validateRedirectDestination } from "./validators";
 
 type ProjectionContext = Pick<QueryCtx, "db" | "storage">;
 
@@ -44,6 +45,14 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
     ...(media === undefined ? {} : { media }),
     links: profile.published.links.filter((link) => link.enabled),
   };
+}
+
+export function resolvePublishedRedirectDestination(
+  redirect: { enabled: boolean; destination: string } | undefined,
+): string | undefined {
+  if (redirect?.enabled !== true) return undefined;
+  const destination = redirect.destination.trim();
+  return validateRedirectDestination(destination) === null ? destination : undefined;
 }
 
 export async function projectOwnedProfile(ctx: ProjectionContext, profile: Doc<"profiles">) {

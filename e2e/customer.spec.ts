@@ -586,23 +586,10 @@ test("customer drafts stay private until link and profile publication", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/links");
-  await expect
-    .poll(() =>
-      page
-        .getByRole("heading", { name: "Redirect card taps and scans", exact: true })
-        .evaluate((heading) => getComputedStyle(heading).fontFamily),
-    )
-    .toMatch(/^Georgia/i);
   await expect(page.getByRole("heading", { name: "Your links", exact: true })).toHaveCount(0);
   await expect(
     page.getByText(
       "Add and organize destinations such as Portfolio or TikTok. Use valid HTTPS links; email and phone actions can use mailto: or tel:.",
-      { exact: true },
-    ),
-  ).toHaveCount(0);
-  await expect(
-    page.getByText(
-      "When enabled and published, active NFC and QR card visits are counted, then sent to your destination.",
       { exact: true },
     ),
   ).toHaveCount(0);

@@ -6,7 +6,11 @@ import { mutation, query } from "./_generated/server";
 import schema from "./schema";
 import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
 import { profileAccess } from "./profileAccess";
-import { projectOwnedProfile, projectPublicProfile } from "./profileProjection";
+import {
+  projectOwnedProfile,
+  projectPublicProfile,
+  resolvePublishedRedirectDestination,
+} from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
 import {
   assertOwnedProfileMediaSet,
@@ -55,7 +59,13 @@ export const publicBySlug = query({
       .unique();
     if (profile === null) return null;
     const account = await ctx.db.get(profile.ownerId);
-    return isActiveCustomer(account) ? await projectPublicProfile(ctx, profile) : null;
+    if (!isActiveCustomer(account)) return null;
+    const publicProfile = await projectPublicProfile(ctx, profile);
+    if (publicProfile === null) return null;
+    const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
+    return redirectDestination === undefined
+      ? publicProfile
+      : { ...publicProfile, redirectDestination };
   },
 });
 

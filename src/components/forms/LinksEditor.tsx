@@ -10,12 +10,10 @@ import {
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
-  validateProfileRedirect,
   validatePublication,
   validatePublicationAccess,
   type LinkIcon,
   type ProfileLink,
-  type ProfileRedirect,
 } from "@/lib/domain";
 import {
   getDemoProfileForSession,
@@ -98,25 +96,6 @@ export function areProfileLinksEqual(
   return JSON.stringify(currentLinks) === JSON.stringify(normalizeProfileLinks(persistedLinks));
 }
 
-export function normalizeProfileRedirect(redirect: ProfileRedirect | undefined): ProfileRedirect {
-  return redirect === undefined
-    ? { enabled: false, destination: "" }
-    : { enabled: redirect.enabled, destination: redirect.destination };
-}
-
-export function areProfileRedirectsEqual(
-  currentRedirect: ProfileRedirect,
-  persistedRedirect: ProfileRedirect | undefined,
-): boolean {
-  return (
-    JSON.stringify(currentRedirect) === JSON.stringify(normalizeProfileRedirect(persistedRedirect))
-  );
-}
-
-export function canSaveLinksDraft(redirect: ProfileRedirect): boolean {
-  return validateProfileRedirect(redirect) === null;
-}
-
 export function canPreviewLinks(
   validation: Record<string, string>,
   publicationErrors: readonly string[],
@@ -138,9 +117,6 @@ function DemoLinksEditor() {
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
-  const [redirect, setRedirect] = useState<ProfileRedirect>(() =>
-    normalizeProfileRedirect(profile.draft.redirect),
-  );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
@@ -167,7 +143,7 @@ function DemoLinksEditor() {
     return errors;
   }, [links]);
 
-  const draft = { ...profile.draft, links, redirect };
+  const draft = { ...profile.draft, links };
   const customer = session
     ? state.customers.find((candidate) => candidate.email === session.email)
     : undefined;
@@ -198,10 +174,7 @@ function DemoLinksEditor() {
   const preview = canPreviewLinks(validation, publicationErrors)
     ? previewForLinks(profile, links, getDemoTheme(state, profile.id))
     : null;
-  const isDirty =
-    !areProfileLinksEqual(links, profile.draft.links) ||
-    !areProfileRedirectsEqual(redirect, profile.draft.redirect);
-  const redirectError = validateProfileRedirect(redirect);
+  const isDirty = !areProfileLinksEqual(links, profile.draft.links);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
     profile.status === "published"
@@ -219,12 +192,6 @@ function DemoLinksEditor() {
   function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
     setLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
-    setMessage(null);
-  }
-
-  function updateRedirect(patch: Partial<ProfileRedirect>) {
-    draftRevisionRef.current += 1;
-    setRedirect((current) => ({ ...current, ...patch }));
     setMessage(null);
   }
 
@@ -265,13 +232,10 @@ function DemoLinksEditor() {
 
   const saveDraft = useCallback(async () => {
     if (!isDirty) return true;
-    if (redirectError !== null || Object.keys(validation).length > 0) {
+    if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
-        text:
-          redirectError !== null
-            ? "Fix the card redirect before saving the draft."
-            : "Fix each highlighted link before saving the draft.",
+        text: "Fix each highlighted link before saving the draft.",
       });
       return false;
     }
@@ -280,7 +244,7 @@ function DemoLinksEditor() {
       updateDemoState((current) =>
         updateDemoProfile(current, profile.id, (currentProfile) => ({
           ...currentProfile,
-          draft: { ...currentProfile.draft, links: copyLinks(links), redirect: { ...redirect } },
+          draft: { ...currentProfile.draft, links: copyLinks(links) },
         })),
       );
       setMessage({
@@ -297,7 +261,7 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, links, profile.id, redirect, redirectError, validation]);
+  }, [isDirty, links, profile.id, validation]);
 
   useDraftSaveRegistration(saveDraft);
 
@@ -318,7 +282,7 @@ function DemoLinksEditor() {
         ...publishProfile(
           {
             ...profile,
-            draft: { ...profile.draft, links: copyLinks(links), redirect: { ...redirect } },
+            draft: { ...profile.draft, links: copyLinks(links) },
           },
           new Date().toISOString(),
           {
@@ -364,9 +328,6 @@ function DemoLinksEditor() {
     <LinksWorkspace
       profileUrl={`/${profile.draft.slug}`}
       links={links}
-      redirect={redirect}
-      redirectError={redirectError}
-      canSaveDraft={canSaveLinksDraft(redirect)}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
@@ -377,7 +338,6 @@ function DemoLinksEditor() {
       publicationLabel={publicationLabel}
       onPreviewModeChange={setPreviewMode}
       onUpdateLink={updateLink}
-      onUpdateRedirect={updateRedirect}
       onAddLink={addLink}
       onMoveLink={moveLink}
       onReorderLink={reorderLink}
@@ -407,7 +367,6 @@ export function LiveLinksEditorContent({
   const saveLinks = useMutation(api.links.replaceDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
-  const [redirect, setRedirect] = useState<ProfileRedirect | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
@@ -420,17 +379,12 @@ export function LiveLinksEditorContent({
     () => ({
       ...profile.draft,
       links: links ?? normalizeProfileLinks(profile.draft.links),
-      redirect: redirect ?? normalizeProfileRedirect(profile.draft.redirect),
     }),
-    [links, redirect, profile.draft],
+    [links, profile.draft],
   );
   const normalizedDraftLinks = useMemo(
     () => normalizeProfileLinks(profile.draft.links),
     [profile.draft.links],
-  );
-  const normalizedDraftRedirect = useMemo(
-    () => normalizeProfileRedirect(profile.draft.redirect),
-    [profile.draft.redirect],
   );
   const publishedForValidation = profile.published
     ? {
@@ -468,10 +422,7 @@ export function LiveLinksEditorContent({
         published: { ...currentDraft, publishedAt: new Date().toISOString() },
       })
     : null;
-  const isDirty =
-    !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
-    !areProfileRedirectsEqual(currentDraft.redirect, profile.draft.redirect);
-  const redirectError = validateProfileRedirect(currentDraft.redirect);
+  const isDirty = !areProfileLinksEqual(currentDraft.links, profile.draft.links);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -480,12 +431,10 @@ export function LiveLinksEditorContent({
         : "Published"
       : "Publish";
   const latestLinksRef = useRef(currentDraft.links);
-  const latestRedirectRef = useRef(currentDraft.redirect);
 
   useEffect(() => {
     latestLinksRef.current = currentDraft.links;
-    latestRedirectRef.current = currentDraft.redirect;
-  }, [currentDraft.links, currentDraft.redirect]);
+  }, [currentDraft.links]);
 
   function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
@@ -494,14 +443,6 @@ export function LiveLinksEditorContent({
         link.id === id ? { ...link, ...patch } : link,
       ),
     );
-    setMessage(null);
-  }
-  function updateRedirect(patch: Partial<ProfileRedirect>) {
-    draftRevisionRef.current += 1;
-    setRedirect((currentRedirect) => ({
-      ...(currentRedirect ?? normalizedDraftRedirect),
-      ...patch,
-    }));
     setMessage(null);
   }
   function addLink() {
@@ -542,21 +483,14 @@ export function LiveLinksEditorContent({
   }
 
   const persistLinks = useCallback(
-    async (linksToSave: ProfileLink[], redirectToSave: ProfileRedirect) => {
+    async (linksToSave: ProfileLink[]) => {
       let nextLinks = linksToSave;
-      let nextRedirect = redirectToSave;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
-        await saveLinks({ profileId: profile._id, links: nextLinks, redirect: nextRedirect });
+        await saveLinks({ profileId: profile._id, links: nextLinks });
         const latestLinks = latestLinksRef.current;
-        if (
-          revisionAtStart === draftRevisionRef.current ||
-          (JSON.stringify(latestLinks) === JSON.stringify(nextLinks) &&
-            JSON.stringify(latestRedirectRef.current) === JSON.stringify(nextRedirect))
-        )
-          return;
+        if (revisionAtStart === draftRevisionRef.current) return;
         nextLinks = latestLinks;
-        nextRedirect = latestRedirectRef.current;
       }
       throw new Error("Your links changed while they were saving. Try again.");
     },
@@ -564,21 +498,17 @@ export function LiveLinksEditorContent({
   );
   const saveDraft = useCallback(async (): Promise<boolean> => {
     if (!isDirty) return true;
-    if (redirectError !== null || Object.keys(validation).length > 0) {
+    if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
-        text:
-          redirectError !== null
-            ? "Fix the card redirect before saving."
-            : "Fix each highlighted link before saving.",
+        text: "Fix each highlighted link before saving.",
       });
       return false;
     }
     setPendingAction("save");
     try {
-      await persistLinks(latestLinksRef.current, latestRedirectRef.current);
+      await persistLinks(latestLinksRef.current);
       setLinks(null);
-      setRedirect(null);
       setMessage({
         tone: "success",
         text: "Links saved to draft. Visitors still see the last published order.",
@@ -593,7 +523,7 @@ export function LiveLinksEditorContent({
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, persistLinks, redirectError, validation]);
+  }, [isDirty, persistLinks, validation]);
   useEffect(() => {
     navigationSaveRef.current = saveDraft;
   }, [saveDraft]);
@@ -613,9 +543,8 @@ export function LiveLinksEditorContent({
     setMessage(null);
     try {
       if (isDirty) {
-        await persistLinks(latestLinksRef.current, latestRedirectRef.current);
+        await persistLinks(latestLinksRef.current);
         setLinks(null);
-        setRedirect(null);
       }
       await publishMutation({
         profileId: profile._id,
@@ -640,9 +569,6 @@ export function LiveLinksEditorContent({
     <LinksWorkspace
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
-      redirect={currentDraft.redirect}
-      redirectError={redirectError}
-      canSaveDraft={canSaveLinksDraft(currentDraft.redirect)}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
@@ -653,7 +579,6 @@ export function LiveLinksEditorContent({
       publicationLabel={publicationLabel}
       onPreviewModeChange={setPreviewMode}
       onUpdateLink={updateLink}
-      onUpdateRedirect={updateRedirect}
       onAddLink={addLink}
       onMoveLink={moveLink}
       onReorderLink={reorderLink}

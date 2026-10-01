@@ -289,6 +289,8 @@ export function ProfileDetailsEditor({
   const errorId = (name: string) => `${baseId}-${name}-error`;
   const findError = (...needles: string[]) =>
     errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
+  const redirect = draft.redirect ?? { enabled: false, destination: "" };
+  const redirectError = redirect.enabled ? findError("redirect destination") : undefined;
   const featuredError = featuredUnavailable
     ? "The selected featured link is missing or disabled. It will appear as a normal link."
     : undefined;
@@ -321,6 +323,50 @@ export function ProfileDetailsEditor({
         onboarding={onboarding}
         slugLocked={slugLocked}
       />
+
+      <Panel className="shadow-none" title="Profile link destination">
+        <p className="mt-4 text-sm leading-6 text-tapit-muted">
+          Choose what visitors see when they open your profile link or tap or scan your card.
+        </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <RadioChoice
+            checked={!redirect.enabled}
+            name={`${baseId}-profile-destination`}
+            onChange={() => onChange("redirect", { ...redirect, enabled: false })}
+            value="profile"
+          >
+            Show my Tapit profile
+          </RadioChoice>
+          <RadioChoice
+            checked={redirect.enabled}
+            name={`${baseId}-profile-destination`}
+            onChange={() => onChange("redirect", { ...redirect, enabled: true })}
+            value="website"
+          >
+            Redirect to website
+          </RadioChoice>
+        </div>
+        {redirect.enabled ? (
+          <div className="mt-4">
+            <Field
+              error={redirectError}
+              help="When published, your Tapit profile link and card taps or scans will send visitors here."
+              id="profile-redirect-destination"
+              label="HTTPS destination URL"
+              onChange={(event) =>
+                onChange("redirect", { ...redirect, destination: event.target.value })
+              }
+              placeholder="https://www.yourwebsite.com"
+              type="url"
+              value={redirect.destination}
+            />
+          </div>
+        ) : (
+          <p className="mt-4 text-sm leading-6 text-tapit-muted">
+            Visitors see your contact details and profile links.
+          </p>
+        )}
+      </Panel>
 
       {customization ? (
         <>

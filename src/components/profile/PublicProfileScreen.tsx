@@ -12,7 +12,7 @@ import {
   recordProfileView,
   useHydratedDemoState,
 } from "@/lib/demo/store";
-import { isActiveAccount } from "@/lib/domain";
+import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
@@ -20,6 +20,7 @@ import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
 
 export function PublicProfileScreen({
   slug,
@@ -59,6 +60,23 @@ function DemoPublicProfileScreen({
     getDemoTheme(state, profile.id),
   );
   if (projection === null) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
+  const redirect = profile.published?.redirect;
+  const redirectDestination =
+    redirect?.enabled === true && validateRedirectDestination(redirect.destination) === null
+      ? redirect.destination.trim()
+      : undefined;
+  if (redirectDestination !== undefined) {
+    return (
+      <ProfileRedirectingPage
+        visitKey={slug}
+        profileId={profile.id}
+        destination={redirectDestination}
+        recordView={async () => {
+          recordProfileView(profile.id, source);
+        }}
+      />
+    );
+  }
 
   return (
     <PublicProfile
@@ -106,6 +124,26 @@ function LivePublicProfileScreen({
   );
   if (profile === undefined) return <PublicProfileLoading />;
   if (profile === null) return <MissingProfilePage />;
+  if (
+    "redirectDestination" in profile &&
+    profile.redirectDestination !== undefined &&
+    validateRedirectDestination(profile.redirectDestination) === null
+  ) {
+    return (
+      <ProfileRedirectingPage
+        visitKey={slug}
+        profileId={profile.id}
+        destination={profile.redirectDestination}
+        recordView={async () => {
+          await recordView({
+            profileId: profile.id as Id<"profiles">,
+            sessionKey: getAnalyticsSessionKey(),
+            source,
+          });
+        }}
+      />
+    );
+  }
   const projection = {
     ...profile,
     links: profile.links.map((link) => ({

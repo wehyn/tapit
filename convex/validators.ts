@@ -194,6 +194,7 @@ export const publicProfileValidator = v.object({
   email: v.optional(v.string()),
   phone: v.optional(v.string()),
   website: v.optional(v.string()),
+  redirectDestination: v.optional(v.string()),
   theme: profileThemeValidator,
   customization: v.optional(profileCustomizationValidator),
   links: v.array(linkValidator),

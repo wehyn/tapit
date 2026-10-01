@@ -238,7 +238,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     ).resolves.toEqual({ status: "active" });
   });
 
-  it("exposes only a validated published card redirect", async () => {
+  it("exposes only a validated published redirect to card and slug visitors", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
     const data = await seed(t);
@@ -263,9 +263,9 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       status: "active",
       redirectDestination: "https://redirect.example/card",
     });
-    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.not.toHaveProperty(
-      "redirectDestination",
-    );
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
+      redirectDestination: "https://redirect.example/card",
+    });
     await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.not.toHaveProperty(
       "redirect",
     );
@@ -285,6 +285,9 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       });
       await expect(
         t.query(api.cards.resolve, { token: "redirect-card" }),
+      ).resolves.not.toHaveProperty("redirectDestination");
+      await expect(
+        t.query(api.profiles.publicBySlug, { slug: "owner" }),
       ).resolves.not.toHaveProperty("redirectDestination");
     }
 
@@ -362,6 +365,9 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     await expect(
       t.query(api.cards.resolve, { token: "draft-redirect-card" }),
     ).resolves.not.toHaveProperty("redirectDestination");
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.not.toHaveProperty(
+      "redirectDestination",
+    );
     await expect(
       owner.mutation(api.profiles.publish, { profileId: data.ownerProfileId }),
     ).resolves.toMatchObject({
@@ -371,6 +377,9 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       t.query(api.cards.resolve, { token: "draft-redirect-card" }),
     ).resolves.toMatchObject({
       status: "active",
+      redirectDestination: "https://draft-redirect.example/card",
+    });
+    await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
       redirectDestination: "https://draft-redirect.example/card",
     });
   });

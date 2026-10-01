@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement, StrictMode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const resolverMocks = vi.hoisted(() => ({
   demoMode: false,
@@ -156,6 +156,10 @@ describe("card redirect hydration", () => {
     window.sessionStorage.clear();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("waits for analytics before replacing location and preserves the source", async () => {
     let resolveView!: () => void;
     resolverMocks.recordView.mockReturnValue(
@@ -195,6 +199,24 @@ describe("card redirect hydration", () => {
     expect(resolverMocks.recordView).toHaveBeenCalledWith(
       expect.objectContaining({ source: "nfc" }),
     );
+  });
+
+  it("navigates after the analytics grace period when analytics never settles", async () => {
+    vi.useFakeTimers();
+    resolverMocks.recordView.mockReturnValue(new Promise<void>(() => {}));
+    resolverMocks.result = {
+      ...activeResult,
+      redirectDestination: "https://destination.example/offline",
+    };
+
+    render(createElement(CardResolverClient, { cardToken: "card-live" }));
+    expect(resolverMocks.replace).not.toHaveBeenCalled();
+
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+
+    expect(resolverMocks.replace).toHaveBeenCalledWith("https://destination.example/offline");
   });
 
   it("renders the profile and records a view when an active card has no redirect", () => {
