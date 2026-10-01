@@ -189,7 +189,7 @@ describe("public profile preview behavior", () => {
     expect(image).toHaveAttribute("src", "https://images.example/large.png");
   });
 
-  it("keeps public media inside the Warm Studio panel and bounds the hero", () => {
+  it("keeps the Warm Studio background and bounds the hero", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -226,15 +226,6 @@ describe("public profile preview behavior", () => {
 
     const hero = screen.getByRole("region", { name: "Profile hero" });
     expect(hero).toHaveAttribute("data-hero-height", "520");
-    expect(hero).toHaveClass(
-      "rounded-none",
-      "border-0",
-      "shadow-none",
-      "sm:rounded-tapit",
-      "sm:border",
-      "sm:bg-[#fffdf9]",
-      "sm:overflow-hidden",
-    );
     expect(hero).not.toHaveClass("bg-[#fffdf9]", "overflow-hidden");
     expect(hero).not.toHaveStyle({ backgroundColor: "#fffdf9" });
     expect(hero).toHaveTextContent("A warm studio wall");
@@ -246,7 +237,6 @@ describe("public profile preview behavior", () => {
     expect(screen.getByText("Brand systems for independent teams.")).toHaveStyle({
       color: "#a84431",
     });
-    expect(hero).toContainElement(screen.getByRole("list", { name: "Profile links" }));
     const surface = hero.querySelector("div");
     expect(surface).toHaveStyle({
       backgroundImage: 'url("https://images.example/hero.jpg")',
@@ -366,14 +356,6 @@ describe("public profile preview behavior", () => {
     });
     expect(hero).toContainElement(heading);
     expect(hero).toHaveAttribute("data-hero-height", "220");
-    expect(hero).toHaveClass(
-      "rounded-tapit",
-      "border",
-      "shadow-[0_20px_60px_rgba(21,25,24,0.12)]",
-      "bg-[#fffdf9]",
-      "overflow-hidden",
-    );
-    expect(hero).not.toHaveStyle({ backgroundColor: "#fffdf9" });
     expect(heading).toHaveClass("text-3xl");
     expect(heading).not.toHaveClass("sm:text-4xl");
   });

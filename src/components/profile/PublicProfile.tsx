@@ -506,24 +506,40 @@ export function PublicProfile({
       : "lg:grid lg:grid-cols-[minmax(18rem,0.84fr)_minmax(0,1.16fr)]"
     : "";
   const identityColumn = background ? (
-    <div className="min-w-0">
-      <ProfileMediaSurface
-        background={background}
-        heroHeight={media?.heroHeight ?? 320}
-        treatment={warmStudio ? "warm" : "legacy"}
-        compact={phonePreview}
-        fullSurface
-        responsivePortrait={!preview}
-        className="rounded-none border-0"
-      >
-        {identity}
-      </ProfileMediaSurface>
-      {media && media.slideshow.length > 0 ? (
-        <div className="mt-5 px-4 sm:px-6">
-          <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
-        </div>
-      ) : null}
-    </div>
+    warmStudio ? (
+      <div className="min-w-0">
+        <ProfileMediaSurface
+          background={background}
+          heroHeight={media?.heroHeight ?? 320}
+          treatment="warm"
+          compact={phonePreview}
+          fullSurface
+          responsivePortrait={!preview}
+          className="rounded-none border-0"
+        >
+          {identity}
+        </ProfileMediaSurface>
+        {media && media.slideshow.length > 0 ? (
+          <div className="mt-5 px-4 sm:px-6">
+            <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
+          </div>
+        ) : null}
+      </div>
+    ) : (
+      <div className="min-w-0">
+        <ProfileMediaSurface
+          background={background}
+          heroHeight={media?.heroHeight ?? 320}
+          treatment="legacy"
+        />
+        {media && media.slideshow.length > 0 ? (
+          <div className="mt-5">
+            <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
+          </div>
+        ) : null}
+        <div className={`${identityColumnSpacing} mt-6 min-w-0`}>{identity}</div>
+      </div>
+    )
   ) : (
     <div className={`${identityColumnSpacing} min-w-0`}>
       {media && media.slideshow.length > 0 ? (
