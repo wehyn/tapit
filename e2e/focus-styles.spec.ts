@@ -120,17 +120,13 @@ test("form focus indicators stay within the Tapit green theme", async ({ page })
     await expectNoOrangeFocus(page, route);
   }
 
-  await page.goto("/app/links");
-  const redirectToggle = page.getByRole("checkbox", {
-    name: "Enable card tap and scan redirect",
-  });
-  await redirectToggle.focus();
-  const redirectToggleSurface = redirectToggle.locator(
-    "xpath=following-sibling::span[@aria-hidden='true']",
-  );
-  const redirectToggleFocus = await readFocusStyles(redirectToggleSurface);
-  expect(redirectToggleFocus.hasVisibleIndicator, "redirect toggle").toBe(true);
-  expect(redirectToggleFocus.colors, "redirect toggle").not.toMatch(ORANGE_FOCUS);
+  await page.goto("/app/profile");
+  const redirectMode = page.getByRole("radio", { name: "Redirect to website" });
+  await redirectMode.focus();
+  const redirectModeFocus = await readFocusStyles(redirectMode.locator("xpath=.."));
+  expect(redirectModeFocus.hasVisibleIndicator, "redirect mode").toBe(true);
+  expect(redirectModeFocus.colors, "redirect mode").not.toMatch(ORANGE_FOCUS);
+  await redirectMode.check();
 
   const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
   await redirectInput.focus();

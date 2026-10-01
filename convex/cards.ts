@@ -3,13 +3,8 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
-import {
-  cardStatusValidator,
-  publicProfileValidator,
-  validateProfileContent,
-  validateRedirectDestination,
-} from "./validators";
-import { projectPublicProfile } from "./profileProjection";
+import { cardStatusValidator, publicProfileValidator, validateProfileContent } from "./validators";
+import { projectPublicProfile, resolvePublishedRedirectDestination } from "./profileProjection";
 import { components } from "./components";
 
 const resolveResultValidator = v.union(
@@ -23,14 +18,6 @@ const resolveResultValidator = v.union(
     redirectDestination: v.optional(v.string()),
   }),
 );
-
-function resolvePublishedRedirectDestination(
-  redirect: { enabled: boolean; destination: string } | undefined,
-): string | undefined {
-  if (redirect?.enabled !== true) return undefined;
-  const destination = redirect.destination.trim();
-  return validateRedirectDestination(destination) === null ? destination : undefined;
-}
 
 function tokenFromCardUrl(cardUrl: string): string | null {
   try {
