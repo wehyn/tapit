@@ -147,6 +147,49 @@ test("mobile identity alignment centers the public profile header", async ({ pag
   await expect(bio).toHaveCSS("text-align", "left");
 });
 
+test("desktop public profiles use a wide split layout and settle under reduced motion", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/mara-velasquez");
+
+  const main = page.getByRole("main");
+  const heading = page.getByRole("heading", { name: "Mara Velasquez" });
+  const linkedIn = page.getByRole("link", { name: "LinkedIn" });
+  const profilePanel = main.locator("section").first();
+
+  await expect(heading).toBeVisible();
+  await expect(linkedIn).toBeVisible();
+  await expect
+    .poll(() => profilePanel.evaluate((panel) => panel.getBoundingClientRect().width))
+    .toBeGreaterThan(900);
+
+  const headingBox = await heading.boundingBox();
+  const linkBox = await linkedIn.boundingBox();
+  expect(headingBox).not.toBeNull();
+  expect(linkBox).not.toBeNull();
+  expect(linkBox!.x).toBeGreaterThan(headingBox!.x + headingBox!.width + 40);
+  await expect
+    .poll(() => main.evaluate((element) => getComputedStyle(element).animationName))
+    .toBe("tapit-profile-entry");
+  await page.screenshot({ path: "test-results/tapit-public-profile-desktop.png", fullPage: true });
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect
+    .poll(() => main.evaluate((element) => getComputedStyle(element).animationName))
+    .toBe("none");
+  await expect(heading).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await expect(heading).toHaveCSS("text-align", "center");
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(390);
+  await page.screenshot({ path: "test-results/tapit-public-profile-mobile.png", fullPage: true });
+});
+
 test("public profile keeps its primary actions usable at narrow phone widths", async ({ page }) => {
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
@@ -165,6 +208,22 @@ test("public profile keeps its primary actions usable at narrow phone widths", a
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
       .toBeLessThanOrEqual(width);
   }
+});
+
+test("profile action cards share the Save contact corner radius", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/mara-velasquez");
+
+  const linkedIn = page.getByRole("link", { name: "LinkedIn" });
+  const saveContact = page.getByRole("button", { name: "Save contact" });
+  await expect(linkedIn).toBeVisible();
+  await expect(saveContact).toBeVisible();
+
+  const [linkRadius, saveContactRadius] = await Promise.all([
+    linkedIn.evaluate((element) => getComputedStyle(element).borderRadius),
+    saveContact.evaluate((element) => getComputedStyle(element).borderRadius),
+  ]);
+  expect(linkRadius).toBe(saveContactRadius);
 });
 
 test("direct and active card paths show the same published profile", async ({ page }) => {

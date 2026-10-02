@@ -36,7 +36,7 @@ export default async function RootLayout({
     <LiveProviders>{children}</LiveProviders>
   );
   return (
-    <html lang="en">
+    <html data-scroll-behavior="smooth" lang="en">
       <body>
         {isLocalDemo || isHostedDemo ? (
           content

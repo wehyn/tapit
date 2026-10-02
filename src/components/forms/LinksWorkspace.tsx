@@ -151,7 +151,7 @@ export function LinksWorkspace({
   }
 
   return (
-    <div className="[&_section>h2]:font-[Georgia] mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
+    <div className="mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
       <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
         <section aria-labelledby="links-workspace-title">
           <h1 className="sr-only" id="links-workspace-title">
@@ -164,7 +164,7 @@ export function LinksWorkspace({
           ) : null}
           <section
             aria-label="Editable profile links"
-            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(40,53,44,0.035)]"
+            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(16,33,28,0.035)]"
             ref={linksListRef}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">

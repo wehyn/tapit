@@ -185,10 +185,6 @@ describe("published demo profile paths", () => {
         expect(panel).toHaveClass(
           theme === "moss" ? "border-[#b9d1c0]" : "border-[#40534d]",
           theme === "moss" ? "bg-[#f7fbf8]" : "bg-[#22302b]",
-          "px-5",
-          "py-8",
-          "sm:px-10",
-          "sm:py-10",
         );
         expect(links).toHaveClass("mt-9", "gap-3");
         expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(

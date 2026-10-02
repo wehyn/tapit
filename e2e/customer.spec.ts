@@ -159,6 +159,109 @@ test("profile draft actions only appear when a draft needs action", async ({ pag
   }
 });
 
+test("customize keeps the private draft preview clear of the fixed action toolbar", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  for (const viewport of [
+    { width: 1467, height: 899 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/app/customize");
+    await page.getByRole("radio", { name: "Coral" }).check();
+
+    await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Only you can see this draft until you publish it.", { exact: true }),
+    ).toBeVisible();
+
+    const preview = page.locator("#workspace-preview > section");
+    const actions = page.getByRole("region", { name: "Draft actions", exact: true });
+    const saveContact = page
+      .locator("#workspace-preview")
+      .getByRole("button", { name: "Save contact", exact: true });
+    const copyUrl = page.getByRole("button", { name: "Copy URL", exact: true });
+    await expect(page.getByRole("link", { name: "View published profile" })).toHaveAttribute(
+      "href",
+      "/mara-velasquez",
+    );
+    await expect(actions).toBeVisible();
+    if (viewport.width < 1400) {
+      await page.getByRole("link", { name: "View preview", exact: true }).click();
+      await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+      await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-top.png" });
+    } else {
+      await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+      await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-top.png" });
+    }
+    await saveContact.scrollIntoViewIfNeeded();
+
+    const actionBox = await actions.boundingBox();
+    const saveContactBox = await saveContact.boundingBox();
+    expect(actionBox).not.toBeNull();
+    expect(saveContactBox).not.toBeNull();
+    expect(
+      saveContactBox!.y < actionBox!.y + actionBox!.height &&
+        saveContactBox!.y + saveContactBox!.height > actionBox!.y,
+    ).toBe(false);
+
+    await copyUrl.scrollIntoViewIfNeeded();
+    const copyUrlBox = await copyUrl.boundingBox();
+    const updatedActionBox = await actions.boundingBox();
+    expect(copyUrlBox).not.toBeNull();
+    expect(updatedActionBox).not.toBeNull();
+    expect(
+      copyUrlBox!.y < updatedActionBox!.y + updatedActionBox!.height &&
+        copyUrlBox!.y + copyUrlBox!.height > updatedActionBox!.y,
+      `URL control overlapped the draft bar at ${viewport.width}px: ${JSON.stringify({ copyUrlBox, updatedActionBox })}`,
+    ).toBe(false);
+
+    if (viewport.width >= 1400) {
+      const previewBox = await preview.boundingBox();
+      expect(previewBox).not.toBeNull();
+      expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(updatedActionBox!.y);
+      await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
+      await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-actions.png" });
+    } else {
+      await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-actions.png" });
+    }
+  }
+});
+
+test("customize does not offer a published-profile link before first publication", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Saved before first publication.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved.", { exact: false })).toBeVisible();
+  await page.evaluate(() => {
+    const serialized = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!serialized) throw new Error("The local demo state should be available after sign-in.");
+    const state = JSON.parse(serialized);
+    const customer = state.customers.find(
+      (candidate: { email?: string }) => candidate.email === "mara@example.test",
+    );
+    const unpublish = (profile: { id?: string; status?: string; published?: unknown }) =>
+      profile.id === customer?.profileId
+        ? { ...profile, status: "unpublished", published: null }
+        : profile;
+    state.profiles = state.profiles.map(unpublish);
+    if (state.profile) state.profile = unpublish(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/customize");
+
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View published profile" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy URL", exact: true })).toHaveCount(0);
+});
+
 test("customer build card stays inside the authenticated workspace", async ({ page }) => {
   await signInAsCustomer(page);
 
@@ -186,7 +289,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
   await expect(heading).toBeVisible();
   await expect
     .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
-    .toMatch(/^Georgia/i);
+    .toMatch(/system-ui|sans-serif|Arial/i);
 
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -209,7 +312,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
   await expect(preview).toHaveCount(0);
 });
 
-test("active-card QR downloads keep the warm surface and remain available", async ({ page }) => {
+test("active-card QR downloads keep the light surface and remain available", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsAdmin(page);
   await page.goto("/admin/cards");
@@ -220,7 +323,7 @@ test("active-card QR downloads keep the warm surface and remain available", asyn
   const qrPanel = qrTitle.locator("xpath=..");
   await expect
     .poll(() => qrPanel.evaluate((panel) => getComputedStyle(panel).backgroundColor))
-    .toBe("rgb(240, 237, 229)");
+    .toBe("rgb(245, 248, 246)");
   const png = page.getByRole("link", { name: "Download PNG" }).first();
   await expect(qrPanel).toContainText("/c/mara-card-7f2q?source=qr");
   await expect(png).toHaveAttribute("href", /^data:image\/png;base64,/);
@@ -241,7 +344,7 @@ test("active-card QR downloads keep the warm surface and remain available", asyn
   }
 });
 
-test("customer sidebar uses the Warm Editorial surface and stays grouped across desktop and mobile", async ({
+test("customer sidebar uses the light-tech surface and stays grouped across desktop and mobile", async ({
   page,
 }) => {
   await signInAsCustomer(page);
@@ -249,7 +352,7 @@ test("customer sidebar uses the Warm Editorial surface and stays grouped across 
   const island = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
-    .toBe("rgb(240, 237, 229)");
+    .toBe("rgb(245, 248, 246)");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
   expect(desktopBox!.x).toBe(0);
@@ -362,7 +465,7 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
         .getByRole("heading", { name: "Profile identity", exact: true })
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
-    .toMatch(/^Georgia/i);
+    .toMatch(/system-ui|sans-serif|Arial/i);
   await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
   await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
   const frame = page.getByTestId("profile-preview-frame");
@@ -378,7 +481,7 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await expect(previewDevice).toBeHidden();
   await page.getByRole("button", { name: "phone", exact: true }).click();
   await expect(previewDevice).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open profile" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
   await page.getByRole("button", { name: "Copy URL" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/mara-velasquez");
@@ -407,7 +510,7 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     );
   }
   expect(
-    (await page.getByRole("link", { name: "/mara-velasquez" }).boundingBox())!.width,
+    (await page.getByRole("link", { name: "/mara-velasquez", exact: true }).boundingBox())!.width,
   ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
@@ -586,6 +689,13 @@ test("customer drafts stay private until link and profile publication", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/links");
+  await expect
+    .poll(() =>
+      page
+        .getByRole("heading", { name: "Profile links", exact: true })
+        .evaluate((heading) => getComputedStyle(heading).fontFamily),
+    )
+    .toMatch(/system-ui|sans-serif|Arial/i);
   await expect(page.getByRole("heading", { name: "Your links", exact: true })).toHaveCount(0);
   await expect(
     page.getByText(
@@ -670,7 +780,7 @@ test("customer customization drafts stay private until the profile is published"
         .first()
         .evaluate((panel) => getComputedStyle(panel).backgroundColor),
     )
-    .toBe("rgb(255, 253, 248)");
+    .toBe("rgb(255, 255, 255)");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -735,7 +845,9 @@ test("legacy profiles opt into Warm Studio before the new presentation is publis
   await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
 });
 
-test("customer can configure bounded profile media and publish it", async ({ page }) => {
+test("customer can configure bounded profile media and publish an edge-to-edge portrait hero", async ({
+  page,
+}) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
@@ -784,13 +896,267 @@ test("customer can configure bounded profile media and publish it", async ({ pag
     page.getByText("Profile published. Your active card paths now show this version."),
   ).toBeVisible();
 
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
     await page.goto(path);
-    await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+    const hero = page.getByRole("region", { name: "Profile hero" });
+    const heroBackground = hero.locator(':scope > div[aria-hidden="true"]').first();
+    const panel = page.locator("main > div > section").first();
+    const portrait = page.getByRole("img", { name: "Mara Velasquez profile" });
+
+    await expect(hero).toBeVisible();
+    await expect(portrait).toBeVisible();
+    const [backgroundBox, panelBox, portraitBox] = await Promise.all([
+      heroBackground.boundingBox(),
+      panel.boundingBox(),
+      portrait.boundingBox(),
+    ]);
+    const identityBackdropColors = await Promise.all(
+      [
+        hero.getByRole("heading", { name: "Mara Velasquez" }).locator("span"),
+        hero.locator("p span"),
+      ].map((text) => text.evaluate((element) => getComputedStyle(element).backgroundColor)),
+    );
+    const identityForegroundColors = await Promise.all(
+      [
+        hero.getByRole("heading", { name: "Mara Velasquez" }).locator("span"),
+        hero.locator("p span"),
+      ].map((text) => text.evaluate((element) => getComputedStyle(element).color)),
+    );
+    expect(backgroundBox).not.toBeNull();
+    expect(panelBox).not.toBeNull();
+    expect(portraitBox).not.toBeNull();
+    if (path === "/c/mara-card-7f2q") {
+      expect(identityForegroundColors).toEqual(["rgb(255, 255, 255)", "rgb(255, 255, 255)"]);
+      expect(identityBackdropColors).toEqual(["rgb(38, 49, 44)", "rgb(38, 49, 44)"]);
+    } else {
+      expect(identityBackdropColors).toEqual(["rgba(0, 0, 0, 0)", "rgba(0, 0, 0, 0)"]);
+    }
+    expect(Math.abs(backgroundBox!.x - panelBox!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(backgroundBox!.y - panelBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(backgroundBox!.width - panelBox!.width)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(
+        backgroundBox!.y + backgroundBox!.height - (portraitBox!.y + portraitBox!.height / 2),
+      ),
+    ).toBeLessThanOrEqual(1);
     await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
     await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
     await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+
+    if (path === "/mara-velasquez") {
+      await page.screenshot({
+        path: "test-results/tapit-public-profile-background-mobile.png",
+        fullPage: true,
+      });
+      await page.evaluate(() => {
+        const raw = window.localStorage.getItem("tapit:demo-state:v1");
+        if (!raw) throw new Error("Expected the published profile before contrast setup.");
+        const state = JSON.parse(raw);
+        const white = { kind: "custom", hex: "#ffffff" };
+        const applyWhiteIdentity = (profile: {
+          id?: string;
+          draft: Record<string, unknown>;
+          published?: Record<string, unknown> | null;
+        }) => {
+          if (profile.id !== "profile-mara") return profile;
+          const customize = (content: Record<string, unknown>) => ({
+            ...content,
+            customization: {
+              ...(content.customization as Record<string, unknown>),
+              identityColors: { name: white, bio: white },
+            },
+          });
+          return {
+            ...profile,
+            draft: customize(profile.draft),
+            published: profile.published ? customize(profile.published) : null,
+          };
+        };
+        state.profile = applyWhiteIdentity(state.profile);
+        state.profiles = state.profiles.map(applyWhiteIdentity);
+        window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+      });
+      await page.reload();
+    }
   }
+});
+
+test("customize phone preview keeps its hero full-width and identity free of backplates", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1689, height: 857 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Background image description").fill("Profile preview backdrop");
+  await page.getByRole("tab", { name: "Overview" }).click();
+
+  const profileSurface = page.getByTestId("profile-preview-device");
+  const hero = profileSurface.getByRole("region", { name: "Profile hero" });
+  await expect(hero).toBeVisible();
+  const heroBackground = hero.locator(':scope > div[aria-hidden="true"]').first();
+  const [heroBounds, screenBounds] = await Promise.all([
+    heroBackground.boundingBox(),
+    profileSurface.boundingBox(),
+  ]);
+  expect(heroBounds).not.toBeNull();
+  expect(screenBounds).not.toBeNull();
+  expect(Math.abs(heroBounds!.x - screenBounds!.x)).toBeLessThanOrEqual(2);
+  expect(
+    Math.abs(screenBounds!.x + screenBounds!.width - (heroBounds!.x + heroBounds!.width)),
+  ).toBeLessThanOrEqual(2);
+  const identityText = [
+    profileSurface.getByRole("heading", { name: "Mara Velasquez" }).locator("span"),
+    profileSurface.locator("p span").filter({ hasText: "Brand systems for independent teams." }),
+  ];
+  for (const text of identityText) {
+    await expect(text).toBeVisible();
+    await expect(text).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(text).toHaveCSS("padding-left", "0px");
+    await expect(text).toHaveCSS("padding-right", "0px");
+    await expect(text).toHaveCSS("box-shadow", "none");
+  }
+});
+
+test("customize preview uses an iPhone-sized screen for short and long profiles", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1415, height: 857 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("public/images/tapit-hero-atmosphere.png");
+  await page.getByLabel("Background image description").fill("Atmospheric Tapit profile cover.");
+  await page.getByLabel(/^Hero height:/).fill("234");
+  await page.getByRole("tab", { name: "Overview" }).click();
+
+  const frame = page.getByTestId("profile-preview-frame");
+  const previewCanvas = frame.locator("xpath=..");
+  const phone = page.getByTestId("profile-preview-phone");
+  const profileSurface = page.getByTestId("profile-preview-device");
+  const profileCard = profileSurface.locator(".tapit-profile-entry > div > section");
+  const profileContent = profileCard.locator(":scope > div").last();
+  const poweredBy = profileSurface.getByText("Powered by Tapit", { exact: true });
+  await expect(phone).toBeVisible();
+  await expect(poweredBy).toBeVisible();
+  await expect(profileCard).toHaveCSS("border-radius", "0px");
+  await expect(profileContent).toHaveCSS("border-top-width", "0px");
+  await expect(phone.getByText("9:41", { exact: true })).toBeVisible();
+  await expect(phone.getByTestId("profile-preview-dynamic-island")).toBeVisible();
+  await page.screenshot({ path: "test-results/tapit-customize-preview-1415x857.png" });
+  await phone.screenshot({ path: "test-results/tapit-customize-phone-preview.png" });
+
+  const phoneHeightToWidth = await phone.evaluate((element) => {
+    const bounds = element.getBoundingClientRect();
+    return bounds.height / bounds.width;
+  });
+  expect(phoneHeightToWidth).toBeCloseTo(19.5 / 9, 1);
+
+  const shortProfileScreen = await profileSurface.evaluate((screen) => ({
+    clientHeight: screen.clientHeight,
+    overflowY: getComputedStyle(screen).overflowY,
+    scrollHeight: screen.scrollHeight,
+  }));
+  expect(shortProfileScreen.overflowY).toBe("auto");
+  expect(shortProfileScreen.scrollHeight).toBeLessThanOrEqual(shortProfileScreen.clientHeight + 1);
+
+  const overflowY = await previewCanvas.evaluate((canvas) => getComputedStyle(canvas).overflowY);
+  expect(overflowY).toBe("hidden");
+
+  const [canvasBox, phoneBox, poweredByBox] = await Promise.all([
+    previewCanvas.boundingBox(),
+    phone.boundingBox(),
+    poweredBy.boundingBox(),
+  ]);
+  expect(canvasBox).not.toBeNull();
+  expect(phoneBox).not.toBeNull();
+  expect(poweredByBox).not.toBeNull();
+  expect(phoneBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
+  expect(phoneBox!.y + phoneBox!.height).toBeLessThanOrEqual(canvasBox!.y + canvasBox!.height + 1);
+  expect(poweredByBox!.y + poweredByBox!.height).toBeLessThanOrEqual(
+    canvasBox!.y + canvasBox!.height + 1,
+  );
+
+  const fitScale = await phone.evaluate((element) => {
+    const match = (element as HTMLElement).style.transform.match(/scale\(([^)]+)\)/);
+    return match ? Number(match[1]) : 1;
+  });
+  expect(fitScale).toBeGreaterThanOrEqual(0.58);
+
+  await page.goto("/app/profile");
+  await page.getByLabel("Bio or role").fill("Long-content preview setup.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText(/Draft saved\./)).toBeVisible();
+  await page.goto("/app/customize");
+
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo profile before long-content setup.");
+    const state = JSON.parse(raw);
+    const extendProfile = (profile: { id?: string; draft?: Record<string, unknown> }) => {
+      if (profile.id !== "profile-mara" || !profile.draft) return profile;
+      const existingLinks = Array.isArray(profile.draft.links) ? profile.draft.links : [];
+      const longLinks = Array.from({ length: 18 }, (_, index) => ({
+        id: `long-preview-${index + 1}`,
+        label: `Extended profile connection ${index + 1}`,
+        destination: `https://example.test/connection/${index + 1}`,
+        enabled: true,
+        icon: "globe",
+      }));
+      return {
+        ...profile,
+        draft: {
+          ...profile.draft,
+          bio: "A longer introduction for testing a complete profile preview. ".repeat(18),
+          links: [...existingLinks, ...longLinks],
+        },
+      };
+    };
+    state.profile = extendProfile(state.profile);
+    state.profiles = state.profiles.map(extendProfile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+
+  const expandedPhone = page.getByTestId("profile-preview-phone");
+  const expandedCanvas = page.getByTestId("profile-preview-frame").locator("xpath=..");
+  const expandedScreen = page.getByTestId("profile-preview-device");
+  const lastLink = page.getByRole("link", { name: "Extended profile connection 18" });
+  await lastLink.scrollIntoViewIfNeeded();
+  await expect(lastLink).toBeVisible();
+  const [expandedCanvasBox, expandedPhoneBox] = await Promise.all([
+    expandedCanvas.boundingBox(),
+    expandedPhone.boundingBox(),
+  ]);
+  expect(expandedCanvasBox).not.toBeNull();
+  expect(expandedPhoneBox).not.toBeNull();
+  expect(expandedPhoneBox!.y).toBeGreaterThanOrEqual(expandedCanvasBox!.y);
+  expect(expandedPhoneBox!.y + expandedPhoneBox!.height).toBeLessThanOrEqual(
+    expandedCanvasBox!.y + expandedCanvasBox!.height + 1,
+  );
+  expect(expandedPhoneBox!.height / expandedPhoneBox!.width).toBeCloseTo(19.5 / 9, 1);
+  const longProfileScreen = await expandedScreen.evaluate((screen) => ({
+    clientHeight: screen.clientHeight,
+    overflowY: getComputedStyle(screen).overflowY,
+    scrollHeight: screen.scrollHeight,
+    scrollTop: screen.scrollTop,
+  }));
+  expect(longProfileScreen.overflowY).toBe("auto");
+  expect(longProfileScreen.scrollHeight).toBeGreaterThan(longProfileScreen.clientHeight);
+  expect(longProfileScreen.scrollTop).toBeGreaterThan(0);
+  await page.screenshot({
+    path: "test-results/tapit-customize-long-profile-preview.png",
+    fullPage: true,
+  });
 });
 
 test("high-entropy demo media is reduced below the storage limit", async ({ page }) => {
@@ -1043,7 +1409,7 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
         .getByRole("heading", { name: "Adjust profile photo" })
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
-    .toMatch(/^Georgia/i);
+    .toMatch(/system-ui|sans-serif|Arial/i);
   await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
@@ -1059,7 +1425,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
         .getByRole("heading", { name: "Profile analytics" })
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
-    .toMatch(/^Georgia/i);
+    .toMatch(/system-ui|sans-serif|Arial/i);
   await expect(page.getByText("Profile views")).toBeVisible();
   for (const copy of [
     "Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history.",
@@ -1086,7 +1452,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
         .getByRole("heading", { name: "Delete account" })
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
-    .toMatch(/^Georgia/i);
+    .toMatch(/system-ui|sans-serif|Arial/i);
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toBeVisible();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
@@ -1131,7 +1497,7 @@ test("customer utility workspaces fit phone and desktop widths", async ({ page }
             .getByRole("heading", { name: "Bring your card to life" })
             .evaluate((heading) => getComputedStyle(heading).fontFamily),
         )
-        .toMatch(/Georgia|Times New Roman/i);
+        .toMatch(/system-ui|sans-serif|Arial/i);
     }
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 900 });

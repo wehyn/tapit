@@ -422,7 +422,7 @@ function DemoCardsManager() {
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(40,53,44,0.035)] transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_1px_3px_rgba(16,33,28,0.035)] transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">

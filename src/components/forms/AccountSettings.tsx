@@ -156,7 +156,7 @@ function DemoAccountSettings() {
   }
 
   return (
-    <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
       <Panel title="Account">
         <dl className="mt-6 grid gap-4">
           <div className="rounded-tapit bg-tapit-paper p-4">
@@ -330,7 +330,7 @@ function LiveAccountSettings() {
     }
   }
   return (
-    <div className="[&_section>h2]:font-[Georgia] mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
+    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
       <Panel title="Account">
         <dl className="mt-6 grid gap-4">
           <div className="rounded-tapit bg-tapit-paper p-4">

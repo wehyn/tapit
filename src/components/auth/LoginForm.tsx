@@ -559,7 +559,7 @@ function LiveLoginForm({
           {pendingAuth?.kind === "reset" ? (
             <div
               aria-live="polite"
-              className="rounded-tapit border border-[#b9d1c0] bg-[#e8f1eb] px-4 py-3 text-sm leading-6 text-[#17352b]"
+              className="rounded-tapit border border-[#b7ddc8] bg-tapit-success-soft px-4 py-3 text-sm leading-6 text-tapit-success-ink"
               role="status"
             >
               If an account matches that email, reset instructions are on the way.

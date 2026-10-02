@@ -69,7 +69,9 @@ async function expectKeyboardVisibleFocus(page: Page) {
   const displayFont = await displayHeading.evaluate(
     (element) => getComputedStyle(element).fontFamily,
   );
-  expect(displayFont.toLowerCase(), "major heading display font").toContain("georgia");
+  expect(displayFont.toLowerCase(), "major heading uses the shared sans-serif font").toMatch(
+    /system-ui|sans-serif|arial/,
+  );
   const controlFont = await signInButton.evaluate(
     (element) => getComputedStyle(element).fontFamily,
   );
@@ -85,11 +87,11 @@ async function expectKeyboardVisibleFocus(page: Page) {
   await expect(signInButton).toBeFocused();
   const focusStyles = await readFocusStyles(signInButton);
   expect(focusStyles.isFocusVisible, "keyboard sign-in button").toBe(true);
-  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#315e48");
+  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#176b52");
   expect(focusStyles.rootFocus.toLowerCase(), "Tapit focus token").toBe(
     focusStyles.rootAccent.toLowerCase(),
   );
-  expect(focusStyles.rootPaper.toLowerCase(), "Warm Editorial page canvas").toBe("#f0ede5");
+  expect(focusStyles.rootPaper.toLowerCase(), "Light-tech page canvas").toBe("#f5f8f6");
   expect(focusStyles.hasVisibleIndicator, "keyboard sign-in button").toBe(true);
   expect(focusStyles.colors, "keyboard sign-in button").not.toMatch(ORANGE_FOCUS);
 }

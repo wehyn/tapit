@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 import { CaretDownIcon, CaretUpIcon, CopyIcon } from "@phosphor-icons/react";
+import Link from "next/link";
 
 import type { ProfileContent, ProfileLink } from "@/lib/domain";
 import type { ProfileCustomization, ProfileSection } from "@/lib/profile-customization";
@@ -226,11 +227,17 @@ function ProfileIdentityForm({
         </div>
         <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
           <span className="font-semibold text-tapit-ink">Public URL</span>
-          <code className="min-w-0 flex-1 truncate text-xs text-tapit-muted">
-            {typeof window === "undefined"
-              ? `/${draft.slug}`
-              : `${window.location.origin}/${draft.slug}`}
-          </code>
+          <Link
+            aria-label={`Open public profile /${draft.slug}`}
+            className="inline-flex min-h-11 min-w-0 flex-1 items-center truncate text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-sm"
+            href={`/${draft.slug}`}
+          >
+            <code className="block truncate">
+              {typeof window === "undefined"
+                ? `/${draft.slug}`
+                : `${window.location.origin}/${draft.slug}`}
+            </code>
+          </Link>
           <Button onClick={onCopyUrl} type="button" variant="secondary">
             <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
             {copyMessage || "Copy"}

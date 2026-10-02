@@ -1,24 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --tapit-ink: #28352c;
-  --tapit-muted: #5e6b63;
-  --tapit-surface: #fffdf8;
-  --tapit-paper: #f0ede5;
-  --tapit-soft-surface: #f7f3e9;
-  --tapit-line: #e6e0d3;
-  --tapit-accent: #315e48;
-  --tapit-accent-strong: #244635;
-  --tapit-accent-soft: #e5eadf;
-  --tapit-warm: #c89961;
-  --tapit-success-soft: #e5eadf;
-  --tapit-success-ink: #244635;
+  --tapit-ink: #10211c;
+  --tapit-muted: #506158;
+  --tapit-surface: #ffffff;
+  --tapit-paper: #f5f8f6;
+  --tapit-soft-surface: #eaf3ee;
+  --tapit-line: #dce7e1;
+  --tapit-accent: #176b52;
+  --tapit-accent-strong: #10543f;
+  --tapit-accent-soft: #e1f2e9;
+  --tapit-warm: #c9a875;
+  --tapit-success-soft: #e1f2e9;
+  --tapit-success-ink: #10543f;
   --tapit-warning-soft: #fff4df;
   --tapit-warning-ink: #784b13;
   --tapit-danger: #a33c38;
   --tapit-danger-soft: #fff1f0;
   --tapit-focus: var(--tapit-accent);
   --tapit-radius: 18px;
+  --tapit-shadow-soft: 0 12px 36px rgb(16 33 28 / 0.06);
+  --tapit-shadow-raised: 0 24px 72px rgb(16 33 28 / 0.12);
 }
 
 @theme inline {
@@ -59,6 +61,8 @@
 
 html {
   background: var(--tapit-paper);
+  scroll-behavior: smooth;
+  scroll-padding-top: 5.5rem;
 }
 
 body {
@@ -76,9 +80,14 @@ body {
 }
 
 .tapit-display {
-  font-family: Georgia, "Times New Roman", serif;
-  font-weight: 500;
-  letter-spacing: -0.035em;
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.045em;
 }
 
 .tapit-eyebrow {
@@ -87,6 +96,88 @@ body {
   font-weight: 650;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.tapit-glass {
+  background: rgb(255 255 255 / 0.82);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.tapit-gradient-text {
+  background: linear-gradient(110deg, #176b52 8%, #168a7a 90%);
+  background-clip: text;
+  color: transparent;
+}
+
+.tapit-ambient {
+  animation: tapit-ambient-drift 18s ease-in-out infinite alternate;
+}
+
+.tapit-page-entry {
+  animation: tapit-page-entry 700ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.tapit-page-entry:nth-child(2) {
+  animation-delay: 65ms;
+}
+
+.tapit-page-entry:nth-child(3) {
+  animation-delay: 130ms;
+}
+
+.tapit-page-entry:nth-child(4) {
+  animation-delay: 195ms;
+}
+
+.tapit-preview-entry {
+  animation: tapit-preview-entry 420ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.tapit-profile-entry {
+  animation: tapit-profile-entry 460ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.tapit-profile-stagger > li {
+  animation: tapit-profile-link-entry 360ms cubic-bezier(0.2, 0.7, 0.25, 1) both;
+}
+
+.tapit-profile-stagger > li:nth-child(2) {
+  animation-delay: 45ms;
+}
+
+.tapit-profile-stagger > li:nth-child(3) {
+  animation-delay: 90ms;
+}
+
+.tapit-profile-stagger > li:nth-child(4) {
+  animation-delay: 135ms;
+}
+
+.tapit-profile-stagger > li:nth-child(5) {
+  animation-delay: 180ms;
+}
+
+[data-scroll-reveal][data-revealed="false"] {
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    opacity 500ms ease-out var(--reveal-delay, 0ms),
+    transform 500ms ease-out var(--reveal-delay, 0ms);
+}
+
+[data-scroll-reveal][data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+  transition:
+    opacity 500ms ease-out var(--reveal-delay, 0ms),
+    transform 500ms ease-out var(--reveal-delay, 0ms);
+}
+
+[data-scroll-reveal][data-revealed="false"]:focus-within {
+  opacity: 1;
+  transform: none;
+  transition: none;
 }
 
 button,
@@ -112,6 +203,56 @@ select {
   }
 }
 
+@keyframes tapit-ambient-drift {
+  from {
+    transform: translate3d(-1.5%, 0, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(1.5%, 1.5%, 0) scale(1.04);
+  }
+}
+
+@keyframes tapit-page-entry {
+  from {
+    transform: translateY(12px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tapit-preview-entry {
+  from {
+    transform: translateY(7px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tapit-profile-entry {
+  from {
+    transform: translateY(8px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes tapit-profile-link-entry {
+  from {
+    transform: translateY(5px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
 .tapit-profile-slideshow-image {
   animation: tapit-profile-slideshow-fade-in 350ms ease-out both;
 }
@@ -130,6 +271,7 @@ select {
   .tapit-glass {
     background: var(--tapit-surface) !important;
     backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
 
@@ -139,6 +281,10 @@ select {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   *,
   *::before,
   *::after {
@@ -146,5 +292,29 @@ select {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .tapit-ambient {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .tapit-page-entry {
+    animation: none !important;
+  }
+
+  .tapit-preview-entry,
+  .tapit-profile-entry,
+  .tapit-profile-stagger > li {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  [data-scroll-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
   }
 }

@@ -119,7 +119,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
               This isolated hosted demo uses its password flow for demonstration only.
             </p>
           </div>
-          <div className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(40,53,44,0.07)] sm:p-8">
+          <div className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(16,33,28,0.07)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your setup link…</p>
             ) : stateCopy ? (
@@ -249,7 +249,7 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               This one-time link gives you access to your Tapit profile workspace.
             </p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(40,53,44,0.07)] sm:p-8">
+          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(16,33,28,0.07)] sm:p-8">
             {account ? (
               <p className="mt-6 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
                 Account email: <strong className="text-tapit-ink">{account.email}</strong>
@@ -375,7 +375,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               Your invitation stays reusable until an administrator revokes it.
             </p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(40,53,44,0.07)] sm:p-8">
+          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(16,33,28,0.07)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your invitation…</p>
             ) : stateCopy ? (

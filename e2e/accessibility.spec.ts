@@ -8,6 +8,24 @@ async function expectNoA11yViolations(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
+test("public homepage has no automated accessibility violations", async ({ page }) => {
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(page.locator("main h1")).toHaveCount(1);
+    if (width < 1024) {
+      await page.getByRole("button", { name: "Open menu" }).click();
+    }
+    await expect(
+      page.getByRole("navigation", {
+        name: width < 1024 ? "Mobile navigation" : "Primary navigation",
+      }),
+    ).toBeVisible();
+    await expectNoA11yViolations(page);
+  }
+});
+
 test("public profile has no automated accessibility violations", async ({ page }) => {
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });

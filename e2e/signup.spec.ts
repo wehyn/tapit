@@ -8,7 +8,7 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
     await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toHaveCSS(
       "font-family",
-      /Georgia/,
+      /system-ui|sans-serif|Arial/i,
     );
     await expect(page.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute(
       "href",
@@ -46,7 +46,7 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
     await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Choose a password" })).toHaveCSS(
       "font-family",
-      /Georgia/,
+      /system-ui|sans-serif|Arial/i,
     );
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Set password", exact: true })).toBeVisible();
@@ -97,7 +97,9 @@ test("customer signup starts from the public login page", async ({ page }) => {
     "href",
     "/app/links",
   );
-  await expect(page.getByRole("link", { name: "/new-tapit-customer" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Open public profile /new-tapit-customer" }),
+  ).toHaveAttribute("href", "/new-tapit-customer");
   await expect(page.getByLabel("Email", { exact: true })).toHaveValue(
     "new-tapit-customer@example.test",
   );
