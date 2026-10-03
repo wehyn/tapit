@@ -168,7 +168,6 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
   }));
-  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
@@ -617,11 +616,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           />
         ) : null
       }
-      onPreviewModeChange={setPreviewMode}
       onPublish={publish}
       onSave={() => void saveDraft()}
       preview={preview}
-      previewMode={previewMode}
       profileUrl={`/${draft.slug}`}
       hasPublishedProfile={profile.published !== null && profile.status === "published"}
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
@@ -669,7 +666,6 @@ function LiveProfileEditorContent({
   const removeImage = useMutation(api.storage.removeImage);
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
-  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
@@ -1218,11 +1214,9 @@ function LiveProfileEditorContent({
           />
         ) : null
       }
-      onPreviewModeChange={setPreviewMode}
       onPublish={publish}
       onSave={() => void saveDraft()}
       preview={preview}
-      previewMode={previewMode}
       profileUrl={`/${currentDraft.slug}`}
       hasPublishedProfile={
         liveProfile.published !== null &&

@@ -118,7 +118,6 @@ function DemoLinksEditor() {
   const profile = getDemoProfileForSession(state, session);
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
 
   const validation = useMemo(() => {
@@ -332,11 +331,9 @@ function DemoLinksEditor() {
       validation={validation}
       publicationErrors={publicationErrors}
       message={message}
-      previewMode={previewMode}
       pendingAction={pendingAction}
       isDirty={isDirty}
       publicationLabel={publicationLabel}
-      onPreviewModeChange={setPreviewMode}
       onUpdateLink={updateLink}
       onAddLink={addLink}
       onMoveLink={moveLink}
@@ -368,7 +365,6 @@ export function LiveLinksEditorContent({
   const publishMutation = useMutation(api.profiles.publish);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
@@ -573,11 +569,9 @@ export function LiveLinksEditorContent({
       validation={validation}
       publicationErrors={publicationErrors}
       message={message}
-      previewMode={previewMode}
       pendingAction={pendingAction}
       isDirty={isDirty}
       publicationLabel={publicationLabel}
-      onPreviewModeChange={setPreviewMode}
       onUpdateLink={updateLink}
       onAddLink={addLink}
       onMoveLink={moveLink}

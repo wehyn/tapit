@@ -71,6 +71,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   }
   return (
     <PublicProfile
+      mobileLayout
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
@@ -150,6 +151,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   return (
     <>
       <PublicProfile
+        mobileLayout
         onLinkClick={onLinkClick}
         onView={onView}
         profile={profile}

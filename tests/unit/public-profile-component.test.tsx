@@ -320,7 +320,6 @@ describe("public profile preview behavior", () => {
     render(
       <PublicProfile
         preview
-        previewMode="phone"
         profile={{
           ...projection,
           name: "A very long profile name that stays readable",

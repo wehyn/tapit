@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
 
@@ -112,7 +112,81 @@ async function readPublicProfileSnapshot(page: Page) {
   });
 }
 
-test("mobile identity alignment centers the public profile header", async ({ page }) => {
+async function readProfilePresentation(profile: Locator) {
+  return profile.evaluate((root) => {
+    const heading = root.querySelector<HTMLElement>("h1, h2");
+    const image = root.querySelector<HTMLImageElement>('img[alt="Mara Velasquez profile"]');
+    const identity = heading?.parentElement?.parentElement;
+    const bio = identity?.querySelector<HTMLElement>("p");
+    const panel = root.querySelector<HTMLElement>("section");
+    const link = root.querySelector<HTMLElement>('ul[aria-label="Profile links"] a');
+    const hero = root.querySelector<HTMLElement>('[aria-label="Profile hero"]');
+    const heroContent = hero?.querySelector<HTMLElement>(":scope > div.relative.z-10");
+    const textStyle = (element: HTMLElement | null | undefined) => {
+      if (!element) return null;
+      const computed = getComputedStyle(element);
+      return {
+        fontSize: computed.fontSize,
+        lineHeight: computed.lineHeight,
+        color: computed.color,
+        textAlign: computed.textAlign,
+      };
+    };
+    const boxStyle = (element: HTMLElement | null | undefined) => {
+      if (!element) return null;
+      const computed = getComputedStyle(element);
+      return {
+        borderRadius: computed.borderRadius,
+        borderWidth: computed.borderWidth,
+        borderColor: computed.borderColor,
+        backgroundColor: computed.backgroundColor,
+      };
+    };
+    const avatarStyle = image
+      ? {
+          width: getComputedStyle(image).width,
+          height: getComputedStyle(image).height,
+          borderRadius: getComputedStyle(image).borderRadius,
+          sizes: image.getAttribute("sizes"),
+        }
+      : null;
+    const identityStyle = identity
+      ? {
+          alignItems: getComputedStyle(identity).alignItems,
+          flexDirection: getComputedStyle(identity).flexDirection,
+          textAlign: getComputedStyle(identity).textAlign,
+        }
+      : null;
+    const linkStyle = link
+      ? {
+          fontSize: getComputedStyle(link).fontSize,
+          minHeight: getComputedStyle(link).minHeight,
+          paddingTop: getComputedStyle(link).paddingTop,
+          paddingBottom: getComputedStyle(link).paddingBottom,
+          borderRadius: getComputedStyle(link).borderRadius,
+          backgroundColor: getComputedStyle(link).backgroundColor,
+        }
+      : null;
+    const heroContentStyle = heroContent
+      ? {
+          paddingTop: getComputedStyle(heroContent).paddingTop,
+          paddingBottom: getComputedStyle(heroContent).paddingBottom,
+        }
+      : null;
+
+    return {
+      heading: textStyle(heading),
+      bio: textStyle(bio),
+      avatar: avatarStyle,
+      identity: identityStyle,
+      panel: boxStyle(panel),
+      link: linkStyle,
+      heroContent: heroContentStyle,
+    };
+  });
+}
+
+test("public profile identity stays centered across screen widths", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/mara-velasquez");
 
@@ -143,11 +217,11 @@ test("mobile identity alignment centers the public profile header", async ({ pag
 
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.reload();
-  await expect(heading).toHaveCSS("text-align", "left");
-  await expect(bio).toHaveCSS("text-align", "left");
+  await expect(heading).toHaveCSS("text-align", "center");
+  await expect(bio).toHaveCSS("text-align", "center");
 });
 
-test("desktop public profiles use a wide split layout and settle under reduced motion", async ({
+test("desktop public profiles keep a phone-width layout and settle under reduced motion", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -163,13 +237,14 @@ test("desktop public profiles use a wide split layout and settle under reduced m
   await expect(linkedIn).toBeVisible();
   await expect
     .poll(() => profilePanel.evaluate((panel) => panel.getBoundingClientRect().width))
-    .toBeGreaterThan(900);
+    .toBeLessThanOrEqual(448);
+  await expect(heading).toHaveCSS("text-align", "center");
 
   const headingBox = await heading.boundingBox();
   const linkBox = await linkedIn.boundingBox();
   expect(headingBox).not.toBeNull();
   expect(linkBox).not.toBeNull();
-  expect(linkBox!.x).toBeGreaterThan(headingBox!.x + headingBox!.width + 40);
+  expect(linkBox!.y).toBeGreaterThan(headingBox!.y + headingBox!.height);
   await expect
     .poll(() => main.evaluate((element) => getComputedStyle(element).animationName))
     .toBe("tapit-profile-entry");
@@ -235,6 +310,34 @@ test("direct and active card paths show the same published profile", async ({ pa
   await page.goto("/c/mara-card-7f2q");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Portfolio" })).toBeVisible();
+});
+
+test("direct and active card profiles stay phone-width on desktop", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(path);
+    await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    await expect(page.locator("main.tapit-profile-entry > div")).toHaveCSS("max-width", "448px");
+  }
+});
+
+test("desktop public profile routes match the mobile preview presentation", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const previewProfile = page.getByTestId("profile-preview-device").locator(".tapit-profile-entry");
+  await expect(previewProfile.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  const previewPresentation = await readProfilePresentation(previewProfile);
+
+  for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(path);
+    const profile = page.locator("main.tapit-profile-entry");
+    await expect(profile.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+    expect(await readProfilePresentation(profile)).toEqual(previewPresentation);
+  }
 });
 
 test("customized direct and active card paths preserve presentation parity", async ({ page }) => {
@@ -305,11 +408,13 @@ test("legacy customer typography and selected theme remain intact in preview and
   const previewFontFamily = await preview.evaluate(
     (heading) => getComputedStyle(heading).fontFamily,
   );
+  const previewFontSize = await preview.evaluate((heading) => getComputedStyle(heading).fontSize);
   await expect(preview).toHaveCSS("color", "rgb(242, 246, 241)");
 
   await page.goto("/mara-velasquez");
   const directHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(directHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(directHeading).toHaveCSS("font-size", previewFontSize);
   await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
   await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
   const directProfile = await readPublicProfileSnapshot(page);
@@ -317,6 +422,7 @@ test("legacy customer typography and selected theme remain intact in preview and
   await page.goto("/c/mara-card-7f2q");
   const cardHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(cardHeading).toHaveCSS("font-family", /ui-sans-serif/);
+  await expect(cardHeading).toHaveCSS("font-size", previewFontSize);
   await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
   await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
   const cardProfile = await readPublicProfileSnapshot(page);

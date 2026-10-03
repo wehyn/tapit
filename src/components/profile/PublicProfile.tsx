@@ -134,7 +134,7 @@ export function PublicProfile({
   profileUrl,
   profileId,
   preview = false,
-  previewMode,
+  mobileLayout = false,
   fitPhonePreviewContent = false,
   theme: themeOverride,
   trackClicks = true,
@@ -146,7 +146,7 @@ export function PublicProfile({
   profileUrl?: string;
   profileId?: string;
   preview?: boolean;
-  previewMode?: "phone" | "desktop";
+  mobileLayout?: boolean;
   fitPhonePreviewContent?: boolean;
   theme?: ProfileTheme;
   trackClicks?: boolean;
@@ -166,7 +166,7 @@ export function PublicProfile({
   const warmStudio = appearance.mode === "warm-studio";
   const media = profile.media;
   const background = media?.background;
-  const phonePreview = preview && (previewMode ?? "phone") === "phone";
+  const phonePreview = preview || mobileLayout;
   const compactPhonePreview = phonePreview && fitPhonePreviewContent;
   const wideProfile = !phonePreview;
   const centerIdentity = phonePreview;
@@ -263,7 +263,7 @@ export function PublicProfile({
               ? "text-xl"
               : "text-3xl"
             : "text-3xl sm:text-4xl"
-          : preview
+          : phonePreview
             ? "text-2xl"
             : "text-3xl sm:text-4xl";
   const profileLinkMargin = phonePreview
@@ -371,17 +371,25 @@ export function PublicProfile({
       {profile.imageUrl ? (
         <img
           alt={`${profile.name} profile`}
-          className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : preview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
+          className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
           height={96}
           src={profile.imageUrl}
           srcSet={profile.imageSrcSet}
-          sizes={profile.imageSrcSet ? "(min-width: 640px) 96px, 80px" : undefined}
+          sizes={
+            profile.imageSrcSet
+              ? compactPhonePreview
+                ? "64px"
+                : phonePreview
+                  ? "80px"
+                  : "(min-width: 640px) 96px, 80px"
+              : undefined
+          }
           width={96}
         />
       ) : (
         <div
           aria-hidden="true"
-          className={`${compactPhonePreview ? "size-16 text-2xl" : preview ? "size-20 text-3xl" : "size-20 text-3xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
+          className={`${compactPhonePreview ? "size-16 text-2xl" : phonePreview ? "size-20 text-3xl" : "size-20 text-3xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
         >
           {profile.name.slice(0, 1).toUpperCase()}
         </div>
@@ -483,7 +491,7 @@ export function PublicProfile({
     ? "rounded-none border-0 shadow-none"
     : !warmStudio
       ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-      : phonePreview || preview
+      : preview
         ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
         : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
   const identityColumnSpacing = phonePreview
@@ -514,7 +522,7 @@ export function PublicProfile({
           treatment="warm"
           compact={phonePreview}
           fullSurface
-          responsivePortrait={!preview}
+          responsivePortrait={phonePreview}
           className="rounded-none border-0"
         >
           {identity}
@@ -551,14 +559,15 @@ export function PublicProfile({
   const pageFrameClasses = warmStudio
     ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
     : "min-h-[100dvh] px-5 py-8 sm:py-12";
+  const profileContentMaxWidth = preview ? "max-w-none" : wideProfile ? "max-w-6xl" : "max-w-md";
   const Container = preview ? "div" : "main";
   return (
     <Container
       style={publishedProfilePalette}
-      className={`tapit-profile-entry ${phonePreview ? "min-h-0 p-0" : preview ? "min-h-0 px-3 py-3 sm:px-4 sm:py-5" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
+      className={`tapit-profile-entry ${preview ? "min-h-0 p-0" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
     >
       <div
-        className={`mx-auto flex w-full ${phonePreview ? "max-w-none" : wideProfile ? "max-w-6xl" : "max-w-md"} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
+        className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
       >
         <section className={`${profileFrameClasses} ${profileGrid} ${panelClasses}`}>
           {identityColumn}

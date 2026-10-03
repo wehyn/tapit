@@ -80,6 +80,7 @@ function DemoPublicProfileScreen({
 
   return (
     <PublicProfile
+      mobileLayout
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
@@ -153,6 +154,7 @@ function LivePublicProfileScreen({
   };
   return (
     <PublicProfile
+      mobileLayout
       onLinkClick={onLinkClick}
       onView={onView}
       profile={projection}
