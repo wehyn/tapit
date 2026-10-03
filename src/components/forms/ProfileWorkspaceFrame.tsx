@@ -13,8 +13,6 @@ export type ProfileWorkspaceFrameProps = {
   preview: PublicProfileProjection | null;
   profileUrl: string;
   hasPublishedProfile: boolean;
-  previewMode: "phone" | "desktop";
-  onPreviewModeChange: (mode: "phone" | "desktop") => void;
   hasDraftChanges: boolean;
   saveDisabled: boolean;
   saveLoading?: boolean;
@@ -34,8 +32,6 @@ export function ProfileWorkspaceFrame({
   preview,
   profileUrl,
   hasPublishedProfile,
-  previewMode,
-  onPreviewModeChange,
   hasDraftChanges,
   saveDisabled,
   saveLoading = false,
@@ -71,8 +67,6 @@ export function ProfileWorkspaceFrame({
       <div className="h-fit min-w-0 scroll-mt-24" id="workspace-preview">
         {preview ? (
           <WorkspacePreview
-            mode={previewMode}
-            onModeChange={onPreviewModeChange}
             preview={preview}
             profileUrl={profileUrl}
             fitPhonePreviewContent

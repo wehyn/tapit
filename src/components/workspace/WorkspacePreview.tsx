@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowUpRightIcon,
-  DesktopIcon,
   DeviceMobileIcon,
   EyeIcon,
   LinkSimpleIcon,
@@ -19,16 +18,12 @@ const MIN_PHONE_SCALE = 0.58;
 const MIN_PHONE_CONTENT_SCALE = 0.95;
 
 export function WorkspacePreview({
-  mode,
-  onModeChange,
   preview,
   profileUrl,
   showProfileUrl = false,
   fitPhonePreviewContent = false,
   theme = preview.theme,
 }: {
-  mode: "phone" | "desktop";
-  onModeChange: (mode: "phone" | "desktop") => void;
   preview: PublicProfileProjection;
   profileUrl: string;
   showProfileUrl?: boolean;
@@ -51,8 +46,6 @@ export function WorkspacePreview({
   const phoneNeedsPageScrollRef = useRef(false);
 
   useLayoutEffect(() => {
-    if (mode !== "phone") return;
-
     const canvas = previewCanvasRef.current;
     const device = phoneDeviceRef.current;
     const screen = phoneScreenRef.current;
@@ -139,7 +132,7 @@ export function WorkspacePreview({
       observer?.disconnect();
       window.removeEventListener("resize", measureFit);
     };
-  }, [mode]);
+  }, []);
 
   async function copyUrl() {
     const absoluteUrl = new URL(profileUrl, window.location.origin).href;
@@ -154,8 +147,7 @@ export function WorkspacePreview({
   const publicProfile = (
     <PublicProfile
       preview
-      previewMode={mode}
-      fitPhonePreviewContent={fitPhonePreviewContent && mode === "phone"}
+      fitPhonePreviewContent={fitPhonePreviewContent}
       profile={preview}
       profileUrl={profileUrl}
       theme={theme}
@@ -168,11 +160,11 @@ export function WorkspacePreview({
     <section
       ref={previewPanelRef}
       className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_8px_28px_rgba(16,33,28,0.035)] ${
-        mode === "phone" && phoneNeedsPageScroll
+        phoneNeedsPageScroll
           ? "min-[1400px]:static min-[1400px]:max-h-none"
           : "min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:max-h-[calc(100dvh-7.5rem)]"
       }`}
-      data-preview-fit={mode === "phone" && phoneNeedsPageScroll ? "page-scroll" : "viewport"}
+      data-preview-fit={phoneNeedsPageScroll ? "page-scroll" : "viewport"}
     >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-5 py-4 sm:px-6">
         <div className="min-w-0">
@@ -183,52 +175,28 @@ export function WorkspacePreview({
           <p className="mt-1 max-w-[24rem] text-xs leading-5 text-tapit-muted">
             Only you can see this draft until you publish it.
           </p>
-          {mode === "phone" && phoneNeedsPageScroll ? (
+          {phoneNeedsPageScroll ? (
             <p className="mt-1 max-w-[24rem] text-xs leading-5 text-tapit-muted">
               This phone keeps a readable size. Scroll the workspace to see its full frame.
             </p>
           ) : null}
         </div>
-        <div
-          className="flex gap-1 rounded-full bg-tapit-paper p-1"
-          role="group"
-          aria-label="Preview layout"
-        >
-          {(["phone", "desktop"] as const).map((option) => (
-            <button
-              aria-pressed={mode === option}
-              className={`inline-flex min-h-11 items-center gap-2 rounded-tapit border px-3 text-sm font-semibold transition-colors duration-200 motion-reduce:transition-none ${
-                mode === option
-                  ? "border-tapit-accent bg-tapit-surface text-tapit-accent-strong shadow-sm"
-                  : "border-transparent bg-tapit-paper text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"
-              }`}
-              key={option}
-              onClick={() => onModeChange(option)}
-              type="button"
-            >
-              {option === "phone" ? (
-                <DeviceMobileIcon aria-hidden="true" size={17} />
-              ) : (
-                <DesktopIcon aria-hidden="true" size={17} />
-              )}
-              <span className="capitalize">{option}</span>
-            </button>
-          ))}
-        </div>
+        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
+          <DeviceMobileIcon aria-hidden="true" size={17} />
+          Mobile
+        </span>
       </div>
       <div
         ref={previewCanvasRef}
         style={
-          mode === "phone" && phoneNeedsPageScroll && phoneCanvasHeight
+          phoneNeedsPageScroll && phoneCanvasHeight
             ? { height: `${phoneCanvasHeight}px` }
             : undefined
         }
         className={`min-h-[34rem] px-3 py-3 sm:min-h-[38rem] sm:px-6 sm:py-3 min-[1400px]:min-h-0 min-[1400px]:overscroll-contain ${
-          mode === "phone" && phoneNeedsPageScroll
+          phoneNeedsPageScroll
             ? "min-[1400px]:flex-none min-[1400px]:overflow-visible"
-            : mode === "phone"
-              ? "min-[1400px]:flex-1 min-[1400px]:overflow-hidden"
-              : "min-[1400px]:flex-1 min-[1400px]:overflow-y-auto"
+            : "min-[1400px]:flex-1 min-[1400px]:overflow-hidden"
         } ${
           preview.customization?.preset === "warm-studio"
             ? "bg-[#fbf6ef]"
@@ -241,91 +209,83 @@ export function WorkspacePreview({
       >
         <div
           data-testid="profile-preview-frame"
-          className={`relative mx-auto transition-[max-width] duration-300 motion-reduce:transition-none ${
-            mode === "phone" ? "max-w-[24.375rem]" : "max-w-[34rem]"
-          }`}
-          style={
-            mode === "phone" && phoneNeedsPageScroll ? { height: phoneFrameHeight } : undefined
-          }
+          className="relative mx-auto max-w-[24.375rem] transition-[max-width] duration-300 motion-reduce:transition-none"
+          style={phoneNeedsPageScroll ? { height: phoneFrameHeight } : undefined}
         >
-          {mode === "phone" ? (
+          <div
+            ref={phoneDeviceRef}
+            data-testid="profile-preview-phone"
+            className={`relative mx-auto aspect-[9/19.5] w-full max-w-[22.5rem] origin-top ${phoneNeedsPageScroll ? "absolute inset-x-0 top-0" : ""}`}
+            style={{ aspectRatio: "9 / 19.5", transform: `scale(${phoneScale})` }}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute -left-[2px] top-[18%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -left-[2px] top-[29%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -left-[2px] top-[12%] z-0 h-[1.2rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[1.55rem]"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute -right-[2px] top-[25%] z-0 h-[3.8rem] w-[3px] rounded-r-full bg-[linear-gradient(90deg,#17211d,#65736b)] shadow-[1px_0_2px_rgba(0,0,0,0.2)] sm:h-[4.8rem]"
+            />
             <div
-              ref={phoneDeviceRef}
-              data-testid="profile-preview-phone"
-              className={`relative mx-auto aspect-[9/19.5] w-full max-w-[22.5rem] origin-top ${phoneNeedsPageScroll ? "absolute inset-x-0 top-0" : ""}`}
-              style={{ aspectRatio: "9 / 19.5", transform: `scale(${phoneScale})` }}
+              className="absolute inset-0 rounded-[2.45rem] border border-[#7b8881] bg-[linear-gradient(105deg,#738078_0%,#202a25_5%,#111915_13%,#18211d_88%,#738078_100%)] p-[0.34rem] shadow-[0_28px_56px_rgba(16,33,28,0.28)] sm:rounded-[3.45rem] sm:p-[0.48rem]"
+              data-testid="profile-preview-hardware"
             >
-              <span
-                aria-hidden="true"
-                className="absolute -left-[2px] top-[18%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute -left-[2px] top-[29%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute -left-[2px] top-[12%] z-0 h-[1.2rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[1.55rem]"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute -right-[2px] top-[25%] z-0 h-[3.8rem] w-[3px] rounded-r-full bg-[linear-gradient(90deg,#17211d,#65736b)] shadow-[1px_0_2px_rgba(0,0,0,0.2)] sm:h-[4.8rem]"
-              />
-              <div
-                className="absolute inset-0 rounded-[2.45rem] border border-[#7b8881] bg-[linear-gradient(105deg,#738078_0%,#202a25_5%,#111915_13%,#18211d_88%,#738078_100%)] p-[0.34rem] shadow-[0_28px_56px_rgba(16,33,28,0.28)] sm:rounded-[3.45rem] sm:p-[0.48rem]"
-                data-testid="profile-preview-hardware"
-              >
-                <div className="relative h-full overflow-hidden rounded-[2.12rem] bg-[#fffdfa] ring-1 ring-black/10 sm:rounded-[2.97rem]">
+              <div className="relative h-full overflow-hidden rounded-[2.12rem] bg-[#fffdfa] ring-1 ring-black/10 sm:rounded-[2.97rem]">
+                <div
+                  ref={phoneScreenRef}
+                  aria-label="Phone profile preview"
+                  className="absolute inset-0 overflow-y-auto bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus"
+                  data-testid="profile-preview-device"
+                  role="region"
+                  tabIndex={phoneScreenScrollable ? 0 : undefined}
+                >
                   <div
-                    ref={phoneScreenRef}
-                    aria-label="Phone profile preview"
-                    className="absolute inset-0 overflow-y-auto bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus"
-                    data-testid="profile-preview-device"
-                    role="region"
-                    tabIndex={phoneScreenScrollable ? 0 : undefined}
+                    className="relative min-h-full overflow-hidden"
+                    style={phoneContentHeight ? { height: `${phoneContentHeight}px` } : undefined}
                   >
                     <div
-                      className="relative min-h-full overflow-hidden"
-                      style={phoneContentHeight ? { height: `${phoneContentHeight}px` } : undefined}
+                      ref={phoneProfileRef}
+                      className="absolute inset-x-0 top-0 origin-top"
+                      style={{ transform: `scaleY(${phoneContentScale})` }}
                     >
-                      <div
-                        ref={phoneProfileRef}
-                        className="absolute inset-x-0 top-0 origin-top"
-                        style={{ transform: `scaleY(${phoneContentScale})` }}
-                      >
-                        {publicProfile}
-                      </div>
+                      {publicProfile}
                     </div>
                   </div>
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3.1rem] bg-gradient-to-b from-black/10 to-transparent sm:h-[3.6rem]"
-                    data-testid="profile-preview-status-bar"
+                </div>
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3.1rem] bg-gradient-to-b from-black/10 to-transparent sm:h-[3.6rem]"
+                  data-testid="profile-preview-status-bar"
+                >
+                  <span className="absolute left-[11%] top-[0.63rem] text-[0.45rem] font-bold tracking-tight text-white sm:top-[0.82rem] sm:text-[0.56rem]">
+                    9:41
+                  </span>
+                  <span className="absolute right-[10%] top-[0.68rem] flex items-end gap-[2px] sm:top-[0.9rem]">
+                    <span className="h-[3px] w-[2px] rounded-[1px] bg-white/95 sm:h-1" />
+                    <span className="h-1 w-[2px] rounded-[1px] bg-white/95 sm:h-[5px]" />
+                    <span className="h-[5px] w-[2px] rounded-[1px] bg-white/95 sm:h-[6px]" />
+                    <span className="ml-[2px] h-[5px] w-[9px] rounded-[2px] border border-white/90 p-[1px] sm:h-[6px] sm:w-[11px]">
+                      <span className="block h-full w-[72%] rounded-[1px] bg-white" />
+                    </span>
+                  </span>
+                  <span
+                    className="absolute left-1/2 top-[0.62rem] h-[0.72rem] w-[3.2rem] -translate-x-1/2 rounded-full bg-[#080b0a] shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:top-[0.82rem] sm:h-[0.9rem] sm:w-[4rem]"
+                    data-testid="profile-preview-dynamic-island"
                   >
-                    <span className="absolute left-[11%] top-[0.63rem] text-[0.45rem] font-bold tracking-tight text-white sm:top-[0.82rem] sm:text-[0.56rem]">
-                      9:41
-                    </span>
-                    <span className="absolute right-[10%] top-[0.68rem] flex items-end gap-[2px] sm:top-[0.9rem]">
-                      <span className="h-[3px] w-[2px] rounded-[1px] bg-white/95 sm:h-1" />
-                      <span className="h-1 w-[2px] rounded-[1px] bg-white/95 sm:h-[5px]" />
-                      <span className="h-[5px] w-[2px] rounded-[1px] bg-white/95 sm:h-[6px]" />
-                      <span className="ml-[2px] h-[5px] w-[9px] rounded-[2px] border border-white/90 p-[1px] sm:h-[6px] sm:w-[11px]">
-                        <span className="block h-full w-[72%] rounded-[1px] bg-white" />
-                      </span>
-                    </span>
-                    <span
-                      className="absolute left-1/2 top-[0.62rem] h-[0.72rem] w-[3.2rem] -translate-x-1/2 rounded-full bg-[#080b0a] shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:top-[0.82rem] sm:h-[0.9rem] sm:w-[4rem]"
-                      data-testid="profile-preview-dynamic-island"
-                    >
-                      <span className="absolute right-[0.38rem] top-1/2 size-[0.28rem] -translate-y-1/2 rounded-full bg-[#1d3440] ring-1 ring-[#17231f] sm:right-[0.5rem] sm:size-[0.34rem]" />
-                    </span>
-                  </div>
+                    <span className="absolute right-[0.38rem] top-1/2 size-[0.28rem] -translate-y-1/2 rounded-full bg-[#1d3440] ring-1 ring-[#17231f] sm:right-[0.5rem] sm:size-[0.34rem]" />
+                  </span>
                 </div>
               </div>
             </div>
-          ) : (
-            publicProfile
-          )}
+          </div>
         </div>
       </div>
       {showProfileUrl ? (
