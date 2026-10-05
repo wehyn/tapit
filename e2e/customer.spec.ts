@@ -471,15 +471,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   const frame = page.getByTestId("profile-preview-frame");
   const previewDevice = page.getByTestId("profile-preview-device");
   await expect(previewDevice).toBeVisible();
-  const phoneWidth = (await frame.boundingBox())!.width;
-  await page.getByRole("button", { name: "desktop", exact: true }).click();
-  await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await expect.poll(async () => (await frame.boundingBox())!.width).toBeGreaterThan(phoneWidth);
-  await expect(previewDevice).toBeHidden();
-  await page.getByRole("button", { name: "phone", exact: true }).click();
+  await expect(frame).toHaveCSS("max-width", "390px");
+  await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveCount(0);
   await expect(previewDevice).toBeVisible();
   await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
   await page.getByRole("button", { name: "Copy URL" }).click();
@@ -704,19 +698,16 @@ test("customer drafts stay private until link and profile publication", async ({
     ),
   ).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("button", { name: "desktop" })).toBeVisible();
+  await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "phone" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "desktop" })).toHaveCount(0);
+  await expect(page.getByTestId("profile-preview-device")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   const linkedinIcon = page.locator("#linkedin-icon");
   await linkedinIcon.selectOption("mail");
   await expect(linkedinIcon).toHaveValue("mail");
-  const desktopButton = page.getByRole("button", { name: "desktop" });
-  await desktopButton.click();
-  await expect(desktopButton).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "phone" }).click();
-  await expect(page.getByRole("button", { name: "phone" })).toHaveAttribute("aria-pressed", "true");
 
   const addLinkButton = page.getByRole("button", { name: "Add link" });
   await addLinkButton.click();
@@ -895,6 +886,21 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
   ).toBeVisible();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/app/links");
+  const previewHero = page
+    .getByTestId("profile-preview-device")
+    .getByRole("region", { name: "Profile hero" });
+  const previewHeroContent = previewHero.locator(":scope > div.relative.z-10");
+  const previewHeroContentPadding = await previewHeroContent.evaluate(
+    (element) => getComputedStyle(element).paddingTop,
+  );
+  await page.goto("/mara-velasquez");
+  const profileHero = page.getByRole("region", { name: "Profile hero" });
+  const profileHeroContent = profileHero.locator(":scope > div.relative.z-10");
+  await expect(profileHero).toBeVisible();
+  await expect(profileHeroContent).toHaveCSS("padding-top", previewHeroContentPadding);
 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {

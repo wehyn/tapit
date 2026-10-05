@@ -163,8 +163,6 @@ describe("Phase 2 profile media parity", () => {
 
     render(
       createElement(WorkspacePreview, {
-        mode: "desktop",
-        onModeChange: () => undefined,
         preview,
         profileUrl: "https://tapit.test/ada-lovelace",
       }),

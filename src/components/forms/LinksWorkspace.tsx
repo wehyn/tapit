@@ -38,11 +38,9 @@ export type LinksWorkspaceProps = {
   validation: Record<string, string>;
   publicationErrors: string[];
   message: LinksWorkspaceMessage | null;
-  previewMode: "phone" | "desktop";
   pendingAction: "save" | "publish" | null;
   isDirty: boolean;
   publicationLabel: string;
-  onPreviewModeChange: (mode: "phone" | "desktop") => void;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
   onAddLink: () => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
@@ -79,11 +77,9 @@ export function LinksWorkspace({
   validation,
   publicationErrors,
   message,
-  previewMode,
   pendingAction,
   isDirty,
   publicationLabel,
-  onPreviewModeChange,
   onUpdateLink,
   onAddLink,
   onMoveLink,
@@ -412,12 +408,7 @@ export function LinksWorkspace({
           aria-label="Live profile preview"
         >
           {preview ? (
-            <WorkspacePreview
-              mode={previewMode}
-              onModeChange={onPreviewModeChange}
-              preview={preview}
-              profileUrl={profileUrl}
-            />
+            <WorkspacePreview preview={preview} profileUrl={profileUrl} />
           ) : (
             <Notice tone="error">Add a valid name and link to see the preview.</Notice>
           )}
