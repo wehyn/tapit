@@ -24,6 +24,6 @@ Convex agent skills for common tasks can be installed by running
 
 # Tapit project guidance
 
-Preserve unrelated worktree changes and untracked assets; inspect `git status` before editing.
+Before editing, inspect `git status` and preserve unrelated changes and untracked assets.
 
-For coding and testing standards, load [`CODING_STANDARDS.md`](CODING_STANDARDS.md) when changing code, writing or running tests, touching Convex auth/data, or reporting environment-specific verification.
+For code or test work, read [CODING_STANDARDS.md](CODING_STANDARDS.md). For local, live, launch-readiness, or device verification, read its environment section.
