@@ -403,44 +403,45 @@ Inactive-card and unavailable-profile are separate states. A card can be inactiv
 
 ### Overall character
 
-Tapit uses a premium **Light Tech** direction: bright neutral canvas, white surfaces, deep ink type, emerald actions, soft green accents, generous whitespace, and restrained glass and gradients. Physical-card photography and an illustrative profile preview show how the NFC card connects to a useful mobile profile. The customer and operations workspaces share the same foundations while keeping role-specific navigation and information hierarchy.
+Tapit uses the approved **Soft Precision** direction: a cool, quiet canvas, white surfaces, deep ink type, a clear blue accent, rounded controls, and generous Apple-like spacing with restrained, Linear-inspired precision. Shadows add light separation to major surfaces without turning every workspace row into a floating card. The public site, authentication, customer workspace, and admin tools share the same foundations while keeping role-specific hierarchy.
 
 The existing `/app` redirect and navigation destinations remain authoritative. No external fonts, animation packages, or new visual dependencies were added.
 
-The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. Customer-selected profile themes remain independent of the application palette and retain their former palette values.
+The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. The default Paper profile theme uses Soft Precision. Explicitly selected Moss, Night, and Warm Studio themes override that default and keep their own visual treatment.
 
 ### Implemented tokens
 
 | Role | CSS token | Value |
 | --- | --- | --- |
-| Main text | `--tapit-ink` | `#10211c` |
-| Secondary text | `--tapit-muted` | `#506158` |
+| Main text | `--tapit-ink` | `#1b2433` |
+| Secondary text | `--tapit-muted` | `#626f82` |
 | Main surface | `--tapit-surface` | `#ffffff` |
-| Page canvas | `--tapit-paper` | `#f5f8f6` |
-| Soft surface | `--tapit-soft-surface` | `#eaf3ee` |
-| Borders | `--tapit-line` | `#dce7e1` |
-| Primary accent | `--tapit-accent` | `#176b52` |
-| Strong accent | `--tapit-accent-strong` | `#10543f` |
-| Accent surface | `--tapit-accent-soft` | `#e1f2e9` |
+| Page canvas | `--tapit-paper` | `#f4f6fa` |
+| Soft surface | `--tapit-soft-surface` | `#f0f3f9` |
+| Borders | `--tapit-line` | `#e0e5ed` |
+| Primary accent | `--tapit-accent` | `#3f6de8` |
+| Strong/text accent | `--tapit-accent-strong` | `#315fe4` |
+| Accent surface | `--tapit-accent-soft` | `#e8edf9` |
 | Warm accent | `--tapit-warm` | `#c9a875` |
 | Focus ring | `--tapit-focus` | `--tapit-accent` |
 | Shared panel radius | `--tapit-radius` | `18px` |
 
-Status colors use paired fills and text: success `#e1f2e9` / `#10543f`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Muted text is `#506158`. Controls use smaller corners than prominent panels, and shadows stay light and limited to elevated surfaces.
+The muted and text-accent values are darker than the initial mockup values to keep small text readable on the selected canvas. Status colors use paired fills and text: success `#e1f2e9` / `#10543f`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Controls use smaller corners than prominent panels. Soft and raised shadows use the ink hue at low opacity and remain limited to elevated surfaces.
 
 ### Layout and spacing
 
 - Use a centered, single-column public profile with a 448px maximum width and generous breathing room.
 - Keep link buttons visually consistent and easy to scan. Identity appears before links; Save contact stays visually distinct from external destinations.
 - Reuse the Tailwind spacing scale across form groups, rows, cards, and sections.
+- Use rounded panels and calm, repeated spacing for the marketing specimen and workspace; reserve larger gaps for section changes and page edges.
 - Keep one clear primary action per context: Publish, Add link, Register/Assign, or Save contact.
 - Use a full sidebar at 1280px and above, a compact icon rail from 1024px, and the existing sticky mobile header plus accessible drawer below 1024px. Customer and administrator navigation remain distinct.
 - Keep page headers, forms, previews, tables, and dialogs usable from 320 CSS pixels upward. Collapse administrative records into readable cards where needed; avoid page-level horizontal scrolling.
 
 ### Color
 
-- Use the neutral application base and emerald accent tokens above for shared controls and navigation.
-- Pin the former application colors locally within public profiles so the paper, moss, night, and warm-studio themes keep their existing appearance after the shared token update.
+- Use the cool neutral application base and blue accent tokens above for shared controls and navigation.
+- Use Soft Precision tokens for the default Paper profile theme; keep Moss, Night, and Warm Studio overrides scoped to the profile surface.
 - Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
 - Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
 
@@ -457,7 +458,7 @@ The home page order is sticky public navigation, hero, factual product facts, fe
 
 The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. “Explore card designs” and the footer’s “Design a card” link remain secondary paths to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
 
-Scroll reveals and staggered entrances progressively enhance the home page. Server-rendered content starts visible; the observer reveals offscreen sections. Reduced-motion mode disables reveal, ambient, and entry motion. Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
+Scroll reveals and staggered entrances progressively enhance the home page while preserving immediately available hero content and a visible no-JavaScript state. Reduced-motion mode disables reveal, ambient, and entry motion. Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
 
 ### Components and interaction
 
@@ -471,7 +472,7 @@ Scroll reveals and staggered entrances progressively enhance the home page. Serv
 
 ### Applied screen families
 
-- **Public:** use the Light Tech system for the homepage, legal pages, and unavailable, inactive, loading, and error states. Published profiles and card-resolver destinations remain phone-first and use their customer-selected themes.
+- **Public:** use the Soft Precision system for the homepage, legal pages, and unavailable, inactive, loading, and error states. Published profiles and card-resolver destinations remain phone-first and use Paper/Soft Precision by default, with selected profile themes overriding it.
 - **Authentication:** use the same type, surfaces, fields, focus ring, and action hierarchy for sign-in, customer signup, invitation setup, and onboarding, including validation and recovery feedback.
 - **Customer workspace:** group profile identity, customization, media and crop, links, draft and publication controls, analytics, account settings, and QR/card-building tools into the shared workspace system. Keep both the embedded and standalone card builders within the existing navigation model.
 - **Administrator workspace:** apply the shared shell and controls to customer records and invitations, profile registry and details, card operations, aggregate analytics, audit history, and settings. Preserve the distinct operations and governance navigation groups.
@@ -480,7 +481,7 @@ These are visual treatments of existing paths and states. They do not add destin
 
 ### Local visual evidence
 
-Responsive browser screenshots cover the homepage, public profile, card-design page, sign-in, customer Profile, and administrator Profiles at the viewport sizes recorded by `e2e/ui-redesign-artifacts.spec.ts`. The landing capture waits for the illustrative card image to finish loading. PNGs and the Playwright JSON report are generated under the ignored `test-results/premium-conversion-ui/` directory.
+Responsive browser screenshots cover the homepage, public profile, card-design page, sign-in, customer Profile, and administrator Profiles at the viewport sizes recorded by `e2e/ui-redesign-artifacts.spec.ts`. The landing capture waits for the profile specimen to finish loading. PNGs and the Playwright JSON report are generated under the ignored `test-results/soft-precision-site/` directory.
 
 The route-family and accessibility checks run against the local demo. No Preview, Production, or physical-device validation is represented by these captures.
 

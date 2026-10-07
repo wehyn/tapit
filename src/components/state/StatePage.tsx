@@ -17,13 +17,13 @@ export function StatePage({
   title: string;
 }) {
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-8 sm:px-6 sm:py-10">
+    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-6 sm:px-6 sm:py-10">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9"
+        className="w-full max-w-lg rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-6 shadow-[var(--tapit-shadow-soft)] sm:p-9"
       >
         <Brand />
-        <div className="mt-12 flex items-start gap-4 sm:mt-14">
+        <div className="mt-8 flex items-start gap-4 sm:mt-10">
           <div
             aria-hidden="true"
             className="grid size-11 shrink-0 place-items-center rounded-full border border-tapit-line bg-tapit-soft-surface text-tapit-accent"

@@ -11,11 +11,15 @@ import { WarningCircleIcon } from "@phosphor-icons/react";
 
 import type { ProfileTheme } from "@/lib/domain";
 import {
+  DEFAULT_CUSTOM_PROFILE_COLORS,
+  DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  isProfileIdentityHex,
   type ProfileCustomization,
   type ProfileContactDisplay,
   type ProfileIdentityColor,
   type ProfileIdentityField,
+  type ProfileThemeColors,
 } from "@/lib/profile-customization";
 import {
   PROFILE_CUSTOMIZATION_CATEGORIES,
@@ -26,7 +30,7 @@ import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
-import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Notice } from "@/components/ui/Notice";
 
 export type ProfileCustomizationEditorProps = {
@@ -54,6 +58,175 @@ const categoryLabels: Record<ProfileCustomizationCategory, string> = {
 
 const radioClass =
   "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+
+type ProfileAppearancePreset = ProfileTheme | "warm-studio";
+
+const appearancePresets: readonly {
+  value: ProfileAppearancePreset;
+  label: string;
+  description: string;
+  colors: {
+    canvas: string;
+    surface: string;
+    border: string;
+    ink: string;
+    muted: string;
+    accent: string;
+  };
+}[] = [
+  {
+    value: "paper",
+    label: "Soft Precision (Paper)",
+    description: "Cool neutrals, rounded surfaces, and a clear blue accent.",
+    colors: {
+      canvas: "#f4f6fa",
+      surface: "#ffffff",
+      border: "#e0e5ed",
+      ink: "#1b2433",
+      muted: "#687487",
+      accent: "#3f6de8",
+    },
+  },
+  {
+    value: "moss",
+    label: "Moss",
+    description: "Soft green surfaces with a deep botanical accent.",
+    colors: {
+      canvas: "#e8f1eb",
+      surface: "#f7fbf8",
+      border: "#b9d1c0",
+      ink: "#17352b",
+      muted: "#4f6d5c",
+      accent: "#176b57",
+    },
+  },
+  {
+    value: "night",
+    label: "Night",
+    description: "Deep evergreen surfaces and calm, high-contrast details.",
+    colors: {
+      canvas: "#17211f",
+      surface: "#22302b",
+      border: "#40534d",
+      ink: "#f2f6f1",
+      muted: "#b7c9c0",
+      accent: "#7bc2a9",
+    },
+  },
+  {
+    value: "warm-studio",
+    label: "Warm Studio",
+    description: "Warm editorial tones with extra identity, media, and layout controls.",
+    colors: {
+      canvas: "#fbf6ef",
+      surface: "#fffdf9",
+      border: "#e5d6c5",
+      ink: "#2c2420",
+      muted: "#74665d",
+      accent: "#3e806d",
+    },
+  },
+  {
+    value: "custom",
+    label: "Custom",
+    description: "Choose your own page, surface, text, and link colors.",
+    colors: {
+      canvas: DEFAULT_CUSTOM_PROFILE_COLORS.canvas,
+      surface: DEFAULT_CUSTOM_PROFILE_COLORS.surface,
+      border: "#e0e5ed",
+      ink: DEFAULT_CUSTOM_PROFILE_COLORS.ink,
+      muted: "#687487",
+      accent: DEFAULT_CUSTOM_PROFILE_COLORS.accent,
+    },
+  },
+];
+
+function PresetRadio({
+  value,
+  label,
+  description,
+  colors,
+  checked,
+  disabled,
+  name,
+  ariaDescribedBy,
+  onChange,
+}: {
+  value: ProfileAppearancePreset;
+  label: string;
+  description: string;
+  colors: (typeof appearancePresets)[number]["colors"];
+  checked: boolean;
+  disabled: boolean;
+  name: string;
+  ariaDescribedBy?: string;
+  onChange: (value: ProfileAppearancePreset) => void;
+}) {
+  return (
+    <label
+      className={`grid cursor-pointer gap-2.5 rounded-tapit border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
+        disabled ? "cursor-not-allowed opacity-55" : ""
+      } ${
+        checked
+          ? "border-tapit-accent bg-tapit-accent-soft/50"
+          : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"
+      }`}
+    >
+      <span className="flex items-start gap-3">
+        <input
+          aria-describedby={ariaDescribedBy}
+          aria-label={label}
+          checked={checked}
+          className="mt-0.5 size-4 shrink-0 accent-tapit-accent"
+          disabled={disabled}
+          name={name}
+          onChange={() => onChange(value)}
+          type="radio"
+          value={value}
+        />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-tapit-ink">{label}</span>
+            {checked ? (
+              <span className="shrink-0 text-xs font-semibold text-tapit-accent-strong">
+                Selected
+              </span>
+            ) : null}
+          </span>
+          <span className="mt-1 block text-xs leading-5 text-tapit-muted">{description}</span>
+        </span>
+      </span>
+      <span
+        aria-hidden="true"
+        className="rounded-[0.9rem] border p-2.5"
+        style={{ backgroundColor: colors.canvas, borderColor: colors.border }}
+      >
+        <span
+          className="block rounded-[0.7rem] border p-2.5"
+          style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+        >
+          <span className="flex items-center gap-2">
+            <span
+              className="size-5 rounded-full border"
+              style={{ backgroundColor: colors.accent, borderColor: colors.border }}
+            />
+            <span className="h-1.5 w-16 rounded-full" style={{ backgroundColor: colors.ink }} />
+          </span>
+          <span
+            className="mt-2 block h-1 w-24 max-w-full rounded-full"
+            style={{ backgroundColor: colors.muted }}
+          />
+          <span
+            className="mt-2 block rounded-lg border px-2 py-1 text-[10px] font-semibold"
+            style={{ borderColor: colors.accent, color: colors.accent }}
+          >
+            Profile link
+          </span>
+        </span>
+      </span>
+    </label>
+  );
+}
 
 function RadioChoice({
   checked,
@@ -132,6 +305,7 @@ function ChoiceGroup<T extends string>({
 function copyCustomization(customization: ProfileCustomization): ProfileCustomization {
   return {
     ...customization,
+    ...(customization.customColors ? { customColors: { ...customization.customColors } } : {}),
     ...(customization.identityColors
       ? { identityColors: { ...customization.identityColors } }
       : {}),
@@ -194,52 +368,103 @@ function IdentityColorControls({
   );
 }
 
-function LegacyThemeCards({
-  onThemeChange,
-  theme,
+const customColorFields: readonly (readonly [keyof ProfileThemeColors, string])[] = [
+  ["canvas", "Page background"],
+  ["surface", "Profile surface"],
+  ["ink", "Profile text"],
+  ["accent", "Profile accent"],
+];
+
+function CustomPaletteColorField({
+  field,
+  label,
+  value,
+  onChange,
 }: {
-  onThemeChange?: (theme: ProfileTheme) => void;
-  theme?: ProfileTheme;
+  field: keyof ProfileThemeColors;
+  label: string;
+  value: string;
+  onChange: (field: keyof ProfileThemeColors, value: string) => void;
 }) {
-  const options: readonly [ProfileTheme, string][] = [
-    ["paper", "Paper"],
-    ["moss", "Moss"],
-    ["night", "Night"],
-  ];
+  const [draftHex, setDraftHex] = useState(value);
+
+  function commit(next: string) {
+    setDraftHex(next);
+    if (isProfileIdentityHex(next)) onChange(field, next.toLowerCase());
+  }
 
   return (
-    <div className="grid gap-4">
+    <label className="grid gap-2 rounded-tapit border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+      <span className="text-sm font-semibold text-tapit-ink">{label}</span>
+      <span className="flex items-center gap-3">
+        <input
+          aria-label={`${label} color`}
+          className="size-11 shrink-0 cursor-pointer rounded-xl border border-tapit-line bg-tapit-surface p-1"
+          onChange={(event) => commit(event.target.value)}
+          type="color"
+          value={isProfileIdentityHex(draftHex) ? draftHex : value}
+        />
+        <input
+          aria-label={`${label} hex`}
+          autoCapitalize="characters"
+          autoComplete="off"
+          className="min-h-11 w-32 rounded-tapit border border-tapit-line bg-tapit-surface px-3 font-mono text-sm uppercase text-tapit-ink outline-none transition focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20"
+          maxLength={7}
+          onChange={(event) => commit(event.target.value)}
+          pattern="^#[0-9a-fA-F]{6}$"
+          spellCheck={false}
+          value={draftHex}
+        />
+      </span>
+      {!isProfileIdentityHex(draftHex) ? (
+        <span className="text-xs text-tapit-danger sm:col-span-2">Enter a 6-digit hex color.</span>
+      ) : null}
+    </label>
+  );
+}
+
+function CustomPaletteControls({
+  customization,
+  error,
+  onChange,
+}: {
+  customization: ProfileCustomization;
+  error?: string;
+  onChange: (next: ProfileCustomization) => void;
+}) {
+  const colors = customization.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS;
+
+  function updateColor(field: keyof ProfileThemeColors, color: string) {
+    onChange({
+      ...copyCustomization(customization),
+      customColors: { ...colors, [field]: color },
+    });
+  }
+
+  return (
+    <fieldset className="grid gap-3">
+      <legend className="text-sm font-semibold text-tapit-ink">Custom palette</legend>
       <p className="text-sm leading-6 text-tapit-muted">
-        This profile still uses its legacy appearance. Choose Warm Studio when you are ready to use
-        the guided customization controls.
+        Choose the page, profile card, text, and outlined link colors. Text and links must stay
+        readable against their surfaces.
       </p>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {options.map(([value, label]) => (
-          <button
-            aria-pressed={(theme ?? "paper") === value}
-            className={`rounded-tapit border p-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent ${
-              (theme ?? "paper") === value
-                ? "border-tapit-accent bg-tapit-accent-soft"
-                : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"
-            }`}
-            key={value}
-            onClick={() => onThemeChange?.(value)}
-            type="button"
-          >
-            <span
-              className={`block h-12 rounded-tapit ${
-                value === "paper"
-                  ? "bg-tapit-paper"
-                  : value === "moss"
-                    ? "bg-[#e8f1eb]"
-                    : "bg-[#17211f]"
-              }`}
-            />
-            <span className="mt-3 block text-sm font-semibold text-tapit-ink">{label}</span>
-          </button>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {customColorFields.map(([field, label]) => (
+          <CustomPaletteColorField
+            field={field}
+            key={field}
+            label={label}
+            onChange={updateColor}
+            value={colors[field]}
+          />
         ))}
       </div>
-    </div>
+      {error ? (
+        <p className="text-sm font-medium text-tapit-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }
 
@@ -299,7 +524,14 @@ export function ProfileCustomizationEditor({
   const focusOverviewAfterTransitionRef = useRef(false);
   const [selectedCategory, setSelectedCategory] =
     useState<ProfileCustomizationCategory>("overview");
-  const activeCategory = customization ? selectedCategory : "overview";
+  const [pendingPreset, setPendingPreset] = useState<ProfileAppearancePreset | null>(null);
+  const selectedPreset: ProfileAppearancePreset =
+    customization?.preset === "warm-studio" ? "warm-studio" : (theme ?? "paper");
+  const warmStudioCustomization =
+    selectedPreset === "warm-studio" && customization?.preset === "warm-studio"
+      ? customization
+      : undefined;
+  const activeCategory = warmStudioCustomization ? selectedCategory : "overview";
 
   useEffect(() => {
     const focusTarget = focusTargetRef.current;
@@ -308,10 +540,10 @@ export function ProfileCustomizationEditor({
   }, [activeCategory]);
 
   useEffect(() => {
-    if (!customization || !focusOverviewAfterTransitionRef.current) return;
+    if (!warmStudioCustomization || !focusOverviewAfterTransitionRef.current) return;
     focusOverviewAfterTransitionRef.current = false;
     panelRefs.current.overview?.focus();
-  }, [customization]);
+  }, [warmStudioCustomization]);
 
   const errorsFor = (category: ProfileCustomizationCategory) =>
     errors.filter((error) => classifyProfileWorkspaceError(error) === category);
@@ -327,7 +559,9 @@ export function ProfileCustomizationEditor({
   };
 
   function update(patch: Partial<ProfileCustomization>) {
-    if (customization) onChange(copyCustomization({ ...customization, ...patch }));
+    if (warmStudioCustomization) {
+      onChange(copyCustomization({ ...warmStudioCustomization, ...patch }));
+    }
   }
 
   const errorId = (name: string) => `${baseId}-${name}-error`;
@@ -337,6 +571,11 @@ export function ProfileCustomizationEditor({
   const accentError = findError("profile customization accent");
   const scaleError = findError("profile customization type scale");
   const treatmentError = findError("profile customization link treatment");
+  const customColorError = findError(
+    "custom profile palette",
+    "custom profile text",
+    "custom profile accent",
+  );
   const orderError = findError("profile customization content order");
   const contactDisplayError = findError("profile customization contact display");
   const identityColorError = (field: ProfileIdentityField) =>
@@ -345,7 +584,7 @@ export function ProfileCustomizationEditor({
       : findError("profile bio color", "profile bio custom color");
 
   function setCategory(category: ProfileCustomizationCategory) {
-    if (customization || category === "overview") setSelectedCategory(category);
+    if (warmStudioCustomization || category === "overview") setSelectedCategory(category);
   }
 
   function handleTabKeyDown(
@@ -353,7 +592,7 @@ export function ProfileCustomizationEditor({
     category: ProfileCustomizationCategory,
   ) {
     const enabledCategories = PROFILE_CUSTOMIZATION_CATEGORIES.filter(
-      (candidate) => customization || candidate === "overview",
+      (candidate) => warmStudioCustomization || candidate === "overview",
     );
     const currentIndex = enabledCategories.indexOf(category);
     if (currentIndex < 0) return;
@@ -390,10 +629,50 @@ export function ProfileCustomizationEditor({
     }
   }
 
-  function optIntoWarmStudio() {
-    focusOverviewAfterTransitionRef.current = true;
+  function applyPreset(preset: ProfileAppearancePreset) {
+    setPendingPreset(null);
     setSelectedCategory("overview");
-    onChange(copyCustomization(DEFAULT_WARM_STUDIO_CUSTOMIZATION));
+    const savedCustomColors = customization?.customColors;
+    if (preset === "warm-studio") {
+      focusOverviewAfterTransitionRef.current = true;
+      onThemeChange?.("paper");
+      onChange(
+        copyCustomization({
+          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+          ...(savedCustomColors ? { customColors: savedCustomColors } : {}),
+        }),
+      );
+      return;
+    }
+
+    focusOverviewAfterTransitionRef.current = false;
+    if (preset === "custom") {
+      onChange(
+        copyCustomization({
+          ...DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
+          customColors: savedCustomColors ?? DEFAULT_CUSTOM_PROFILE_COLORS,
+        }),
+      );
+    } else {
+      onChange(
+        savedCustomColors
+          ? copyCustomization({
+              ...DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
+              customColors: savedCustomColors,
+            })
+          : undefined,
+      );
+    }
+    onThemeChange?.(preset);
+  }
+
+  function choosePreset(preset: ProfileAppearancePreset) {
+    if (preset === selectedPreset) return;
+    if (selectedPreset === "warm-studio" && preset !== "warm-studio") {
+      setPendingPreset(preset);
+      return;
+    }
+    applyPreset(preset);
   }
 
   return (
@@ -407,7 +686,7 @@ export function ProfileCustomizationEditor({
         {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
           const selected = activeCategory === category;
           const tabStatusId = `${baseId}-tab-${category}-status`;
-          const disabled = !customization && category !== "overview";
+          const disabled = !warmStudioCustomization && category !== "overview";
           return (
             <button
               aria-controls={`${baseId}-panel-${category}`}
@@ -456,25 +735,54 @@ export function ProfileCustomizationEditor({
         >
           {category === "overview" ? (
             <div className="grid gap-5">
-              {customization ? (
+              <fieldset className="grid gap-3">
+                <legend className="text-sm font-semibold text-tapit-ink">Profile preset</legend>
+                {presetError ? (
+                  <p className="sr-only" id={errorId("preset")} role="alert">
+                    {presetError}
+                  </p>
+                ) : null}
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {appearancePresets.map((preset) => {
+                    const colors =
+                      preset.value === "custom" && customization?.customColors
+                        ? {
+                            ...preset.colors,
+                            canvas: customization.customColors.canvas,
+                            surface: customization.customColors.surface,
+                            ink: customization.customColors.ink,
+                            accent: customization.customColors.accent,
+                          }
+                        : preset.colors;
+                    return (
+                      <PresetRadio
+                        ariaDescribedBy={presetError ? errorId("preset") : undefined}
+                        checked={selectedPreset === preset.value}
+                        colors={colors}
+                        description={preset.description}
+                        disabled={preset.value !== "warm-studio" && onThemeChange === undefined}
+                        key={preset.value}
+                        label={preset.label}
+                        name={`${baseId}-preset`}
+                        onChange={choosePreset}
+                        value={preset.value}
+                      />
+                    );
+                  })}
+                </div>
+              </fieldset>
+              {selectedPreset === "custom" ? (
+                <CustomPaletteControls
+                  customization={
+                    customization?.preset === "custom"
+                      ? customization
+                      : DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION
+                  }
+                  error={customColorError}
+                  onChange={onChange}
+                />
+              ) : warmStudioCustomization ? (
                 <>
-                  <fieldset className="grid gap-2">
-                    <legend className="text-sm font-semibold text-tapit-ink">Preset</legend>
-                    {presetError ? (
-                      <p className="sr-only" id={errorId("preset")} role="alert">
-                        {presetError}
-                      </p>
-                    ) : null}
-                    <RadioChoice
-                      ariaDescribedBy={presetError ? errorId("preset") : undefined}
-                      checked
-                      name={`${baseId}-preset`}
-                      onChange={() => undefined}
-                      value="warm-studio"
-                    >
-                      Warm Studio
-                    </RadioChoice>
-                  </fieldset>
                   <ChoiceGroup
                     error={accentError}
                     label="Accent"
@@ -485,7 +793,7 @@ export function ProfileCustomizationEditor({
                       ["jade", "Jade"],
                       ["ink", "Ink"],
                     ]}
-                    value={customization.accent}
+                    value={warmStudioCustomization.accent}
                   />
                   <ChoiceGroup
                     error={scaleError}
@@ -497,47 +805,41 @@ export function ProfileCustomizationEditor({
                       ["comfortable", "Comfortable"],
                       ["editorial", "Editorial"],
                     ]}
-                    value={customization.typeScale}
+                    value={warmStudioCustomization.typeScale}
                   />
                   <ChoiceGroup
                     error={treatmentError}
-                    label="Link/button treatment"
+                    label="Save contact button treatment"
                     name={`${baseId}-treatment`}
                     onChange={(value) => update({ linkTreatment: value })}
                     options={[
                       ["filled", "Filled"],
                       ["outlined", "Outlined"],
                     ]}
-                    value={customization.linkTreatment}
+                    value={warmStudioCustomization.linkTreatment}
                   />
                 </>
               ) : (
-                <div className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
-                  <LegacyThemeCards onThemeChange={onThemeChange} theme={theme} />
-                  <Notice>
-                    Media and the guided visual controls become available after you opt into Warm
-                    Studio.
-                  </Notice>
-                  <Button onClick={optIntoWarmStudio} type="button" variant="secondary">
-                    Use Warm Studio
-                  </Button>
-                </div>
+                <Notice>
+                  Choose Warm Studio for identity, media, and layout controls, or Custom to set a
+                  color palette.
+                </Notice>
               )}
             </div>
           ) : null}
 
-          {category === "identity" && customization ? (
+          {category === "identity" && warmStudioCustomization ? (
             <div className="grid gap-5">
               <IdentityColorControls
                 allowWhite={media?.background !== undefined}
-                customization={customization}
+                customization={warmStudioCustomization}
                 errorFor={identityColorError}
                 onChange={onChange}
               />
             </div>
           ) : null}
 
-          {category === "media" ? (
+          {category === "media" && warmStudioCustomization ? (
             <div className="grid gap-5">
               <CategoryErrorList errors={mediaCategoryErrors} />
               {onMediaChange && onMediaUpload ? (
@@ -563,7 +865,7 @@ export function ProfileCustomizationEditor({
             </div>
           ) : null}
 
-          {category === "layout" && customization ? (
+          {category === "layout" && warmStudioCustomization ? (
             <div className="grid gap-5">
               <ChoiceGroup
                 error={orderError}
@@ -574,7 +876,7 @@ export function ProfileCustomizationEditor({
                   ["links-first", "Links first"],
                   ["section-first", "About/Services first"],
                 ]}
-                value={customization.contentOrder}
+                value={warmStudioCustomization.contentOrder}
               />
               <ChoiceGroup<ProfileContactDisplay>
                 error={contactDisplayError}
@@ -586,12 +888,30 @@ export function ProfileCustomizationEditor({
                   ["icons-circle", "Icons · circles"],
                   ["icons-soft-square", "Icons · soft squares"],
                 ]}
-                value={customization.contactDisplay ?? "labels"}
+                value={warmStudioCustomization.contactDisplay ?? "labels"}
               />
             </div>
           ) : null}
         </section>
       ))}
+      <ConfirmDialog
+        confirmLabel={
+          pendingPreset === null
+            ? "Switch preset"
+            : `Switch to ${appearancePresets.find((preset) => preset.value === pendingPreset)?.label.replace(" (Paper)", "") ?? "selected preset"}`
+        }
+        description={
+          media?.background || (media?.slideshow.length ?? 0) > 0
+            ? `Warm Studio's visual settings and optional content will be removed from this draft. Uploaded media will remain saved but inactive.${customization?.customColors ? " Your custom palette will remain saved." : ""}`
+            : `Warm Studio's visual settings and optional content will be removed from this draft.${customization?.customColors ? " Your custom palette will remain saved." : ""}`
+        }
+        onCancel={() => setPendingPreset(null)}
+        onConfirm={() => {
+          if (pendingPreset !== null) applyPreset(pendingPreset);
+        }}
+        open={pendingPreset !== null}
+        title="Switch profile preset?"
+      />
     </div>
   );
 }

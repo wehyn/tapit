@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --tapit-ink: #10211c;
-  --tapit-muted: #506158;
+  --tapit-ink: #1b2433;
+  --tapit-muted: #626f82;
   --tapit-surface: #ffffff;
-  --tapit-paper: #f5f8f6;
-  --tapit-soft-surface: #eaf3ee;
-  --tapit-line: #dce7e1;
-  --tapit-accent: #176b52;
-  --tapit-accent-strong: #10543f;
-  --tapit-accent-soft: #e1f2e9;
+  --tapit-paper: #f4f6fa;
+  --tapit-soft-surface: #f0f3f9;
+  --tapit-line: #e0e5ed;
+  --tapit-accent: #3f6de8;
+  --tapit-accent-strong: #315fe4;
+  --tapit-accent-soft: #e8edf9;
   --tapit-warm: #c9a875;
   --tapit-success-soft: #e1f2e9;
   --tapit-success-ink: #10543f;
@@ -19,8 +19,8 @@
   --tapit-danger-soft: #fff1f0;
   --tapit-focus: var(--tapit-accent);
   --tapit-radius: 18px;
-  --tapit-shadow-soft: 0 12px 36px rgb(16 33 28 / 0.06);
-  --tapit-shadow-raised: 0 24px 72px rgb(16 33 28 / 0.12);
+  --tapit-shadow-soft: 0 8px 24px rgb(27 36 51 / 0.05);
+  --tapit-shadow-raised: 0 20px 56px rgb(27 36 51 / 0.12);
 }
 
 @theme inline {
@@ -31,6 +31,7 @@
   --color-tapit-soft-surface: var(--tapit-soft-surface);
   --color-tapit-line: var(--tapit-line);
   --color-tapit-accent: var(--tapit-accent);
+  --color-tapit-accent-text: var(--tapit-accent-strong);
   --color-tapit-accent-strong: var(--tapit-accent-strong);
   --color-tapit-accent-soft: var(--tapit-accent-soft);
   --color-tapit-warm: var(--tapit-warm);
@@ -65,6 +66,10 @@ html {
   scroll-padding-top: 5.5rem;
 }
 
+.text-tapit-accent {
+  color: var(--tapit-accent-strong);
+}
+
 body {
   margin: 0;
   background: var(--tapit-paper);
@@ -91,7 +96,7 @@ body {
 }
 
 .tapit-eyebrow {
-  color: var(--tapit-accent);
+  color: var(--tapit-accent-strong);
   font-size: 0.72rem;
   font-weight: 650;
   letter-spacing: 0.16em;
@@ -105,7 +110,7 @@ body {
 }
 
 .tapit-gradient-text {
-  background: linear-gradient(110deg, #176b52 8%, #168a7a 90%);
+  background: linear-gradient(110deg, var(--tapit-accent) 8%, #6288ed 90%);
   background-clip: text;
   color: transparent;
 }

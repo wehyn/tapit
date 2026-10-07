@@ -210,9 +210,10 @@ describe("hosted-demo scope boundaries", () => {
         expect(card?.claimCodeHash).toBeDefined();
         expect(card).not.toHaveProperty("claimCode");
         const profile = await ctx.db.get(first.maraProfileId);
-        expect(profile?.draft.customization).toMatchObject({ preset: "warm-studio" });
-        expect(profile?.published?.customization).toMatchObject({ preset: "warm-studio" });
+        expect(profile?.draft.customization).toBeUndefined();
+        expect(profile?.published?.customization).toBeUndefined();
         expect(profile?.draft.theme).toBe("paper");
+        expect(profile?.published?.theme).toBe("paper");
       });
     } finally {
       if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;

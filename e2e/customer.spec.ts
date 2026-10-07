@@ -7,6 +7,12 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+async function selectWarmStudio(page: Page) {
+  const preset = page.getByRole("radio", { name: "Warm Studio", exact: true });
+  await preset.check();
+  await expect(preset).toBeChecked();
+}
+
 async function prepareLegacyMaraProfile(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -97,12 +103,13 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       1467,
     );
 
-    await page.setViewportSize({ width: 390, height: 700 });
-    await expect(save).toBeInViewport();
-    await expect(publish).toBeInViewport();
-    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      390,
-    );
+    for (const width of [320, 390, 768]) {
+      await page.setViewportSize({ width, height: 700 });
+      await expect(save).toBeInViewport();
+      await expect(publish).toBeInViewport();
+      const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+      expect(scrollWidth).toBeLessThanOrEqual(width);
+    }
     await page.screenshot({
       path: `test-results/${route === "/app/profile" ? "profile" : "links"}-actions-mobile.png`,
       fullPage: false,
@@ -148,7 +155,8 @@ test("profile draft actions only appear when a draft needs action", async ({ pag
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Draft action bar test");
     } else {
-      await page.getByRole("radio", { name: "Coral" }).check();
+      await selectWarmStudio(page);
+      await page.getByRole("radio", { name: "Coral", exact: true }).check();
     }
 
     await expect(actions).toBeVisible();
@@ -167,11 +175,14 @@ test("customize keeps the private draft preview clear of the fixed action toolba
 
   for (const viewport of [
     { width: 1467, height: 899 },
+    { width: 768, height: 900 },
     { width: 390, height: 844 },
+    { width: 320, height: 720 },
   ]) {
     await page.setViewportSize(viewport);
     await page.goto("/app/customize");
-    await page.getByRole("radio", { name: "Coral" }).check();
+    await selectWarmStudio(page);
+    await page.getByRole("radio", { name: "Coral", exact: true }).check();
 
     await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
     await expect(
@@ -197,7 +208,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-top.png" });
     }
-    await saveContact.scrollIntoViewIfNeeded();
+    await saveContact.evaluate((element) => element.scrollIntoView({ block: "center" }));
 
     const actionBox = await actions.boundingBox();
     const saveContactBox = await saveContact.boundingBox();
@@ -208,7 +219,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
         saveContactBox!.y + saveContactBox!.height > actionBox!.y,
     ).toBe(false);
 
-    await copyUrl.scrollIntoViewIfNeeded();
+    await copyUrl.evaluate((element) => element.scrollIntoView({ block: "center" }));
     const copyUrlBox = await copyUrl.boundingBox();
     const updatedActionBox = await actions.boundingBox();
     expect(copyUrlBox).not.toBeNull();
@@ -291,7 +302,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
     .poll(() => heading.evaluate((element) => getComputedStyle(element).fontFamily))
     .toMatch(/system-ui|sans-serif|Arial/i);
 
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
@@ -323,7 +334,7 @@ test("active-card QR downloads keep the light surface and remain available", asy
   const qrPanel = qrTitle.locator("xpath=..");
   await expect
     .poll(() => qrPanel.evaluate((panel) => getComputedStyle(panel).backgroundColor))
-    .toBe("rgb(245, 248, 246)");
+    .toBe("rgb(244, 246, 250)");
   const png = page.getByRole("link", { name: "Download PNG" }).first();
   await expect(qrPanel).toContainText("/c/mara-card-7f2q?source=qr");
   await expect(png).toHaveAttribute("href", /^data:image\/png;base64,/);
@@ -344,7 +355,7 @@ test("active-card QR downloads keep the light surface and remain available", asy
   }
 });
 
-test("customer sidebar uses the light-tech surface and stays grouped across desktop and mobile", async ({
+test("customer workspace navigation uses Soft Precision surfaces and stays grouped across viewports", async ({
   page,
 }) => {
   await signInAsCustomer(page);
@@ -352,7 +363,7 @@ test("customer sidebar uses the light-tech surface and stays grouped across desk
   const island = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
-    .toBe("rgb(245, 248, 246)");
+    .toBe("rgb(255, 255, 255)");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
   expect(desktopBox!.x).toBe(0);
@@ -376,6 +387,9 @@ test("customer sidebar uses the light-tech surface and stays grouped across desk
   for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(
+    desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
   await expect(desktopNavigation.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
   const desktopAccountMenu = page.getByRole("button", {
@@ -446,19 +460,45 @@ test("customer sidebar uses the light-tech surface and stays grouped across desk
     "aria-expanded",
     "false",
   );
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto("/app/profile");
+  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expect(openNavigation).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  const openerBox = await openNavigation.boundingBox();
+  expect(openerBox).not.toBeNull();
+  expect(openerBox!.height).toBeGreaterThanOrEqual(44);
+  await openNavigation.click();
+  await expect(drawerNavigation).toBeVisible();
+  const drawerBox = await drawerNavigation
+    .locator("xpath=ancestor::div[@role='dialog']")
+    .boundingBox();
+  expect(drawerBox).not.toBeNull();
+  expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.keyboard.press("Escape");
+  await expect(openNavigation).toBeFocused();
+
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const wideProfileLink = page
+    .getByRole("navigation", {
+      name: "Your Tapit profile navigation",
+    })
+    .getByRole("link", { name: "Profile", exact: true });
+  await expect(wideProfileLink).toHaveAttribute("aria-current", "page");
 });
 
 test("refreshed profile editor and preview preserve draft controls", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInAsCustomer(page);
-  for (const heading of [
-    "Profile identity",
-    "Contact and links",
-    "About or Services",
-    "Publication",
-  ]) {
+  for (const heading of ["Profile identity", "Profile link destination", "Publication"]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
+  await page.getByRole("link", { name: "Customize", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
+  await expect(page.getByTestId("profile-preview-device")).toBeVisible();
+  await page.getByRole("link", { name: "Profile", exact: true }).click();
   await expect
     .poll(() =>
       page
@@ -511,6 +551,36 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     path: "test-results/ui-redesign/profile-editor-mobile.png",
     fullPage: true,
   });
+});
+
+test("profile workspace keeps Powered by Tapit at the bottom of the phone screen", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1499, height: 797 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+
+  const profileScreen = page.getByTestId("profile-preview-device");
+  const profileCard = profileScreen.locator(".tapit-profile-entry > div > section");
+  const poweredBy = profileScreen.getByText("Powered by Tapit", { exact: true });
+
+  await expect(profileCard).toBeVisible();
+  await expect(poweredBy).toBeVisible();
+  const [screenBox, cardBox, poweredByBox] = await Promise.all([
+    profileScreen.boundingBox(),
+    profileCard.boundingBox(),
+    poweredBy.boundingBox(),
+  ]);
+  expect(screenBox).not.toBeNull();
+  expect(cardBox).not.toBeNull();
+  expect(poweredByBox).not.toBeNull();
+  expect(cardBox!.height).toBeGreaterThanOrEqual(screenBox!.height - 1);
+  expect(
+    cardBox!.y + cardBox!.height - (poweredByBox!.y + poweredByBox!.height),
+  ).toBeLessThanOrEqual(12);
+
+  await page.screenshot({ path: "test-results/profile-preview-powered-by-bottom.png" });
 });
 
 test("profile URL remains available when clipboard access fails", async ({ page }) => {
@@ -757,6 +827,194 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 
+test("customer can switch profile presets while preserving Warm Studio media", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+
+  const softPrecision = page.getByRole("radio", { name: "Soft Precision (Paper)" });
+  const moss = page.getByRole("radio", { name: "Moss" });
+  const night = page.getByRole("radio", { name: "Night" });
+  const warmStudio = page.getByRole("radio", { name: "Warm Studio" });
+  const previewCanvas = page.getByTestId("profile-preview-frame").locator("xpath=..");
+  await expect(softPrecision).toBeVisible();
+  await expect(moss).toBeVisible();
+  await expect(night).toBeVisible();
+  await expect(warmStudio).toBeVisible();
+  await expect(softPrecision).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
+
+  await warmStudio.check();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(251, 246, 239)");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await page.getByRole("tab", { name: "Overview" }).click();
+
+  await softPrecision.click();
+  const switchDialog = page.getByRole("dialog", { name: "Switch profile preset?" });
+  await expect(switchDialog).toContainText("Uploaded media will remain saved but inactive.");
+  await switchDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(warmStudio).toBeChecked();
+
+  await softPrecision.click();
+  await switchDialog.getByRole("button", { name: "Switch to Soft Precision" }).click();
+  await expect(softPrecision).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
+  await expect(page.getByRole("tab", { name: "Media" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText(/Draft saved/)).toBeVisible();
+  await page.goto("/app/customize");
+  await warmStudio.check();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(251, 246, 239)");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByLabel("Background image description")).toHaveValue("Warm studio backdrop");
+
+  await page.getByRole("tab", { name: "Overview" }).click();
+  await moss.click();
+  await expect(switchDialog).toBeVisible();
+  await switchDialog.getByRole("button", { name: "Switch to Moss" }).click();
+  await expect(moss).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(232, 241, 235)");
+  await night.check();
+  await expect(night).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(23, 33, 31)");
+  await softPrecision.check();
+  await expect(softPrecision).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
+});
+
+test("customer can customize, save, and publish a custom profile palette", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.setViewportSize({ width: 1467, height: 1200 });
+  await page.goto("/app/customize");
+
+  const custom = page.getByRole("radio", { name: "Custom" });
+  await expect(custom).toBeVisible();
+  await custom.check();
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toHaveCount(0);
+
+  const background = page.getByRole("textbox", { name: "Page background hex" });
+  const surface = page.getByRole("textbox", { name: "Profile surface hex" });
+  const ink = page.getByRole("textbox", { name: "Profile text hex" });
+  const accent = page.getByRole("textbox", { name: "Profile accent hex" });
+  await background.fill("#fef2e8");
+  await surface.fill("#fffdf9");
+  await ink.fill("#2c2420");
+  await accent.fill("#3f6de8");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toBeVisible();
+  await accent.fill("#1d4ed8");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toHaveCount(0);
+
+  const previewCanvas = page.getByTestId("profile-preview-frame").locator("xpath=..");
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(254, 242, 232)");
+  const previewLink = page.getByTestId("profile-preview-device").getByRole("link", {
+    name: "LinkedIn",
+  });
+  await expect(previewLink).toHaveCSS("border-color", "rgb(29, 78, 216)");
+  await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await previewLink.hover();
+  await expect
+    .poll(() => previewLink.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toMatch(/^(?:rgb\(|color\(srgb)/);
+  const hoverContrast = await previewLink.evaluate((element) => {
+    const parseColor = (color: string) => {
+      const channels = color
+        .match(/[\d.]+/g)
+        ?.slice(0, 3)
+        .map(Number);
+      if (channels?.length !== 3) throw new Error(`Unexpected computed color: ${color}`);
+      const normalizedChannels = color.startsWith("color(srgb")
+        ? channels
+        : channels.map((channel) => channel / 255);
+      return normalizedChannels;
+    };
+    const luminance = (color: string) => {
+      const linear = parseColor(color).map((normalized) =>
+        normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4,
+      );
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+    };
+    const foregroundColor = getComputedStyle(element).color;
+    const backgroundColor = getComputedStyle(element).backgroundColor;
+    const foreground = luminance(foregroundColor);
+    const background = luminance(backgroundColor);
+    return {
+      ratio: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      foregroundColor,
+      backgroundColor,
+      accentSoft: getComputedStyle(element.closest(".tapit-profile-entry")!).getPropertyValue(
+        "--tapit-accent-soft",
+      ),
+    };
+  });
+  expect(
+    hoverContrast.ratio,
+    `${hoverContrast.foregroundColor} on ${hoverContrast.backgroundColor} (soft ${hoverContrast.accentSoft})`,
+  ).toBeGreaterThanOrEqual(4.5);
+  await accent.fill("#8d3b2f");
+  await page.mouse.move(0, 0);
+  await expect(previewLink).toHaveCSS("border-color", "rgb(141, 59, 47)");
+  await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await page.screenshot({
+    path: "test-results/soft-precision-site/custom-preset-desktop.png",
+    fullPage: false,
+  });
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText(/Draft saved/)).toBeVisible();
+  await page.goto("/app/customize");
+  await expect(custom).toBeChecked();
+  await expect(background).toHaveValue("#fef2e8");
+  await expect(accent).toHaveValue("#8d3b2f");
+
+  const publishChanges = page.getByRole("button", { name: "Publish changes" });
+  await accent.fill("#ffffff");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toBeVisible();
+  await expect(publishChanges).toBeDisabled();
+
+  await page.getByRole("radio", { name: "Moss" }).check();
+  await expect(publishChanges).toBeEnabled();
+  await page.getByRole("radio", { name: "Custom" }).check();
+  await expect(background).toHaveValue("#fef2e8");
+  await expect(accent).toHaveValue("#ffffff");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toBeVisible();
+  await accent.fill("#8d3b2f");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toHaveCount(0);
+
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await publishChanges.click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.goto("/mara-velasquez");
+  await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+    "background-color",
+    "rgb(254, 242, 232)",
+  );
+  const publicLink = page.getByRole("link", { name: "LinkedIn" });
+  await expect(publicLink).toHaveCSS("border-color", "rgb(141, 59, 47)");
+  await expect(publicLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+});
+
 test("customer customization drafts stay private until the profile is published", async ({
   page,
 }) => {
@@ -814,17 +1072,60 @@ test("customer customization drafts stay private until the profile is published"
   );
 });
 
-test("legacy profiles opt into Warm Studio before the new presentation is published", async ({
+test("preset theme changes stay private until the saved draft is published", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+
+  await page.getByRole("radio", { name: "Moss", exact: true }).check();
+  await page.goto("/mara-velasquez");
+  await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+    "background-color",
+    "rgb(244, 246, 250)",
+  );
+
+  await page.goto("/app/customize");
+  await page.getByRole("radio", { name: "Moss", exact: true }).check();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(
+    page.getByText("Draft saved. Visitors still see the last published version."),
+  ).toBeVisible();
+
+  for (const route of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(route);
+    await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+      "background-color",
+      "rgb(244, 246, 250)",
+    );
+  }
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  for (const route of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(route);
+    await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+      "background-color",
+      "rgb(232, 241, 235)",
+    );
+  }
+});
+
+test("legacy profiles can choose Warm Studio before the new presentation is published", async ({
   page,
 }) => {
   await prepareLegacyMaraProfile(page);
 
   await page.goto("/mara-velasquez");
-  await expect(page.getByRole("navigation", { name: "Contact actions" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Contact actions" })).toBeVisible();
 
   await page.goto("/app/customize");
-  await expect(page.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
-  await page.getByRole("button", { name: "Use Warm Studio" }).click();
+  const warmStudio = page.getByRole("radio", { name: "Warm Studio", exact: true });
+  await expect(warmStudio).toBeVisible();
+  await warmStudio.check();
   await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeChecked();
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
@@ -842,6 +1143,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
 
   await page.getByRole("tab", { name: "Media" }).click();
   await page
@@ -988,13 +1290,14 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   }
 });
 
-test("customize phone preview keeps its hero full-width and identity free of backplates", async ({
+test("customize mobile profile preview keeps its hero full-width and identity free of backplates", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1689, height: 857 });
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
+  await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
@@ -1029,7 +1332,7 @@ test("customize phone preview keeps its hero full-width and identity free of bac
   }
 });
 
-test("customize preview uses an iPhone-sized screen for short and long profiles", async ({
+test("customize preview uses a neutral web viewport for short and long profiles", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1415, height: 857 });
@@ -1037,6 +1340,7 @@ test("customize preview uses an iPhone-sized screen for short and long profiles"
   await signInAsCustomer(page);
   await page.goto("/app/customize");
 
+  await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
@@ -1047,25 +1351,21 @@ test("customize preview uses an iPhone-sized screen for short and long profiles"
 
   const frame = page.getByTestId("profile-preview-frame");
   const previewCanvas = frame.locator("xpath=..");
-  const phone = page.getByTestId("profile-preview-phone");
+  const viewport = page.getByRole("group", { name: "Mobile web profile preview" });
   const profileSurface = page.getByTestId("profile-preview-device");
-  const profileCard = profileSurface.locator(".tapit-profile-entry > div > section");
-  const profileContent = profileCard.locator(":scope > div").last();
   const poweredBy = profileSurface.getByText("Powered by Tapit", { exact: true });
-  await expect(phone).toBeVisible();
+  await expect(viewport).toBeVisible();
   await expect(poweredBy).toBeVisible();
-  await expect(profileCard).toHaveCSS("border-radius", "0px");
-  await expect(profileContent).toHaveCSS("border-top-width", "0px");
-  await expect(phone.getByText("9:41", { exact: true })).toBeVisible();
-  await expect(phone.getByTestId("profile-preview-dynamic-island")).toBeVisible();
+  await expect(page.getByText("tapit.app/mara-velasquez", { exact: true })).toBeVisible();
+  await expect(page.getByText("9:41", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: "test-results/tapit-customize-preview-1415x857.png" });
-  await phone.screenshot({ path: "test-results/tapit-customize-phone-preview.png" });
+  await viewport.screenshot({ path: "test-results/tapit-customize-neutral-web-preview.png" });
 
-  const phoneHeightToWidth = await phone.evaluate((element) => {
+  const viewportHeightToWidth = await viewport.evaluate((element) => {
     const bounds = element.getBoundingClientRect();
     return bounds.height / bounds.width;
   });
-  expect(phoneHeightToWidth).toBeCloseTo(19.5 / 9, 1);
+  expect(viewportHeightToWidth).toBeCloseTo(19.5 / 9, 1);
 
   const shortProfileScreen = await profileSurface.evaluate((screen) => ({
     clientHeight: screen.clientHeight,
@@ -1073,26 +1373,35 @@ test("customize preview uses an iPhone-sized screen for short and long profiles"
     scrollHeight: screen.scrollHeight,
   }));
   expect(shortProfileScreen.overflowY).toBe("auto");
-  expect(shortProfileScreen.scrollHeight).toBeLessThanOrEqual(shortProfileScreen.clientHeight + 1);
+  expect(shortProfileScreen.scrollHeight).toBeGreaterThan(shortProfileScreen.clientHeight);
+  await poweredBy.scrollIntoViewIfNeeded();
+  await expect(poweredBy).toBeInViewport();
+  const footerScrollTop = await profileSurface.evaluate((screen) => screen.scrollTop);
+  expect(footerScrollTop).toBeGreaterThan(0);
+  await viewport.screenshot({
+    path: "test-results/tapit-customize-neutral-web-preview-footer.png",
+  });
 
   const overflowY = await previewCanvas.evaluate((canvas) => getComputedStyle(canvas).overflowY);
   expect(overflowY).toBe("hidden");
 
-  const [canvasBox, phoneBox, poweredByBox] = await Promise.all([
+  const [canvasBox, viewportBox, poweredByBox] = await Promise.all([
     previewCanvas.boundingBox(),
-    phone.boundingBox(),
+    viewport.boundingBox(),
     poweredBy.boundingBox(),
   ]);
   expect(canvasBox).not.toBeNull();
-  expect(phoneBox).not.toBeNull();
+  expect(viewportBox).not.toBeNull();
   expect(poweredByBox).not.toBeNull();
-  expect(phoneBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
-  expect(phoneBox!.y + phoneBox!.height).toBeLessThanOrEqual(canvasBox!.y + canvasBox!.height + 1);
+  expect(viewportBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
+  expect(viewportBox!.y + viewportBox!.height).toBeLessThanOrEqual(
+    canvasBox!.y + canvasBox!.height + 1,
+  );
   expect(poweredByBox!.y + poweredByBox!.height).toBeLessThanOrEqual(
     canvasBox!.y + canvasBox!.height + 1,
   );
 
-  const fitScale = await phone.evaluate((element) => {
+  const fitScale = await viewport.evaluate((element) => {
     const match = (element as HTMLElement).style.transform.match(/scale\(([^)]+)\)/);
     return match ? Number(match[1]) : 1;
   });
@@ -1133,23 +1442,23 @@ test("customize preview uses an iPhone-sized screen for short and long profiles"
   });
   await page.reload();
 
-  const expandedPhone = page.getByTestId("profile-preview-phone");
+  const expandedViewport = page.getByRole("group", { name: "Mobile web profile preview" });
   const expandedCanvas = page.getByTestId("profile-preview-frame").locator("xpath=..");
   const expandedScreen = page.getByTestId("profile-preview-device");
   const lastLink = page.getByRole("link", { name: "Extended profile connection 18" });
   await lastLink.scrollIntoViewIfNeeded();
   await expect(lastLink).toBeVisible();
-  const [expandedCanvasBox, expandedPhoneBox] = await Promise.all([
+  const [expandedCanvasBox, expandedViewportBox] = await Promise.all([
     expandedCanvas.boundingBox(),
-    expandedPhone.boundingBox(),
+    expandedViewport.boundingBox(),
   ]);
   expect(expandedCanvasBox).not.toBeNull();
-  expect(expandedPhoneBox).not.toBeNull();
-  expect(expandedPhoneBox!.y).toBeGreaterThanOrEqual(expandedCanvasBox!.y);
-  expect(expandedPhoneBox!.y + expandedPhoneBox!.height).toBeLessThanOrEqual(
+  expect(expandedViewportBox).not.toBeNull();
+  expect(expandedViewportBox!.y).toBeGreaterThanOrEqual(expandedCanvasBox!.y);
+  expect(expandedViewportBox!.y + expandedViewportBox!.height).toBeLessThanOrEqual(
     expandedCanvasBox!.y + expandedCanvasBox!.height + 1,
   );
-  expect(expandedPhoneBox!.height / expandedPhoneBox!.width).toBeCloseTo(19.5 / 9, 1);
+  expect(expandedViewportBox!.height / expandedViewportBox!.width).toBeCloseTo(19.5 / 9, 1);
   const longProfileScreen = await expandedScreen.evaluate((screen) => ({
     clientHeight: screen.clientHeight,
     overflowY: getComputedStyle(screen).overflowY,
@@ -1169,6 +1478,7 @@ test("high-entropy demo media is reduced below the storage limit", async ({ page
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
   await page.getByRole("tab", { name: "Media" }).click();
 
   await page.evaluate(async () => {
@@ -1232,6 +1542,7 @@ test("incomplete background media stays in preview but blocks saving and publish
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
   await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
@@ -1261,6 +1572,7 @@ test("pending media uploads keep profile actions guarded", async ({ page }) => {
   await signInAsCustomer(page);
   await setDemoMediaUploadControl(page, { delayMs: 5000 });
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
   await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
@@ -1284,6 +1596,7 @@ test("failed media uploads can be retried without losing the local hero preview"
   await signInAsCustomer(page);
   await setDemoMediaUploadControl(page, { fail: true });
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
   await page.getByRole("tab", { name: "Media" }).click();
   await page
     .getByLabel("Upload background image")
@@ -1316,6 +1629,7 @@ test("compact contact actions keep labels accessible and publish their selected 
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
+  await selectWarmStudio(page);
   await page.getByRole("tab", { name: "Layout" }).click();
 
   const previewContacts = page
@@ -1448,6 +1762,15 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   }
   await page.getByLabel("Time range").selectOption("7d");
   await expect(page.getByLabel("Time range")).toHaveValue("7d");
+  await expect(
+    page.getByText("Profile views", { exact: true }).locator("..").getByText("18", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Unique views", { exact: true }).locator("..").getByText("11", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Link clicks", { exact: true }).locator("..").getByText("9", { exact: true }),
+  ).toBeVisible();
 
   await page.getByRole("link", { name: "Account" }).click();
   await expect(page).toHaveURL(/\/app\/account$/);
@@ -1491,10 +1814,15 @@ test("customer can unpublish from Account", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("customer utility workspaces fit phone and desktop widths", async ({ page }) => {
+test("customer utility workspaces fit phone, tablet, and desktop widths", async ({ page }) => {
   await signInAsCustomer(page);
 
-  for (const route of ["/app/analytics", "/app/account", "/app/account/build-card"] as const) {
+  for (const route of [
+    "/app/analytics",
+    "/app/account",
+    "/app/account/build-card",
+    "/build-card",
+  ] as const) {
     await page.goto(route);
     if (route === "/app/account/build-card") {
       await expect
@@ -1505,7 +1833,7 @@ test("customer utility workspaces fit phone and desktop widths", async ({ page }
         )
         .toMatch(/system-ui|sans-serif|Arial/i);
     }
-    for (const width of [320, 390, 1280]) {
+    for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.locator("main").first()).toBeVisible();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);

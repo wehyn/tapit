@@ -3,7 +3,6 @@ import { v } from "convex/values";
 import { digest } from "./cards";
 import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -107,11 +106,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
   const maraDraft = {
     ...maraBase,
     theme: mara?.draft.theme ?? ("paper" as const),
-    ...(mara?.draft.customization !== undefined
-      ? { customization: mara.draft.customization }
-      : mara === null
-        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
-        : {}),
+    ...(mara?.draft.customization !== undefined ? { customization: mara.draft.customization } : {}),
   };
   const maraPublished = {
     ...maraBase,
@@ -122,9 +117,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
         : {}),
     ...(mara?.published?.customization !== undefined
       ? { customization: mara.published.customization }
-      : mara === null
-        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
-        : {}),
+      : {}),
     publishedAt,
   };
   const maraCustomer = mara === null ? null : await ctx.db.get(mara.ownerId);

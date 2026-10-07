@@ -1,5 +1,8 @@
 import { v } from "convex/values";
-import { validateProfileCustomization } from "../src/lib/profile-customization";
+import {
+  validateProfileCustomization,
+  type ProfileAppearanceTheme,
+} from "../src/lib/profile-customization";
 import { validateProfileMedia } from "../src/lib/profile-media";
 
 export const MAX_PROFILE_LINKS = 100;
@@ -59,6 +62,7 @@ export const profileThemeValidator = v.union(
   v.literal("paper"),
   v.literal("moss"),
   v.literal("night"),
+  v.literal("custom"),
 );
 
 const profileCustomizationSectionValidator = v.union(
@@ -88,13 +92,21 @@ const profileIdentityColorsValidator = v.object({
 });
 
 export const profileCustomizationValidator = v.object({
-  preset: v.literal("warm-studio"),
+  preset: v.union(v.literal("warm-studio"), v.literal("custom")),
   accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
   typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
   linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
   contentOrder: v.union(v.literal("links-first"), v.literal("section-first")),
   contactDisplay: v.optional(
     v.union(v.literal("labels"), v.literal("icons-circle"), v.literal("icons-soft-square")),
+  ),
+  customColors: v.optional(
+    v.object({
+      canvas: v.string(),
+      surface: v.string(),
+      ink: v.string(),
+      accent: v.string(),
+    }),
   ),
   identityColors: v.optional(profileIdentityColorsValidator),
   featuredLinkId: v.optional(v.string()),
@@ -286,6 +298,7 @@ export function validateDraftSafety(content: {
   email?: string;
   phone?: string;
   website?: string;
+  theme?: ProfileAppearanceTheme;
   redirect?: { enabled: boolean; destination: string };
   customization?: unknown;
   media?: unknown;
@@ -319,7 +332,7 @@ export function validateDraftSafety(content: {
     ...validateProfileCustomization(
       content.customization as Parameters<typeof validateProfileCustomization>[0],
       [],
-      { allowWhite: hasBackgroundMedia(content.media) },
+      { allowWhite: hasBackgroundMedia(content.media), activeTheme: content.theme },
     ),
   );
   errors.push(...validateProfileMedia(content.media));

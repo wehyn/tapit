@@ -87,16 +87,16 @@ async function expectKeyboardVisibleFocus(page: Page) {
   await expect(signInButton).toBeFocused();
   const focusStyles = await readFocusStyles(signInButton);
   expect(focusStyles.isFocusVisible, "keyboard sign-in button").toBe(true);
-  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#176b52");
+  expect(focusStyles.rootAccent.toLowerCase(), "Tapit accent token").toBe("#3f6de8");
   expect(focusStyles.rootFocus.toLowerCase(), "Tapit focus token").toBe(
     focusStyles.rootAccent.toLowerCase(),
   );
-  expect(focusStyles.rootPaper.toLowerCase(), "Light-tech page canvas").toBe("#f5f8f6");
+  expect(focusStyles.rootPaper.toLowerCase(), "Soft Precision page canvas").toBe("#f4f6fa");
   expect(focusStyles.hasVisibleIndicator, "keyboard sign-in button").toBe(true);
   expect(focusStyles.colors, "keyboard sign-in button").not.toMatch(ORANGE_FOCUS);
 }
 
-test("form focus indicators stay within the Tapit green theme", async ({ page }) => {
+test("form focus indicators stay within the Soft Precision theme", async ({ page }) => {
   for (const route of [
     "/login",
     "/login?mode=signup",

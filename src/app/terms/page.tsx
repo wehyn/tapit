@@ -12,9 +12,9 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-tapit-paper text-tapit-ink">
       <PublicHeader />
-      <article className="mx-auto my-8 w-[calc(100%-2.5rem)] max-w-3xl rounded-tapit border border-tapit-line bg-tapit-surface px-5 pb-12 pt-10 text-base leading-8 sm:my-12 sm:px-10 sm:py-12">
+      <article className="mx-auto my-6 w-[calc(100%-2rem)] max-w-3xl rounded-tapit border border-tapit-line bg-tapit-surface px-5 pb-10 pt-8 text-base leading-7 shadow-[0_16px_44px_rgba(27,36,51,0.055)] sm:my-12 sm:px-10 sm:py-12 sm:leading-8">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-tapit-accent">Terms</p>
-        <h1 className="tapit-display mt-5 text-4xl font-normal tracking-[-0.06em] sm:text-6xl">
+        <h1 className="tapit-display mt-5 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
           Tapit terms of use
         </h1>
         <p className="mt-5 text-sm text-tapit-muted">Effective 25 September 2026</p>

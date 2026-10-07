@@ -110,14 +110,14 @@ export function SidebarNav({
     <>
       <aside
         data-testid="workspace-sidebar"
-        className="fixed inset-y-0 left-0 z-20 hidden w-[72px] flex-col border-r border-tapit-line bg-tapit-paper px-2 py-6 shadow-none lg:flex xl:w-[244px] xl:px-5 xl:py-7"
+        className="fixed inset-y-0 left-0 z-20 hidden w-[72px] flex-col border-r border-tapit-line bg-tapit-surface px-2 py-6 shadow-[2px_0_14px_rgba(27,36,51,0.025)] lg:flex xl:w-[244px] xl:px-5 xl:py-7"
       >
         <div className="overflow-hidden lg:hidden xl:block">
           <Brand />
         </div>
         <div
           aria-hidden="true"
-          className="hidden size-11 items-center justify-center rounded-[13px] bg-gradient-to-br from-tapit-accent to-[#168a7a] text-white shadow-[0_6px_16px_rgba(16,84,63,0.18)] lg:flex xl:hidden"
+          className="hidden size-11 items-center justify-center rounded-[14px] bg-gradient-to-br from-tapit-accent to-[#6184e8] text-white shadow-[0_6px_16px_rgba(49,95,228,0.18)] lg:flex xl:hidden"
         >
           <Icon name="fingerprint" size={20} weight="bold" />
         </div>
@@ -130,7 +130,7 @@ export function SidebarNav({
         ) : null}
       </aside>
 
-      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-tapit-line bg-tapit-surface px-5 lg:hidden">
+      <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between border-b border-tapit-line bg-tapit-surface px-4 shadow-[0_2px_12px_rgba(27,36,51,0.035)] sm:px-5 lg:hidden">
         <Brand />
         <div className="flex items-center gap-2">
           {mobileHeaderActions}
@@ -138,7 +138,7 @@ export function SidebarNav({
             aria-controls={drawerId}
             aria-expanded={open}
             aria-label="Open navigation"
-            className="inline-flex size-11 items-center justify-center rounded-[12px] border border-tapit-line bg-tapit-surface text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
+            className="inline-flex size-11 items-center justify-center rounded-[14px] border border-tapit-line bg-tapit-surface text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
             onClick={() => setOpen(true)}
             ref={openerRef}
             type="button"
@@ -161,7 +161,7 @@ export function SidebarNav({
           <div
             aria-label={`${title} navigation menu`}
             aria-modal="true"
-            className="relative flex h-full w-[min(85vw,340px)] flex-col border-r border-tapit-line bg-tapit-surface px-6 py-6 shadow-[0_10px_30px_rgba(16,33,28,0.08)]"
+            className="relative flex h-full w-[min(85vw,340px)] flex-col rounded-r-[24px] border-r border-tapit-line bg-tapit-surface px-5 py-6 shadow-[0_18px_48px_rgba(27,36,51,0.16)] sm:px-6"
             ref={drawerRef}
             role="dialog"
           >
@@ -169,7 +169,7 @@ export function SidebarNav({
               <Brand />
               <button
                 aria-label="Close navigation"
-                className="inline-flex size-11 items-center justify-center rounded-[12px] border border-tapit-line text-2xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
+                className="inline-flex size-11 items-center justify-center rounded-[14px] border border-tapit-line text-2xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
                 onClick={close}
                 ref={closeButtonRef}
                 type="button"
@@ -206,7 +206,7 @@ function NavLink({
     <Link
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
-      className={`flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2.5 text-sm transition-colors ${compact ? "lg:justify-center lg:px-0 xl:justify-start xl:px-3" : ""} ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent-strong" : "text-tapit-muted hover:bg-tapit-surface hover:text-tapit-ink"}`}
+      className={`flex min-h-11 items-center gap-3 rounded-[14px] border border-transparent px-3 py-2.5 text-sm transition-colors ${compact ? "lg:justify-center lg:px-0 xl:justify-start xl:px-3" : ""} ${active ? "border-[#d7e2fa] bg-tapit-accent-soft font-semibold text-tapit-accent-strong" : "text-tapit-muted hover:border-tapit-line hover:bg-tapit-surface hover:text-tapit-ink"}`}
       href={item.href}
       onClick={(event) => {
         const wasDefaultPrevented = event.defaultPrevented;

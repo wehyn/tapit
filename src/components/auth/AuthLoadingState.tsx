@@ -3,7 +3,7 @@ import { FingerprintIcon } from "@phosphor-icons/react";
 export function AuthLoadingState() {
   return (
     <div aria-busy="true" className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5">
-      <div className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_36px_rgba(16,33,28,0.07)] sm:p-8">
+      <div className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
         <div className="flex items-center gap-3">
           <div
             aria-hidden="true"

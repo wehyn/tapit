@@ -470,11 +470,11 @@ function DemoAdminAnalytics() {
         description="Operational status helps support identify a profile or card issue without exposing visitor details."
         title="Profile and card status"
       >
-        <div className="mt-6 grid gap-2">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
           {profiles.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4 text-left transition-colors hover:border-tapit-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 text-left transition-colors last:border-b-0 hover:bg-tapit-paper/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile.id}
               onClick={() => setSelectedProfile(profile)}
               type="button"
@@ -494,7 +494,7 @@ function DemoAdminAnalytics() {
           ))}
           {state.cards.map((card) => (
             <div
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-surface p-4"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 last:border-b-0"
               key={card.id}
             >
               <div>
@@ -649,11 +649,11 @@ function LiveAdminAnalytics() {
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
       <Panel title="Profile and card status">
-        <div className="mt-6 grid gap-2">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
           {profiles.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4 text-left hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 text-left last:border-b-0 hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
               key={profile._id}
               onClick={() => setSelectedProfileId(profile._id)}
               type="button"
@@ -669,7 +669,7 @@ function LiveAdminAnalytics() {
           ))}
           {cards.map((card) => (
             <div
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 last:border-b-0"
               key={card._id}
             >
               <div>

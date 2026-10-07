@@ -6,10 +6,6 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 
     await page.goto("/login");
     await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toHaveCSS(
-      "font-family",
-      /system-ui|sans-serif|Arial/i,
-    );
     await expect(page.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute(
       "href",
       "/privacy",
@@ -18,10 +14,12 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
       "href",
       "/terms",
     );
-    await expect(page.locator("main section > div").nth(1)).toHaveCSS("border-radius", "18px");
+    await expect(page.getByRole("navigation", { name: "Customer navigation" })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Administrator navigation" })).toHaveCount(0);
     await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
-    await expect(page.locator("form")).toHaveCSS("row-gap", "24px");
+    const signInButton = page.getByRole("button", { name: "Sign in", exact: true });
+    await expect(signInButton).toBeVisible();
+    expect((await signInButton.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
     if (width === 320) {
       await page.getByRole("button", { name: "Sign in", exact: true }).click();
       await expect(
@@ -44,12 +42,13 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 
     await page.goto("/setup/demo-setup-token");
     await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Choose a password" })).toHaveCSS(
-      "font-family",
-      /system-ui|sans-serif|Arial/i,
-    );
     await expect(page.getByLabel("Password", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Confirm password", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Set password", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Set password", exact: true }).click();
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Password must be at least 8 characters." }),
+    ).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
@@ -176,4 +175,13 @@ test("customer signup starts from the public login page", async ({ page }) => {
     "https://www.tiktok.com/@new-customer",
   );
   await expect(page.getByText("Unsafe")).toHaveCount(0);
+});
+
+test("customer sign-in returns to its requested workspace route", async ({ page }) => {
+  await page.goto("/login?next=%2Fapp%2Flinks");
+  await page.getByLabel("Email").fill("mara@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/links$/);
+  await expect(page.getByRole("heading", { name: "Profile links" })).toBeVisible();
 });

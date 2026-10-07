@@ -162,11 +162,11 @@ function ProfileIdentityForm({
 }) {
   return (
     <Panel className="shadow-none" title="Profile identity">
-      <div className="mt-6 grid gap-5">
+      <div className="mt-6 grid grid-cols-1 gap-5">
         {message}
         {onboarding}
         {imageContent}
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
           <Field
             id="profile-name"
             label="Name"
@@ -185,7 +185,7 @@ function ProfileIdentityForm({
             value={draft.bio ?? ""}
           />
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
           <Field
             id="profile-email"
             help="This appears as a contact option on your published profile."
@@ -225,14 +225,14 @@ function ProfileIdentityForm({
             value={draft.slug}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
           <span className="font-semibold text-tapit-ink">Public URL</span>
           <Link
             aria-label={`Open public profile /${draft.slug}`}
-            className="inline-flex min-h-11 min-w-0 flex-1 items-center truncate text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-sm"
+            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-sm sm:flex-1"
             href={`/${draft.slug}`}
           >
-            <code className="block truncate">
+            <code className="break-all">
               {typeof window === "undefined"
                 ? `/${draft.slug}`
                 : `${window.location.origin}/${draft.slug}`}

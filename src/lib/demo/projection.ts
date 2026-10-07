@@ -6,7 +6,7 @@ import type {
 import { projectPublicProfile, type PublishedProfileSnapshot } from "../domain";
 import type { DemoProfile, ProfileTheme } from "./fixtures";
 
-/** Projects demo content while retaining the legacy theme stored beside the profile. */
+/** Projects demo content, using the legacy theme only when the published snapshot has none. */
 export function projectDemoPublicProfile(
   profile: DemoProfile,
   content: ProfileContent | PublishedProfileSnapshot | null = profile.published,
@@ -20,7 +20,7 @@ export function projectDemoPublicProfile(
       status: "published",
       published: {
         ...content,
-        theme: legacyTheme ?? content.theme ?? profile.theme,
+        theme: content.theme ?? legacyTheme ?? profile.theme,
         publishedAt: "publishedAt" in content ? content.publishedAt : new Date().toISOString(),
       },
     },

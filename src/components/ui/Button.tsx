@@ -5,7 +5,7 @@ type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    "border border-tapit-accent bg-tapit-accent text-white shadow-[0_8px_20px_rgba(16,84,63,0.14)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
+    "border border-tapit-accent bg-tapit-accent text-white shadow-[0_6px_16px_rgba(27,36,51,0.12)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
   secondary:
     "border border-tapit-line bg-tapit-surface text-tapit-ink hover:border-tapit-accent hover:bg-tapit-soft-surface",
   quiet: "text-tapit-muted hover:bg-tapit-soft-surface hover:text-tapit-ink",
@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-12 items-center justify-center rounded-[12px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.985] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.985] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
       data-state={loading ? "loading" : "ready"}
       {...props}
       disabled={loading || props.disabled}
@@ -58,7 +58,7 @@ export function ButtonLink({
 }) {
   return (
     <Link
-      className={`inline-flex min-h-12 items-center justify-center rounded-[12px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-px active:scale-[0.985] ${variantClasses[variant]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-px active:scale-[0.985] ${variantClasses[variant]} ${className}`}
       href={href}
       onClick={onClick}
     >

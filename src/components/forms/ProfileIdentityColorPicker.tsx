@@ -261,7 +261,7 @@ export function ProfileIdentityColorPicker({
       {open ? (
         <div
           aria-label={`${label} custom color picker`}
-          className="z-20 grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_18px_42px_rgba(21,25,24,0.14)]"
+          className="z-20 grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-4 shadow-[0_18px_42px_rgba(27,36,51,0.12)]"
           role="dialog"
         >
           <div className="flex items-stretch gap-3">

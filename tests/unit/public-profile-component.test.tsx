@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { LinkIcon } from "@/lib/domain";
@@ -6,6 +6,7 @@ import { PublicProfile } from "../../src/components/profile/PublicProfile";
 import { projectPublicProfile } from "../../src/lib/domain";
 import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
 import { getDemoState, resetDemoState } from "../../src/lib/demo/store";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
 
 const profile = createDefaultDemoState().profiles[0];
 const projection = profile === undefined ? null : projectPublicProfile(profile);
@@ -22,7 +23,11 @@ describe("public profile preview behavior", () => {
     render(
       <PublicProfile
         preview
-        profile={projection}
+        profile={{
+          ...projection,
+          email: "mara@example.test",
+          customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        }}
         profileId="profile-mara"
         trackClicks={false}
         trackView={false}
@@ -195,6 +200,7 @@ describe("public profile preview behavior", () => {
       <PublicProfile
         profile={{
           ...projection,
+          email: "mara@example.test",
           media: {
             heroHeight: 999,
             autoplay: false,
@@ -262,6 +268,7 @@ describe("public profile preview behavior", () => {
             },
             slideshow: [{ src: "https://images.example/slide.jpg", alt: "A studio detail" }],
           },
+          customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
         }}
         profileUrl="/mara-velasquez"
         trackClicks={false}
@@ -429,12 +436,12 @@ describe("public profile preview behavior", () => {
   });
 
   it.each([
-    ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "bg-[#3e806d]"],
-    ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "bg-[#2c2420]"],
-    ["comfortable", "coral", "text-3xl", "bg-[#ffede3]", "text-[#a84431]", "bg-[#b24f38]"],
+    ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "border-[#3e806d]"],
+    ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "border-[#2c2420]"],
+    ["comfortable", "coral", "text-3xl", "bg-[#ffede3]", "text-[#a84431]", "border-[#a84431]"],
   ] as const)(
     "applies the %s type scale and finite %s accent in preview",
-    (typeScale, accent, headingClass, avatarBackground, avatarText, filledBackground) => {
+    (typeScale, accent, headingClass, avatarBackground, avatarText, linkBorder) => {
       if (projection === null) throw new Error("The demo profile fixture is missing.");
       render(
         <PublicProfile
@@ -460,8 +467,9 @@ describe("public profile preview behavior", () => {
       expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(headingClass);
       expect(screen.getByText("M")).toHaveClass(avatarBackground, avatarText);
       expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
-        filledBackground,
-        "text-white",
+        linkBorder,
+        "bg-transparent",
+        avatarText,
       );
     },
   );
@@ -527,7 +535,7 @@ describe("public profile preview behavior", () => {
     );
   });
 
-  it("does not add the contact strip to a populated legacy profile", () => {
+  it("keeps automatic contact actions available on a populated legacy theme", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -538,12 +546,21 @@ describe("public profile preview behavior", () => {
       />,
     );
 
-    expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
+    const contacts = screen.getByRole("navigation", { name: "Contact actions" });
+    expect(contacts).toBeInTheDocument();
+    expect(within(contacts).getByRole("link", { name: "Email" })).toHaveAttribute(
+      "href",
+      "mailto:mara@example.test",
+    );
+    expect(within(contacts).getByRole("link", { name: "Phone" })).toHaveAttribute(
+      "href",
+      "tel:+63 917 555 0184",
+    );
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
   });
 
-  it("uses the solid accent treatment for ordinary filled links", () => {
+  it("keeps links outlined while the Save contact button uses its filled treatment", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -564,6 +581,11 @@ describe("public profile preview behavior", () => {
     );
 
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
+      "border-[#a84431]",
+      "bg-transparent",
+      "text-[#a84431]",
+    );
+    expect(screen.getByRole("button", { name: "Save contact" })).toHaveClass(
       "bg-[#b24f38]",
       "text-white",
     );
@@ -587,7 +609,6 @@ describe("public profile preview behavior", () => {
         trackView={false}
       />,
     );
-    expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
     expect(screen.queryByText("Services")).not.toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
   });

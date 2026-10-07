@@ -470,11 +470,11 @@ describe("ProfileCustomizationEditor", () => {
     );
   });
 
-  it("keeps legacy theme cards on Overview and disables other categories until opt-in", async () => {
+  it("offers every profile preset on Overview and disables other categories outside Warm Studio", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     const onThemeChange = vi.fn();
-    render(
+    const { rerender } = render(
       <ProfileCustomizationEditor
         onChange={onChange}
         onThemeChange={onThemeChange}
@@ -482,17 +482,22 @@ describe("ProfileCustomizationEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: /Paper/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Moss/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Night/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Moss" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Night" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Identity" })).toBeDisabled();
     expect(screen.getByRole("tab", { name: "Media" })).toBeDisabled();
     expect(screen.getByRole("tab", { name: "Layout" })).toBeDisabled();
 
-    await user.click(screen.getByRole("button", { name: /Moss/i }));
+    await user.click(screen.getByRole("radio", { name: "Moss" }));
     expect(onThemeChange).toHaveBeenCalledWith("moss");
-    await user.click(screen.getByRole("button", { name: "Use Warm Studio" }));
+    rerender(
+      <ProfileCustomizationEditor onChange={onChange} onThemeChange={onThemeChange} theme="moss" />,
+    );
+    await user.click(screen.getByRole("radio", { name: "Warm Studio" }));
     expect(onChange).toHaveBeenCalledWith(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(onThemeChange).toHaveBeenCalledWith("paper");
   });
 
   it("resets a stale legacy category to Overview after Warm Studio is applied", async () => {
@@ -509,7 +514,7 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.getByRole("tab", { name: "Identity" })).toHaveAttribute("aria-selected", "true");
 
     rerender(<ProfileCustomizationEditor onChange={onChange} />);
-    await user.click(screen.getByRole("button", { name: "Use Warm Studio" }));
+    await user.click(screen.getByRole("radio", { name: "Warm Studio" }));
     rerender(
       <ProfileCustomizationEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}

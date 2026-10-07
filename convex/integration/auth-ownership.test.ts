@@ -702,9 +702,9 @@ describe("Convex authentication and ownership", () => {
             slug: "ada-lovelace",
             email: "new@example.com",
             links: [],
-            customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
           },
         });
+        expect(profile?.draft.customization).toBeUndefined();
         expect(profile?.published).toBeUndefined();
       });
     } finally {
@@ -733,8 +733,8 @@ describe("Convex authentication and ownership", () => {
         name: "Invited Customer",
         slug: "invited-customer",
         email: "invited@example.com",
-        customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION,
       });
+      expect(profile?.draft.customization).toBeUndefined();
     });
   });
 
@@ -907,7 +907,7 @@ describe("Convex authentication and ownership", () => {
     });
   });
 
-  it("defaults a new bootstrap profile to Warm Studio in both snapshots", async () => {
+  it("defaults a new bootstrap profile to Paper in both snapshots", async () => {
     const t = testConvex();
     const ids = await t.run(async (ctx) => ({
       adminUserId: await ctx.db.insert("users", {
@@ -931,8 +931,10 @@ describe("Convex authentication and ownership", () => {
       cardToken: "new-bootstrap-token",
     });
     const profile = await t.run(async (ctx) => await ctx.db.get(result.profileId));
-    expect(profile?.draft.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
-    expect(profile?.published?.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(profile?.draft.theme).toBe("paper");
+    expect(profile?.draft.customization).toBeUndefined();
+    expect(profile?.published?.theme).toBe("paper");
+    expect(profile?.published?.customization).toBeUndefined();
   });
 
   it("round-trips an existing theme-only profile without adding customization", async () => {

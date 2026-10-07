@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 
 import { env, internalMutation } from "./_generated/server";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 import { ensureAdminPersonalProfile } from "./adminProfile";
 
 const emailArg = v.string();
@@ -229,23 +228,25 @@ export const bootstrap = internalMutation({
     };
     const draft = {
       ...base,
-      ...(existingProfile?.draft.theme !== undefined ? { theme: existingProfile.draft.theme } : {}),
-      ...(existingProfile === null
-        ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
-        : existingProfile.draft.customization !== undefined
-          ? { customization: existingProfile.draft.customization }
+      ...(existingProfile?.draft.theme !== undefined
+        ? { theme: existingProfile.draft.theme }
+        : existingProfile === null
+          ? { theme: "paper" as const }
           : {}),
+      ...(existingProfile?.draft.customization !== undefined
+        ? { customization: existingProfile.draft.customization }
+        : {}),
     };
     const published = {
       ...base,
       ...(existingProfile?.published?.theme !== undefined
         ? { theme: existingProfile.published.theme }
-        : {}),
+        : existingProfile === null || existingProfile.published === undefined
+          ? { theme: "paper" as const }
+          : {}),
       ...(existingProfile?.published?.customization !== undefined
         ? { customization: existingProfile.published.customization }
-        : existingProfile === null
-          ? { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }
-          : {}),
+        : {}),
       publishedAt,
     };
     const profileId =

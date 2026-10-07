@@ -21,7 +21,6 @@ import {
   validateProfileSlugValue,
 } from "./validators";
 import { components } from "./components";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../src/lib/profile-customization";
 import { allocateProfileSlug } from "./profileSlug";
 
 const emptyProfile = (slug: string) => ({
@@ -95,9 +94,7 @@ export const createCustomer = mutation({
         email,
         ...(args.name !== undefined ? { name: args.name.trim() } : {}),
         ...(args.bio !== undefined ? { bio: args.bio } : {}),
-        ...(args.theme !== undefined
-          ? { theme: args.theme }
-          : { customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION }),
+        theme: args.theme ?? "paper",
       },
       createdAt: now,
       updatedAt: now,
@@ -197,7 +194,7 @@ export const createSelfServiceAccount = mutation({
       ownerId: customerId,
       slug,
       status: "draft",
-      draft: { name, slug, email, links: [], customization: DEFAULT_WARM_STUDIO_CUSTOMIZATION },
+      draft: { name, slug, email, links: [], theme: "paper" },
       createdAt: now,
       updatedAt: now,
     });

@@ -94,7 +94,7 @@ function ProfileActionLink({ mobile = false }: { mobile?: boolean }) {
   return (
     <Link
       aria-label="Go to your profile"
-      className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-tapit-accent px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(16,84,63,0.14)] transition hover:-translate-y-px hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 ${mobile ? "text-xs sm:text-sm" : ""}`}
+      className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-tapit-accent px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(49,95,228,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 ${mobile ? "text-xs sm:text-sm" : ""}`}
       href="/app/profile"
     >
       {mobile ? (
@@ -155,7 +155,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
   }, [menuOpen]);
 
   return (
-    <header className="tapit-glass sticky top-0 z-40 w-full border-b border-tapit-line/80 shadow-[0_4px_24px_rgba(16,33,28,0.04)]">
+    <header className="tapit-glass sticky top-0 z-40 w-full border-b border-tapit-line/80 shadow-[0_4px_24px_rgba(27,36,51,0.045)]">
       <div className="mx-auto flex w-full max-w-[95rem] items-center gap-3 px-[clamp(1rem,5vw,5.25rem)] py-2.5 sm:gap-5 sm:py-3 xl:max-w-none xl:pr-[6vw]">
         <PublicBrand />
         <nav

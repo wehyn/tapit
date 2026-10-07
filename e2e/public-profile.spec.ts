@@ -25,7 +25,7 @@ async function publishWarmStudioProfile(page: Page) {
   ).toBeVisible();
 }
 
-async function prepareLegacyNightProfile(page: Page) {
+async function prepareLegacyProfile(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.getByLabel("Bio or role").fill("Legacy profile migration test.");
@@ -64,12 +64,14 @@ async function prepareLegacyNightProfile(page: Page) {
   });
   await page.reload();
   await signInAsCustomer(page);
+}
+
+async function prepareLegacyNightProfile(page: Page) {
+  await prepareLegacyProfile(page);
   await page.goto("/app/customize");
-  await page.getByRole("button", { name: "Night", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Night", exact: true })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  const night = page.getByRole("radio", { name: "Night" });
+  await night.check();
+  await expect(night).toBeChecked();
 }
 
 async function readPublicProfileSnapshot(page: Page) {
@@ -277,7 +279,6 @@ test("public profile keeps its primary actions usable at narrow phone widths", a
     );
     const linkedIn = page.getByRole("link", { name: "LinkedIn" });
     await expect(linkedIn).toBeVisible();
-    await expect(linkedIn.locator("svg").last()).toHaveClass(/text-white\/80/);
     await expect(page.getByRole("button", { name: "Save contact" })).toBeVisible();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
@@ -397,13 +398,52 @@ test("customized direct and active card paths preserve presentation parity", asy
   }
 });
 
-test("legacy customer typography and selected theme remain intact in preview and card paths", async ({
+test("legacy Paper theme uses Soft Precision by default on preview and slug routes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await prepareLegacyProfile(page);
+  await page.goto("/app/customize");
+
+  const previewFrame = page.getByTestId("profile-preview-frame");
+  const previewCanvas = previewFrame.locator("xpath=..");
+  const previewPanel = page
+    .getByTestId("profile-preview-device")
+    .locator(".tapit-profile-entry > div > section");
+  await expect(page.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
+  await expect(previewPanel).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await page.screenshot({
+    path: "test-results/soft-precision-site/profile-preview-default-paper.png",
+    fullPage: true,
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/mara-velasquez");
+  const slugProfile = page.locator("main.tapit-profile-entry");
+  await expect(slugProfile).toHaveCSS("background-color", "rgb(244, 246, 250)");
+  await expect(slugProfile.locator(":scope > div > section")).toHaveCSS(
+    "background-color",
+    "rgb(255, 255, 255)",
+  );
+  await page.screenshot({
+    path: "test-results/soft-precision-site/slug-profile-default-paper.png",
+    fullPage: true,
+  });
+});
+
+test("legacy customer typography and selected theme remain intact after publishing", async ({
   page,
 }) => {
   await prepareLegacyNightProfile(page);
-  const preview = page
-    .getByTestId("profile-preview-frame")
-    .getByRole("heading", { name: "Mara Velasquez" });
+  const previewFrame = page.getByTestId("profile-preview-frame");
+  const previewCanvas = previewFrame.locator("xpath=..");
+  const previewProfilePanel = page
+    .getByTestId("profile-preview-device")
+    .locator(".tapit-profile-entry > div > section");
+  const preview = previewFrame.getByRole("heading", { name: "Mara Velasquez" });
+  await expect(previewCanvas).toHaveCSS("background-color", "rgb(23, 33, 31)");
+  await expect(previewProfilePanel).toHaveCSS("background-color", "rgb(34, 48, 43)");
   await expect(preview).toHaveCSS("font-family", /ui-sans-serif/);
   const previewFontFamily = await preview.evaluate(
     (heading) => getComputedStyle(heading).fontFamily,
@@ -411,20 +451,25 @@ test("legacy customer typography and selected theme remain intact in preview and
   const previewFontSize = await preview.evaluate((heading) => getComputedStyle(heading).fontSize);
   await expect(preview).toHaveCSS("color", "rgb(242, 246, 241)");
 
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
   await page.goto("/mara-velasquez");
   const directHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(directHeading).toHaveCSS("font-family", /ui-sans-serif/);
   await expect(directHeading).toHaveCSS("font-size", previewFontSize);
-  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
-  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
+  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
   const directProfile = await readPublicProfileSnapshot(page);
 
   await page.goto("/c/mara-card-7f2q");
   const cardHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(cardHeading).toHaveCSS("font-family", /ui-sans-serif/);
   await expect(cardHeading).toHaveCSS("font-size", previewFontSize);
-  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
-  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
+  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
   const cardProfile = await readPublicProfileSnapshot(page);
 
   expect(directProfile).toEqual(cardProfile);
@@ -483,9 +528,17 @@ test("tagged profile activity appears by source and aggregates to one daily tren
 test("inactive cards never reveal their former profile and vCard includes approved profile fields", async ({
   page,
 }) => {
-  await page.goto("/c/mara-card-retired");
-  await expect(page.getByRole("heading", { name: "This card is inactive" })).toBeVisible();
-  await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/c/mara-card-retired");
+    await expect(page.getByRole("heading", { name: "This card is inactive" })).toBeVisible();
+    await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
+    await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Contact support" })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+  }
 
   await page.goto("/mara-velasquez");
   const downloadPromise = page.waitForEvent("download");
@@ -534,13 +587,20 @@ test("unavailable profiles do not reveal their previously published identity", a
     owner.deletionStatus = "requested";
     window.localStorage.setItem(stateKey, JSON.stringify(state));
   });
-  await page.reload();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.reload();
 
-  await expect(
-    page.getByRole("heading", { name: "This profile is currently unavailable" }),
-  ).toBeVisible();
-  await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
-  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: "This profile is currently unavailable" }),
+    ).toBeVisible();
+    await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
+    await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Contact support" })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
+  }
 });
 
 test("vCard export converts a published WebP photo to an embedded PNG", async ({ page }) => {

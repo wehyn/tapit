@@ -51,7 +51,7 @@ test("administrator sidebar preserves operations and governance navigation", asy
   const sidebar = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor))
-    .toBe("rgb(245, 248, 246)");
+    .toBe("rgb(255, 255, 255)");
 
   const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
   await expect(desktopNavigation).toBeVisible();
@@ -65,6 +65,9 @@ test("administrator sidebar preserves operations and governance navigation", asy
   for (const label of ["Customers", "Profiles", "Cards", "Analytics", "Audit log", "Settings"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(
+    desktopNavigation.getByRole("link", { name: "Customers", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/customers");
@@ -78,6 +81,10 @@ test("administrator sidebar preserves operations and governance navigation", asy
   await expect(drawerNavigation.getByRole("link", { name: "My profile" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
+  await expect(drawerNavigation).toBeHidden();
+  await expect(openNavigation).toBeFocused();
+  await openNavigation.click();
   await drawerNavigation.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/cards$/);
   await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
@@ -93,6 +100,28 @@ test("administrator sidebar preserves operations and governance navigation", asy
     "false",
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.setViewportSize({ width: 320, height: 720 });
+  await page.goto("/admin/customers");
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await expect(openNavigation).toBeVisible();
+  const openerBox = await openNavigation.boundingBox();
+  expect(openerBox).not.toBeNull();
+  expect(openerBox!.height).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await openNavigation.click();
+  await expect(drawerNavigation).toBeVisible();
+  const drawerBox = await drawerNavigation
+    .locator("xpath=ancestor::div[@role='dialog']")
+    .boundingBox();
+  expect(drawerBox).not.toBeNull();
+  expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.keyboard.press("Escape");
+  await expect(openNavigation).toBeFocused();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/admin/customers");
+  await expect(page.getByRole("navigation", { name: "Tapit operations navigation" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 });
 
 test("administrator records and governance pages remain usable at phone and desktop widths", async ({
@@ -224,6 +253,59 @@ test("administrator analytics, audit, and settings keep their scoped feedback cl
   await page.getByLabel("Support destination").fill("mailto:support@example.test");
   await page.getByRole("button", { name: "Save settings" }).click();
   await expect(page.getByText("Support destination saved.")).toBeVisible();
+});
+
+test("administrator operations keep text statuses and primary controls readable on narrow screens", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+
+    await page.goto("/admin/customers");
+    const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+    await expect(customer.getByText("active", { exact: true })).toBeVisible();
+    await expect(customer.getByText("published", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Search customers")).toBeVisible();
+
+    await page.goto("/admin/profiles");
+    if (width >= 1100) {
+      const profile = page
+        .getByRole("table", { name: "Profile registry" })
+        .getByRole("row", { name: /Mara Velasquez.*published/i });
+      await expect(profile).toBeVisible();
+    } else {
+      const profile = page.getByRole("button", { name: "Select Mara Velasquez profile" });
+      await expect(profile).toContainText("published");
+    }
+    await expect(page.getByLabel("Search profiles")).toBeVisible();
+
+    await page.goto("/admin/cards");
+    const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+    await expect(card.locator("summary")).toContainText("active");
+    await expect(page.getByLabel("Search cards")).toBeVisible();
+
+    await page.goto("/admin/analytics");
+    await expect(page.getByLabel("Time range")).toBeVisible();
+    await expect(page.getByText("Cross-customer totals are aggregate-only.")).toBeVisible();
+    await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
+
+    await page.goto("/admin/audit-log");
+    await expect(page.getByLabel("Search audit entries")).toBeVisible();
+    await expect(page.locator("details").first().getByText("View details")).toBeVisible();
+
+    await page.goto("/admin/settings");
+    await expect(page.getByLabel("Support destination")).toBeVisible();
+    const saveSettings = page.getByRole("button", { name: "Save settings" });
+    const saveBox = await saveSettings.boundingBox();
+    expect(saveBox).not.toBeNull();
+    expect(saveBox!.height).toBeGreaterThanOrEqual(44);
+
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
 });
 
 test("administrator profile registry uses scannable desktop rows", async ({ page }) => {
