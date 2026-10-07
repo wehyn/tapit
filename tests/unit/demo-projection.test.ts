@@ -33,6 +33,20 @@ describe("demo public projection", () => {
     ).toBe("moss");
   });
 
+  it("prefers an explicit published theme over a stale legacy theme map", () => {
+    const state = createDefaultDemoState();
+    const initialProfile = state.profiles[0];
+    if (initialProfile === undefined || initialProfile.published === null) {
+      throw new Error("Expected a published demo profile");
+    }
+    const profile = {
+      ...initialProfile,
+      published: { ...initialProfile.published, theme: "paper" as const },
+    };
+
+    expect(projectDemoPublicProfile(profile, profile.published, "moss")?.theme).toBe("paper");
+  });
+
   it("preserves the authoritative theme map during a stale profile update", () => {
     const state = createDefaultDemoState();
     const profile = state.profiles[0];

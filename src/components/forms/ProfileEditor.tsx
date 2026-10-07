@@ -23,7 +23,6 @@ import {
   getDemoProfiles,
   getDemoTheme,
   updateDemoProfile,
-  updateDemoTheme,
   useDemoSession,
   useDemoState,
   updateDemoState,
@@ -163,11 +162,12 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
-  const theme = getDemoTheme(state, profile.id);
+  const legacyTheme = getDemoTheme(state, profile.id);
   const [draft, setDraft] = useState<ProfileContent>(() => ({
     ...profile.draft,
     links: profile.draft.links.map((link) => ({ ...link })),
   }));
+  const theme = draft.theme ?? legacyTheme;
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
@@ -258,14 +258,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   }
 
   function chooseTheme(themeOption: ProfileTheme) {
-    try {
-      updateDemoState((current) => updateDemoTheme(current, profile.id, themeOption));
-    } catch (error) {
-      setMessage({
-        tone: "error",
-        text: error instanceof Error ? error.message : "Theme could not be saved.",
-      });
-    }
+    updateField("theme", themeOption);
   }
 
   async function saveDraft() {
@@ -331,8 +324,10 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           throw new Error(
             "The assigned profile slug cannot change except through an administrator.",
           );
+        const activeTheme =
+          draft.theme ?? currentProfile.draft.theme ?? getDemoTheme(current, profile.id);
         const publishedProfile = publishProfile({ ...currentProfile, draft }, occurredAt, {
-          activeTheme: currentProfile.theme,
+          activeTheme,
           existingSlugs: getDemoProfiles(current)
             .filter((candidate) => candidate.id !== profile.id)
             .flatMap((candidate) => [
@@ -349,10 +344,15 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                   ...publishedProfile.published,
                   ...(draft.media === undefined ? {} : { media: structuredClone(draft.media) }),
                 },
-          theme: currentProfile.theme,
+          theme: publishedProfile.published?.theme ?? activeTheme,
         };
+        const updatedProfileState = updateDemoProfile(current, profile.id, () => nextProfile);
         return {
-          ...updateDemoProfile(current, profile.id, () => nextProfile),
+          ...updatedProfileState,
+          themes: {
+            ...updatedProfileState.themes,
+            [profile.id]: nextProfile.theme,
+          },
           cards: current.cards.map((card) =>
             card.profileId === profile.id &&
             card.status === "claimable" &&

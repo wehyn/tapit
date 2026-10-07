@@ -19,6 +19,7 @@ import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { buildVCard } from "@/lib/vcard";
 import type { VCardPhoto } from "@/lib/vcard";
 import {
+  CUSTOM_PROFILE_ACCENT_SOFT_SURFACE_PERCENT,
   DEFAULT_CUSTOM_PROFILE_COLORS,
   getAutomaticContactActions,
   getFeaturedProfileLink,
@@ -67,16 +68,17 @@ const profileThemeStyles: Record<
 };
 
 function customProfileThemeStyles(colors: ProfileThemeColors): ProfileThemeCSSProperties {
+  const accentSoftSurface = `color-mix(in srgb, ${colors.surface} ${CUSTOM_PROFILE_ACCENT_SOFT_SURFACE_PERCENT}%, ${colors.accent})`;
   return {
     "--tapit-ink": colors.ink,
     "--tapit-muted": colors.ink,
     "--tapit-surface": colors.surface,
     "--tapit-paper": colors.canvas,
-    "--tapit-soft-surface": `color-mix(in srgb, ${colors.surface} 88%, ${colors.accent})`,
+    "--tapit-soft-surface": accentSoftSurface,
     "--tapit-line": `color-mix(in srgb, ${colors.ink} 16%, ${colors.surface})`,
     "--tapit-accent": colors.accent,
     "--tapit-accent-strong": colors.accent,
-    "--tapit-accent-soft": `color-mix(in srgb, ${colors.surface} 88%, ${colors.accent})`,
+    "--tapit-accent-soft": accentSoftSurface,
     "--tapit-focus": colors.accent,
   };
 }

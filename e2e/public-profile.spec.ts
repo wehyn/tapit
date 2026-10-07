@@ -432,7 +432,7 @@ test("legacy Paper theme uses Soft Precision by default on preview and slug rout
   });
 });
 
-test("legacy customer typography and selected theme remain intact in preview and card paths", async ({
+test("legacy customer typography and selected theme remain intact after publishing", async ({
   page,
 }) => {
   await prepareLegacyNightProfile(page);
@@ -451,20 +451,25 @@ test("legacy customer typography and selected theme remain intact in preview and
   const previewFontSize = await preview.evaluate((heading) => getComputedStyle(heading).fontSize);
   await expect(preview).toHaveCSS("color", "rgb(242, 246, 241)");
 
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
   await page.goto("/mara-velasquez");
   const directHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(directHeading).toHaveCSS("font-family", /ui-sans-serif/);
   await expect(directHeading).toHaveCSS("font-size", previewFontSize);
-  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
-  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
+  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
   const directProfile = await readPublicProfileSnapshot(page);
 
   await page.goto("/c/mara-card-7f2q");
   const cardHeading = page.getByRole("heading", { name: "Mara Velasquez" });
   await expect(cardHeading).toHaveCSS("font-family", /ui-sans-serif/);
   await expect(cardHeading).toHaveCSS("font-size", previewFontSize);
-  await expect(page.getByText("Brand systems for independent teams.")).toBeVisible();
-  await expect(page.getByText("Legacy profile migration test.")).toHaveCount(0);
+  await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
+  await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
   const cardProfile = await readPublicProfileSnapshot(page);
 
   expect(directProfile).toEqual(cardProfile);

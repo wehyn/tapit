@@ -60,22 +60,6 @@ vi.mock("@/lib/demo/store", () => ({
       profiles: state.profiles.map(updateProfile),
     };
   },
-  updateDemoTheme: (
-    state: {
-      profile: Record<string, unknown>;
-      profiles: Record<string, unknown>[];
-    },
-    profileId: string,
-    theme: string,
-  ) => {
-    const updateTheme = (profile: Record<string, unknown>) =>
-      profile.id === profileId ? { ...profile, theme } : profile;
-    return {
-      ...state,
-      profile: updateTheme(state.profile),
-      profiles: state.profiles.map(updateTheme),
-    };
-  },
   useDemoSession: () => null,
   useDemoState: () => ({
     profile: mocks.liveProfile,
@@ -353,14 +337,19 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(screen.queryByRole("heading", { name: "Profile identity" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("radio", { name: "Moss" }));
+      const save = screen.getByRole("button", { name: "Save draft" });
+      expect(save).toBeEnabled();
+      await user.click(save);
+
       if (branch === "demo") {
         expect(mocks.updateDemoState).toHaveBeenCalled();
         expect(applyLastDemoUpdate()).toMatchObject({
-          profile: { theme: "moss" },
+          profile: {
+            theme: "paper",
+            draft: expect.objectContaining({ theme: "moss" }),
+          },
         });
       } else {
-        expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
-        await user.click(screen.getByRole("button", { name: "Save draft" }));
         expect(mocks.saveDraft).toHaveBeenCalledWith(
           expect.objectContaining({ draft: expect.objectContaining({ theme: "moss" }) }),
         );

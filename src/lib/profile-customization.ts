@@ -27,6 +27,7 @@ export interface ProfileThemeColors {
   ink: string;
   accent: string;
 }
+export const CUSTOM_PROFILE_ACCENT_SOFT_SURFACE_PERCENT = 88;
 
 export type ProfileSection =
   { kind: "about"; body: string } | { kind: "services"; body: string; items?: string[] };
@@ -64,7 +65,7 @@ export const DEFAULT_CUSTOM_PROFILE_COLORS: ProfileThemeColors = {
   canvas: "#f4f6fa",
   surface: "#ffffff",
   ink: "#1b2433",
-  accent: "#3f6de8",
+  accent: "#315fe4",
 };
 
 export const DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION: ProfileCustomization = {
@@ -237,14 +238,33 @@ function profileThemeColorsShapeErrors(value: unknown): string[] {
   return [];
 }
 
+function customProfileAccentSoftSurface(surface: string, accent: string): string {
+  const surfaceWeight = CUSTOM_PROFILE_ACCENT_SOFT_SURFACE_PERCENT / 100;
+  const accentWeight = 1 - surfaceWeight;
+  const channels = [1, 3, 5].map((index) =>
+    Math.round(
+      parseInt(surface.slice(index, index + 2), 16) * surfaceWeight +
+        parseInt(accent.slice(index, index + 2), 16) * accentWeight,
+    ),
+  );
+  return `#${channels.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function profileThemeColorsErrors(value: unknown, includeContrast = true): string[] {
   const shapeErrors = profileThemeColorsShapeErrors(value);
   if (shapeErrors.length > 0 || !includeContrast || !isRecord(value)) return shapeErrors;
   const colors = value as unknown as ProfileThemeColors;
-  if (!meetsContrast(colors.ink, colors.canvas) || !meetsContrast(colors.ink, colors.surface)) {
+  const accentSoftSurface = customProfileAccentSoftSurface(colors.surface, colors.accent);
+  if (
+    ![colors.canvas, colors.surface, accentSoftSurface].every((surface) =>
+      meetsContrast(colors.ink, surface),
+    )
+  ) {
     return ["The custom profile text color does not meet contrast requirements."];
   }
-  if (!meetsContrast(colors.accent, colors.surface)) {
+  if (
+    ![colors.surface, accentSoftSurface].every((surface) => meetsContrast(colors.accent, surface))
+  ) {
     return ["The custom profile accent color does not meet contrast requirements."];
   }
   return [];

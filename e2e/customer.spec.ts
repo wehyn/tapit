@@ -896,6 +896,9 @@ test("customer can customize, save, and publish a custom profile palette", async
   const custom = page.getByRole("radio", { name: "Custom" });
   await expect(custom).toBeVisible();
   await custom.check();
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toHaveCount(0);
 
   const background = page.getByRole("textbox", { name: "Page background hex" });
   const surface = page.getByRole("textbox", { name: "Profile surface hex" });
@@ -904,13 +907,64 @@ test("customer can customize, save, and publish a custom profile palette", async
   await background.fill("#fef2e8");
   await surface.fill("#fffdf9");
   await ink.fill("#2c2420");
-  await accent.fill("#8d3b2f");
+  await accent.fill("#3f6de8");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toBeVisible();
+  await accent.fill("#1d4ed8");
+  await expect(
+    page.getByText("The custom profile accent color does not meet contrast requirements."),
+  ).toHaveCount(0);
 
   const previewCanvas = page.getByTestId("profile-preview-frame").locator("xpath=..");
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(254, 242, 232)");
   const previewLink = page.getByTestId("profile-preview-device").getByRole("link", {
     name: "LinkedIn",
   });
+  await expect(previewLink).toHaveCSS("border-color", "rgb(29, 78, 216)");
+  await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await previewLink.hover();
+  await expect
+    .poll(() => previewLink.evaluate((element) => getComputedStyle(element).backgroundColor))
+    .toMatch(/^(?:rgb\(|color\(srgb)/);
+  const hoverContrast = await previewLink.evaluate((element) => {
+    const parseColor = (color: string) => {
+      const channels = color
+        .match(/[\d.]+/g)
+        ?.slice(0, 3)
+        .map(Number);
+      if (channels?.length !== 3) throw new Error(`Unexpected computed color: ${color}`);
+      const normalizedChannels = color.startsWith("color(srgb")
+        ? channels
+        : channels.map((channel) => channel / 255);
+      return normalizedChannels;
+    };
+    const luminance = (color: string) => {
+      const linear = parseColor(color).map((normalized) =>
+        normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4,
+      );
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!;
+    };
+    const foregroundColor = getComputedStyle(element).color;
+    const backgroundColor = getComputedStyle(element).backgroundColor;
+    const foreground = luminance(foregroundColor);
+    const background = luminance(backgroundColor);
+    return {
+      ratio: (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05),
+      foregroundColor,
+      backgroundColor,
+      accentSoft: getComputedStyle(element.closest(".tapit-profile-entry")!).getPropertyValue(
+        "--tapit-accent-soft",
+      ),
+    };
+  });
+  expect(
+    hoverContrast.ratio,
+    `${hoverContrast.foregroundColor} on ${hoverContrast.backgroundColor} (soft ${hoverContrast.accentSoft})`,
+  ).toBeGreaterThanOrEqual(4.5);
+  await accent.fill("#8d3b2f");
+  await page.mouse.move(0, 0);
   await expect(previewLink).toHaveCSS("border-color", "rgb(141, 59, 47)");
   await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await page.screenshot({
@@ -1016,6 +1070,48 @@ test("customer customization drafts stay private until the profile is published"
     "data-featured",
     "true",
   );
+});
+
+test("preset theme changes stay private until the saved draft is published", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+
+  await page.getByRole("radio", { name: "Moss", exact: true }).check();
+  await page.goto("/mara-velasquez");
+  await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+    "background-color",
+    "rgb(244, 246, 250)",
+  );
+
+  await page.goto("/app/customize");
+  await page.getByRole("radio", { name: "Moss", exact: true }).check();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(
+    page.getByText("Draft saved. Visitors still see the last published version."),
+  ).toBeVisible();
+
+  for (const route of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(route);
+    await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+      "background-color",
+      "rgb(244, 246, 250)",
+    );
+  }
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  for (const route of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
+    await page.goto(route);
+    await expect(page.locator(".tapit-profile-entry")).toHaveCSS(
+      "background-color",
+      "rgb(232, 241, 235)",
+    );
+  }
 });
 
 test("legacy profiles can choose Warm Studio before the new presentation is published", async ({
