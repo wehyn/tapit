@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { projectPublicProfile } from "../../src/lib/domain";
 import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
 
 type DemoStore = typeof import("../../src/lib/demo/store");
 
@@ -27,10 +26,11 @@ describe("demo self-service signup", () => {
     store.resetDemoState();
   });
 
-  it("keeps the primary demo profile Warm Studio while the claimable fixture stays legacy", () => {
+  it("defaults the primary and claimable demo profiles to Paper", () => {
     const state = createDefaultDemoState();
-    expect(state.profile.draft.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
-    expect(state.profile.published?.customization).toEqual(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
+    expect(state.profile.theme).toBe("paper");
+    expect(state.profile.draft.customization).toBeUndefined();
+    expect(state.profile.published?.customization).toBeUndefined();
     expect(state.profiles[1]?.draft.customization).toBeUndefined();
     expect(state.profiles[1]?.theme).toBe("paper");
   });
@@ -109,16 +109,10 @@ describe("demo self-service signup", () => {
         slug: "new-person",
         email: "new.person@example.com",
         links: [],
-        customization: {
-          preset: "warm-studio",
-          accent: "jade",
-          typeScale: "comfortable",
-          linkTreatment: "filled",
-          contentOrder: "links-first",
-        },
       },
       published: null,
     });
+    expect(profile?.draft.customization).toBeUndefined();
     expect(profile && projectPublicProfile(profile)).toBeNull();
     expect(state.profile.id).toBe("profile-mara");
     expect(
@@ -143,7 +137,7 @@ describe("demo self-service signup", () => {
     ).toBe(created.profileId);
   });
 
-  it("gives each new local profile an independent customization", () => {
+  it("gives each new local profile the Paper default without customization", () => {
     const first = store.createDemoSelfServiceAccount({
       ...account,
       email: "first@example.com",
@@ -157,11 +151,10 @@ describe("demo self-service signup", () => {
     const state = store.getDemoState();
     const firstProfile = state.profiles.find((profile) => profile.id === first.profileId);
     const secondProfile = state.profiles.find((profile) => profile.id === second.profileId);
-    expect(firstProfile?.draft.customization).not.toBe(secondProfile?.draft.customization);
-
-    firstProfile!.draft.customization!.section = { kind: "about", body: "Private first profile" };
-    expect(secondProfile?.draft.customization?.section).toBeUndefined();
-    expect(DEFAULT_WARM_STUDIO_CUSTOMIZATION.section).toBeUndefined();
+    expect(firstProfile?.theme).toBe("paper");
+    expect(secondProfile?.theme).toBe("paper");
+    expect(firstProfile?.draft.customization).toBeUndefined();
+    expect(secondProfile?.draft.customization).toBeUndefined();
   });
 
   it("rejects duplicate email and slug without mutating state", () => {

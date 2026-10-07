@@ -92,7 +92,7 @@ function ProductCardVisual() {
       />
       <div
         aria-label="Tapit profile on an iPhone"
-        className="relative z-10 aspect-[9/19.5] w-[10rem] drop-shadow-[0_30px_40px_rgba(16,33,28,0.22)] sm:w-[14.35rem] lg:w-[16.15rem]"
+        className="relative z-10 aspect-[9/19.5] w-[10rem] drop-shadow-[0_30px_40px_rgba(27,36,51,0.22)] sm:w-[14.35rem] lg:w-[16.15rem]"
         role="group"
       >
         <span
@@ -112,7 +112,7 @@ function ProductCardVisual() {
           className="absolute -right-[2px] top-[25%] z-0 h-[3.8rem] w-[3px] rounded-r-full bg-[linear-gradient(90deg,#17211d,#65736b)] shadow-[1px_0_2px_rgba(0,0,0,0.2)] sm:h-[4.8rem]"
         />
         <div
-          className="absolute inset-0 rounded-[2.45rem] border border-[#7b8881] bg-[linear-gradient(105deg,#738078_0%,#202a25_5%,#111915_13%,#18211d_88%,#738078_100%)] p-[0.34rem] shadow-[0_28px_56px_rgba(16,33,28,0.28)] sm:rounded-[3.45rem] sm:p-[0.48rem]"
+          className="absolute inset-0 rounded-[2.45rem] border border-[#7b8881] bg-[linear-gradient(105deg,#738078_0%,#202a25_5%,#111915_13%,#18211d_88%,#738078_100%)] p-[0.34rem] shadow-[0_28px_56px_rgba(27,36,51,0.28)] sm:rounded-[3.45rem] sm:p-[0.48rem]"
           data-testid="tapit-iphone-hardware"
         >
           <div
@@ -156,7 +156,7 @@ function ProductCardVisual() {
             <div className="absolute inset-x-0 bottom-0 top-[24%] flex flex-col items-center px-2 pb-2 sm:top-[25%] sm:px-3 sm:pb-3">
               <Image
                 alt=""
-                className="-mt-[1.55rem] size-[2.75rem] shrink-0 rounded-full border-[3px] border-white object-cover shadow-[0_3px_12px_rgba(16,33,28,0.18)] sm:-mt-[2rem] sm:size-[3.8rem] sm:border-4"
+                className="-mt-[1.55rem] size-[2.75rem] shrink-0 rounded-full border-[3px] border-white object-cover shadow-[0_3px_12px_rgba(27,36,51,0.18)] sm:-mt-[2rem] sm:size-[3.8rem] sm:border-4"
                 height={96}
                 loading="eager"
                 src="/images/tapit-demo-mara-avatar.png"
@@ -169,21 +169,21 @@ function ProductCardVisual() {
                 Brand systems for independent teams.
               </p>
               <div className="mt-auto grid w-full gap-1.5 sm:mt-4 sm:gap-2">
-                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(16,33,28,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
+                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(27,36,51,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
                   <span className="flex items-center gap-1.5">
                     <ShareNetworkIcon aria-hidden="true" className="text-tapit-accent" size={13} />
                     LinkedIn
                   </span>
                   <ArrowUpRightIcon aria-hidden="true" className="text-tapit-muted" size={13} />
                 </div>
-                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(16,33,28,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
+                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(27,36,51,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
                   <span className="flex items-center gap-1.5">
                     <GlobeIcon aria-hidden="true" className="text-tapit-accent" size={13} />
                     Portfolio
                   </span>
                   <ArrowUpRightIcon aria-hidden="true" className="text-tapit-muted" size={13} />
                 </div>
-                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(16,33,28,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
+                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(27,36,51,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
                   <span className="flex items-center gap-1.5">
                     <EnvelopeSimpleIcon
                       aria-hidden="true"
@@ -194,7 +194,7 @@ function ProductCardVisual() {
                   </span>
                   <ArrowUpRightIcon aria-hidden="true" className="text-tapit-muted" size={13} />
                 </div>
-                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(16,33,28,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
+                <div className="flex h-[1.65rem] items-center justify-between rounded-[0.72rem] border border-tapit-line/90 bg-white px-2.5 text-[0.53rem] font-semibold text-tapit-ink shadow-[0_2px_7px_rgba(27,36,51,0.04)] sm:h-10 sm:rounded-[0.95rem] sm:px-3.5 sm:text-[0.78rem]">
                   <span className="flex items-center gap-1.5">
                     <ContactlessPaymentIcon
                       aria-hidden="true"
@@ -205,7 +205,7 @@ function ProductCardVisual() {
                   </span>
                   <ArrowUpRightIcon aria-hidden="true" className="text-tapit-muted" size={13} />
                 </div>
-                <div className="flex h-[1.75rem] items-center justify-center gap-1.5 rounded-[0.72rem] bg-tapit-accent text-[0.53rem] font-semibold text-white shadow-[0_4px_10px_rgba(17,105,81,0.18)] sm:mt-0.5 sm:h-10 sm:rounded-[0.95rem] sm:text-[0.78rem]">
+                <div className="flex h-[1.75rem] items-center justify-center gap-1.5 rounded-[0.72rem] bg-tapit-accent text-[0.53rem] font-semibold text-white shadow-[0_4px_10px_rgba(49,95,228,0.18)] sm:mt-0.5 sm:h-10 sm:rounded-[0.95rem] sm:text-[0.78rem]">
                   <DownloadSimpleIcon aria-hidden="true" size={13} />
                   Save contact
                 </div>
@@ -217,10 +217,10 @@ function ProductCardVisual() {
           </div>
         </div>
       </div>
-      <div className="absolute left-0 top-10 z-20 hidden -translate-x-8 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[0.65rem] font-semibold tracking-[0.1em] text-tapit-muted uppercase shadow-[0_8px_24px_rgba(16,33,28,0.08)] backdrop-blur xl:block xl:left-0 xl:top-16">
+      <div className="absolute left-0 top-10 z-20 hidden -translate-x-8 rounded-full border border-white/80 bg-white/90 px-3 py-2 text-[0.65rem] font-semibold tracking-[0.1em] text-tapit-muted uppercase shadow-[0_8px_24px_rgba(27,36,51,0.08)] backdrop-blur xl:block xl:left-0 xl:top-16">
         Illustrative example
       </div>
-      <div className="absolute bottom-8 left-0 z-20 hidden -translate-x-28 items-center gap-3 rounded-2xl border border-white/75 bg-white/90 px-4 py-3 shadow-[0_12px_36px_rgba(16,33,28,0.11)] backdrop-blur xl:bottom-16 xl:left-2 xl:flex">
+      <div className="absolute bottom-8 left-0 z-20 hidden -translate-x-28 items-center gap-3 rounded-2xl border border-white/75 bg-white/90 px-4 py-3 shadow-[0_12px_36px_rgba(27,36,51,0.11)] backdrop-blur xl:bottom-16 xl:left-2 xl:flex">
         <span className="grid size-10 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent">
           <ContactlessPaymentIcon aria-hidden="true" size={21} weight="bold" />
         </span>
@@ -229,7 +229,7 @@ function ProductCardVisual() {
           <span className="block text-sm font-semibold text-tapit-ink">Many ways to connect</span>
         </span>
       </div>
-      <div className="absolute right-0 top-14 z-20 rounded-full border border-tapit-line/75 bg-white/90 px-3.5 py-2 text-xs font-semibold text-tapit-accent shadow-[0_8px_28px_rgba(16,33,28,0.08)] backdrop-blur sm:right-1 sm:top-24">
+      <div className="absolute right-0 top-14 z-20 rounded-full border border-tapit-line/75 bg-white/90 px-3.5 py-2 text-xs font-semibold text-tapit-accent shadow-[0_8px_28px_rgba(27,36,51,0.08)] backdrop-blur sm:right-1 sm:top-24">
         NFC + QR
       </div>
     </div>
@@ -243,7 +243,7 @@ function ProfilePreview() {
         aria-hidden="true"
         className="absolute inset-8 rounded-[3rem] bg-[linear-gradient(140deg,#dcefe5,#e9f4f0_45%,#d5e8df)] blur-2xl"
       />
-      <div className="relative mx-auto w-[min(100%,19rem)] rounded-[2.5rem] border border-white/80 bg-[#10211c] p-2.5 shadow-[0_28px_80px_rgba(16,33,28,0.19)]">
+      <div className="relative mx-auto w-[min(100%,19rem)] rounded-[2.5rem] border border-white/80 bg-[#10211c] p-2.5 shadow-[0_28px_80px_rgba(27,36,51,0.19)]">
         <div className="overflow-hidden rounded-[2rem] bg-white px-4 pb-5 pt-4 sm:px-5 sm:pb-6">
           <div aria-hidden="true" className="mx-auto mb-5 h-1.5 w-14 rounded-full bg-[#dce7e1]" />
           <p className="mb-4 text-center text-[0.62rem] font-semibold tracking-[0.16em] text-tapit-muted uppercase">
@@ -290,7 +290,7 @@ function ProfilePreview() {
           </p>
         </div>
       </div>
-      <div className="absolute bottom-6 right-0 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-2.5 text-xs font-semibold text-tapit-ink shadow-[0_12px_36px_rgba(16,33,28,0.1)] backdrop-blur sm:bottom-10 sm:right-1">
+      <div className="absolute bottom-6 right-0 flex items-center gap-2 rounded-full border border-white/80 bg-white/90 px-3.5 py-2.5 text-xs font-semibold text-tapit-ink shadow-[0_12px_36px_rgba(27,36,51,0.1)] backdrop-blur sm:bottom-10 sm:right-1">
         <span className="size-2 rounded-full bg-[#2c9a67]" />
         Ready to share
       </div>
@@ -303,11 +303,11 @@ export default function HomePage() {
     <main className="overflow-x-clip bg-tapit-paper text-tapit-ink">
       <PublicHeader />
 
-      <section className="relative isolate overflow-hidden bg-[linear-gradient(145deg,#fbfdfb_0%,#f2f8f4_52%,#e8f4ed_100%)]">
+      <section className="relative isolate overflow-hidden bg-[linear-gradient(145deg,#fbfcff_0%,#f3f6fc_52%,#e8edf9_100%)]">
         <Image
           alt=""
           aria-hidden="true"
-          className="pointer-events-none object-cover object-center opacity-[0.12] mix-blend-multiply"
+          className="pointer-events-none object-cover object-center opacity-[0.08] mix-blend-multiply"
           fill
           priority
           sizes="100vw"
@@ -315,25 +315,25 @@ export default function HomePage() {
         />
         <div
           aria-hidden="true"
-          className="tapit-ambient absolute -right-24 top-[-10rem] size-[32rem] rounded-full bg-[radial-gradient(circle,#b5e4cd_0%,transparent_68%)] blur-3xl"
+          className="tapit-ambient absolute -right-24 top-[-10rem] size-[32rem] rounded-full bg-[radial-gradient(circle,#cbd8fa_0%,transparent_68%)] blur-3xl"
         />
-        <div className="relative mx-auto grid min-h-[calc(100svh-4.25rem)] w-full max-w-[95rem] items-center gap-1 px-4 pb-12 pt-8 sm:px-8 sm:pb-16 sm:pt-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] lg:gap-8 lg:px-[clamp(2rem,5vw,5.25rem)] lg:py-8">
-          <div className="relative z-10 mx-auto w-full max-w-2xl py-4 lg:mx-0 lg:py-8">
-            <div className="tapit-page-entry inline-flex min-h-9 items-center gap-2 rounded-full border border-tapit-line/80 bg-white/75 px-3.5 text-xs font-semibold text-tapit-accent shadow-[0_4px_16px_rgba(16,33,28,0.04)] backdrop-blur sm:text-sm">
+        <div className="relative mx-auto flex w-full max-w-[95rem] flex-col items-center gap-1 px-4 pb-8 pt-8 text-center sm:px-8 sm:pb-10 sm:pt-10 lg:px-[clamp(2rem,5vw,5.25rem)] lg:py-10">
+          <div className="relative z-10 mx-auto w-full max-w-4xl py-4">
+            <div className="tapit-page-entry tapit-glass inline-flex min-h-9 items-center gap-2 rounded-full border border-tapit-line px-3.5 text-xs font-semibold text-tapit-accent-strong shadow-[0_4px_16px_rgba(27,36,51,0.04)] sm:text-sm">
               <span className="size-1.5 rounded-full bg-tapit-accent" />
               NFC business cards, made personal
             </div>
-            <h1 className="tapit-page-entry mt-6 max-w-[13ch] text-balance text-[clamp(2.75rem,12vw,5.5rem)] leading-[0.98] font-semibold tracking-[-0.075em] text-tapit-ink sm:mt-7 sm:text-[clamp(3.5rem,8vw,6.5rem)] lg:text-[clamp(4.2rem,6.2vw,6.25rem)]">
+            <h1 className="tapit-page-entry mx-auto mt-6 max-w-[13ch] text-balance text-[clamp(2.75rem,12vw,5.5rem)] leading-[0.98] font-semibold tracking-[-0.075em] text-tapit-ink sm:mt-7 sm:text-[clamp(3.5rem,8vw,6.5rem)] lg:text-[clamp(4.2rem,6.2vw,6.25rem)]">
               A better introduction, in one tap.
             </h1>
-            <p className="tapit-page-entry mt-5 max-w-xl text-base leading-7 text-tapit-muted sm:mt-6 sm:text-lg sm:leading-8">
+            <p className="tapit-page-entry mx-auto mt-5 max-w-xl text-base leading-7 text-tapit-muted sm:mt-6 sm:text-lg sm:leading-8">
               Your NFC business card opens one polished profile for your socials, work, and contact
               details. Update what you share whenever life or work changes.
             </p>
-            <div className="tapit-page-entry mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center">
+            <div className="tapit-page-entry mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center sm:justify-center">
               <Link
                 aria-label="Go to your profile"
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(16,84,63,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 sm:px-6"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,95,228,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 sm:px-6"
                 href="/app/profile"
               >
                 Go to your profile
@@ -355,7 +355,7 @@ export default function HomePage() {
               Keep your profile current—your NFC card continues to open the latest version.
             </p>
           </div>
-          <div className="tapit-page-entry relative z-10 w-full self-center lg:py-3">
+          <div className="tapit-page-entry relative z-10 w-full max-w-2xl self-center pt-4">
             <ProductCardVisual />
           </div>
         </div>
@@ -407,7 +407,7 @@ export default function HomePage() {
           </ScrollReveal>
           <div className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 xl:grid-cols-4">
             <ScrollReveal className="h-full" delayMs={0}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(16,33,28,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(16,33,28,0.09)] sm:p-7">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
                   <ShareNetworkIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
@@ -420,7 +420,7 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={75}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(16,33,28,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(16,33,28,0.09)] sm:p-7">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
                   <GlobeIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
@@ -433,7 +433,7 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={150}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(16,33,28,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(16,33,28,0.09)] sm:p-7">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
                   <EnvelopeSimpleIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
@@ -446,7 +446,7 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={225}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(16,33,28,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(16,33,28,0.09)] sm:p-7">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
                   <UserPlusIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
@@ -520,7 +520,7 @@ export default function HomePage() {
               <div className="relative mx-auto h-[15rem] w-[10rem] sm:-mr-12 sm:h-[23rem] sm:w-[15rem]">
                 <Image
                   alt="Illustrative Tapit card design"
-                  className="object-contain drop-shadow-[0_22px_26px_rgba(16,33,28,0.2)]"
+                  className="object-contain drop-shadow-[0_22px_26px_rgba(27,36,51,0.2)]"
                   fill
                   sizes="(min-width: 640px) 240px, 160px"
                   src="/images/tapit-profile-card-cutout-v3.png"
@@ -614,7 +614,7 @@ export default function HomePage() {
               },
             ].map(({ number, icon: StepIcon, title, description }, index) => (
               <ScrollReveal className="h-full" delayMs={index * 90} key={number}>
-                <article className="h-full rounded-[1.6rem] border border-white bg-white/85 p-6 shadow-[0_12px_32px_rgba(16,33,28,0.04)] sm:p-7">
+                <article className="h-full rounded-[1.6rem] border border-white bg-white/85 p-6 shadow-[0_12px_32px_rgba(27,36,51,0.04)] sm:p-7">
                   <div className="flex items-center justify-between">
                     <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent">
                       <StepIcon aria-hidden="true" size={23} weight="duotone" />

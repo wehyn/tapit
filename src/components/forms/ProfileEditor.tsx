@@ -214,6 +214,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     return [
       ...validatePublication(draft, profile.published, {
         immutableSlug: profile.draft.slug,
+        activeTheme: theme,
         existingSlugs: getDemoProfiles(state)
           .filter((candidate) => candidate.id !== profile.id)
           .flatMap((candidate) => [
@@ -256,7 +257,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     setMessage(null);
   }
 
-  function chooseTheme(themeOption: "paper" | "moss" | "night") {
+  function chooseTheme(themeOption: ProfileTheme) {
     try {
       updateDemoState((current) => updateDemoTheme(current, profile.id, themeOption));
     } catch (error) {
@@ -331,6 +332,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             "The assigned profile slug cannot change except through an administrator.",
           );
         const publishedProfile = publishProfile({ ...currentProfile, draft }, occurredAt, {
+          activeTheme: currentProfile.theme,
           existingSlugs: getDemoProfiles(current)
             .filter((candidate) => candidate.id !== profile.id)
             .flatMap((candidate) => [
@@ -563,7 +565,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
             {draft.customization === undefined ? (
-              <Panel className="shadow-none" title="Legacy appearance">
+              <Panel className="shadow-none" title="Profile presets">
                 <ProfileCustomizationEditor
                   customization={draft.customization}
                   errors={customizationErrors}
@@ -1161,7 +1163,7 @@ function LiveProfileEditorContent({
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
             {currentDraft.customization === undefined ? (
-              <Panel className="shadow-none" title="Legacy appearance">
+              <Panel className="shadow-none" title="Profile presets">
                 <ProfileCustomizationEditor
                   customization={currentDraft.customization}
                   errors={customizationErrors}

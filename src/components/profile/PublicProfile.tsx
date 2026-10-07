@@ -19,10 +19,12 @@ import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { buildVCard } from "@/lib/vcard";
 import type { VCardPhoto } from "@/lib/vcard";
 import {
+  DEFAULT_CUSTOM_PROFILE_COLORS,
   getAutomaticContactActions,
   getFeaturedProfileLink,
   normalizeProfileCustomization,
   resolveProfileAppearance,
+  type ProfileThemeColors,
 } from "@/lib/profile-customization";
 import { ProfileContactStrip } from "./ProfileContactStrip";
 import { ProfileMediaSurface } from "./ProfileMediaSurface";
@@ -32,18 +34,52 @@ import { ProfileSectionDisclosure } from "./ProfileSectionDisclosure";
 const MAX_VCARD_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_VCARD_PHOTO_PIXELS = 16_000_000;
 
-const publishedProfilePalette = {
-  "--tapit-ink": "#28352c",
-  "--tapit-muted": "#5e6b63",
-  "--tapit-surface": "#fffdf8",
-  "--tapit-paper": "#f0ede5",
-  "--tapit-soft-surface": "#f7f3e9",
-  "--tapit-line": "#e6e0d3",
-  "--tapit-accent": "#315e48",
-  "--tapit-accent-strong": "#244635",
-  "--tapit-accent-soft": "#e5eadf",
-  "--tapit-focus": "#315e48",
-} as CSSProperties;
+type ProfileThemeCSSProperties = CSSProperties & Record<`--tapit-${string}`, string>;
+
+const profileThemeStyles: Record<
+  Exclude<ProfileTheme, "paper" | "custom">,
+  ProfileThemeCSSProperties
+> = {
+  moss: {
+    "--tapit-ink": "#17352b",
+    "--tapit-muted": "#4f6d5c",
+    "--tapit-surface": "#f7fbf8",
+    "--tapit-paper": "#e8f1eb",
+    "--tapit-soft-surface": "#dcece2",
+    "--tapit-line": "#b9d1c0",
+    "--tapit-accent": "#176b57",
+    "--tapit-accent-strong": "#105543",
+    "--tapit-accent-soft": "#dcece2",
+    "--tapit-focus": "#176b57",
+  },
+  night: {
+    "--tapit-ink": "#f2f6f1",
+    "--tapit-muted": "#b7c9c0",
+    "--tapit-surface": "#22302b",
+    "--tapit-paper": "#17211f",
+    "--tapit-soft-surface": "#2d4239",
+    "--tapit-line": "#40534d",
+    "--tapit-accent": "#7bc2a9",
+    "--tapit-accent-strong": "#a0dbc5",
+    "--tapit-accent-soft": "#2d4239",
+    "--tapit-focus": "#a0dbc5",
+  },
+};
+
+function customProfileThemeStyles(colors: ProfileThemeColors): ProfileThemeCSSProperties {
+  return {
+    "--tapit-ink": colors.ink,
+    "--tapit-muted": colors.ink,
+    "--tapit-surface": colors.surface,
+    "--tapit-paper": colors.canvas,
+    "--tapit-soft-surface": `color-mix(in srgb, ${colors.surface} 88%, ${colors.accent})`,
+    "--tapit-line": `color-mix(in srgb, ${colors.ink} 16%, ${colors.surface})`,
+    "--tapit-accent": colors.accent,
+    "--tapit-accent-strong": colors.accent,
+    "--tapit-accent-soft": `color-mix(in srgb, ${colors.surface} 88%, ${colors.accent})`,
+    "--tapit-focus": colors.accent,
+  };
+}
 
 async function convertWebPToPng(image: Blob): Promise<Blob> {
   const objectUrl = URL.createObjectURL(image);
@@ -161,16 +197,18 @@ export function PublicProfile({
       onView?.(profileId);
     }
   }, [onView, profileId, trackView]);
-  const customization = normalizeProfileCustomization(profile.customization);
-  const appearance = resolveProfileAppearance(customization);
+  const selectedTheme = themeOverride ?? profile.theme;
+  const customization = normalizeProfileCustomization(profile.customization, selectedTheme);
+  const appearance = resolveProfileAppearance(customization, selectedTheme);
   const warmStudio = appearance.mode === "warm-studio";
+  const customTheme = appearance.mode === "custom";
   const media = profile.media;
   const background = media?.background;
   const phonePreview = preview || mobileLayout;
   const compactPhonePreview = phonePreview && fitPhonePreviewContent;
   const wideProfile = !phonePreview;
   const centerIdentity = phonePreview;
-  const theme = themeOverride ?? profile.theme;
+  const theme = selectedTheme === "custom" && !customTheme ? "paper" : selectedTheme;
   void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
   const canSaveContact = Boolean(
@@ -186,26 +224,33 @@ export function PublicProfile({
     paper: {
       page: "bg-tapit-paper text-tapit-ink",
       panel: "border-tapit-line bg-tapit-surface",
-      link: "border-tapit-line bg-tapit-surface hover:border-tapit-accent hover:bg-tapit-accent-soft",
+      link: "border-tapit-line bg-transparent hover:border-tapit-accent hover:bg-tapit-accent-soft",
       muted: "text-tapit-muted",
     },
     moss: {
       page: "bg-[#e8f1eb] text-[#17352b]",
       panel: "border-[#b9d1c0] bg-[#f7fbf8]",
-      link: "border-[#b9d1c0] bg-[#f7fbf8] hover:border-[#176b57] hover:bg-[#dcece2]",
+      link: "border-[#b9d1c0] bg-transparent hover:border-[#176b57] hover:bg-[#dcece2]",
       muted: "text-[#4f6d5c]",
     },
     night: {
       page: "bg-[#17211f] text-[#f2f6f1]",
       panel: "border-[#40534d] bg-[#22302b]",
-      link: "border-[#40534d] bg-[#22302b] hover:border-[#7bc2a9] hover:bg-[#2d4239]",
+      link: "border-[#40534d] bg-transparent hover:border-[#7bc2a9] hover:bg-[#2d4239]",
       muted: "text-[#b7c9c0]",
+    },
+    custom: {
+      page: "bg-tapit-paper text-tapit-ink",
+      panel: "border-tapit-line bg-tapit-surface",
+      link: "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft",
+      muted: "text-tapit-muted",
     },
   }[theme];
   const previewPageClasses = {
     paper: "bg-transparent text-tapit-ink",
     moss: "bg-transparent text-[#17352b]",
     night: "bg-transparent text-[#f2f6f1]",
+    custom: "bg-transparent text-tapit-ink",
   }[theme];
   const warmAccent = {
     coral: {
@@ -239,11 +284,7 @@ export function PublicProfile({
         : "sm:border-[#e5d6c5] sm:bg-[#fffdf9]"
     : themeClasses.panel;
   const mutedClasses = warmStudio ? "text-[#74665d]" : themeClasses.muted;
-  const linkClasses = warmStudio
-    ? appearance.linkTreatment === "outlined"
-      ? warmAccent.outlined
-      : warmAccent.solid
-    : themeClasses.link;
+  const linkClasses = warmStudio ? warmAccent.outlined : themeClasses.link;
   const typeScaleClasses =
     warmStudio && appearance.typeScale === "compact"
       ? phonePreview
@@ -324,14 +365,12 @@ export function PublicProfile({
         ? linkIcons[link.icon as keyof typeof linkIcons]
         : LinkSimple;
     const arrowClasses = warmStudio
-      ? appearance.linkTreatment === "outlined"
-        ? `${warmAccent.arrow} text-current/80`
-        : "group-hover:text-white text-white/80"
-      : `group-hover:text-tapit-accent ${featured ? "text-white/80" : mutedClasses}`;
+      ? `${warmAccent.arrow} text-current/80`
+      : `group-hover:text-tapit-accent ${mutedClasses}`;
     return (
       <li key={link.id}>
         <a
-          className={`group flex items-center justify-between rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-sm active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"} ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : "text-white bg-tapit-accent hover:bg-tapit-accent-strong border-transparent"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${featured ? "" : linkClasses}`}
+          className={`group flex items-center justify-between rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-sm active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${linkClasses}`}
           data-featured={featured ? "true" : undefined}
           href={link.destination}
           onClick={() => {
@@ -429,15 +468,13 @@ export function PublicProfile({
   );
   const profileContent = (
     <>
-      {warmStudio ? (
-        <ProfileContactStrip
-          display={customization?.contactDisplay ?? "labels"}
-          email={profile.email}
-          phone={profile.phone}
-          website={profile.website}
-          className={`${compactPhonePreview ? "mt-4 justify-center" : phonePreview ? "mt-7 justify-center" : preview ? "mt-5 justify-start" : "mt-7 justify-center sm:justify-start"} ${mutedClasses}`}
-        />
-      ) : null}
+      <ProfileContactStrip
+        display={customization?.contactDisplay ?? "labels"}
+        email={profile.email}
+        phone={profile.phone}
+        website={profile.website}
+        className={`${compactPhonePreview ? "mt-4 justify-center" : phonePreview ? "mt-7 justify-center" : preview ? "mt-5 justify-start" : "mt-7 justify-center sm:justify-start"} ${mutedClasses}`}
+      />
       {featuredLink ? (
         <ul
           className={`tapit-profile-stagger ${compactPhonePreview ? "mt-4" : phonePreview ? "mt-6" : preview ? "mt-4" : "mt-6"} grid gap-3`}
@@ -464,7 +501,7 @@ export function PublicProfile({
       ) : null}
       {canSaveContact ? (
         <button
-          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
+          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : customTheme ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
           onClick={saveContact}
           disabled={savingContact}
           type="button"
@@ -480,7 +517,7 @@ export function PublicProfile({
       ) : null}
       {preview ? (
         <p
-          className={`${compactPhonePreview ? "mt-3 text-[0.55rem]" : "mt-5 text-xs"} text-center font-semibold tracking-[0.16em] uppercase ${mutedClasses}`}
+          className={`mt-auto pt-5 ${compactPhonePreview ? "text-[0.55rem]" : "text-xs"} text-center font-semibold tracking-[0.16em] uppercase ${mutedClasses}`}
         >
           Powered by Tapit
         </p>
@@ -491,9 +528,11 @@ export function PublicProfile({
     ? "rounded-none border-0 shadow-none"
     : !warmStudio
       ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-      : preview
-        ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-        : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
+      : phonePreview
+        ? "overflow-hidden rounded-none border-0 shadow-none"
+        : preview
+          ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
+          : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
   const identityColumnSpacing = phonePreview
     ? compactPhonePreview
       ? "grid content-start gap-3 px-3 py-4"
@@ -504,7 +543,9 @@ export function PublicProfile({
   const contentColumnSpacing = phonePreview
     ? compactPhonePreview
       ? "px-3 pb-4"
-      : "px-4 pb-6"
+      : preview
+        ? "px-4 pb-2"
+        : "px-4 pb-6"
     : preview
       ? "px-4 pb-5 sm:px-6 sm:pb-7"
       : "px-5 pb-8 sm:px-10 lg:px-8 lg:py-8";
@@ -558,28 +599,36 @@ export function PublicProfile({
   );
   const pageFrameClasses = warmStudio
     ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
-    : "min-h-[100dvh] px-5 py-8 sm:py-12";
+    : "min-h-[100dvh] px-4 py-8 sm:px-6 sm:py-12";
   const profileContentMaxWidth = preview ? "max-w-none" : wideProfile ? "max-w-6xl" : "max-w-md";
   const Container = preview ? "div" : "main";
   return (
     <Container
-      style={publishedProfilePalette}
-      className={`tapit-profile-entry ${preview ? "min-h-0 p-0" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
+      style={
+        customTheme
+          ? customProfileThemeStyles(appearance.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS)
+          : theme === "paper" || theme === "custom"
+            ? undefined
+            : profileThemeStyles[theme]
+      }
+      className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
     >
       <div
-        className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "min-h-0" : "min-h-[calc(100dvh-4rem)]"}`}
+        className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "h-full" : "min-h-[calc(100dvh-4rem)]"}`}
       >
-        <section className={`${profileFrameClasses} ${profileGrid} ${panelClasses}`}>
+        <section
+          className={`${profileFrameClasses} ${profileGrid} ${panelClasses} ${warmStudio ? "" : "text-tapit-ink"} ${preview ? "flex min-h-full flex-1 flex-col" : ""}`}
+        >
           {identityColumn}
           <div
-            className={`min-w-0 ${compactPhonePreview ? "" : "border-t border-current/10"} ${contentColumnSpacing} ${wideProfile ? `lg:border-t-0 lg:border-l ${preview ? "min-[480px]:border-t-0 min-[480px]:border-l" : ""}` : ""}`}
+            className={`min-w-0 ${preview ? "flex flex-1 flex-col" : ""} ${compactPhonePreview ? "" : "border-t border-current/10"} ${contentColumnSpacing} ${wideProfile ? `lg:border-t-0 lg:border-l ${preview ? "min-[480px]:border-t-0 min-[480px]:border-l" : ""}` : ""}`}
           >
             {profileContent}
           </div>
         </section>
         {!preview ? (
           <footer
-            className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${mutedClasses}`}
+            className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${warmStudio ? mutedClasses : "text-tapit-muted"}`}
           >
             Tapit
           </footer>

@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
-const screenshotPath = (name: string) => `test-results/premium-conversion-ui/${name}`;
+const screenshotPath = (name: string) => `test-results/soft-precision-site/${name}`;
 
 async function captureScreenshot(
   page: Page,
@@ -11,6 +11,23 @@ async function captureScreenshot(
   fullPage = true,
 ) {
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  if (fullPage) {
+    const revealTargets = await page.locator("[data-scroll-reveal]").all();
+    for (const target of revealTargets) {
+      await target.scrollIntoViewIfNeeded();
+      await expect(target).toHaveAttribute("data-revealed", "true");
+    }
+    await expect
+      .poll(() =>
+        page
+          .locator("[data-scroll-reveal]")
+          .evaluateAll((elements) =>
+            elements.every((element) => Number(getComputedStyle(element).opacity) >= 0.99),
+          ),
+      )
+      .toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
   await page.screenshot({ fullPage, path: screenshotPath(name), caret });
 }
 

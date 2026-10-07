@@ -54,6 +54,11 @@ test("landing page keeps the approved section order and factual copy", async ({ 
     page.getByRole("heading", { name: "A better introduction, in one tap." }),
   ).toBeVisible();
   await expect(page.locator("main h1")).toHaveCount(1);
+  const hero = page.locator("main > section").first();
+  await expect(hero).toContainText("A better introduction, in one tap.");
+  await expect(hero.getByRole("group", { name: "Tapit profile on an iPhone" })).toBeVisible();
+  await expect(hero.locator("[data-scroll-reveal]")).toHaveCount(0);
+  await expect(hero.getByRole("heading", { level: 1 })).toHaveCSS("text-align", "center");
   const orderedSections = await page
     .locator("#product-proof, #product, #showcase, #benefits, #how-it-works, #faq")
     .evaluateAll((sections) => sections.map((section) => section.id));
@@ -117,11 +122,9 @@ test("homepage profile CTAs open the customer profile", async ({ page }) => {
 });
 
 test("premium landing stays within supported viewport widths", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 844 });
-  await page.goto("/");
-
   for (const width of [320, 390, 768, 1440]) {
-    if (width !== 320) await page.setViewportSize({ width, height: 844 });
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
     await expect(
       page.getByRole("heading", { name: "A better introduction, in one tap." }),
     ).toBeVisible();
@@ -237,7 +240,7 @@ test("visitors can reach the privacy notice and terms from the public homepage",
 }) => {
   await page.goto("/");
 
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
@@ -265,4 +268,19 @@ test("visitors can reach the privacy notice and terms from the public homepage",
   await page.getByRole("link", { name: "Terms", exact: true }).click();
   await expect(page).toHaveURL(/\/terms$/);
   await expect(page.getByRole("heading", { name: "Tapit terms of use" })).toBeVisible();
+
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    const routes: Array<[string, string]> = [
+      ["/privacy", "Tapit privacy notice"],
+      ["/terms", "Tapit terms of use"],
+    ];
+    for (const [path, heading] of routes) {
+      await page.goto(path);
+      await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+        .toBeLessThanOrEqual(width);
+    }
+  }
 });

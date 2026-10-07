@@ -75,7 +75,7 @@ function ProfileRegistryControls({
   query: string;
 }) {
   return (
-    <section className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_1px_3px_rgba(23,35,30,0.04)] sm:p-7">
+    <section className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.16em] text-tapit-accent uppercase">
@@ -190,14 +190,14 @@ function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) 
 
 function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 min-[1100px]:hidden">
+    <div className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface min-[1100px]:hidden">
       {entries.map((entry) => (
         <button
           aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
           aria-expanded={entry.selected}
           aria-haspopup="dialog"
           aria-label={`Select ${entry.name} profile`}
-          className={`grid min-h-20 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-tapit border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
+          className={`grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-tapit-line p-4 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "bg-tapit-accent-soft/45" : "hover:bg-tapit-paper/60"}`}
           key={entry.id}
           onClick={entry.onOpen}
           type="button"

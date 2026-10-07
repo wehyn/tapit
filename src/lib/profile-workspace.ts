@@ -13,6 +13,9 @@ const MARKERS: Record<ProfileCustomizationCategory, readonly string[]> = {
     "profile customization accent",
     "profile customization type scale",
     "profile customization link treatment",
+    "custom profile palette",
+    "custom profile text",
+    "custom profile accent",
   ],
   identity: [
     "profile name color",

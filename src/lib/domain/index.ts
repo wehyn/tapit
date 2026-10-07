@@ -4,7 +4,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import {
   normalizeProfileCustomization,
   type ProfileCustomization,
-  type ProfileIdentityColorValidationOptions,
+  type ProfileCustomizationValidationOptions,
   validateProfileCustomization,
 } from "../profile-customization";
 import {
@@ -22,7 +22,7 @@ export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
 export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "replaced";
 export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
 export type DeletionStatus = "active" | "requested" | "deleted";
-export type ProfileTheme = "paper" | "moss" | "night";
+export type ProfileTheme = "paper" | "moss" | "night" | "custom";
 
 export interface Actor {
   id: string;
@@ -125,6 +125,7 @@ export interface DeletionTransition {
 export interface ProfileSlugValidationOptions {
   existingSlugs?: readonly string[];
   immutableSlug?: string;
+  activeTheme?: ProfileTheme;
 }
 
 export const MAX_PROFILE_SLUG_LENGTH = 64;
@@ -314,7 +315,8 @@ export function validatePublication(
   errors.push(
     ...validateProfileCustomization(draft.customization, draft.links, {
       allowWhite: draft.media?.background !== undefined,
-    } satisfies ProfileIdentityColorValidationOptions),
+      activeTheme: draft.theme ?? options.activeTheme,
+    } satisfies ProfileCustomizationValidationOptions),
   );
   errors.push(...validateProfileMedia(draft.media));
   return errors;
@@ -436,7 +438,10 @@ export function projectPublicProfile(
   if (profile.status !== "published" || profile.published === null) return null;
   const snapshot = profile.published;
   const media = projectPublicProfileMedia(snapshot.media, options);
-  const customization = normalizeProfileCustomization(snapshot.customization);
+  const customization = normalizeProfileCustomization(
+    snapshot.customization,
+    snapshot.theme ?? "paper",
+  );
   return {
     id: profile.id,
     slug: snapshot.slug,

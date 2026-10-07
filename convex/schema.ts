@@ -11,7 +11,12 @@ const profileLink = v.object({
   icon: v.optional(v.string()),
 });
 
-const profileTheme = v.union(v.literal("paper"), v.literal("moss"), v.literal("night"));
+const profileTheme = v.union(
+  v.literal("paper"),
+  v.literal("moss"),
+  v.literal("night"),
+  v.literal("custom"),
+);
 
 const profileRedirect = v.object({
   enabled: v.boolean(),

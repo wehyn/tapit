@@ -74,7 +74,7 @@ export function OnboardingForm() {
 
   if (authLoading || access === undefined) {
     return (
-      <main className="mx-auto max-w-2xl px-5 py-16 text-sm text-tapit-muted">
+      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10 text-sm text-tapit-muted">
         Loading your account…
       </main>
     );
@@ -82,7 +82,7 @@ export function OnboardingForm() {
 
   if (access.accountStatus === "invited") {
     return (
-      <main className="mx-auto max-w-2xl px-5 py-16">
+      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10">
         <Notice tone="error">Use your invitation link to finish setting up this account.</Notice>
       </main>
     );
@@ -90,15 +90,15 @@ export function OnboardingForm() {
 
   if (access.accountStatus !== "pending" && slug === undefined) {
     return (
-      <main className="mx-auto max-w-2xl px-5 py-16">
+      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10">
         <Notice tone="error">This account cannot be onboarded in its current state.</Notice>
       </main>
     );
   }
 
   return (
-    <main className="min-h-[100dvh] bg-tapit-paper px-5 py-10 sm:px-10">
-      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_36px_rgba(16,33,28,0.07)] sm:p-9">
+    <main className="grid min-h-[100dvh] place-items-center bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-8 sm:px-10 sm:py-10">
+      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-9">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Finish your profile

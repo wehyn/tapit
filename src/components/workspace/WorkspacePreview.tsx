@@ -6,12 +6,14 @@ import {
   ArrowUpRightIcon,
   DeviceMobileIcon,
   EyeIcon,
+  GlobeSimpleIcon,
   LinkSimpleIcon,
   CopyIcon,
 } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
+import { DEFAULT_CUSTOM_PROFILE_COLORS } from "@/lib/profile-customization";
 import { PublicProfile } from "@/components/profile/PublicProfile";
 
 const MIN_PHONE_SCALE = 0.58;
@@ -52,9 +54,17 @@ export function WorkspacePreview({
     const profile = phoneProfileRef.current;
     const panel = previewPanelRef.current;
     if (!canvas || !device || !screen || !profile || !panel) return;
+    const profileSurface = profile.querySelector<HTMLElement>(
+      ".tapit-profile-entry > div > section",
+    );
 
     const measureFit = () => {
-      const naturalProfileHeight = Math.max(profile.offsetHeight, profile.scrollHeight, 1);
+      const naturalProfileHeight = Math.max(
+        profile.offsetHeight,
+        profile.scrollHeight,
+        profileSurface?.scrollHeight ?? 0,
+        1,
+      );
       const availableProfileHeight = Math.max(screen.clientHeight, 1);
       const idealContentScale = Math.min(1, availableProfileHeight / naturalProfileHeight);
       const nextContentScale = Math.max(idealContentScale, MIN_PHONE_CONTENT_SCALE);
@@ -125,6 +135,7 @@ export function WorkspacePreview({
     observer?.observe(device);
     observer?.observe(screen);
     observer?.observe(profile);
+    if (profileSurface) observer?.observe(profileSurface);
     window.addEventListener("resize", measureFit);
     measureFit();
 
@@ -132,7 +143,7 @@ export function WorkspacePreview({
       observer?.disconnect();
       window.removeEventListener("resize", measureFit);
     };
-  }, []);
+  }, [fitPhonePreviewContent, preview, theme]);
 
   async function copyUrl() {
     const absoluteUrl = new URL(profileUrl, window.location.origin).href;
@@ -155,11 +166,16 @@ export function WorkspacePreview({
       trackView={false}
     />
   );
+  const profilePath = profileUrl.startsWith("/") ? profileUrl : `/${profileUrl}`;
+  const customCanvasColor =
+    preview.theme === "custom" && preview.customization?.preset === "custom"
+      ? (preview.customization.customColors?.canvas ?? DEFAULT_CUSTOM_PROFILE_COLORS.canvas)
+      : undefined;
 
   return (
     <section
       ref={previewPanelRef}
-      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_8px_28px_rgba(16,33,28,0.035)] ${
+      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_8px_24px_rgba(27,36,51,0.05)] ${
         phoneNeedsPageScroll
           ? "min-[1400px]:static min-[1400px]:max-h-none"
           : "min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:max-h-[calc(100dvh-7.5rem)]"
@@ -188,11 +204,12 @@ export function WorkspacePreview({
       </div>
       <div
         ref={previewCanvasRef}
-        style={
-          phoneNeedsPageScroll && phoneCanvasHeight
+        style={{
+          ...(phoneNeedsPageScroll && phoneCanvasHeight
             ? { height: `${phoneCanvasHeight}px` }
-            : undefined
-        }
+            : {}),
+          ...(customCanvasColor ? { backgroundColor: customCanvasColor } : {}),
+        }}
         className={`min-h-[34rem] px-3 py-3 sm:min-h-[38rem] sm:px-6 sm:py-3 min-[1400px]:min-h-0 min-[1400px]:overscroll-contain ${
           phoneNeedsPageScroll
             ? "min-[1400px]:flex-none min-[1400px]:overflow-visible"
@@ -214,35 +231,28 @@ export function WorkspacePreview({
         >
           <div
             ref={phoneDeviceRef}
-            data-testid="profile-preview-phone"
+            aria-label="Mobile web profile preview"
             className={`relative mx-auto aspect-[9/19.5] w-full max-w-[22.5rem] origin-top ${phoneNeedsPageScroll ? "absolute inset-x-0 top-0" : ""}`}
+            data-testid="profile-preview-viewport"
+            role="group"
             style={{ aspectRatio: "9 / 19.5", transform: `scale(${phoneScale})` }}
           >
-            <span
-              aria-hidden="true"
-              className="absolute -left-[2px] top-[18%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute -left-[2px] top-[29%] z-0 h-[2.35rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[3.1rem]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute -left-[2px] top-[12%] z-0 h-[1.2rem] w-[3px] rounded-l-full bg-[linear-gradient(90deg,#65736b,#17211d)] shadow-[-1px_0_2px_rgba(0,0,0,0.2)] sm:h-[1.55rem]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute -right-[2px] top-[25%] z-0 h-[3.8rem] w-[3px] rounded-r-full bg-[linear-gradient(90deg,#17211d,#65736b)] shadow-[1px_0_2px_rgba(0,0,0,0.2)] sm:h-[4.8rem]"
-            />
-            <div
-              className="absolute inset-0 rounded-[2.45rem] border border-[#7b8881] bg-[linear-gradient(105deg,#738078_0%,#202a25_5%,#111915_13%,#18211d_88%,#738078_100%)] p-[0.34rem] shadow-[0_28px_56px_rgba(16,33,28,0.28)] sm:rounded-[3.45rem] sm:p-[0.48rem]"
-              data-testid="profile-preview-hardware"
-            >
-              <div className="relative h-full overflow-hidden rounded-[2.12rem] bg-[#fffdfa] ring-1 ring-black/10 sm:rounded-[2.97rem]">
+            <div className="absolute inset-0 rounded-[2rem] border border-[#d7deea] bg-white p-[0.31rem] shadow-[0_16px_42px_rgba(27,36,51,0.10),0_2px_6px_rgba(27,36,51,0.04)] sm:rounded-[2.125rem] sm:p-[0.31rem]">
+              <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.625rem] bg-tapit-surface sm:rounded-[1.75rem]">
+                <div className="flex h-10 shrink-0 items-center justify-center border-b border-[#eef0f4] bg-white px-[15px]">
+                  <div className="flex h-[25px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#edf0f5] bg-[#f8f9fb] px-2 text-[9px] tracking-[0.01em] text-tapit-muted sm:text-[10px]">
+                    <GlobeSimpleIcon
+                      aria-hidden="true"
+                      className="shrink-0 text-[#9aa4b4]"
+                      size={11}
+                    />
+                    <span className="truncate">{`tapit.app${profilePath}`}</span>
+                  </div>
+                </div>
                 <div
                   ref={phoneScreenRef}
-                  aria-label="Phone profile preview"
-                  className="absolute inset-0 overflow-y-auto bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus"
+                  aria-label="Profile preview"
+                  className="relative min-h-0 flex-1 overflow-y-auto bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus"
                   data-testid="profile-preview-device"
                   role="region"
                   tabIndex={phoneScreenScrollable ? 0 : undefined}
@@ -254,34 +264,16 @@ export function WorkspacePreview({
                     <div
                       ref={phoneProfileRef}
                       className="absolute inset-x-0 top-0 origin-top"
-                      style={{ transform: `scaleY(${phoneContentScale})` }}
+                      style={{
+                        height: phoneContentHeight
+                          ? `${phoneContentHeight / phoneContentScale}px`
+                          : undefined,
+                        transform: `scaleY(${phoneContentScale})`,
+                      }}
                     >
                       {publicProfile}
                     </div>
                   </div>
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 top-0 z-20 h-[3.1rem] bg-gradient-to-b from-black/10 to-transparent sm:h-[3.6rem]"
-                  data-testid="profile-preview-status-bar"
-                >
-                  <span className="absolute left-[11%] top-[0.63rem] text-[0.45rem] font-bold tracking-tight text-white sm:top-[0.82rem] sm:text-[0.56rem]">
-                    9:41
-                  </span>
-                  <span className="absolute right-[10%] top-[0.68rem] flex items-end gap-[2px] sm:top-[0.9rem]">
-                    <span className="h-[3px] w-[2px] rounded-[1px] bg-white/95 sm:h-1" />
-                    <span className="h-1 w-[2px] rounded-[1px] bg-white/95 sm:h-[5px]" />
-                    <span className="h-[5px] w-[2px] rounded-[1px] bg-white/95 sm:h-[6px]" />
-                    <span className="ml-[2px] h-[5px] w-[9px] rounded-[2px] border border-white/90 p-[1px] sm:h-[6px] sm:w-[11px]">
-                      <span className="block h-full w-[72%] rounded-[1px] bg-white" />
-                    </span>
-                  </span>
-                  <span
-                    className="absolute left-1/2 top-[0.62rem] h-[0.72rem] w-[3.2rem] -translate-x-1/2 rounded-full bg-[#080b0a] shadow-[0_1px_3px_rgba(0,0,0,0.35)] sm:top-[0.82rem] sm:h-[0.9rem] sm:w-[4rem]"
-                    data-testid="profile-preview-dynamic-island"
-                  >
-                    <span className="absolute right-[0.38rem] top-1/2 size-[0.28rem] -translate-y-1/2 rounded-full bg-[#1d3440] ring-1 ring-[#17231f] sm:right-[0.5rem] sm:size-[0.34rem]" />
-                  </span>
                 </div>
               </div>
             </div>
@@ -294,7 +286,7 @@ export function WorkspacePreview({
             <LinkSimpleIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
             <div className="min-w-0">
               <a
-                className="flex min-h-11 scroll-mb-24 items-center truncate text-sm font-medium text-tapit-accent-strong hover:underline"
+                className="flex min-h-11 scroll-mb-44 items-center truncate text-sm font-medium text-tapit-accent-strong hover:underline"
                 href={profileUrl}
               >
                 {profileUrl}
@@ -303,7 +295,7 @@ export function WorkspacePreview({
           </div>
           <Link
             aria-label="View published profile"
-            className="inline-flex min-h-11 scroll-mb-24 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
             href={profileUrl}
           >
             View published profile
@@ -311,7 +303,7 @@ export function WorkspacePreview({
           </Link>
           <button
             aria-label="Copy URL"
-            className="inline-flex min-h-11 scroll-mb-24 items-center gap-2 rounded-tapit border border-tapit-line px-3.5 text-sm font-semibold text-tapit-ink hover:border-tapit-accent"
+            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-tapit border border-tapit-line px-3.5 text-sm font-semibold text-tapit-ink hover:border-tapit-accent"
             onClick={() => void copyUrl()}
             type="button"
           >

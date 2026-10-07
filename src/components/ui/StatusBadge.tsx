@@ -19,7 +19,7 @@ export function StatusBadge({
       deleted: "bg-tapit-danger-soft text-tapit-danger",
     }[status] ?? "bg-tapit-paper text-tapit-muted";
   const emphasisClasses = prominent
-    ? "rounded-full bg-tapit-accent px-4 py-2 text-sm tracking-[0.04em] text-white shadow-[0_2px_5px_rgba(23,35,30,0.08)]"
+    ? "rounded-full bg-tapit-accent px-4 py-2 text-sm tracking-[0.04em] text-white shadow-[0_2px_5px_rgba(27,36,51,0.08)]"
     : `rounded-full px-2.5 py-1 text-xs capitalize ${classes}`;
 
   return (

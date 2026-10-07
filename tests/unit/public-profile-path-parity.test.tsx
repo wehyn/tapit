@@ -175,13 +175,18 @@ describe("published demo profile paths", () => {
         const main = screen.getByRole("main");
         const panel = main.querySelector("section");
         const links = screen.getByRole("list", { name: "Profile links" });
+        const paperColor = theme === "moss" ? "#e8f1eb" : "#17211f";
+        const inkColor = theme === "moss" ? "#17352b" : "#f2f6f1";
 
         expect(main).toHaveClass(
           theme === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]",
-          "px-5",
+          "px-4",
           "py-8",
+          "sm:px-6",
           "sm:py-12",
         );
+        expect(main.style.getPropertyValue("--tapit-paper")).toBe(paperColor);
+        expect(main.style.getPropertyValue("--tapit-ink")).toBe(inkColor);
         expect(panel).toHaveClass(
           theme === "moss" ? "border-[#b9d1c0]" : "border-[#40534d]",
           theme === "moss" ? "bg-[#f7fbf8]" : "bg-[#22302b]",
@@ -189,13 +194,13 @@ describe("published demo profile paths", () => {
         expect(links).toHaveClass("mt-9", "gap-3");
         expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
           theme === "moss" ? "border-[#b9d1c0]" : "border-[#40534d]",
-          theme === "moss" ? "bg-[#f7fbf8]" : "bg-[#22302b]",
+          "bg-transparent",
         );
         expect(screen.getByRole("button", { name: "Save contact" })).toHaveClass("mt-5");
         expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
-        expect(
-          screen.queryByRole("navigation", { name: "Contact actions" }),
-        ).not.toBeInTheDocument();
+        const contactActions = screen.getByRole("navigation", { name: "Contact actions" });
+        expect(contactActions).toBeVisible();
+        expect(contactActions.querySelector('a[href="mailto:mara@example.test"]')).not.toBeNull();
 
         view.unmount();
       }

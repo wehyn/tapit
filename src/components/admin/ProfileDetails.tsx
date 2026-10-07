@@ -212,12 +212,9 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
         {content.links.length === 0 ? (
           <p className="mt-2 text-sm text-tapit-muted">No links saved.</p>
         ) : (
-          <ol className="mt-4 grid gap-4">
+          <ol className="mt-4 divide-y divide-tapit-line rounded-tapit border border-tapit-line bg-tapit-surface">
             {content.links.map((link, index) => (
-              <li
-                className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
-                key={`${link.id}-${index}`}
-              >
+              <li className="p-4 sm:p-5" key={`${link.id}-${index}`}>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted">
                   Link {index + 1}
                 </p>

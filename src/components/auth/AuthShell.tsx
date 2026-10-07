@@ -25,11 +25,11 @@ export function AuthShell({
   modeChangeDisabled?: boolean;
 }): ReactNode {
   return (
-    <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_12%_12%,#e4f2ea_0%,transparent_34%),linear-gradient(145deg,#f8faf9,#f1f6f3)]">
+    <div className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa]">
       <PublicHeader />
-      <main className="px-5 py-7 sm:px-10 sm:py-9">
+      <main className="px-4 py-6 sm:px-10 sm:py-9">
         <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-          <section className="grid flex-1 items-center gap-10 py-9 sm:gap-12 sm:py-14 lg:grid-cols-[1fr_0.82fr] lg:gap-20">
+          <section className="grid flex-1 items-center gap-8 py-8 sm:gap-12 sm:py-12 lg:grid-cols-[1fr_0.82fr] lg:gap-20">
             <div className="max-w-lg">
               <Fingerprint
                 aria-hidden="true"
@@ -37,14 +37,14 @@ export function AuthShell({
                 size={48}
                 weight="light"
               />
-              <p className="tapit-eyebrow mt-8">
+              <p className="tapit-eyebrow mt-6">
                 {variant === "google"
                   ? "Welcome back"
                   : mode === "signup"
                     ? "Make it yours"
                     : "Welcome back"}
               </p>
-              <h1 className="tapit-display mt-3 text-4xl font-medium leading-[1.06] text-tapit-ink sm:text-6xl">
+              <h1 className="tapit-display mt-3 text-3xl font-semibold leading-[1.08] tracking-[-0.045em] text-tapit-ink sm:text-5xl">
                 {variant === "google"
                   ? "Sign in to Tapit"
                   : mode === "signup"
@@ -59,7 +59,7 @@ export function AuthShell({
                     : "Manage your profile, links, and publication state from one calm workspace."}
               </p>
             </div>
-            <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_20px_56px_rgba(16,33,28,0.08)] sm:p-8 lg:p-9">
+            <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8 lg:p-9">
               {variant === "google" ? null : (
                 <div className="mb-6 grid gap-2 sm:grid-cols-2">
                   <button

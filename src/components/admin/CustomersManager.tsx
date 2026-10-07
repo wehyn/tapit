@@ -8,7 +8,6 @@ import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phospho
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
 import { validateProfileSlug } from "@/lib/domain";
-import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "@/lib/profile-customization";
 import {
   getDemoProfiles,
   updateDemoProfile,
@@ -26,10 +25,6 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-
-function createDefaultWarmStudioCustomization() {
-  return structuredClone(DEFAULT_WARM_STUDIO_CUSTOMIZATION);
-}
 
 function DemoCustomersManager() {
   const state = useDemoState();
@@ -96,7 +91,6 @@ function DemoCustomersManager() {
             slug,
             email: normalizedEmail,
             links: [],
-            customization: createDefaultWarmStudioCustomization(),
           },
           published: null,
         } satisfies DemoProfile,
@@ -282,7 +276,7 @@ function DemoCustomersManager() {
             />
           </div>
         </div>
-        <div className="mt-6 grid gap-2">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
           {customers.length === 0 ? (
             <Notice>No customers match this search. Create an invited account above.</Notice>
           ) : null}
@@ -297,7 +291,7 @@ function DemoCustomersManager() {
                 : state.cards.filter((card) => card.profileId === profile.id).length;
             return (
               <article
-                className={`min-w-0 rounded-tapit border bg-tapit-surface p-4 transition-colors sm:p-5 ${selectedCustomer?.id === customer.id ? "border-tapit-accent bg-tapit-accent-soft/20" : "border-tapit-line hover:border-tapit-accent/50"}`}
+                className={`min-w-0 border-b border-tapit-line p-4 transition-colors last:border-b-0 sm:p-5 ${selectedCustomer?.id === customer.id ? "bg-tapit-accent-soft/30" : "hover:bg-tapit-paper/55"}`}
                 key={customer.id}
               >
                 <button
@@ -696,7 +690,7 @@ function LiveCustomersManager() {
             value={query}
           />
         </div>
-        <div className="mt-6 grid gap-2">
+        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
           {customers.length === 0 ? (
             <Notice>
               {customersStatus === "CanLoadMore"
@@ -706,7 +700,7 @@ function LiveCustomersManager() {
           ) : null}
           {customers.map((customer) => (
             <article
-              className="grid min-w-0 gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+              className="grid min-w-0 gap-3 border-b border-tapit-line p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
               key={customer._id}
             >
               <div>

@@ -12,6 +12,7 @@ export function ScrollReveal({
   delayMs?: number;
 }) {
   const elementRef = useRef<HTMLDivElement>(null);
+  const revealDelayMs = Math.max(0, Math.min(delayMs, 120));
 
   useEffect(() => {
     const element = elementRef.current;
@@ -48,7 +49,7 @@ export function ScrollReveal({
       onFocusCapture={(event) => {
         event.currentTarget.dataset.revealed = "true";
       }}
-      style={{ "--reveal-delay": `${delayMs}ms` } as CSSProperties}
+      style={{ "--reveal-delay": `${revealDelayMs}ms` } as CSSProperties}
     >
       {children}
     </div>

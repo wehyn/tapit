@@ -185,7 +185,7 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(screen.queryByText("Identity colors", { selector: "legend" })).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Upload background image")).not.toBeInTheDocument();
       expect(screen.queryByText("Content order", { selector: "legend" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Moss" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("radio", { name: "Moss" })).not.toBeInTheDocument();
     },
   );
 
@@ -225,7 +225,10 @@ describe("ProfileEditor workspace boundaries", () => {
 
       await user.click(screen.getByRole("radio", { name: "Jade" }));
 
-      expect(screen.getByRole("link", { name: "Site" })).toHaveClass("bg-[#3e806d]");
+      expect(screen.getByRole("link", { name: "Site" })).toHaveClass(
+        "border-[#3e806d]",
+        "bg-transparent",
+      );
       const save = screen.getByRole("button", { name: "Save draft" });
       expect(save).toBeEnabled();
       await user.click(save);
@@ -328,7 +331,7 @@ describe("ProfileEditor workspace boundaries", () => {
   );
 
   it.each(["demo", "live"] as const)(
-    "keeps legacy themes functional only in Customize for %s",
+    "keeps profile presets functional only in Customize for %s",
     async (branch) => {
       const user = userEvent.setup();
       mocks.liveProfile = {
@@ -338,18 +341,18 @@ describe("ProfileEditor workspace boundaries", () => {
       };
       renderBranch(branch, "customize");
 
-      expect(screen.getByRole("heading", { name: "Legacy appearance" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Use Warm Studio" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Paper" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Moss" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Night" })).toBeVisible();
+      expect(screen.getByRole("heading", { name: "Profile presets" })).toBeVisible();
+      expect(screen.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
+      expect(screen.getByRole("radio", { name: "Moss" })).toBeVisible();
+      expect(screen.getByRole("radio", { name: "Night" })).toBeVisible();
+      expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeVisible();
       expect(screen.getByRole("tab", { name: "Overview" })).toBeEnabled();
       expect(screen.getByRole("tab", { name: "Identity" })).toBeDisabled();
       expect(screen.getByRole("tab", { name: "Media" })).toBeDisabled();
       expect(screen.getByRole("tab", { name: "Layout" })).toBeDisabled();
       expect(screen.queryByRole("heading", { name: "Profile identity" })).not.toBeInTheDocument();
 
-      await user.click(screen.getByRole("button", { name: "Moss" }));
+      await user.click(screen.getByRole("radio", { name: "Moss" }));
       if (branch === "demo") {
         expect(mocks.updateDemoState).toHaveBeenCalled();
         expect(applyLastDemoUpdate()).toMatchObject({
@@ -373,11 +376,11 @@ describe("ProfileEditor workspace boundaries", () => {
     render(<ProfileEditor view="profile" />);
 
     expect(screen.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Legacy appearance" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Use Warm Studio" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Paper" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Moss" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Night" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Profile presets" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Soft Precision (Paper)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Moss" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Night" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: "Warm Studio" })).not.toBeInTheDocument();
   });
 
   it("offers guarded Customize navigation for customization errors", () => {

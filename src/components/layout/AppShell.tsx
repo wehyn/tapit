@@ -62,7 +62,7 @@ export function AppShell({
   };
 
   return (
-    <div className="min-h-[100dvh] bg-tapit-paper">
+    <div className="min-h-[100dvh] min-w-0 bg-tapit-paper">
       <SidebarNav
         activeHref={activeHref}
         eyebrow={eyebrow}
@@ -72,7 +72,7 @@ export function AppShell({
         sidebarFooter={sidebarFooter}
         title={title}
       />
-      <main className="min-h-[100dvh] lg:ml-[72px] lg:[&_.fixed.inset-x-0]:left-[72px] xl:ml-[244px] xl:[&_.fixed.inset-x-0]:left-[244px]">
+      <main className="min-h-[100dvh] min-w-0 lg:ml-[72px] lg:[&_.fixed.inset-x-0]:left-[72px] xl:ml-[244px] xl:[&_.fixed.inset-x-0]:left-[244px]">
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
             <p className="tapit-eyebrow">{eyebrow}</p>

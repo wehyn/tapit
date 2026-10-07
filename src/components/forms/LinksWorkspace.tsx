@@ -160,7 +160,7 @@ export function LinksWorkspace({
           ) : null}
           <section
             aria-label="Editable profile links"
-            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_20px_rgba(16,33,28,0.035)]"
+            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_18px_rgba(27,36,51,0.04)]"
             ref={linksListRef}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">
@@ -414,7 +414,7 @@ export function LinksWorkspace({
           )}
         </section>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(21,25,24,0.08)] backdrop-blur sm:px-8">
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
         <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2 text-sm">
             <CheckCircleIcon
