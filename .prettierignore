@@ -12,3 +12,5 @@ TASKS.md
 docs/design-references/tapit-quiet-precision-mockups.html
 .agents
 .claude
+# Design mockups are hand-maintained visual references.
+design/mockups/**
