@@ -83,6 +83,22 @@ function customProfileThemeStyles(colors: ProfileThemeColors): ProfileThemeCSSPr
   };
 }
 
+function readableTextOn(hex: string): string {
+  const channels = [1, 3, 5].map((index) => {
+    const channel = parseInt(hex.slice(index, index + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  const luminance =
+    (channels[0] ?? 0) * 0.2126 + (channels[1] ?? 0) * 0.7152 + (channels[2] ?? 0) * 0.0722;
+  return luminance > 0.179 ? "#17211f" : "#ffffff";
+}
+
+function identityColorForTheme(color: string, theme: ProfileTheme): string {
+  return theme === "night" && color.toLowerCase() !== "#ffffff"
+    ? `color-mix(in srgb, ${color} 35%, white)`
+    : color;
+}
+
 async function convertWebPToPng(image: Blob): Promise<Blob> {
   const objectUrl = URL.createObjectURL(image);
   try {
@@ -204,6 +220,26 @@ export function PublicProfile({
   const appearance = resolveProfileAppearance(customization, selectedTheme);
   const warmStudio = appearance.mode === "warm-studio";
   const customTheme = appearance.mode === "custom";
+  const configured = appearance.mode !== "legacy";
+  const accentOverride =
+    configured && !warmStudio
+      ? appearance.accent === "coral"
+        ? "#a84431"
+        : appearance.accent === "ink" && !customTheme
+          ? "#2c2420"
+          : appearance.accent === "jade" && customTheme
+            ? "#3e806d"
+            : undefined
+      : undefined;
+  const activeAccent =
+    accentOverride ??
+    (customTheme
+      ? (appearance.customColors?.accent ?? DEFAULT_CUSTOM_PROFILE_COLORS.accent)
+      : selectedTheme === "moss"
+        ? "#176b57"
+        : selectedTheme === "night"
+          ? "#7bc2a9"
+          : "#3f6de8");
   const media = profile.media;
   const background = media?.background;
   const phonePreview = preview || mobileLayout;
@@ -288,19 +324,19 @@ export function PublicProfile({
   const mutedClasses = warmStudio ? "text-[#74665d]" : themeClasses.muted;
   const linkClasses = warmStudio ? warmAccent.outlined : themeClasses.link;
   const typeScaleClasses =
-    warmStudio && appearance.typeScale === "compact"
+    configured && appearance.typeScale === "compact"
       ? phonePreview
         ? compactPhonePreview
           ? "text-lg"
           : "text-2xl"
         : "text-2xl sm:text-3xl"
-      : warmStudio && appearance.typeScale === "editorial"
+      : configured && appearance.typeScale === "editorial"
         ? phonePreview
           ? compactPhonePreview
             ? "text-2xl"
             : "text-4xl"
           : "text-4xl sm:text-5xl"
-        : warmStudio
+        : configured
           ? phonePreview
             ? compactPhonePreview
               ? "text-xl"
@@ -441,14 +477,22 @@ export function PublicProfile({
         {preview ? (
           <h2
             className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
-            style={warmStudio ? { color: appearance.nameColor } : undefined}
+            style={
+              warmStudio || customization?.identityColors?.name
+                ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
+                : undefined
+            }
           >
             <span className={nameIdentityText}>{profile.name}</span>
           </h2>
         ) : (
           <h1
             className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
-            style={warmStudio ? { color: appearance.nameColor } : undefined}
+            style={
+              warmStudio || customization?.identityColors?.name
+                ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
+                : undefined
+            }
           >
             <span className={nameIdentityText}>{profile.name}</span>
           </h1>
@@ -459,7 +503,11 @@ export function PublicProfile({
           >
             <span
               className={bioIdentityText}
-              style={warmStudio ? { color: appearance.bioColor } : undefined}
+              style={
+                warmStudio || customization?.identityColors?.bio
+                  ? { color: identityColorForTheme(appearance.bioColor, selectedTheme) }
+                  : undefined
+              }
             >
               {profile.bio}
             </span>
@@ -503,7 +551,12 @@ export function PublicProfile({
       ) : null}
       {canSaveContact ? (
         <button
-          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : customTheme ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
+          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
+          style={
+            configured && !warmStudio && appearance.linkTreatment === "filled"
+              ? { color: readableTextOn(activeAccent) }
+              : undefined
+          }
           onClick={saveContact}
           disabled={savingContact}
           type="button"
@@ -557,40 +610,24 @@ export function PublicProfile({
       : "lg:grid lg:grid-cols-[minmax(18rem,0.84fr)_minmax(0,1.16fr)]"
     : "";
   const identityColumn = background ? (
-    warmStudio ? (
-      <div className="min-w-0">
-        <ProfileMediaSurface
-          background={background}
-          heroHeight={media?.heroHeight ?? 320}
-          treatment="warm"
-          compact={phonePreview}
-          fullSurface
-          responsivePortrait={phonePreview}
-          className="rounded-none border-0"
-        >
-          {identity}
-        </ProfileMediaSurface>
-        {media && media.slideshow.length > 0 ? (
-          <div className="mt-5 px-4 sm:px-6">
-            <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
-          </div>
-        ) : null}
-      </div>
-    ) : (
-      <div className="min-w-0">
-        <ProfileMediaSurface
-          background={background}
-          heroHeight={media?.heroHeight ?? 320}
-          treatment="legacy"
-        />
-        {media && media.slideshow.length > 0 ? (
-          <div className="mt-5">
-            <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
-          </div>
-        ) : null}
-        <div className={`${identityColumnSpacing} mt-6 min-w-0`}>{identity}</div>
-      </div>
-    )
+    <div className="min-w-0">
+      <ProfileMediaSurface
+        background={background}
+        heroHeight={media?.heroHeight ?? 320}
+        treatment="warm"
+        compact={phonePreview}
+        fullSurface
+        responsivePortrait={phonePreview}
+        className="rounded-none border-0"
+      >
+        {identity}
+      </ProfileMediaSurface>
+      {media && media.slideshow.length > 0 ? (
+        <div className="mt-5 px-4 sm:px-6">
+          <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
+        </div>
+      ) : null}
+    </div>
   ) : (
     <div className={`${identityColumnSpacing} min-w-0`}>
       {media && media.slideshow.length > 0 ? (
@@ -606,13 +643,20 @@ export function PublicProfile({
   const Container = preview ? "div" : "main";
   return (
     <Container
-      style={
-        customTheme
+      style={{
+        ...(customTheme
           ? customProfileThemeStyles(appearance.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS)
           : theme === "paper" || theme === "custom"
-            ? undefined
-            : profileThemeStyles[theme]
-      }
+            ? {}
+            : profileThemeStyles[theme]),
+        ...(accentOverride
+          ? {
+              "--tapit-accent": accentOverride,
+              "--tapit-accent-strong": accentOverride,
+              "--tapit-focus": accentOverride,
+            }
+          : {}),
+      }}
       className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
     >
       <div

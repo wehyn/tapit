@@ -12,7 +12,6 @@ import { WarningCircleIcon } from "@phosphor-icons/react";
 import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_CUSTOM_PROFILE_COLORS,
-  DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
   isProfileIdentityHex,
   type ProfileCustomization,
@@ -30,7 +29,6 @@ import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
-import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Notice } from "@/components/ui/Notice";
 
 export type ProfileCustomizationEditorProps = {
@@ -116,7 +114,7 @@ const appearancePresets: readonly {
   {
     value: "warm-studio",
     label: "Warm Studio",
-    description: "Warm editorial tones with extra identity, media, and layout controls.",
+    description: "Warm editorial tones and an edge-to-edge profile layout.",
     colors: {
       canvas: "#fbf6ef",
       surface: "#fffdf9",
@@ -129,7 +127,7 @@ const appearancePresets: readonly {
   {
     value: "custom",
     label: "Custom",
-    description: "Choose your own page, surface, text, and link colors.",
+    description: "Choose your own page, surface, text, and link colors, plus profile settings.",
     colors: {
       canvas: DEFAULT_CUSTOM_PROFILE_COLORS.canvas,
       surface: DEFAULT_CUSTOM_PROFILE_COLORS.surface,
@@ -349,8 +347,7 @@ function IdentityColorControls({
     <fieldset className="grid gap-3">
       <legend className="text-sm font-semibold text-tapit-ink">Identity colors</legend>
       <p className="text-sm leading-6 text-tapit-muted">
-        Set the name and bio / role independently. These colors affect Warm Studio identity text
-        only.
+        Set the name and bio / role independently for this profile preset.
       </p>
       <div className="grid gap-4 rounded-tapit border border-tapit-line/70 bg-tapit-paper/60 p-3.5 sm:p-4">
         {(["name", "bio"] as const).map((field) => (
@@ -524,14 +521,17 @@ export function ProfileCustomizationEditor({
   const focusOverviewAfterTransitionRef = useRef(false);
   const [selectedCategory, setSelectedCategory] =
     useState<ProfileCustomizationCategory>("overview");
-  const [pendingPreset, setPendingPreset] = useState<ProfileAppearancePreset | null>(null);
   const selectedPreset: ProfileAppearancePreset =
     customization?.preset === "warm-studio" ? "warm-studio" : (theme ?? "paper");
-  const warmStudioCustomization =
-    selectedPreset === "warm-studio" && customization?.preset === "warm-studio"
+  const activeCustomization: ProfileCustomization =
+    customization?.preset === selectedPreset
       ? customization
-      : undefined;
-  const activeCategory = warmStudioCustomization ? selectedCategory : "overview";
+      : {
+          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+          preset: selectedPreset,
+          ...(customization?.customColors ? { customColors: customization.customColors } : {}),
+        };
+  const activeCategory = selectedCategory;
 
   useEffect(() => {
     const focusTarget = focusTargetRef.current;
@@ -540,10 +540,10 @@ export function ProfileCustomizationEditor({
   }, [activeCategory]);
 
   useEffect(() => {
-    if (!warmStudioCustomization || !focusOverviewAfterTransitionRef.current) return;
+    if (!focusOverviewAfterTransitionRef.current) return;
     focusOverviewAfterTransitionRef.current = false;
     panelRefs.current.overview?.focus();
-  }, [warmStudioCustomization]);
+  }, [selectedPreset]);
 
   const errorsFor = (category: ProfileCustomizationCategory) =>
     errors.filter((error) => classifyProfileWorkspaceError(error) === category);
@@ -559,9 +559,7 @@ export function ProfileCustomizationEditor({
   };
 
   function update(patch: Partial<ProfileCustomization>) {
-    if (warmStudioCustomization) {
-      onChange(copyCustomization({ ...warmStudioCustomization, ...patch }));
-    }
+    onChange(copyCustomization({ ...activeCustomization, ...patch }));
   }
 
   const errorId = (name: string) => `${baseId}-${name}-error`;
@@ -584,16 +582,14 @@ export function ProfileCustomizationEditor({
       : findError("profile bio color", "profile bio custom color");
 
   function setCategory(category: ProfileCustomizationCategory) {
-    if (warmStudioCustomization || category === "overview") setSelectedCategory(category);
+    setSelectedCategory(category);
   }
 
   function handleTabKeyDown(
     event: ReactKeyboardEvent<HTMLButtonElement>,
     category: ProfileCustomizationCategory,
   ) {
-    const enabledCategories = PROFILE_CUSTOMIZATION_CATEGORIES.filter(
-      (candidate) => warmStudioCustomization || candidate === "overview",
-    );
+    const enabledCategories = PROFILE_CUSTOMIZATION_CATEGORIES;
     const currentIndex = enabledCategories.indexOf(category);
     if (currentIndex < 0) return;
 
@@ -630,48 +626,22 @@ export function ProfileCustomizationEditor({
   }
 
   function applyPreset(preset: ProfileAppearancePreset) {
-    setPendingPreset(null);
     setSelectedCategory("overview");
-    const savedCustomColors = customization?.customColors;
-    if (preset === "warm-studio") {
-      focusOverviewAfterTransitionRef.current = true;
-      onThemeChange?.("paper");
-      onChange(
-        copyCustomization({
-          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-          ...(savedCustomColors ? { customColors: savedCustomColors } : {}),
-        }),
-      );
-      return;
-    }
-
-    focusOverviewAfterTransitionRef.current = false;
-    if (preset === "custom") {
-      onChange(
-        copyCustomization({
-          ...DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
-          customColors: savedCustomColors ?? DEFAULT_CUSTOM_PROFILE_COLORS,
-        }),
-      );
-    } else {
-      onChange(
-        savedCustomColors
-          ? copyCustomization({
-              ...DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
-              customColors: savedCustomColors,
-            })
-          : undefined,
-      );
-    }
-    onThemeChange?.(preset);
+    focusOverviewAfterTransitionRef.current = true;
+    onChange(
+      copyCustomization({
+        ...activeCustomization,
+        preset,
+        ...(preset === "custom"
+          ? { customColors: activeCustomization.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS }
+          : {}),
+      }),
+    );
+    onThemeChange?.(preset === "warm-studio" ? "paper" : preset);
   }
 
   function choosePreset(preset: ProfileAppearancePreset) {
     if (preset === selectedPreset) return;
-    if (selectedPreset === "warm-studio" && preset !== "warm-studio") {
-      setPendingPreset(preset);
-      return;
-    }
     applyPreset(preset);
   }
 
@@ -686,7 +656,7 @@ export function ProfileCustomizationEditor({
         {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
           const selected = activeCategory === category;
           const tabStatusId = `${baseId}-tab-${category}-status`;
-          const disabled = !warmStudioCustomization && category !== "overview";
+          const disabled = false;
           return (
             <button
               aria-controls={`${baseId}-panel-${category}`}
@@ -773,73 +743,71 @@ export function ProfileCustomizationEditor({
               </fieldset>
               {selectedPreset === "custom" ? (
                 <CustomPaletteControls
-                  customization={
-                    customization?.preset === "custom"
-                      ? customization
-                      : DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION
-                  }
+                  customization={activeCustomization}
                   error={customColorError}
                   onChange={onChange}
                 />
-              ) : warmStudioCustomization ? (
-                <>
-                  <ChoiceGroup
-                    error={accentError}
-                    label="Accent"
-                    name={`${baseId}-accent`}
-                    onChange={(value) => update({ accent: value })}
-                    options={[
-                      ["coral", "Coral"],
-                      ["jade", "Jade"],
-                      ["ink", "Ink"],
-                    ]}
-                    value={warmStudioCustomization.accent}
-                  />
-                  <ChoiceGroup
-                    error={scaleError}
-                    label="Type scale"
-                    name={`${baseId}-scale`}
-                    onChange={(value) => update({ typeScale: value })}
-                    options={[
-                      ["compact", "Compact"],
-                      ["comfortable", "Comfortable"],
-                      ["editorial", "Editorial"],
-                    ]}
-                    value={warmStudioCustomization.typeScale}
-                  />
-                  <ChoiceGroup
-                    error={treatmentError}
-                    label="Save contact button treatment"
-                    name={`${baseId}-treatment`}
-                    onChange={(value) => update({ linkTreatment: value })}
-                    options={[
-                      ["filled", "Filled"],
-                      ["outlined", "Outlined"],
-                    ]}
-                    value={warmStudioCustomization.linkTreatment}
-                  />
-                </>
-              ) : (
-                <Notice>
-                  Choose Warm Studio for identity, media, and layout controls, or Custom to set a
-                  color palette.
-                </Notice>
-              )}
+              ) : null}
+              <>
+                <ChoiceGroup
+                  error={accentError}
+                  label="Accent"
+                  name={`${baseId}-accent`}
+                  onChange={(value) => update({ accent: value })}
+                  options={
+                    selectedPreset === "custom"
+                      ? [
+                          ["ink", "Palette accent"],
+                          ["coral", "Coral"],
+                          ["jade", "Jade"],
+                        ]
+                      : [
+                          ["jade", selectedPreset === "warm-studio" ? "Jade" : "Preset accent"],
+                          ["coral", "Coral"],
+                          ["ink", "Ink"],
+                        ]
+                  }
+                  value={activeCustomization.accent}
+                />
+                <ChoiceGroup
+                  error={scaleError}
+                  label="Type scale"
+                  name={`${baseId}-scale`}
+                  onChange={(value) => update({ typeScale: value })}
+                  options={[
+                    ["compact", "Compact"],
+                    ["comfortable", "Comfortable"],
+                    ["editorial", "Editorial"],
+                  ]}
+                  value={activeCustomization.typeScale}
+                />
+                <ChoiceGroup
+                  error={treatmentError}
+                  label="Save contact button treatment"
+                  name={`${baseId}-treatment`}
+                  onChange={(value) => update({ linkTreatment: value })}
+                  options={[
+                    ["filled", "Filled"],
+                    ["outlined", "Outlined"],
+                  ]}
+                  value={activeCustomization.linkTreatment}
+                />
+              </>
             </div>
           ) : null}
 
-          {category === "identity" && warmStudioCustomization ? (
+          {category === "identity" ? (
             <div className="grid gap-5">
               <IdentityColorControls
-                allowWhite={media?.background !== undefined}
-                customization={warmStudioCustomization}
+                allowWhite={media?.background !== undefined || selectedPreset === "night"}
+                customization={activeCustomization}
                 errorFor={identityColorError}
                 onChange={onChange}
               />
             </div>
           ) : null}
 
-          {category === "media" && warmStudioCustomization ? (
+          {category === "media" ? (
             <div className="grid gap-5">
               <CategoryErrorList errors={mediaCategoryErrors} />
               {onMediaChange && onMediaUpload ? (
@@ -865,7 +833,7 @@ export function ProfileCustomizationEditor({
             </div>
           ) : null}
 
-          {category === "layout" && warmStudioCustomization ? (
+          {category === "layout" ? (
             <div className="grid gap-5">
               <ChoiceGroup
                 error={orderError}
@@ -876,7 +844,7 @@ export function ProfileCustomizationEditor({
                   ["links-first", "Links first"],
                   ["section-first", "About/Services first"],
                 ]}
-                value={warmStudioCustomization.contentOrder}
+                value={activeCustomization.contentOrder}
               />
               <ChoiceGroup<ProfileContactDisplay>
                 error={contactDisplayError}
@@ -888,30 +856,12 @@ export function ProfileCustomizationEditor({
                   ["icons-circle", "Icons · circles"],
                   ["icons-soft-square", "Icons · soft squares"],
                 ]}
-                value={warmStudioCustomization.contactDisplay ?? "labels"}
+                value={activeCustomization.contactDisplay ?? "labels"}
               />
             </div>
           ) : null}
         </section>
       ))}
-      <ConfirmDialog
-        confirmLabel={
-          pendingPreset === null
-            ? "Switch preset"
-            : `Switch to ${appearancePresets.find((preset) => preset.value === pendingPreset)?.label.replace(" (Paper)", "") ?? "selected preset"}`
-        }
-        description={
-          media?.background || (media?.slideshow.length ?? 0) > 0
-            ? `Warm Studio's visual settings and optional content will be removed from this draft. Uploaded media will remain saved but inactive.${customization?.customColors ? " Your custom palette will remain saved." : ""}`
-            : `Warm Studio's visual settings and optional content will be removed from this draft.${customization?.customColors ? " Your custom palette will remain saved." : ""}`
-        }
-        onCancel={() => setPendingPreset(null)}
-        onConfirm={() => {
-          if (pendingPreset !== null) applyPreset(pendingPreset);
-        }}
-        open={pendingPreset !== null}
-        title="Switch profile preset?"
-      />
     </div>
   );
 }

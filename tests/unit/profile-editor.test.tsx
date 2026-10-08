@@ -331,9 +331,9 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(screen.getByRole("radio", { name: "Night" })).toBeVisible();
       expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeVisible();
       expect(screen.getByRole("tab", { name: "Overview" })).toBeEnabled();
-      expect(screen.getByRole("tab", { name: "Identity" })).toBeDisabled();
-      expect(screen.getByRole("tab", { name: "Media" })).toBeDisabled();
-      expect(screen.getByRole("tab", { name: "Layout" })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: "Identity" })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: "Media" })).toBeEnabled();
+      expect(screen.getByRole("tab", { name: "Layout" })).toBeEnabled();
       expect(screen.queryByRole("heading", { name: "Profile identity" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("radio", { name: "Moss" }));
@@ -346,12 +346,20 @@ describe("ProfileEditor workspace boundaries", () => {
         expect(applyLastDemoUpdate()).toMatchObject({
           profile: {
             theme: "paper",
-            draft: expect.objectContaining({ theme: "moss" }),
+            draft: expect.objectContaining({
+              theme: "moss",
+              customization: expect.objectContaining({ preset: "moss" }),
+            }),
           },
         });
       } else {
         expect(mocks.saveDraft).toHaveBeenCalledWith(
-          expect.objectContaining({ draft: expect.objectContaining({ theme: "moss" }) }),
+          expect.objectContaining({
+            draft: expect.objectContaining({
+              theme: "moss",
+              customization: expect.objectContaining({ preset: "moss" }),
+            }),
+          }),
         );
       }
     },

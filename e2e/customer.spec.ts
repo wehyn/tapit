@@ -827,7 +827,9 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 
-test("customer can switch profile presets while preserving Warm Studio media", async ({ page }) => {
+test("customer can switch profile presets while preserving customization and media", async ({
+  page,
+}) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
@@ -852,21 +854,29 @@ test("customer can switch profile presets while preserving Warm Studio media", a
     .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByLabel("Background image description").fill("Warm studio backdrop");
   await page.getByRole("tab", { name: "Overview" }).click();
+  await page.getByRole("radio", { name: "Editorial" }).check();
 
   await softPrecision.click();
-  const switchDialog = page.getByRole("dialog", { name: "Switch profile preset?" });
-  await expect(switchDialog).toContainText("Uploaded media will remain saved but inactive.");
-  await switchDialog.getByRole("button", { name: "Cancel" }).click();
-  await expect(warmStudio).toBeChecked();
-
-  await softPrecision.click();
-  await switchDialog.getByRole("button", { name: "Switch to Soft Precision" }).click();
   await expect(softPrecision).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
-  await expect(page.getByRole("tab", { name: "Media" })).toBeDisabled();
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Editorial" })).toBeChecked();
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByLabel("Background image description")).toHaveValue("Warm studio backdrop");
+  await page.getByRole("tab", { name: "Overview" }).click();
 
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText(/Draft saved/)).toBeVisible();
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(/text-4xl/);
   await page.goto("/app/customize");
   await warmStudio.check();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(251, 246, 239)");
@@ -875,13 +885,23 @@ test("customer can switch profile presets while preserving Warm Studio media", a
 
   await page.getByRole("tab", { name: "Overview" }).click();
   await moss.click();
-  await expect(switchDialog).toBeVisible();
-  await switchDialog.getByRole("button", { name: "Switch to Moss" }).click();
   await expect(moss).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(232, 241, 235)");
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
   await night.check();
   await expect(night).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(23, 33, 31)");
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
   await softPrecision.check();
   await expect(softPrecision).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");

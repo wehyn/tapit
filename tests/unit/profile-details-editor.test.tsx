@@ -21,7 +21,7 @@ import {
 // - Services item edits can mutate the previous nested array instead of cloning it;
 // - unavailable or disabled featured links can lose their warning and clear action;
 // - visual customization controls can accidentally remain on the Profile details surface;
-// - legacy profiles can lose identity controls or fail to explain how content controls become available.
+// - profiles without saved customization can fail to initialize content controls.
 
 const links = [
   { id: "booking", label: "Book a call", destination: "https://example.com/book", enabled: true },
@@ -367,7 +367,7 @@ describe("ProfileDetailsEditor", () => {
     expect(lastCustomizationChange(onCustomizationChange)?.featuredLinkId).toBeUndefined();
   });
 
-  it("omits visual controls and explains the legacy customization path", () => {
+  it("keeps visual controls in Customize and offers content controls on legacy profiles", async () => {
     const onCustomizationChange = vi.fn();
     const { rerender } = render(
       <ProfileDetailsEditor
@@ -404,11 +404,10 @@ describe("ProfileDetailsEditor", () => {
     );
 
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Featured link")).not.toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /Featured link and About\/Services become available after choosing Warm Studio in Customize/i,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Featured link")).toBeInTheDocument();
+    await userEvent.setup().selectOptions(screen.getByLabelText("Featured link"), "booking");
+    expect(onCustomizationChange).toHaveBeenCalledWith(
+      expect.objectContaining({ preset: "paper", featuredLinkId: "booking" }),
+    );
   });
 });

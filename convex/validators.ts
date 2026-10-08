@@ -92,7 +92,13 @@ const profileIdentityColorsValidator = v.object({
 });
 
 export const profileCustomizationValidator = v.object({
-  preset: v.union(v.literal("warm-studio"), v.literal("custom")),
+  preset: v.union(
+    v.literal("paper"),
+    v.literal("moss"),
+    v.literal("night"),
+    v.literal("warm-studio"),
+    v.literal("custom"),
+  ),
   accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
   typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
   linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),

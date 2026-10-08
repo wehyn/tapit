@@ -314,7 +314,7 @@ export function validatePublication(
   if (websiteError !== null) errors.push(websiteError);
   errors.push(
     ...validateProfileCustomization(draft.customization, draft.links, {
-      allowWhite: draft.media?.background !== undefined,
+      allowWhite: draft.media?.background !== undefined || draft.theme === "night",
       activeTheme: draft.theme ?? options.activeTheme,
     } satisfies ProfileCustomizationValidationOptions),
   );
