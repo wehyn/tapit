@@ -33,6 +33,7 @@ The following are explicitly outside the MVP:
 - Customer self-service card claiming, card transfer, or customer-controlled card reassignment.
 - Native iOS or Android applications.
 - Custom domains, custom CSS, advanced layouts, and complex page builders.
+- Uploading a custom `.ico` logo or picture for an individual link icon; links currently use built-in presets.
 - Posts, videos, storefronts, courses, communities, or other rich content systems.
 - Social-login integrations and direct LinkedIn, WhatsApp, or other social-platform APIs.
 - Multi-profile accounts, team workspaces, employee management, or granular administrator roles.
@@ -154,7 +155,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-013:** The system shall support optional email, phone, website, booking, social, and other contact destinations.
 - **FR-014:** The system shall accept valid HTTPS URLs and safe `mailto:` and `tel:` actions, and reject unsafe schemes such as `javascript:` and `data:`.
 - **FR-015:** Customers shall be able to add, edit, label, enable, disable, delete, and reorder links.
-- **FR-016:** Customers shall be able to select preset icons where available and provide custom link labels.
+- **FR-016:** Customers shall be able to select preset icons, including portfolio-friendly briefcase, gallery, palette, code, camera, and GitHub choices, and provide custom link labels. Uploading a personal `.ico` logo or picture in place of a preset icon is a future option.
 - **FR-017:** Customers shall be able to customize profile colors, fonts, button styles, and select from a small set of themes.
 - **FR-018:** The system shall support draft, published, unpublished, and suspended profile states.
 - **FR-019:** Customers shall be able to save drafts and preview profile changes before publication.

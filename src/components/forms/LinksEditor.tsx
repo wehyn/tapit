@@ -66,6 +66,12 @@ const LINK_ICON_VALUES: readonly LinkIcon[] = [
   "linkedin",
   "instagram",
   "globe",
+  "briefcase",
+  "images",
+  "palette",
+  "code",
+  "camera",
+  "github",
 ];
 
 type PersistedProfileLink = Omit<ProfileLink, "icon"> & { icon?: string };
@@ -194,12 +200,12 @@ function DemoLinksEditor() {
     setMessage(null);
   }
 
-  function addLink() {
+  function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
     if (!canAddProfileLink(links.length))
       return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
     const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
-    setLinks((current) => appendProfileLink(current, linkId));
+    setLinks((current) => [...current, { id: linkId, ...details, enabled: true }]);
     setMessage(null);
   }
 
@@ -441,12 +447,15 @@ export function LiveLinksEditorContent({
     );
     setMessage(null);
   }
-  function addLink() {
+  function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
     if (!canAddProfileLink(currentDraft.links.length))
       return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
     const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
-    setLinks((currentLinks) => appendProfileLink(currentLinks ?? normalizedDraftLinks, linkId));
+    setLinks((currentLinks) => [
+      ...(currentLinks ?? normalizedDraftLinks),
+      { id: linkId, ...details, enabled: true },
+    ]);
     setMessage(null);
   }
   function removeLink(id: string) {

@@ -3,14 +3,20 @@
 /* eslint-disable @next/next/no-img-element -- Profile uploads already have explicit 192px/384px variants for native srcSet selection. */
 import {
   ArrowUpRight,
+  Briefcase,
   CalendarDots,
+  Camera,
+  Code,
   DownloadSimple,
   EnvelopeSimple,
   Globe,
+  GithubLogo,
+  Images,
   InstagramLogo,
   LinkedinLogo,
   LinkSimple,
   Phone,
+  Palette,
 } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
@@ -181,6 +187,12 @@ const linkIcons = {
   linkedin: LinkedinLogo,
   instagram: InstagramLogo,
   globe: Globe,
+  briefcase: Briefcase,
+  images: Images,
+  palette: Palette,
+  code: Code,
+  camera: Camera,
+  github: GithubLogo,
 } as const;
 
 export function PublicProfile({
@@ -398,10 +410,11 @@ export function PublicProfile({
     }
   }
   function renderLink(link: PublicProfileProjection["links"][number], featured = false) {
-    const LinkIcon =
+    const iconKey =
       link.icon !== undefined && Object.prototype.hasOwnProperty.call(linkIcons, link.icon)
-        ? linkIcons[link.icon as keyof typeof linkIcons]
-        : LinkSimple;
+        ? (link.icon as keyof typeof linkIcons)
+        : "link";
+    const LinkIcon = linkIcons[iconKey];
     const arrowClasses = warmStudio
       ? `${warmAccent.arrow} text-current/80`
       : `group-hover:text-tapit-accent ${mutedClasses}`;
@@ -410,6 +423,7 @@ export function PublicProfile({
         <a
           className={`group flex items-center justify-between rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-sm active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${linkClasses}`}
           data-featured={featured ? "true" : undefined}
+          data-icon={iconKey}
           href={link.destination}
           onClick={() => {
             if (trackClicks) onLinkClick?.(link.id, profileId);
@@ -499,7 +513,7 @@ export function PublicProfile({
         )}
         {profile.bio ? (
           <p
-            className={`${compactPhonePreview ? "mt-1 max-w-sm text-xs leading-4" : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} break-words ${mutedClasses}`}
+            className={`${compactPhonePreview ? "mt-1 max-w-sm text-xs leading-4" : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} whitespace-pre-line break-words ${mutedClasses}`}
           >
             <span
               className={bioIdentityText}

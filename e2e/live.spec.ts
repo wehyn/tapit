@@ -88,8 +88,10 @@ test.describe("live Google OAuth journeys", () => {
       ).toBeVisible();
       await page.goto("/app/links");
       await page.getByRole("button", { name: "Add link" }).click();
-      await page.getByPlaceholder("e.g. Portfolio").fill("Portfolio");
-      await page.getByPlaceholder("https:// or mailto: or tel:").fill("https://example.com");
+      await page.getByRole("button", { name: "Website or link" }).click();
+      await page.getByLabel("Label", { exact: true }).fill("Portfolio");
+      await page.getByLabel("Web address").fill("https://example.com");
+      await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
       await page.getByRole("button", { name: "Publish", exact: true }).click();
       await expect(
         page.getByText("Profile published. Your active card paths now show this version."),

@@ -1,5 +1,17 @@
 import { expect, test } from "@playwright/test";
 
+async function addGuidedSignupLink(
+  page: import("@playwright/test").Page,
+  label: string,
+  destination: string,
+) {
+  await page.getByRole("button", { name: "Add link", exact: true }).first().click();
+  await page.getByRole("button", { name: "Website or link" }).click();
+  await page.getByLabel("Label", { exact: true }).fill(label);
+  await page.getByLabel("Web address").fill(destination);
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
+}
+
 test("authentication and setup screens fit narrow mobile and desktop widths", async ({ page }) => {
   for (const width of [320, 390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -120,8 +132,8 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await expect(page.getByText("A new customer bio")).toHaveCount(0);
 
   await page.goto("/app/links");
-  await page.getByRole("button", { name: "Add link" }).click();
-  await page.getByRole("button", { name: "Add link" }).click();
+  await addGuidedSignupLink(page, "Portfolio", "https://portfolio.example.test");
+  await addGuidedSignupLink(page, "TikTok", "https://www.tiktok.com/@new-customer");
   const editableLinks = page.locator('[aria-label="Editable profile links"]');
   const labels = editableLinks.locator('input[id$="-label"]');
   const destinations = editableLinks.locator('input[id$="-destination"]');
@@ -134,15 +146,13 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.getByRole("link", { name: "Links", exact: true }).click();
   await expect(labels.nth(0)).toHaveValue("Portfolio");
   await expect(destinations.nth(1)).toHaveValue("https://www.tiktok.com/@new-customer");
-  await page.getByRole("button", { name: "Add link" }).click();
-  await labels.nth(2).fill("Newsletter");
-  await destinations.nth(2).fill("https://newsletter.example.test");
+  await addGuidedSignupLink(page, "Newsletter", "https://newsletter.example.test");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(
     page.getByText("Links saved to draft. Visitors still see the last published order."),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Add link" }).click();
+  await addGuidedSignupLink(page, "Unsafe", "https://unsafe.example.test");
   const lastLabel = labels.last();
   const lastDestination = destinations.last();
   await lastLabel.fill("Unsafe");

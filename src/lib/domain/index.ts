@@ -29,7 +29,20 @@ export interface Actor {
   role: Role;
 }
 
-export type LinkIcon = "link" | "mail" | "phone" | "calendar" | "linkedin" | "instagram" | "globe";
+export type LinkIcon =
+  | "link"
+  | "mail"
+  | "phone"
+  | "calendar"
+  | "linkedin"
+  | "instagram"
+  | "globe"
+  | "briefcase"
+  | "images"
+  | "palette"
+  | "code"
+  | "camera"
+  | "github";
 
 export interface ProfileLink {
   id: string;

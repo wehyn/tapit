@@ -347,7 +347,21 @@ export function validateDraftSafety(content: {
     if (!link.id.trim()) errors.push("Every link needs a valid ID.");
     if (
       link.icon !== undefined &&
-      !["link", "mail", "phone", "calendar", "linkedin", "instagram", "globe"].includes(link.icon)
+      ![
+        "link",
+        "mail",
+        "phone",
+        "calendar",
+        "linkedin",
+        "instagram",
+        "globe",
+        "briefcase",
+        "images",
+        "palette",
+        "code",
+        "camera",
+        "github",
+      ].includes(link.icon)
     )
       errors.push("Every link must use a supported icon.");
     if (fieldTooLong(link.id, MAX_LINK_ID_LENGTH)) errors.push("A link ID is too long.");
