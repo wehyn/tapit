@@ -70,7 +70,16 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
 
     await user.click(screen.getByRole("button", { name: "Add link" }));
-    expect(onAddLink).toHaveBeenCalledOnce();
+    expect(screen.getByRole("dialog")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Website or link" }));
+    await user.type(screen.getByLabelText("Label", { exact: true }), "New site");
+    await user.type(screen.getByLabelText("Web address"), "https://example.com");
+    await user.click(screen.getByRole("dialog").querySelector('button[type="submit"]')!);
+    expect(onAddLink).toHaveBeenCalledWith({
+      label: "New site",
+      destination: "https://example.com",
+      icon: "globe",
+    });
   });
 
   it("exposes invalid rows and a loading save state", () => {
@@ -158,9 +167,9 @@ describe("LinksWorkspace", () => {
         />,
       );
 
-      expect(screen.getByRole("combobox", { name: "Preset icon for LinkedIn" })).toHaveValue(
-        "link",
-      );
+      expect(
+        screen.getByRole("button", { name: "Preset icon for LinkedIn: Generic link" }),
+      ).toBeVisible();
     },
   );
 });

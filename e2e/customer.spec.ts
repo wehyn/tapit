@@ -635,6 +635,14 @@ test("profile editors remove redundant visible titles and subtitles", async ({ p
   }
 });
 
+async function addGuidedLink(page: Page, label: string, destination: string) {
+  await page.getByRole("button", { name: "Add link", exact: true }).first().click();
+  await page.getByRole("button", { name: "Website or link" }).click();
+  await page.getByLabel("Label", { exact: true }).fill(label);
+  await page.getByLabel("Web address").fill(destination);
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
+}
+
 test("the link table contains its add action", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/app/links");
@@ -644,7 +652,45 @@ test("the link table contains its add action", async ({ page }) => {
   await expect(addLink).toBeVisible();
   const originalCount = await linkTable.locator("article").count();
   await addLink.click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Website or link" }).click();
+  await page.getByLabel("Label", { exact: true }).fill("New site");
+  await page.getByLabel("Web address").fill("https://new-site.example.test");
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(linkTable.locator("article")).toHaveCount(originalCount + 1);
+});
+
+test("guided link creation adds email and phone without scheme typing", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+  const rows = page.locator('[aria-label="Editable profile links"] article');
+  const initialCount = await rows.count();
+  await page.getByRole("button", { name: "Add link", exact: true }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(rows).toHaveCount(initialCount);
+
+  await page.getByRole("button", { name: "Add link", exact: true }).first().click();
+  await page.getByRole("button", { name: "Email address" }).click();
+  await page.getByLabel("Label", { exact: true }).fill("Work email");
+  await page.getByLabel("Email address", { exact: true }).fill("hello@example.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
+  await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("hello@example.com");
+
+  await page.getByRole("button", { name: "Add link", exact: true }).first().click();
+  await page.getByRole("button", { name: "Phone number" }).click();
+  await page.getByLabel("Label", { exact: true }).fill("Call me");
+  await page.getByLabel("Phone number", { exact: true }).fill("+1 555 123 4567");
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
+  await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("+1 555 123 4567");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Destination for Work email" })).toHaveValue(
+    "hello@example.com",
+  );
+  await expect(page.getByRole("textbox", { name: "Destination for Call me" })).toHaveValue(
+    "+1 555 123 4567",
+  );
 });
 
 test("the last link action menu stays visible above the draft bar", async ({ page }) => {
@@ -653,7 +699,7 @@ test("the last link action menu stays visible above the draft bar", async ({ pag
   await page.goto("/app/links");
 
   const linkTable = page.locator('[aria-label="Editable profile links"]');
-  await page.getByRole("button", { name: "Add link", exact: true }).click();
+  await addGuidedLink(page, "Last link", "https://last-link.example.test");
   const lastRow = linkTable.locator("article").last();
   await lastRow.locator("summary").click();
 
@@ -690,6 +736,31 @@ test("link drag handles reorder destinations", async ({ page }) => {
     .locator('input[id$="-label"]')
     .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
   expect(labels).toEqual(["LinkedIn", "Book a conversation", "Email", "Portfolio"]);
+});
+
+test("Portfolio link can use a new preset icon through publication", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const portfolioIcon = page.getByRole("button", { name: /Preset icon for Portfolio/ });
+  await portfolioIcon.click();
+  await expect(
+    page.getByRole("listbox", { name: "Preset icon for Portfolio" }).getByRole("option"),
+  ).toHaveCount(13);
+  await page.getByRole("option", { name: "Portfolio / briefcase" }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.goto("/app/links");
+  await expect(
+    page.getByRole("button", { name: "Preset icon for Portfolio: Portfolio / briefcase" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
+    "data-icon",
+    "briefcase",
+  );
 });
 
 test("link rows shift while the drag is still held", async ({ page }, testInfo) => {
@@ -775,12 +846,12 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
-  const linkedinIcon = page.locator("#linkedin-icon");
-  await linkedinIcon.selectOption("mail");
-  await expect(linkedinIcon).toHaveValue("mail");
+  const linkedinIcon = page.getByRole("button", { name: /Preset icon for LinkedIn/ });
+  await linkedinIcon.click();
+  await page.getByRole("option", { name: "Email" }).click();
+  await expect(page.getByRole("button", { name: "Preset icon for LinkedIn: Email" })).toBeVisible();
 
-  const addLinkButton = page.getByRole("button", { name: "Add link" });
-  await addLinkButton.click();
+  await addGuidedLink(page, "Private note", "https://contact.example.test");
   const editableLinks = page.locator('[aria-label="Editable profile links"]');
   const labels = editableLinks.locator('input[id$="-label"]');
   const destinations = editableLinks.locator('input[id$="-destination"]');
@@ -798,9 +869,7 @@ test("customer drafts stay private until link and profile publication", async ({
   await page.getByRole("button", { name: "Move up" }).click();
   await expect(labels.nth(3)).toHaveValue("Private note");
 
-  await addLinkButton.click();
-  const deleteMeLabel = labels.last();
-  await deleteMeLabel.fill("Delete me");
+  await addGuidedLink(page, "Delete me", "https://delete-me.example.test");
   await page.locator('summary[aria-label="Actions for Delete me"]').click();
   await page
     .locator("details")
@@ -817,7 +886,7 @@ test("customer drafts stay private until link and profile publication", async ({
     "Private note",
   );
   await expect(page.getByRole("checkbox", { name: "Enable Private note" })).not.toBeChecked();
-  await expect(page.locator("#linkedin-icon")).toHaveValue("mail");
+  await expect(page.getByRole("button", { name: "Preset icon for LinkedIn: Email" })).toBeVisible();
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),
@@ -827,7 +896,9 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByText("Private note")).toHaveCount(0);
 });
 
-test("customer can switch profile presets while preserving Warm Studio media", async ({ page }) => {
+test("customer can switch profile presets while preserving customization and media", async ({
+  page,
+}) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
@@ -852,21 +923,29 @@ test("customer can switch profile presets while preserving Warm Studio media", a
     .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByLabel("Background image description").fill("Warm studio backdrop");
   await page.getByRole("tab", { name: "Overview" }).click();
+  await page.getByRole("radio", { name: "Editorial" }).check();
 
   await softPrecision.click();
-  const switchDialog = page.getByRole("dialog", { name: "Switch profile preset?" });
-  await expect(switchDialog).toContainText("Uploaded media will remain saved but inactive.");
-  await switchDialog.getByRole("button", { name: "Cancel" }).click();
-  await expect(warmStudio).toBeChecked();
-
-  await softPrecision.click();
-  await switchDialog.getByRole("button", { name: "Switch to Soft Precision" }).click();
   await expect(softPrecision).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
-  await expect(page.getByRole("tab", { name: "Media" })).toBeDisabled();
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Editorial" })).toBeChecked();
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByLabel("Background image description")).toHaveValue("Warm studio backdrop");
+  await page.getByRole("tab", { name: "Overview" }).click();
 
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText(/Draft saved/)).toBeVisible();
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(/text-4xl/);
   await page.goto("/app/customize");
   await warmStudio.check();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(251, 246, 239)");
@@ -875,16 +954,50 @@ test("customer can switch profile presets while preserving Warm Studio media", a
 
   await page.getByRole("tab", { name: "Overview" }).click();
   await moss.click();
-  await expect(switchDialog).toBeVisible();
-  await switchDialog.getByRole("button", { name: "Switch to Moss" }).click();
   await expect(moss).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(232, 241, 235)");
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
   await night.check();
   await expect(night).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(23, 33, 31)");
+  await expect(
+    page
+      .getByTestId("profile-preview-frame")
+      .getByRole("region", { name: "Profile hero" })
+      .getByRole("heading", { name: "Mara Velasquez" }),
+  ).toBeVisible();
   await softPrecision.check();
   await expect(softPrecision).toBeChecked();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(244, 246, 250)");
+});
+
+test("bio line breaks remain visible in preview and published profile", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+
+  const bio = page.getByLabel("Bio or role");
+  await bio.fill("First line");
+  await bio.press("Enter");
+  await bio.pressSequentially("Second line");
+  await expect(bio).toHaveValue("First line\nSecond line");
+
+  const previewBio = page.getByTestId("profile-preview-frame").locator("p.whitespace-pre-line");
+  await expect(previewBio).toHaveCSS("white-space", "pre-line");
+  expect(await previewBio.textContent()).toBe("First line\nSecond line");
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+
+  const publicBio = page.locator("main p.whitespace-pre-line");
+  await expect(publicBio).toHaveCSS("white-space", "pre-line");
+  expect(await publicBio.textContent()).toBe("First line\nSecond line");
 });
 
 test("customer can customize, save, and publish a custom profile palette", async ({ page }) => {

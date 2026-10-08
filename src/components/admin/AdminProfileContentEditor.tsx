@@ -40,6 +40,12 @@ const linkIcons: readonly { value: LinkIcon; label: string }[] = [
   { value: "calendar", label: "Booking / calendar" },
   { value: "linkedin", label: "LinkedIn" },
   { value: "instagram", label: "Instagram" },
+  { value: "briefcase", label: "Portfolio / briefcase" },
+  { value: "images", label: "Gallery / images" },
+  { value: "palette", label: "Design / palette" },
+  { value: "code", label: "Development / code" },
+  { value: "camera", label: "Photography / camera" },
+  { value: "github", label: "GitHub" },
 ];
 
 function getLinkError(link: ProfileLink, links: readonly ProfileLink[]): string | undefined {

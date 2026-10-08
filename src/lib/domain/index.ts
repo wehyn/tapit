@@ -29,7 +29,20 @@ export interface Actor {
   role: Role;
 }
 
-export type LinkIcon = "link" | "mail" | "phone" | "calendar" | "linkedin" | "instagram" | "globe";
+export type LinkIcon =
+  | "link"
+  | "mail"
+  | "phone"
+  | "calendar"
+  | "linkedin"
+  | "instagram"
+  | "globe"
+  | "briefcase"
+  | "images"
+  | "palette"
+  | "code"
+  | "camera"
+  | "github";
 
 export interface ProfileLink {
   id: string;
@@ -314,7 +327,7 @@ export function validatePublication(
   if (websiteError !== null) errors.push(websiteError);
   errors.push(
     ...validateProfileCustomization(draft.customization, draft.links, {
-      allowWhite: draft.media?.background !== undefined,
+      allowWhite: draft.media?.background !== undefined || draft.theme === "night",
       activeTheme: draft.theme ?? options.activeTheme,
     } satisfies ProfileCustomizationValidationOptions),
   );

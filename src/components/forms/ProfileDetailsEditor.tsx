@@ -5,7 +5,12 @@ import { CaretDownIcon, CaretUpIcon, CopyIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 
 import type { ProfileContent, ProfileLink } from "@/lib/domain";
-import type { ProfileCustomization, ProfileSection } from "@/lib/profile-customization";
+import {
+  DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
+  DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  type ProfileCustomization,
+  type ProfileSection,
+} from "@/lib/profile-customization";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
@@ -267,17 +272,21 @@ export function ProfileDetailsEditor({
     contact: true,
     about: true,
   });
+  const activeCustomization: ProfileCustomization =
+    customization ??
+    (draft.theme === "custom"
+      ? DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION
+      : { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: draft.theme ?? "paper" });
 
   function toggle(name: DetailsSectionName) {
     setOpenSections((current) => ({ ...current, [name]: !current[name] }));
   }
 
   function update(patch: Partial<ProfileCustomization>) {
-    if (customization) onCustomizationChange({ ...copyCustomization(customization), ...patch });
+    onCustomizationChange({ ...copyCustomization(activeCustomization), ...patch });
   }
 
   function updateSection(section: ProfileSection | undefined) {
-    if (!customization) return;
     const nextSection =
       section?.kind === "services"
         ? {
@@ -285,14 +294,14 @@ export function ProfileDetailsEditor({
             items: section.items ? [...section.items] : undefined,
           }
         : section;
-    onCustomizationChange({ ...copyCustomization(customization), section: nextSection });
+    onCustomizationChange({ ...copyCustomization(activeCustomization), section: nextSection });
   }
 
-  const section = customization?.section;
-  const featuredLink = customization?.featuredLinkId
-    ? links.find((link) => link.id === customization.featuredLinkId)
+  const section = activeCustomization.section;
+  const featuredLink = activeCustomization.featuredLinkId
+    ? links.find((link) => link.id === activeCustomization.featuredLinkId)
     : undefined;
-  const featuredUnavailable = Boolean(customization?.featuredLinkId && !featuredLink?.enabled);
+  const featuredUnavailable = Boolean(activeCustomization.featuredLinkId && !featuredLink?.enabled);
   const errorId = (name: string) => `${baseId}-${name}-error`;
   const findError = (...needles: string[]) =>
     errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
@@ -306,7 +315,6 @@ export function ProfileDetailsEditor({
   const itemError = findError("service item", "services items");
 
   function setKind(kind: "about" | "services") {
-    if (!customization) return;
     updateSection(
       kind === "about"
         ? { kind, body: section?.kind === "about" ? section.body : "" }
@@ -375,174 +383,170 @@ export function ProfileDetailsEditor({
         )}
       </Panel>
 
-      {customization ? (
-        <>
-          <SectionRow
-            id={`${baseId}-contact`}
-            name="contact"
-            onToggle={() => toggle("contact")}
-            open={openSections.contact}
-          >
-            <div className="grid gap-4">
-              <p className="text-sm leading-6 text-tapit-muted">
-                Email, phone, and website are managed in Identity. They appear automatically when
-                populated.
-              </p>
-              <SelectField
-                aria-describedby={featuredError ? errorId("featured-link") : undefined}
-                id={`${baseId}-featured-link`}
-                label="Featured link"
-                onChange={(event) => update({ featuredLinkId: event.target.value || undefined })}
-                value={customization.featuredLinkId ?? ""}
-              >
-                <option value="">No featured link</option>
-                {customization.featuredLinkId && !featuredLink ? (
-                  <option value={customization.featuredLinkId}>Unavailable featured link</option>
-                ) : null}
-                {links.map((link) => (
-                  <option disabled={!link.enabled} key={link.id} value={link.id}>
-                    {link.label}
-                    {!link.enabled ? " (disabled)" : ""}
-                  </option>
-                ))}
-              </SelectField>
-              {featuredUnavailable ? (
-                <div id={errorId("featured-link")} role="alert">
-                  <Notice>
-                    The selected featured link is missing or disabled. It will appear as a normal
-                    link, and this will not block publication.
-                    <span className="mt-3 block">
+      <>
+        <SectionRow
+          id={`${baseId}-contact`}
+          name="contact"
+          onToggle={() => toggle("contact")}
+          open={openSections.contact}
+        >
+          <div className="grid gap-4">
+            <p className="text-sm leading-6 text-tapit-muted">
+              Email, phone, and website are managed in Identity. They appear automatically when
+              populated.
+            </p>
+            <SelectField
+              aria-describedby={featuredError ? errorId("featured-link") : undefined}
+              id={`${baseId}-featured-link`}
+              label="Featured link"
+              onChange={(event) => update({ featuredLinkId: event.target.value || undefined })}
+              value={activeCustomization.featuredLinkId ?? ""}
+            >
+              <option value="">No featured link</option>
+              {activeCustomization.featuredLinkId && !featuredLink ? (
+                <option value={activeCustomization.featuredLinkId}>
+                  Unavailable featured link
+                </option>
+              ) : null}
+              {links.map((link) => (
+                <option disabled={!link.enabled} key={link.id} value={link.id}>
+                  {link.label}
+                  {!link.enabled ? " (disabled)" : ""}
+                </option>
+              ))}
+            </SelectField>
+            {featuredUnavailable ? (
+              <div id={errorId("featured-link")} role="alert">
+                <Notice>
+                  The selected featured link is missing or disabled. It will appear as a normal
+                  link, and this will not block publication.
+                  <span className="mt-3 block">
+                    <Button
+                      onClick={() => update({ featuredLinkId: undefined })}
+                      type="button"
+                      variant="quiet"
+                    >
+                      Clear featured link
+                    </Button>
+                  </span>
+                </Notice>
+              </div>
+            ) : null}
+          </div>
+        </SectionRow>
+
+        <SectionRow
+          id={`${baseId}-about`}
+          name="about"
+          onToggle={() => toggle("about")}
+          open={openSections.about}
+        >
+          <div className="grid gap-5">
+            <fieldset className="grid gap-2">
+              <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
+              {kindError ? (
+                <p className="sr-only" id={errorId("kind")} role="alert">
+                  {kindError}
+                </p>
+              ) : null}
+              <div className="grid gap-2 sm:grid-cols-2">
+                <RadioChoice
+                  ariaDescribedBy={kindError ? errorId("kind") : undefined}
+                  checked={section?.kind === "about"}
+                  name={`${baseId}-kind`}
+                  onChange={() => setKind("about")}
+                  value="about"
+                >
+                  About
+                </RadioChoice>
+                <RadioChoice
+                  ariaDescribedBy={kindError ? errorId("kind") : undefined}
+                  checked={section?.kind === "services"}
+                  name={`${baseId}-kind`}
+                  onChange={() => setKind("services")}
+                  value="services"
+                >
+                  Services
+                </RadioChoice>
+              </div>
+            </fieldset>
+            {section?.kind === "about" ? (
+              <TextareaField
+                error={bodyError}
+                id={`${baseId}-about-copy`}
+                label="About copy"
+                maxLength={280}
+                onChange={(event) => updateSection({ kind: "about", body: event.target.value })}
+                value={section.body}
+              />
+            ) : null}
+            {section?.kind === "services" ? (
+              <div className="grid gap-4">
+                <TextareaField
+                  error={bodyError}
+                  id={`${baseId}-services-intro`}
+                  label="Services intro"
+                  maxLength={160}
+                  onChange={(event) => updateSection({ ...section, body: event.target.value })}
+                  value={section.body}
+                />
+                <div className="grid gap-3">
+                  {section.items?.map((item, index) => (
+                    <div className="flex items-end gap-2" key={`${baseId}-service-${index}`}>
+                      <Field
+                        error={itemError}
+                        id={`${baseId}-service-${index}`}
+                        label={`Service ${index + 1}`}
+                        maxLength={60}
+                        onChange={(event) => {
+                          const items = [...(section.items ?? [])];
+                          items[index] = event.target.value;
+                          updateSection({ ...section, items });
+                        }}
+                        value={item}
+                      />
                       <Button
-                        onClick={() => update({ featuredLinkId: undefined })}
+                        aria-label={`Remove Service ${index + 1}`}
+                        className="shrink-0"
+                        onClick={() =>
+                          updateSection({
+                            ...section,
+                            items: section.items?.filter((_, itemIndex) => itemIndex !== index),
+                          })
+                        }
                         type="button"
                         variant="quiet"
                       >
-                        Clear featured link
+                        Remove
                       </Button>
-                    </span>
-                  </Notice>
+                    </div>
+                  ))}
+                  {(section.items?.length ?? 0) < 3 ? (
+                    <Button
+                      onClick={() =>
+                        updateSection({ ...section, items: [...(section.items ?? []), ""] })
+                      }
+                      type="button"
+                      variant="secondary"
+                    >
+                      Add service
+                    </Button>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
-          </SectionRow>
-
-          <SectionRow
-            id={`${baseId}-about`}
-            name="about"
-            onToggle={() => toggle("about")}
-            open={openSections.about}
-          >
-            <div className="grid gap-5">
-              <fieldset className="grid gap-2">
-                <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
-                {kindError ? (
-                  <p className="sr-only" id={errorId("kind")} role="alert">
-                    {kindError}
-                  </p>
-                ) : null}
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <RadioChoice
-                    ariaDescribedBy={kindError ? errorId("kind") : undefined}
-                    checked={section?.kind === "about"}
-                    name={`${baseId}-kind`}
-                    onChange={() => setKind("about")}
-                    value="about"
-                  >
-                    About
-                  </RadioChoice>
-                  <RadioChoice
-                    ariaDescribedBy={kindError ? errorId("kind") : undefined}
-                    checked={section?.kind === "services"}
-                    name={`${baseId}-kind`}
-                    onChange={() => setKind("services")}
-                    value="services"
-                  >
-                    Services
-                  </RadioChoice>
-                </div>
-              </fieldset>
-              {section?.kind === "about" ? (
-                <TextareaField
-                  error={bodyError}
-                  id={`${baseId}-about-copy`}
-                  label="About copy"
-                  maxLength={280}
-                  onChange={(event) => updateSection({ kind: "about", body: event.target.value })}
-                  value={section.body}
-                />
-              ) : null}
-              {section?.kind === "services" ? (
-                <div className="grid gap-4">
-                  <TextareaField
-                    error={bodyError}
-                    id={`${baseId}-services-intro`}
-                    label="Services intro"
-                    maxLength={160}
-                    onChange={(event) => updateSection({ ...section, body: event.target.value })}
-                    value={section.body}
-                  />
-                  <div className="grid gap-3">
-                    {section.items?.map((item, index) => (
-                      <div className="flex items-end gap-2" key={`${baseId}-service-${index}`}>
-                        <Field
-                          error={itemError}
-                          id={`${baseId}-service-${index}`}
-                          label={`Service ${index + 1}`}
-                          maxLength={60}
-                          onChange={(event) => {
-                            const items = [...(section.items ?? [])];
-                            items[index] = event.target.value;
-                            updateSection({ ...section, items });
-                          }}
-                          value={item}
-                        />
-                        <Button
-                          aria-label={`Remove Service ${index + 1}`}
-                          className="shrink-0"
-                          onClick={() =>
-                            updateSection({
-                              ...section,
-                              items: section.items?.filter((_, itemIndex) => itemIndex !== index),
-                            })
-                          }
-                          type="button"
-                          variant="quiet"
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    ))}
-                    {(section.items?.length ?? 0) < 3 ? (
-                      <Button
-                        onClick={() =>
-                          updateSection({ ...section, items: [...(section.items ?? []), ""] })
-                        }
-                        type="button"
-                        variant="secondary"
-                      >
-                        Add service
-                      </Button>
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
-              {section ? (
-                <Button onClick={() => updateSection(undefined)} type="button" variant="quiet">
-                  Remove {section.kind === "about" ? "About" : "Services"} section
-                </Button>
-              ) : (
-                <Button onClick={() => setKind("about")} type="button" variant="secondary">
-                  Add About or Services section
-                </Button>
-              )}
-            </div>
-          </SectionRow>
-        </>
-      ) : (
-        <Notice>
-          Featured link and About/Services become available after choosing Warm Studio in Customize.
-        </Notice>
-      )}
+              </div>
+            ) : null}
+            {section ? (
+              <Button onClick={() => updateSection(undefined)} type="button" variant="quiet">
+                Remove {section.kind === "about" ? "About" : "Services"} section
+              </Button>
+            ) : (
+              <Button onClick={() => setKind("about")} type="button" variant="secondary">
+                Add About or Services section
+              </Button>
+            )}
+          </div>
+        </SectionRow>
+      </>
     </div>
   );
 }

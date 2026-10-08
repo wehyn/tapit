@@ -145,6 +145,37 @@ describe("public profile preview behavior", () => {
     expect(summary).toHaveAttribute("aria-expanded", "true");
   });
 
+  it("applies saved layout and identity settings over a Night palette", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        preview
+        profile={{
+          ...projection,
+          theme: "night",
+          customization: {
+            ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+            preset: "night",
+            typeScale: "editorial",
+            linkTreatment: "outlined",
+            identityColors: { name: { kind: "custom", hex: "#ffffff" } },
+          },
+        }}
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveClass("text-4xl");
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
+      color: "#ffffff",
+    });
+    expect(screen.getByRole("button", { name: /save contact/i })).toHaveClass(
+      "border-tapit-accent",
+      "bg-transparent",
+    );
+  });
+
   it("keeps Warm Studio while an About or Services section is still empty", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
@@ -397,7 +428,7 @@ describe("public profile preview behavior", () => {
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
   });
 
-  it("keeps legacy media before identity content", () => {
+  it("integrates identity into a themed profile background", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -429,9 +460,7 @@ describe("public profile preview behavior", () => {
     expect(hero.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(slideshow.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    expect(hero).toContainElement(heading);
     expect(heading).not.toHaveClass("text-white");
   });
 

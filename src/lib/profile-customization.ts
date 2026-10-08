@@ -39,7 +39,7 @@ export interface ContactAction {
 }
 
 export interface ProfileCustomization {
-  preset: "warm-studio" | "custom";
+  preset: ProfileAppearanceTheme | "warm-studio";
   accent: ProfileAccent;
   typeScale: ProfileTypeScale;
   linkTreatment: ProfileLinkTreatment;
@@ -52,7 +52,7 @@ export interface ProfileCustomization {
 }
 
 export interface ResolvedProfileAppearance {
-  mode: "legacy" | "warm-studio" | "custom";
+  mode: "legacy" | "themed" | "warm-studio" | "custom";
   accent: ProfileAccent;
   typeScale: ProfileTypeScale;
   linkTreatment: ProfileLinkTreatment;
@@ -151,6 +151,19 @@ export function resolveProfileAppearance(
   }
 
   const value = isRecord(customization) ? customization : undefined;
+  if (
+    (value?.preset === "paper" || value?.preset === "moss" || value?.preset === "night") &&
+    (theme === undefined || theme === value.preset)
+  ) {
+    return {
+      mode: "themed",
+      accent: value.accent as ProfileAccent,
+      typeScale: value.typeScale as ProfileTypeScale,
+      linkTreatment: value.linkTreatment as ProfileLinkTreatment,
+      nameColor: resolveProfileIdentityColor(value.identityColors, "name"),
+      bioColor: resolveProfileIdentityColor(value.identityColors, "bio"),
+    };
+  }
   if (value?.preset === "custom") {
     if (theme !== undefined && theme !== "custom") {
       return {
@@ -164,13 +177,23 @@ export function resolveProfileAppearance(
     }
     return {
       mode: "custom",
-      accent: "ink",
-      typeScale: "comfortable",
-      linkTreatment: "outlined",
-      nameColor: IDENTITY_COLOR_DEFAULTS.name,
-      bioColor: IDENTITY_COLOR_DEFAULTS.bio,
+      accent: value.accent as ProfileAccent,
+      typeScale: value.typeScale as ProfileTypeScale,
+      linkTreatment: value.linkTreatment as ProfileLinkTreatment,
+      nameColor: resolveProfileIdentityColor(value.identityColors, "name"),
+      bioColor: resolveProfileIdentityColor(value.identityColors, "bio"),
       customColors:
         normalizeProfileThemeColors(value.customColors) ?? DEFAULT_CUSTOM_PROFILE_COLORS,
+    };
+  }
+  if (value?.preset !== "warm-studio") {
+    return {
+      mode: "legacy",
+      accent: "coral",
+      typeScale: "comfortable",
+      linkTreatment: "filled",
+      nameColor: IDENTITY_COLOR_DEFAULTS.name,
+      bioColor: IDENTITY_COLOR_DEFAULTS.bio,
     };
   }
   return {
@@ -454,7 +477,7 @@ export function validateProfileCustomization(
   if (customization === undefined) return [];
   const value: Record<string, unknown> = isRecord(customization) ? customization : {};
   const errors: string[] = [];
-  if (value.preset !== "warm-studio" && value.preset !== "custom") {
+  if (!["paper", "moss", "night", "warm-studio", "custom"].includes(value.preset as string)) {
     errors.push("The profile customization preset is invalid.");
   }
   if (!PROFILE_ACCENTS.has(value.accent as ProfileAccent))

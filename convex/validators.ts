@@ -92,7 +92,13 @@ const profileIdentityColorsValidator = v.object({
 });
 
 export const profileCustomizationValidator = v.object({
-  preset: v.union(v.literal("warm-studio"), v.literal("custom")),
+  preset: v.union(
+    v.literal("paper"),
+    v.literal("moss"),
+    v.literal("night"),
+    v.literal("warm-studio"),
+    v.literal("custom"),
+  ),
   accent: v.union(v.literal("coral"), v.literal("jade"), v.literal("ink")),
   typeScale: v.union(v.literal("compact"), v.literal("comfortable"), v.literal("editorial")),
   linkTreatment: v.union(v.literal("filled"), v.literal("outlined")),
@@ -341,7 +347,21 @@ export function validateDraftSafety(content: {
     if (!link.id.trim()) errors.push("Every link needs a valid ID.");
     if (
       link.icon !== undefined &&
-      !["link", "mail", "phone", "calendar", "linkedin", "instagram", "globe"].includes(link.icon)
+      ![
+        "link",
+        "mail",
+        "phone",
+        "calendar",
+        "linkedin",
+        "instagram",
+        "globe",
+        "briefcase",
+        "images",
+        "palette",
+        "code",
+        "camera",
+        "github",
+      ].includes(link.icon)
     )
       errors.push("Every link must use a supported icon.");
     if (fieldTooLong(link.id, MAX_LINK_ID_LENGTH)) errors.push("A link ID is too long.");

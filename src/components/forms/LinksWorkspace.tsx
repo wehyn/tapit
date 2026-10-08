@@ -5,23 +5,19 @@ import { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  CalendarDotsIcon,
   CheckCircleIcon,
   DotsSixVerticalIcon,
   DotsThreeVerticalIcon,
-  EnvelopeSimpleIcon,
   FloppyDiskIcon,
-  GlobeIcon,
-  InstagramLogoIcon,
-  LinkSimpleIcon,
-  LinkedinLogoIcon,
-  PhoneIcon,
   PlusIcon,
   TrashIcon,
   UploadSimpleIcon,
 } from "@phosphor-icons/react";
 
 import type { LinkIcon, ProfileLink, PublicProfileProjection } from "@/lib/domain";
+import { AddLinkDialog } from "./AddLinkDialog";
+import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
+import { displayDestination, linkKind } from "./LinkDestination";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
@@ -42,33 +38,13 @@ export type LinksWorkspaceProps = {
   isDirty: boolean;
   publicationLabel: string;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
-  onAddLink: () => void;
+  onAddLink: (link: Pick<ProfileLink, "label" | "destination" | "icon">) => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
   onReorderLink: (sourceId: string, targetId: string, insertAfter: boolean) => void;
   onRemoveLink: (id: string) => void;
   onSaveDraft: () => Promise<boolean>;
   onPublish: () => void | Promise<void>;
 };
-
-const iconOptions: Array<{ value: LinkIcon; label: string }> = [
-  { value: "link", label: "Generic link" },
-  { value: "globe", label: "Website / globe" },
-  { value: "mail", label: "Email" },
-  { value: "phone", label: "Phone" },
-  { value: "calendar", label: "Booking / calendar" },
-  { value: "linkedin", label: "LinkedIn" },
-  { value: "instagram", label: "Instagram" },
-];
-
-const linkIconMap = {
-  link: LinkSimpleIcon,
-  globe: GlobeIcon,
-  mail: EnvelopeSimpleIcon,
-  phone: PhoneIcon,
-  calendar: CalendarDotsIcon,
-  linkedin: LinkedinLogoIcon,
-  instagram: InstagramLogoIcon,
-} as const;
 
 export function LinksWorkspace({
   profileUrl,
@@ -88,6 +64,7 @@ export function LinksWorkspace({
   onSaveDraft,
   onPublish,
 }: LinksWorkspaceProps) {
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
   const draggedLinkIdRef = useRef<string | null>(null);
   const dropCompletedRef = useRef(false);
@@ -148,6 +125,16 @@ export function LinksWorkspace({
 
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
+      {addDialogOpen ? (
+        <AddLinkDialog
+          destinations={links.map((link) => link.destination)}
+          onClose={() => setAddDialogOpen(false)}
+          onAdd={(link) => {
+            onAddLink(link);
+            setAddDialogOpen(false);
+          }}
+        />
+      ) : null}
       <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
         <section aria-labelledby="links-workspace-title">
           <h1 className="sr-only" id="links-workspace-title">
@@ -167,7 +154,7 @@ export function LinksWorkspace({
               <h2 className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink">
                 Profile links
               </h2>
-              <Button onClick={onAddLink} type="button">
+              <Button onClick={() => setAddDialogOpen(true)} type="button">
                 <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
                 Add link
               </Button>
@@ -183,17 +170,12 @@ export function LinksWorkspace({
               <div className="p-6">
                 <Notice>
                   Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
-                  email and phone actions support mailto: and tel:.
+                  choose email or phone to add those actions.
                 </Notice>
               </div>
             ) : null}
             {links.map((link, index) => {
-              const selectedIcon: LinkIcon =
-                link.icon !== undefined &&
-                Object.prototype.hasOwnProperty.call(linkIconMap, link.icon)
-                  ? link.icon
-                  : "link";
-              const LinkIcon = linkIconMap[selectedIcon];
+              const selectedIcon: LinkIcon = link.icon ?? "link";
               return (
                 <article
                   className={`group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6 ${draggedLinkId === link.id ? "bg-tapit-accent-soft/60 opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : ""}`}
@@ -269,27 +251,11 @@ export function LinksWorkspace({
                       <DotsSixVerticalIcon aria-hidden="true" size={18} weight="bold" />
                     </button>
                     <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
-                      <div className="relative grid size-10 shrink-0 place-items-center rounded-tapit bg-tapit-accent-soft text-tapit-accent">
-                        <LinkIcon aria-hidden="true" size={19} weight="bold" />
-                        <label className="sr-only" htmlFor={`${link.id}-icon`}>
-                          Preset icon for {link.label || "link"}
-                        </label>
-                        <select
-                          aria-label={`Preset icon for ${link.label || "link"}`}
-                          className="absolute inset-0 size-full cursor-pointer opacity-0"
-                          id={`${link.id}-icon`}
-                          onChange={(event) =>
-                            onUpdateLink(link.id, { icon: event.target.value as LinkIcon })
-                          }
-                          value={selectedIcon}
-                        >
-                          {iconOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <LinkPresetIconPicker
+                        value={selectedIcon}
+                        label={link.label}
+                        onChange={(icon) => onUpdateLink(link.id, { icon })}
+                      />
                       <div className="min-w-0 flex-1">
                         <label className="sr-only" htmlFor={`${link.id}-label`}>
                           Label for {link.label || "link"}
@@ -315,10 +281,23 @@ export function LinksWorkspace({
                         className="min-h-11 w-full min-w-0 rounded-tapit border border-transparent bg-transparent px-2 text-sm text-tapit-muted outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper"
                         id={`${link.id}-destination`}
                         onChange={(event) =>
-                          onUpdateLink(link.id, { destination: event.target.value })
+                          onUpdateLink(link.id, {
+                            destination:
+                              linkKind(link.destination) === "email"
+                                ? `mailto:${event.target.value}`
+                                : linkKind(link.destination) === "phone"
+                                  ? `tel:${event.target.value}`
+                                  : event.target.value,
+                          })
                         }
-                        placeholder="https:// or mailto: or tel:"
-                        value={link.destination}
+                        placeholder={
+                          linkKind(link.destination) === "email"
+                            ? "you@example.com"
+                            : linkKind(link.destination) === "phone"
+                              ? "+1 555 123 4567"
+                              : "https://example.com"
+                        }
+                        value={displayDestination(link.destination)}
                       />
                     </div>
                     <label

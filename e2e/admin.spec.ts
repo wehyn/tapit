@@ -507,14 +507,10 @@ test("administrator publishes only after editing their own draft", async ({ page
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/links");
   await page.getByRole("button", { name: "Add link" }).click();
-  await page
-    .getByRole("textbox", { name: /Label for/ })
-    .last()
-    .fill("Portfolio");
-  await page
-    .getByRole("textbox", { name: /Destination for/ })
-    .last()
-    .fill("https://example.com");
+  await page.getByRole("button", { name: "Website or link" }).click();
+  await page.getByLabel("Label", { exact: true }).fill("Portfolio");
+  await page.getByLabel("Web address").fill("https://example.com");
+  await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
