@@ -886,7 +886,7 @@ test("customer drafts stay private until link and profile publication", async ({
     "Private note",
   );
   await expect(page.getByRole("checkbox", { name: "Enable Private note" })).not.toBeChecked();
-  await expect(page.locator("#linkedin-icon")).toHaveValue("mail");
+  await expect(page.getByRole("button", { name: "Preset icon for LinkedIn: Email" })).toBeVisible();
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),

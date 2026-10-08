@@ -234,14 +234,12 @@ export function PublicProfile({
   const customTheme = appearance.mode === "custom";
   const configured = appearance.mode !== "legacy";
   const accentOverride =
-    configured && !warmStudio
+    configured && !warmStudio && !customTheme
       ? appearance.accent === "coral"
         ? "#a84431"
-        : appearance.accent === "ink" && !customTheme
+        : appearance.accent === "ink"
           ? "#2c2420"
-          : appearance.accent === "jade" && customTheme
-            ? "#3e806d"
-            : undefined
+          : undefined
       : undefined;
   const activeAccent =
     accentOverride ??
