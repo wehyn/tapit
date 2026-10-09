@@ -105,6 +105,7 @@ export function ProfileSlideshow({
         releasePointer(event);
       }}
       onPointerDown={(event) => {
+        if (event.target instanceof Element && event.target.closest("button")) return;
         pointerStart.current = { x: event.clientX, y: event.clientY };
         pointerId.current = event.pointerId;
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -126,7 +127,7 @@ export function ProfileSlideshow({
     >
       <div className="relative aspect-[16/9] min-h-40">
         <img
-          alt={current.alt}
+          alt={current.alt.trim() || `Slideshow image ${safeActiveIndex + 1}`}
           className={`tapit-profile-slideshow-image absolute inset-0 size-full object-cover ${reducedMotion ? "tapit-profile-slideshow-image--reduced" : ""}`}
           decoding="async"
           key={current.src}

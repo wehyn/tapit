@@ -289,16 +289,24 @@ export function ProfileMediaEditor({
               Add a wide image to the top of your profile. JPEG, PNG, or WebP.
             </p>
           </div>
-          <Button
-            aria-describedby={uploadDescription("background")}
-            aria-invalid={uploadError("background") ? true : undefined}
-            disabled={busy}
-            onClick={() => backgroundInput.current?.click()}
-            type="button"
-            variant="secondary"
-          >
-            {value.background ? "Replace background" : "Upload background"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {value.background ? (
+              <Button disabled={busy} onClick={removeBackground} type="button" variant="quiet">
+                <TrashIcon aria-hidden="true" className="mr-2" size={16} />
+                Remove background
+              </Button>
+            ) : null}
+            <Button
+              aria-describedby={uploadDescription("background")}
+              aria-invalid={uploadError("background") ? true : undefined}
+              disabled={busy}
+              onClick={() => backgroundInput.current?.click()}
+              type="button"
+              variant="secondary"
+            >
+              {value.background ? "Replace background" : "Upload background"}
+            </Button>
+          </div>
           <input
             accept={imageAccept}
             aria-label="Upload background image"
@@ -376,15 +384,6 @@ export function ProfileMediaEditor({
                 />
               </label>
             </fieldset>
-            <Button
-              className="justify-self-start"
-              onClick={removeBackground}
-              type="button"
-              variant="quiet"
-            >
-              <TrashIcon aria-hidden="true" size={16} />
-              Remove background
-            </Button>
           </div>
         ) : null}
         <div className="border-t border-tapit-line pt-4">
@@ -452,6 +451,7 @@ export function ProfileMediaEditor({
             <Field
               id={`${baseId}-slide-${index}-alt`}
               label={`Slideshow image ${index + 1} description`}
+              help="Optional. Add a description if it helps explain the image."
               maxLength={160}
               onChange={(event) => updateSlide(index, { altText: event.target.value })}
               value={image.altText}

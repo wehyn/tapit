@@ -581,6 +581,34 @@ describe("profile media hardening", () => {
     expect(direct?.media?.slideshow[0]).not.toHaveProperty("assetId");
   });
 
+  it("saves and publishes a slideshow image with an empty description", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const owner = t.withIdentity(identity(ids.ownerUserId));
+    const item = await asset(t, ids.ownerProfileId, ids.ownerId);
+
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: ids.ownerProfileId,
+      draft: content("owner", {
+        ...media(item.assetId),
+        slideshow: [{ assetId: item.assetId, altText: "" }],
+      }),
+      expectedMediaRevision: 0,
+    });
+    expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.draft.media?.slideshow).toEqual([
+      { assetId: item.assetId, altText: "" },
+    ]);
+
+    await owner.mutation(api.profiles.publish, {
+      profileId: ids.ownerProfileId,
+      expectedMediaRevision: 0,
+    });
+    const publicProfile = await t.query(api.profiles.publicBySlug, { slug: "owner" });
+    expect(publicProfile?.media?.slideshow).toEqual([
+      { src: await t.run((ctx) => ctx.storage.getUrl(item.previewStorageId)), alt: "" },
+    ]);
+  });
+
   it("round-trips owner media URLs without persisting them", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

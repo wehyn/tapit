@@ -7,6 +7,25 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
+  return page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected saved demo state.");
+    const state = JSON.parse(raw) as {
+      __tapitMediaDataUrls?: string[];
+      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
+      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
+    };
+    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
+    const background = profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
+    if (!background) return undefined;
+    const url = background.url;
+    if (typeof url !== "string" || !url.startsWith("\u0001tapit-media:")) return background;
+    const index = Number(url.slice("\u0001tapit-media:".length));
+    return { ...background, url: state.__tapitMediaDataUrls?.[index] };
+  });
+}
+
 async function selectWarmStudio(page: Page) {
   const preset = page.getByRole("radio", { name: "Warm Studio", exact: true });
   await preset.check();
@@ -1277,21 +1296,12 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
 
-  const storedMedia = await page.evaluate(() => {
-    const raw = window.localStorage.getItem("tapit:demo-state:v1");
-    if (!raw) throw new Error("Expected demo state after saving media.");
-    const state = JSON.parse(raw) as {
-      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
-      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
-    };
-    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
-    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
-  });
+  const storedMedia = await readSavedDemoBackground(page);
   expect(storedMedia).toBeTruthy();
   expect(storedMedia).not.toHaveProperty("previewUrl");
   expect(typeof storedMedia?.url).toBe("string");
   expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
-  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+  expect((storedMedia?.url as string).length).toBeLessThan(100_000);
 
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
@@ -1401,6 +1411,120 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
       await page.reload();
     }
   }
+});
+
+test("customer can remove a saved background from the media header", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await selectWarmStudio(page);
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByLabel("Background image description").fill("Studio backdrop");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+
+  await page.reload();
+  await page.getByRole("tab", { name: "Media" }).click();
+  const backgroundSection = page
+    .getByRole("heading", { name: "Background image" })
+    .locator("..")
+    .locator("..");
+  await expect(backgroundSection.getByRole("button", { name: "Remove background" })).toBeVisible();
+  await backgroundSection.getByRole("button", { name: "Remove background" }).click();
+  await expect(page.getByRole("button", { name: "Upload background", exact: true })).toBeVisible();
+  await expect(
+    page.getByTestId("profile-preview-device").getByRole("region", { name: "Profile hero" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+
+  await page.reload();
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByRole("button", { name: "Remove background" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
+});
+
+test("slideshow saves without descriptions and its arrows navigate in preview and public", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  const upload = page.getByLabel("Upload slideshow images");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(page.getByText("1 of 10 images")).toBeVisible();
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+
+  const preview = page.getByTestId("profile-preview-device").getByRole("region", {
+    name: "Profile slideshow",
+  });
+  await expect(preview.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
+  await preview.getByRole("button", { name: "Next image" }).click();
+  await expect(preview.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
+  await preview.getByRole("button", { name: "Previous image" }).click();
+  await expect(preview.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
+  await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
+  await publicSlideshow.getByRole("button", { name: "Next image" }).click();
+  await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
+});
+
+test("ten distinct demo slideshow images fit local storage and reload", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+
+  for (let index = 0; index < 10; index += 1) {
+    await page.evaluate(async (slideIndex) => {
+      const input = document.querySelector<HTMLInputElement>(
+        'input[aria-label="Upload slideshow images"]',
+      );
+      if (!input) throw new Error("Expected slideshow input.");
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 480;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Expected canvas support.");
+      for (let row = 0; row < 48; row += 1) {
+        for (let column = 0; column < 64; column += 1) {
+          context.fillStyle = `hsl(${(row * 13 + column * 19 + slideIndex * 37) % 360} 65% 55%)`;
+          context.fillRect(column * 10, row * 10, 10, 10);
+        }
+      }
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (result) => (result ? resolve(result) : reject(new Error("Could not create slide."))),
+          "image/png",
+        );
+      });
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([blob], `slide-${slideIndex + 1}.png`, { type: "image/png" }));
+      input.files = transfer.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }, index);
+    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+  }
+
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  const savedLength = await page.evaluate(
+    () => window.localStorage.getItem("tapit:demo-state:v1")?.length ?? 0,
+  );
+  expect(savedLength).toBeLessThan(2_000_000);
+  await page.reload();
+  await page.getByRole("tab", { name: "Media" }).click();
+  await expect(page.getByText("10 of 10 images")).toBeVisible();
 });
 
 test("customize mobile profile preview keeps its hero full-width and identity free of backplates", async ({
@@ -1633,20 +1757,11 @@ test("high-entropy demo media is reduced below the storage limit", async ({ page
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
 
-  const storedMedia = await page.evaluate(() => {
-    const raw = window.localStorage.getItem("tapit:demo-state:v1");
-    if (!raw) throw new Error("Expected demo state after saving high-entropy media.");
-    const state = JSON.parse(raw) as {
-      profile?: { draft?: { media?: { background?: Record<string, unknown> } } };
-      profiles?: Array<{ draft?: { media?: { background?: Record<string, unknown> } } }>;
-    };
-    const profile = state.profiles?.find((candidate) => candidate.draft?.media?.background);
-    return profile?.draft?.media?.background ?? state.profile?.draft?.media?.background;
-  });
+  const storedMedia = await readSavedDemoBackground(page);
   expect(storedMedia).toBeTruthy();
   expect(storedMedia).not.toHaveProperty("previewUrl");
   expect((storedMedia?.url as string).startsWith("data:image/")).toBe(true);
-  expect((storedMedia?.url as string).length).toBeLessThan(250_000);
+  expect((storedMedia?.url as string).length).toBeLessThan(100_000);
 });
 
 test("incomplete background media stays in preview but blocks saving and publishing", async ({

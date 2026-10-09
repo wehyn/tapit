@@ -78,16 +78,21 @@ function validUrl(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function validateImage(image: unknown, label: string): string[] {
+function validateImage(image: unknown, label: string, descriptionOptional = false): string[] {
   if (!isRecord(image)) return [`${label} is invalid.`];
   const errors: string[] = [];
   if (!validAssetId(image.assetId)) errors.push(`${label} needs a valid asset reference.`);
-  if (!validAltText(image.altText)) {
+  if (
+    !validAltText(image.altText) &&
+    !(descriptionOptional && typeof image.altText === "string" && image.altText.trim() === "")
+  ) {
     errors.push(
       label === "A background image" &&
         (typeof image.altText !== "string" || image.altText.trim().length === 0)
         ? "A background image needs an accessible description."
-        : `${label} needs nonblank accessible text of at most ${MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH} characters.`,
+        : descriptionOptional
+          ? `${label} description must be at most ${MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH} characters.`
+          : `${label} needs nonblank accessible text of at most ${MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH} characters.`,
     );
   }
   return errors;
@@ -115,7 +120,7 @@ export function validateProfileMedia(media: unknown): string[] {
     }
     const assetIds = new Set<string>();
     media.slideshow.forEach((image, index) => {
-      errors.push(...validateImage(image, `Slideshow image ${index + 1}`));
+      errors.push(...validateImage(image, `Slideshow image ${index + 1}`, true));
       if (isRecord(image) && validAssetId(image.assetId)) {
         const assetId = image.assetId.trim();
         if (assetIds.has(assetId)) errors.push("Slideshow images must be unique.");
@@ -179,7 +184,7 @@ export function normalizeProfileMedia(
   if (Array.isArray(value.slideshow)) {
     const assetIds = new Set<string>();
     for (const item of value.slideshow) {
-      const image = normalizeImage(item);
+      const image = normalizeImage(item, true);
       if (image === undefined || assetIds.has(image.assetId)) continue;
       assetIds.add(image.assetId);
       slideshow.push(image);

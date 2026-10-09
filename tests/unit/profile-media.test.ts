@@ -84,6 +84,13 @@ describe("profile media contract", () => {
         slideshow: [],
       }),
     ).toContain("A background image needs an accessible description.");
+    expect(
+      validateProfileMedia({
+        heroHeight: 320,
+        autoplay: true,
+        slideshow: [{ assetId: "asset-one", altText: "" }],
+      }),
+    ).toEqual([]);
   });
 
   it("normalizes bounded values and filters malformed optional media", () => {
@@ -113,7 +120,10 @@ describe("profile media contract", () => {
         positionX: 0,
         positionY: 100,
       },
-      slideshow: [{ assetId: "one", altText: "First frame" }],
+      slideshow: [
+        { assetId: "one", altText: "First frame" },
+        { assetId: "two", altText: "" },
+      ],
     });
   });
 
