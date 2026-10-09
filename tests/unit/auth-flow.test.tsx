@@ -463,6 +463,42 @@ describe("pending Google onboarding", () => {
 });
 
 describe("reusable Google invitation setup", () => {
+  it("refreshes an invitation that expires while its status response is in flight", async () => {
+    const expiresAt = Date.now() + 60_000;
+    const clock = vi.spyOn(Date, "now");
+    useQuery.mockImplementation((_, args) => {
+      if (args === "skip") return undefined;
+      if (args.now < expiresAt) {
+        clock.mockReturnValue(expiresAt + 1);
+        return {
+          state: "valid",
+          email: "invite@example.test",
+          profileName: null,
+          acceptedAt: null,
+          expiresAt,
+        };
+      }
+      return {
+        state: "expired",
+        email: "invite@example.test",
+        profileName: null,
+        acceptedAt: null,
+        expiresAt,
+      };
+    });
+    try {
+      const SetupForm = await loadSetup();
+      render(<SetupForm token="slow-status-token" />);
+
+      expect(await screen.findByRole("alert", undefined, { timeout: 1000 })).toHaveTextContent(
+        /expired/i,
+      );
+      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+    } finally {
+      clock.mockRestore();
+    }
+  }, 15_000);
+
   it("hashes the route token and queries invitation status without sending the raw token", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue({
@@ -480,6 +516,7 @@ describe("reusable Google invitation setup", () => {
       const statusCall = useQuery.mock.calls.find(([, args]) => args !== "skip");
       expect(statusCall?.[1]).toEqual({
         tokenHash: expect.any(String),
+        now: expect.any(Number),
       });
       expect(statusCall?.[1]).not.toEqual({ tokenHash: "raw-secret-token" });
     });
@@ -592,6 +629,26 @@ describe("hosted-demo invitation setup", () => {
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
     expect(signIn).not.toHaveBeenCalled();
   });
+
+  it("does not create a password account when an open invitation expires before submit", async () => {
+    useQuery.mockReturnValue({
+      state: "valid",
+      email: "invite@example.test",
+      profileName: "Invited Profile",
+      acceptedAt: null,
+      expiresAt: Date.now() - 1,
+    });
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="expired-while-open-token" />);
+    await user.type(await screen.findByLabelText("Password"), "safe-password");
+    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    expect(signIn).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/i);
+  }, 15_000);
 
   it("retries setup with password sign-in when invitation linking fails after signup", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
