@@ -4,7 +4,7 @@ import { mutation, query } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
 
 export const status = query({
-  args: { tokenHash: v.string() },
+  args: { tokenHash: v.string(), now: v.number() },
   returns: v.object({
     state: v.union(
       v.literal("missing"),
@@ -15,6 +15,7 @@ export const status = query({
     email: v.union(v.string(), v.null()),
     profileName: v.union(v.string(), v.null()),
     acceptedAt: v.union(v.number(), v.null()),
+    expiresAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
     const invitation = await ctx.db
@@ -22,16 +23,23 @@ export const status = query({
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
       .unique();
     if (invitation === null)
-      return { state: "missing" as const, email: null, profileName: null, acceptedAt: null };
+      return {
+        state: "missing" as const,
+        email: null,
+        profileName: null,
+        acceptedAt: null,
+        expiresAt: null,
+      };
     const customer = await ctx.db.get(invitation.customerId);
     const profile = customer?.profileId === undefined ? null : await ctx.db.get(customer.profileId);
     const base = {
       email: invitation.email,
       profileName: profile?.draft.name ?? null,
       acceptedAt: invitation.acceptedAt ?? null,
+      expiresAt: invitation.expiresAt ?? null,
     };
     if (invitation.invalidatedAt !== undefined) return { state: "revoked" as const, ...base };
-    if (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
+    if (invitation.expiresAt !== undefined && invitation.expiresAt <= args.now)
       return { state: "expired" as const, ...base };
     return { state: "valid" as const, ...base };
   },

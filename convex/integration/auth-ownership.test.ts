@@ -321,10 +321,10 @@ describe("Convex authentication and ownership", () => {
       tokenHash: "replacement-hash",
     });
     await expect(
-      t.query(api.invitations.status, { tokenHash: "new-invite-hash" }),
+      t.query(api.invitations.status, { tokenHash: "new-invite-hash", now: Date.now() }),
     ).resolves.toMatchObject({ state: "revoked" });
     await expect(
-      t.query(api.invitations.status, { tokenHash: "replacement-hash" }),
+      t.query(api.invitations.status, { tokenHash: "replacement-hash", now: Date.now() }),
     ).resolves.toMatchObject({ state: "valid", acceptedAt: null });
     expect(replacement.invitationId).not.toBe(created.invitationId);
   });
@@ -357,7 +357,7 @@ describe("Convex authentication and ownership", () => {
     });
 
     await expect(
-      t.query(api.invitations.status, { tokenHash: "history-200" }),
+      t.query(api.invitations.status, { tokenHash: "history-200", now: Date.now() }),
     ).resolves.toMatchObject({
       state: "revoked",
     });
@@ -634,11 +634,33 @@ describe("Convex authentication and ownership", () => {
       await ctx.db.patch(data.invitationId, { acceptedAt: 10 });
     });
 
-    await expect(t.query(api.invitations.status, { tokenHash: "owner-token" })).resolves.toEqual({
+    await expect(
+      t.query(api.invitations.status, { tokenHash: "owner-token", now: 10 }),
+    ).resolves.toEqual({
       state: "valid",
       email: "owner@example.com",
       profileName: "Owner Draft",
       acceptedAt: 10,
+      expiresAt: null,
+    });
+  });
+
+  it("reports an invitation expiring as client time advances without a database write", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => ctx.db.patch(data.invitationId, { expiresAt: 100 }));
+
+    await expect(
+      t.query(api.invitations.status, { tokenHash: "owner-token", now: 99 }),
+    ).resolves.toMatchObject({
+      state: "valid",
+      expiresAt: 100,
+    });
+    await expect(
+      t.query(api.invitations.status, { tokenHash: "owner-token", now: 100 }),
+    ).resolves.toMatchObject({
+      state: "expired",
+      expiresAt: 100,
     });
   });
 

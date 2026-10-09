@@ -42,6 +42,21 @@ export function SetupForm({ token }: { token: string }) {
   );
 }
 
+function useInvitationStatus(tokenHash: string | undefined) {
+  const [now, setNow] = useState(Date.now);
+  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash, now } : "skip");
+
+  useEffect(() => {
+    if (invitation?.state !== "valid" || typeof invitation.expiresAt !== "number") return;
+    if (invitation.expiresAt <= now) return;
+    const remaining = Math.max(0, invitation.expiresAt - Date.now());
+    const timer = window.setTimeout(() => setNow(Date.now()), Math.min(remaining, 2_147_483_647));
+    return () => window.clearTimeout(timer);
+  }, [invitation?.expiresAt, invitation?.state, now]);
+
+  return invitation;
+}
+
 function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
   const router = useRouter();
   const { signIn } = useAuthActions();
@@ -53,7 +68,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [authFlow, setAuthFlow] = useState<"signUp" | "signIn">("signUp");
-  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash } : "skip");
+  const invitation = useInvitationStatus(tokenHash);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +82,14 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (tokenHash === undefined || invitation?.state !== "valid" || invitation.email === null) {
+    if (
+      tokenHash === undefined ||
+      invitation?.state !== "valid" ||
+      invitation.email === null ||
+      (invitation.expiresAt !== null &&
+        invitation.expiresAt !== undefined &&
+        invitation.expiresAt <= Date.now())
+    ) {
       setError("This setup link is invalid, expired, or revoked.");
       return;
     }
@@ -301,7 +323,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   const [tokenHash, setTokenHash] = useState<string>();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash } : "skip");
+  const invitation = useInvitationStatus(tokenHash);
 
   useEffect(() => {
     let cancelled = false;
@@ -314,7 +336,15 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   }, [token]);
 
   useEffect(() => {
-    if (!isAuthenticated || tokenHash === undefined || invitation?.state !== "valid") return;
+    if (
+      !isAuthenticated ||
+      tokenHash === undefined ||
+      invitation?.state !== "valid" ||
+      (invitation.expiresAt !== null &&
+        invitation.expiresAt !== undefined &&
+        invitation.expiresAt <= Date.now())
+    )
+      return;
     let cancelled = false;
     void acceptInvitation({ tokenHash })
       .then(() => {
@@ -329,9 +359,25 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
     return () => {
       cancelled = true;
     };
-  }, [acceptInvitation, invitation?.state, isAuthenticated, nextPath, router, tokenHash]);
+  }, [
+    acceptInvitation,
+    invitation?.expiresAt,
+    invitation?.state,
+    isAuthenticated,
+    nextPath,
+    router,
+    tokenHash,
+  ]);
 
   async function continueWithGoogle() {
+    if (
+      invitation?.expiresAt !== null &&
+      invitation?.expiresAt !== undefined &&
+      invitation.expiresAt <= Date.now()
+    ) {
+      setError("This invitation has expired.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
