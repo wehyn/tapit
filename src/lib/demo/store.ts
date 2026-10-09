@@ -11,6 +11,7 @@ import {
   type DemoState,
   type ProfileTheme,
 } from "./fixtures";
+import { deserializeDemoState, serializeDemoState } from "./storage-codec";
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -43,7 +44,7 @@ function loadFromStorage() {
   const raw = window.localStorage.getItem(STORAGE_KEY);
   if (raw !== null) {
     try {
-      const parsed = JSON.parse(raw) as Partial<DemoState> & { profile?: DemoProfile };
+      const parsed = deserializeDemoState(raw) as Partial<DemoState> & { profile?: DemoProfile };
       if (parsed.profile?.id && Array.isArray(parsed.cards) && Array.isArray(parsed.customers)) {
         const fallback = createDefaultDemoState();
         const profiles =
@@ -107,7 +108,7 @@ function persist(nextState: DemoState) {
   const previousRaw = window.localStorage.getItem(STORAGE_KEY);
   let serialized: string;
   try {
-    serialized = JSON.stringify(nextState);
+    serialized = serializeDemoState(nextState);
   } catch (error) {
     throw persistenceError(error);
   }

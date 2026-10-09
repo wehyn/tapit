@@ -1,6 +1,6 @@
 const MAX_DEMO_MEDIA_DIMENSION = 1280;
 const MIN_DEMO_MEDIA_DIMENSION = 96;
-const MAX_DEMO_MEDIA_DATA_URL_LENGTH = 250_000;
+const MAX_DEMO_MEDIA_DATA_URL_LENGTH = 100_000;
 const DEMO_MEDIA_JPEG_QUALITIES = [0.78, 0.64, 0.5, 0.36, 0.24, 0.16];
 
 function readBlobAsDataUrl(blob: Blob): Promise<string> {
