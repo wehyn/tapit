@@ -179,6 +179,13 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
     setError("");
     try {
       const result = await verifyCode({ token: cardToken, code: normalized });
+      if (!result.ok) {
+        setError(
+          "That code is invalid, expired, used, or unavailable. Check the code and try again.",
+        );
+        setSubmitting(false);
+        return;
+      }
       sessionStorage.setItem(`tapit:claim:${cardToken}`, result.challenge);
       setChallenge(result.challenge);
       if (isAuthenticated) {

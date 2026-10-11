@@ -66,6 +66,77 @@ describe("card claiming contracts", () => {
     ).rejects.toThrow("already registered");
   });
 
+  it("commits failed claim-code attempts against the verification limit", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const ids = await t.run(async (ctx) => {
+      const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
+      const ownerUserId = await ctx.db.insert("users", { email: "owner@example.com" });
+      await ctx.db.insert("customers", {
+        userId: adminUserId,
+        email: "admin@example.com",
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const ownerId = await ctx.db.insert("customers", {
+        userId: ownerUserId,
+        email: "owner@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId,
+        slug: "owner",
+        status: "draft",
+        draft: { name: "Owner", slug: "owner", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const cardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/limited-card",
+        token: "limited-card",
+        profileId,
+        status: "claimable",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return { adminUserId, ownerUserId, cardId };
+    });
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const owner = t.withIdentity(identity(ids.ownerUserId));
+    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
+    const wrongCode = `${code[0] === "A" ? "B" : "A"}${code.slice(1)}`;
+    const rejectedAttempts = [];
+
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      rejectedAttempts.push(
+        await owner
+          .mutation(api.cardClaims.verifyCode, { token: "limited-card", code: wrongCode })
+          .catch(() => null),
+      );
+    }
+    const correctAttempt = await owner
+      .mutation(api.cardClaims.verifyCode, { token: "limited-card", code })
+      .catch(() => null);
+
+    expect(correctAttempt).toEqual({ ok: false });
+    expect(rejectedAttempts).toEqual(Array.from({ length: 5 }, () => ({ ok: false })));
+    await expect(
+      t.run((ctx) =>
+        ctx.db
+          .query("cardClaimChallenges")
+          .withIndex("by_cardId", (query) => query.eq("cardId", ids.cardId))
+          .take(10),
+      ),
+    ).resolves.toHaveLength(0);
+  });
+
   it("keeps an attached unpublished card private until the owner claims and publishes", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
@@ -165,10 +236,13 @@ describe("card claiming contracts", () => {
     await expect(
       t.mutation(api.cardClaims.verifyCode, { token: "card-1", code: firstCode }),
     ).rejects.toThrow("Authentication required.");
-    const { challenge: staleChallenge } = await owner.mutation(api.cardClaims.verifyCode, {
+    const firstVerification = await owner.mutation(api.cardClaims.verifyCode, {
       token: "card-1",
       code: firstCode,
     });
+    expect(firstVerification.ok).toBe(true);
+    if (!firstVerification.ok) throw new Error("Expected the claim code to verify.");
+    const staleChallenge = firstVerification.challenge;
     await admin.mutation(api.cards.invalidateClaimCode, { cardId: ids.cardId });
     await expect(t.run(async (ctx) => await ctx.db.get(ids.cardId))).resolves.toMatchObject({
       claimCodeHash: expect.any(String),
@@ -176,15 +250,18 @@ describe("card claiming contracts", () => {
     });
     await expect(
       owner.mutation(api.cardClaims.verifyCode, { token: "card-1", code: firstCode }),
-    ).rejects.toThrow();
+    ).resolves.toEqual({ ok: false });
     await expect(
       owner.mutation(api.cardClaims.complete, { challenge: staleChallenge }),
     ).rejects.toThrow();
     const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
-    const { challenge } = await owner.mutation(api.cardClaims.verifyCode, {
+    const verification = await owner.mutation(api.cardClaims.verifyCode, {
       token: "card-1",
       code,
     });
+    expect(verification.ok).toBe(true);
+    if (!verification.ok) throw new Error("Expected the claim code to verify.");
+    const { challenge } = verification;
     await expect(unrelated.mutation(api.cardClaims.complete, { challenge })).rejects.toThrow();
     await expect(owner.mutation(api.cardClaims.complete, { challenge })).resolves.toEqual({
       cardId: ids.cardId,
@@ -193,7 +270,7 @@ describe("card claiming contracts", () => {
     await expect(owner.mutation(api.cardClaims.complete, { challenge })).rejects.toThrow();
     await expect(
       owner.mutation(api.cardClaims.verifyCode, { token: "card-1", code }),
-    ).rejects.toThrow();
+    ).resolves.toEqual({ ok: false });
     await expect(
       admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId }),
     ).rejects.toThrow();
@@ -334,10 +411,12 @@ describe("card claiming contracts", () => {
       admin.mutation(api.profiles.setStatus, { profileId: ids.profileId, status: "published" }),
     ).rejects.toThrow("Claim the attached card before publishing");
     const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId });
-    const { challenge } = await owner.mutation(api.cardClaims.verifyCode, {
+    const verification = await owner.mutation(api.cardClaims.verifyCode, {
       token: "restore-card",
       code,
     });
+    if (!verification.ok) throw new Error("Expected the claim code to verify.");
+    const { challenge } = verification;
     await owner.mutation(api.cardClaims.complete, { challenge });
     await expect(
       admin.mutation(api.profiles.setStatus, { profileId: ids.profileId, status: "published" }),

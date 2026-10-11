@@ -29,38 +29,37 @@ function challengeValue(): string {
 
 export const verifyCode = mutation({
   args: { token: v.string(), code: v.string() },
-  returns: v.object({ challenge: v.string(), expiresAt: v.number() }),
+  returns: v.union(
+    v.object({ ok: v.literal(true), challenge: v.string(), expiresAt: v.number() }),
+    v.object({ ok: v.literal(false) }),
+  ),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new Error("Authentication required.");
-    const code = normalizeClaimCode(args.code);
-    if (code === null) throw new Error("The claim code is invalid or unavailable.");
-    if (!/^[A-Za-z0-9_-]{1,160}$/.test(args.token)) failure();
+    if (!/^[A-Za-z0-9_-]{1,160}$/.test(args.token)) return { ok: false as const };
     const cardLimit = await verifyLimiter.limit(ctx, "cardClaimVerificationPerCard", {
       key: args.token,
     });
     const userLimit = await verifyLimiter.limit(ctx, "cardClaimVerificationPerUser", {
       key: `${args.token}:${userId}`,
     });
-    if (!cardLimit.ok || !userLimit.ok) failure();
+    if (!cardLimit.ok || !userLimit.ok) return { ok: false as const };
+    const code = normalizeClaimCode(args.code);
+    if (code === null) return { ok: false as const };
     const card = await ctx.db
       .query("cards")
       .withIndex("by_token", (q) => q.eq("token", args.token))
       .unique();
     const now = Date.now();
-    if (card === null) {
-      throw new Error("The claim code is invalid or unavailable.");
-    }
-    if (card.status !== "claimable" || card.profileId === undefined) failure();
+    if (card === null) return { ok: false as const };
+    if (card.status !== "claimable" || card.profileId === undefined) return { ok: false as const };
     const claimCodeHash = card.claimCodeHash;
-    if (claimCodeHash === undefined) {
-      throw new Error("The claim code is invalid or unavailable.");
-    }
-    if (card.claimCodeInvalidatedAt !== undefined || card.claimCodeClaimedAt !== undefined) {
-      throw new Error("The claim code is invalid or unavailable.");
-    }
-    if (card.claimCodeExpiresAt === undefined || card.claimCodeExpiresAt <= now) failure();
-    if ((await digest(code)) !== claimCodeHash) failure();
+    if (claimCodeHash === undefined) return { ok: false as const };
+    if (card.claimCodeInvalidatedAt !== undefined || card.claimCodeClaimedAt !== undefined)
+      return { ok: false as const };
+    if (card.claimCodeExpiresAt === undefined || card.claimCodeExpiresAt <= now)
+      return { ok: false as const };
+    if ((await digest(code)) !== claimCodeHash) return { ok: false as const };
     const challenge = challengeValue();
     const expiresAt = now + 10 * 60 * 1000;
     await ctx.db.insert("cardClaimChallenges", {
@@ -71,7 +70,7 @@ export const verifyCode = mutation({
       expiresAt,
       createdAt: now,
     });
-    return { challenge, expiresAt };
+    return { ok: true as const, challenge, expiresAt };
   },
 });
 
