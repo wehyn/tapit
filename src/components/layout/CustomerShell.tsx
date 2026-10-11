@@ -115,9 +115,14 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
       sidebarFooter={
         <CustomerAccountMenu
           email={customer.email}
-          onSignOut={() => {
+          onSignOut={async () => {
+            if (!(await draftSave())) {
+              throw new Error("Your draft could not be saved. You are still signed in.");
+            }
+            if (!clearDemoSession()) {
+              throw new Error("Could not end the session. You are still signed in.");
+            }
             signingOut.current = true;
-            clearDemoSession();
             router.replace("/login");
           }}
         />
@@ -174,8 +179,12 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
       sidebarFooter={
         <CustomerAccountMenu
           email={access.email ?? "Account"}
-          onSignOut={() => {
-            void signOut().finally(() => router.replace("/login"));
+          onSignOut={async () => {
+            if (!(await draftSave())) {
+              throw new Error("Your draft could not be saved. You are still signed in.");
+            }
+            await signOut();
+            router.replace("/login");
           }}
         />
       }
@@ -186,8 +195,16 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+function CustomerAccountMenu({
+  email,
+  onSignOut,
+}: {
+  email: string;
+  onSignOut: () => void | Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+  const [signOutPending, setSignOutPending] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -205,6 +222,19 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
   }, [open]);
 
   const initials = email.slice(0, 2).toUpperCase() || "U";
+
+  async function signOut() {
+    if (signOutPending) return;
+    setSignOutError("");
+    setSignOutPending(true);
+    try {
+      await onSignOut();
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Could not sign out. Try again.");
+    } finally {
+      setSignOutPending(false);
+    }
+  }
 
   return (
     <div
@@ -227,13 +257,19 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
         <p className="break-words px-3 py-2 text-sm text-tapit-ink">{email}</p>
         <Button
           className="w-full justify-start hover:bg-red-50"
-          onClick={onSignOut}
+          disabled={signOutPending}
+          onClick={() => void signOut()}
           style={{ color: "var(--tapit-danger)" }}
           type="button"
           variant="quiet"
         >
           Sign out
         </Button>
+        {signOutError ? (
+          <p className="px-3 py-2 text-sm text-tapit-danger" role="alert">
+            {signOutError}
+          </p>
+        ) : null}
       </div>
       <button
         aria-controls={menuId}

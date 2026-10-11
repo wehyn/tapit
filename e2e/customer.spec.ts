@@ -73,6 +73,51 @@ async function prepareLegacyMaraProfile(page: Page) {
   await signInAsCustomer(page);
 }
 
+test("signing out saves the registered profile draft first", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Saved when signing out.");
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  const savedBio = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    return state.profiles?.find((profile: { id: string }) => profile.id === "profile-mara")?.draft
+      ?.bio;
+  });
+  expect(savedBio).toBe("Saved when signing out.");
+});
+
+test("a failed draft save keeps the customer signed in when they try to sign out", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Draft that could not be saved.");
+  await page.evaluate(() => {
+    const originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "tapit:demo-state:v1") {
+        throw new DOMException("Storage quota exceeded", "QuotaExceededError");
+      }
+      return originalSetItem.call(this, key, value);
+    };
+  });
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+
+  await expect(
+    page.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Bio or role")).toHaveValue("Draft that could not be saved.");
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+  const savedSession = await page.evaluate(() =>
+    window.localStorage.getItem("tapit:demo-session:v1"),
+  );
+  expect(savedSession).toContain("mara@example.test");
+});
+
 test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1467, height: 899 });
   await signInAsCustomer(page);

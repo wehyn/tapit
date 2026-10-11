@@ -706,6 +706,28 @@ describe("public profile preview behavior", () => {
     expect(screen.queryByRole("button", { name: "Save contact" })).not.toBeInTheDocument();
   });
 
+  it("does not offer Save contact when the profile only has its excluded identity website", () => {
+    if (projection === null) throw new Error("The demo profile fixture is missing.");
+    render(
+      <PublicProfile
+        profile={{
+          ...projection,
+          email: undefined,
+          phone: undefined,
+          website: "https://identity-website.example",
+          imageUrl: undefined,
+          links: [],
+          customization: undefined,
+        }}
+        profileUrl="/mara-velasquez"
+        trackClicks={false}
+        trackView={false}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Save contact" })).not.toBeInTheDocument();
+  });
+
   it("offers a vCard for a phone-only customized profile", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(

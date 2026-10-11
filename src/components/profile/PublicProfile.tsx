@@ -259,9 +259,11 @@ export function PublicProfile({
   const theme = selectedTheme === "custom" && !customTheme ? "paper" : selectedTheme;
   void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
+  const hasVCardContactAction = automaticContactActions.some(
+    (action) => action.kind === "email" || action.kind === "phone",
+  );
   const canSaveContact = Boolean(
-    profile.name &&
-    (automaticContactActions.length > 0 || profile.imageUrl || profile.links.length),
+    profile.name && (hasVCardContactAction || profile.imageUrl || profile.links.length),
   );
   const [savingContact, setSavingContact] = useState(false);
   const [contactError, setContactError] = useState("");
@@ -383,8 +385,15 @@ export function PublicProfile({
     setContactError("");
     const email = automaticContactActions.find((action) => action.kind === "email");
     const phone = automaticContactActions.find((action) => action.kind === "phone");
+    let photo: VCardPhoto | undefined;
     try {
-      const photo = await loadVCardPhoto(profile.imageUrl);
+      photo = await loadVCardPhoto(profile.imageUrl);
+    } catch {
+      setContactError(
+        "The profile photo could not be included. Your contact will still be downloaded.",
+      );
+    }
+    try {
       const vCard = buildVCard({
         name: profile.name,
         email: email?.href.replace(/^mailto:/, ""),
@@ -400,9 +409,7 @@ export function PublicProfile({
       anchor.click();
       URL.revokeObjectURL(downloadUrl);
     } catch {
-      setContactError(
-        "We couldn't include the profile photo. Check your connection and try again.",
-      );
+      setContactError("We couldn't prepare your contact file. Please try again.");
     } finally {
       setSavingContact(false);
     }

@@ -631,6 +631,22 @@ test("vCard export converts a published WebP photo to an embedded PNG", async ({
   expect(dimensions).toEqual({ width: 384, height: 384 });
 });
 
+test("a vCard still downloads when its optional profile photo is unavailable", async ({ page }) => {
+  await page.route("**/images/tapit-demo-mara-avatar.png", (route) => route.abort());
+  await page.goto("/mara-velasquez");
+
+  const downloadPromise = page.waitForEvent("download", { timeout: 5000 });
+  await page.getByRole("button", { name: "Save contact" }).click();
+  const download = await downloadPromise;
+  const downloadPath = await download.path();
+  expect(downloadPath).not.toBeNull();
+  const vCard = await readFile(downloadPath as string, "utf8");
+
+  expect(vCard).toContain("FN:Mara Velasquez");
+  expect(vCard).toContain("TEL;TYPE=VOICE:+63 917 555 0184");
+  expect(vCard).not.toContain("PHOTO;");
+});
+
 test("a published phone-only profile can be saved as a contact", async ({ page }) => {
   const phone = "+63 917 555 0184";
   const owner = {
