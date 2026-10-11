@@ -131,6 +131,7 @@ describe("retention cleanup", () => {
 
   it("erases an overdue deletion request and its linked sign-in and profile data", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: "erase@example.com" });
@@ -187,6 +188,12 @@ describe("retention cleanup", () => {
         total: 1,
         uniqueCount: 1,
       });
+      const analyticsRateLimitKeyId = await ctx.db.insert("analyticsRateLimitKeys", {
+        profileId,
+        eventType: "profile_view",
+        networkHash: "missing-ip",
+        lastSeenAt: now,
+      });
       const requestId = await ctx.db.insert("deletionRequests", {
         customerId,
         requestedAt: now - 31 * day,
@@ -203,6 +210,7 @@ describe("retention cleanup", () => {
         profileId,
         cardId,
         analyticsId,
+        analyticsRateLimitKeyId,
         requestId,
       };
     });
@@ -225,6 +233,7 @@ describe("retention cleanup", () => {
         ids.customerId,
         ids.profileId,
         ids.analyticsId,
+        ids.analyticsRateLimitKeyId,
         ids.requestId,
       ])
         expect(await ctx.db.get(id)).toBeNull();

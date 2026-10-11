@@ -62,9 +62,10 @@ export default function PrivacyPage() {
               random key in browser session storage and associates it with the profile to estimate
               unique views. The key is not your name or email. Your analytics choice is saved in
               browser local storage so you can change it later. For abuse prevention, the backend
-              also uses a short-lived hash of the network address to limit repeated requests. This
-              pseudonymous hash is not anonymous and is not included in owner analytics. Inactive
-              hashes become eligible for removal after 24 hours, and cleanup runs hourly.
+              also uses a short-lived keyed HMAC of the network address to limit repeated requests.
+              The secret key remains on the backend, and the value is not included in owner
+              analytics. Inactive keys become eligible for removal after 24 hours, and cleanup runs
+              hourly.
             </li>
             <li>
               <strong className="text-tapit-ink">Operations:</strong> invitations, deletion

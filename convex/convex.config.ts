@@ -7,6 +7,7 @@ const app = defineApp({
     TAPIT_SUPPORT_URL: v.string(),
     TAPIT_ADMIN_EMAILS: v.optional(v.string()),
     TAPIT_DEMO_AUTH_MODE: v.optional(v.literal("hosted-demo")),
+    TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET: v.optional(v.string()),
   },
 });
 

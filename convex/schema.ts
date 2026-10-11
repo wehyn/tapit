@@ -380,6 +380,7 @@ export default defineSchema({
     lastSeenAt: v.number(),
   })
     .index("by_eventType_and_profileId_and_networkHash", ["eventType", "profileId", "networkHash"])
+    .index("by_profileId", ["profileId"])
     .index("by_lastSeenAt", ["lastSeenAt"]),
   cardClaimChallenges: defineTable({
     scope: v.optional(v.literal("demo")),

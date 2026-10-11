@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { paginationResultValidator, paginationOptsValidator } from "convex/server";
 import { HOUR, RateLimiter } from "@convex-dev/rate-limiter";
 
-import { mutation, query } from "./_generated/server";
+import { env, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
@@ -16,6 +16,9 @@ const rangeValidator = v.union(
   v.literal("30d"),
   v.literal("90d"),
 );
+const analyticsRateLimitHmacSecret = (
+  env as typeof env & { readonly TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET?: string }
+).TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
 
 type AnalyticsEventType = "profile_view" | "link_click";
 
@@ -39,9 +42,23 @@ export const analyticsRateLimiter = new RateLimiter(components.rateLimiter, {
   },
 });
 
-async function hashNetworkAddress(address: string): Promise<string> {
-  const bytes = new TextEncoder().encode(`tapit-analytics-rate-limit:v1:${address}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+export async function networkAddressRateLimitKey(
+  address: string,
+  secret: string | undefined,
+): Promise<string> {
+  if (secret === undefined || secret.length === 0) return "missing-ip";
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`tapit-analytics-rate-limit:v1:${address}`),
+  );
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -53,7 +70,8 @@ async function allowAnalyticsEvent(
   let networkHash = "missing-ip";
   try {
     const { ip } = await ctx.meta.getRequestMetadata();
-    if (ip !== null && ip.length > 0) networkHash = await hashNetworkAddress(ip);
+    if (ip !== null && ip.length > 0)
+      networkHash = await networkAddressRateLimitKey(ip, analyticsRateLimitHmacSecret);
   } catch {
     networkHash = "missing-ip";
   }

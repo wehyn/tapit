@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
+import { networkAddressRateLimitKey } from "../analytics";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
@@ -70,6 +71,19 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("analytics hardening", () => {
+  it("uses a keyed digest for network addresses and fails closed without a secret", async () => {
+    const keyed = await networkAddressRateLimitKey("203.0.113.7", "server-only-secret");
+    const plain = await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode("tapit-analytics-rate-limit:v1:203.0.113.7"),
+    );
+    expect(keyed).not.toBe(
+      Array.from(new Uint8Array(plain), (byte) => byte.toString(16).padStart(2, "0")).join(""),
+    );
+    expect(keyed).toBe(await networkAddressRateLimitKey("203.0.113.7", "server-only-secret"));
+    expect(await networkAddressRateLimitKey("203.0.113.7", undefined)).toBe("missing-ip");
+  });
+
   it("deduplicates repeated browser sessions on the server and preserves anonymous totals", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
