@@ -260,7 +260,7 @@ export function PublicProfile({
   void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
   const hasVCardContactAction = automaticContactActions.some(
-    (action) => action.kind === "email" || action.kind === "phone",
+    (action) => action.kind === "email" || action.kind === "phone" || action.kind === "website",
   );
   const canSaveContact = Boolean(
     profile.name && (hasVCardContactAction || profile.imageUrl || profile.links.length),
@@ -385,6 +385,7 @@ export function PublicProfile({
     setContactError("");
     const email = automaticContactActions.find((action) => action.kind === "email");
     const phone = automaticContactActions.find((action) => action.kind === "phone");
+    const website = automaticContactActions.find((action) => action.kind === "website");
     let photo: VCardPhoto | undefined;
     try {
       photo = await loadVCardPhoto(profile.imageUrl);
@@ -398,6 +399,7 @@ export function PublicProfile({
         name: profile.name,
         email: email?.href.replace(/^mailto:/, ""),
         phone: phone?.href.replace(/^tel:/, ""),
+        website: website?.href,
         links: profile.links.map(({ label, destination }) => ({ label, destination })),
         photo,
       });

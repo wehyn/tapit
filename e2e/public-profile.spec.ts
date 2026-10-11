@@ -647,42 +647,32 @@ test("a vCard still downloads when its optional profile photo is unavailable", a
   expect(vCard).not.toContain("PHOTO;");
 });
 
-test("a published phone-only profile can be saved as a contact", async ({ page }) => {
-  const phone = "+63 917 555 0184";
+test("a published website-only profile can be saved as a contact", async ({ page }) => {
   const owner = {
-    id: "customer-phone-only",
-    email: "phone-only@example.test",
+    id: "customer-website-only",
+    email: "website-only@example.test",
     role: "customer" as const,
-    profileId: "profile-phone-only",
+    profileId: "profile-website-only",
     status: "active" as const,
     deletionStatus: "active" as const,
   };
-  const links = [
-    {
-      id: "portfolio",
-      label: "Portfolio",
-      destination: "https://example.test/portfolio",
-      enabled: true,
-    },
-  ];
+  const website = "https://identity-website.example";
   const profile = {
-    id: "profile-phone-only",
+    id: "profile-website-only",
     ownerId: owner.id,
     status: "published" as const,
     theme: "paper" as const,
     draft: {
-      name: "Phone Only",
-      slug: "phone-only",
-      phone,
-      website: "https://identity-website.example",
-      links,
+      name: "Website Only",
+      slug: "website-only",
+      website,
+      links: [],
     },
     published: {
-      name: "Phone Only",
-      slug: "phone-only",
-      phone,
-      website: "https://identity-website.example",
-      links,
+      name: "Website Only",
+      slug: "website-only",
+      website,
+      links: [],
       publishedAt: new Date().toISOString(),
     },
   };
@@ -701,7 +691,7 @@ test("a published phone-only profile can be saved as a contact", async ({ page }
   await page.addInitScript((state) => {
     window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
   }, demoState);
-  await page.goto("/phone-only");
+  await page.goto("/website-only");
 
   const saveContactButton = page.getByRole("button", { name: "Save contact" });
   await expect(saveContactButton).toBeVisible();
@@ -712,11 +702,10 @@ test("a published phone-only profile can be saved as a contact", async ({ page }
   expect(downloadPath).not.toBeNull();
   const vCard = await readFile(downloadPath as string, "utf8");
   const unfoldedVCard = vCard.replace(/\r\n[ \t]/g, "");
-  expect(unfoldedVCard).toContain(`TEL;TYPE=VOICE:${phone}`);
+  expect(unfoldedVCard).toContain("FN:Website Only");
+  expect(unfoldedVCard).toContain(`item1.URL:${website}`);
   expect(unfoldedVCard).not.toContain("EMAIL;");
-  expect(unfoldedVCard).not.toContain("https://identity-website.example");
-  expect(unfoldedVCard).toContain("item1.URL:https://example.test/portfolio");
-  expect(unfoldedVCard).toContain("item1.X-ABLabel:Portfolio");
+  expect(unfoldedVCard).not.toContain("TEL;");
 });
 
 test("demo card claim, publish, and resolver activation complete as one flow", async ({ page }) => {
