@@ -272,6 +272,7 @@ describe("profile image storage", () => {
       t.withIdentity(identity(data.adminUserId)).mutation(api.storage.removeImageAsAdmin, {
         profileId: otherScopeProfileId,
         expectedImageRevision: 0,
+        expectedDraftRevision: 0,
       }),
     ).rejects.toThrow("Profile access denied");
 
@@ -284,6 +285,7 @@ describe("profile image storage", () => {
       t.withIdentity(identity(data.adminUserId)).mutation(api.storage.removeImage, {
         profileId: data.ownerProfileId,
         expectedImageRevision: 1,
+        expectedDraftRevision: 1,
       }),
     ).rejects.toThrow("Profile access denied");
 
@@ -309,6 +311,7 @@ describe("profile image storage", () => {
       .mutation(api.storage.removeImageAsAdmin, {
         profileId: data.ownerProfileId,
         expectedImageRevision: 1,
+        expectedDraftRevision: 1,
       });
     expect(adminRemove.imageRevision).toBe(2);
     const auditAfterRemoval = await t.run((ctx) =>
@@ -797,13 +800,25 @@ describe("profile image storage", () => {
       admin.mutation(api.storage.generateUploadUrl, { profileId: data.ownerProfileId }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
-      other.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),
+      other.action(api.storage.attachImage, {
+        profileId: data.ownerProfileId,
+        storageId,
+        expectedDraftRevision: 0,
+      }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
-      admin.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),
+      admin.action(api.storage.attachImage, {
+        profileId: data.ownerProfileId,
+        storageId,
+        expectedDraftRevision: 0,
+      }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
-      owner.action(api.storage.attachImage, { profileId: data.ownerProfileId, storageId }),
+      owner.action(api.storage.attachImage, {
+        profileId: data.ownerProfileId,
+        storageId,
+        expectedDraftRevision: 0,
+      }),
     ).resolves.toMatchObject({ storageId, imageUrl: expect.any(String) });
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
       draft: { imageStorageId: storageId, imageUrl: expect.any(String) },
@@ -842,18 +857,21 @@ describe("profile image storage", () => {
     await owner.action(api.storage.attachImage, {
       profileId: data.ownerProfileId,
       storageId: existingStorageId,
+      expectedDraftRevision: 0,
     });
 
     await expect(
       owner.action(api.storage.attachImage, {
         profileId: data.ownerProfileId,
         storageId: invalidStorageId,
+        expectedDraftRevision: 1,
       }),
     ).rejects.toThrow("valid JPEG, PNG, or WebP");
     await expect(
       owner.action(api.storage.attachImage, {
         profileId: data.ownerProfileId,
         storageId: oversizedStorageId,
+        expectedDraftRevision: 1,
       }),
     ).rejects.toThrow("5 MB");
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
@@ -871,7 +889,11 @@ describe("profile image storage", () => {
       ctx.storage.store(new Blob([pngSignature()], { type: "image/png" })),
     );
     await expect(
-      other.action(api.storage.attachImage, { profileId: data.otherProfileId, storageId }),
+      other.action(api.storage.attachImage, {
+        profileId: data.otherProfileId,
+        storageId,
+        expectedDraftRevision: 0,
+      }),
     ).resolves.toMatchObject({ storageId });
     const owner = t.withIdentity(identity(data.ownerUserId));
     await expect(
@@ -898,14 +920,20 @@ describe("profile image storage", () => {
     await owner.action(api.storage.attachImage, {
       profileId: data.ownerProfileId,
       storageId: first,
+      expectedDraftRevision: 0,
     });
     await owner.mutation(api.profiles.publish, { profileId: data.ownerProfileId });
     await owner.action(api.storage.attachImage, {
       profileId: data.ownerProfileId,
       storageId: second,
+      expectedDraftRevision: 1,
     });
     await expect(t.run((ctx) => ctx.storage.getUrl(first))).resolves.toEqual(expect.any(String));
-    await owner.mutation(api.storage.removeImage, { profileId: data.ownerProfileId });
+    await owner.mutation(api.storage.removeImage, {
+      profileId: data.ownerProfileId,
+      expectedImageRevision: 2,
+      expectedDraftRevision: 2,
+    });
     await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
       imageUrl: expect.any(String),
     });
@@ -924,6 +952,7 @@ describe("profile image storage", () => {
     await owner.action(api.storage.attachImage, {
       profileId: data.ownerProfileId,
       storageId: image,
+      expectedDraftRevision: 0,
     });
     const admin = t.withIdentity(identity(data.adminUserId));
     await admin.mutation(api.customers.approveDeletion, { requestId: data.deletionRequestId });
@@ -988,6 +1017,7 @@ describe("profile image storage", () => {
     await owner.action(api.storage.attachImage, {
       profileId: data.ownerProfileId,
       storageId: large,
+      expectedDraftRevision: 0,
     });
     await t.run(async (ctx) => {
       const profile = await ctx.db.get(data.ownerProfileId);
@@ -1008,13 +1038,48 @@ describe("profile image storage", () => {
       owner.mutation(api.storage.removeImage, {
         profileId: data.ownerProfileId,
         expectedImageRevision: 0,
+        expectedDraftRevision: 1,
       }),
     ).rejects.toThrow("Photo changed elsewhere");
     await owner.mutation(api.storage.removeImage, {
       profileId: data.ownerProfileId,
       expectedImageRevision: 1,
+      expectedDraftRevision: 1,
     });
     await expect(t.run((ctx) => ctx.storage.getUrl(large))).resolves.toBeNull();
     await expect(t.run((ctx) => ctx.storage.getUrl(small))).resolves.toBeNull();
   });
+
+  it.each(["attach", "owner removal", "admin removal"] as const)(
+    "requires a draft revision for public photo %s",
+    async (operation) => {
+      const t = convexTest(schema, modules);
+      const data = await seed(t);
+      const owner = t.withIdentity(identity(data.ownerUserId));
+      const admin = t.withIdentity(identity(data.adminUserId));
+      const storageId = await t.run(async (ctx) =>
+        ctx.storage.store(new Blob([pngSignature()], { type: "image/png" })),
+      );
+      let result: Promise<unknown>;
+
+      if (operation === "attach") {
+        result = owner.action(api.storage.attachImage, {
+          profileId: data.ownerProfileId,
+          storageId,
+        } as never);
+      } else if (operation === "owner removal") {
+        result = owner.mutation(api.storage.removeImage, {
+          profileId: data.ownerProfileId,
+          expectedImageRevision: 0,
+        } as never);
+      } else {
+        result = admin.mutation(api.storage.removeImageAsAdmin, {
+          profileId: data.ownerProfileId,
+          expectedImageRevision: 0,
+        } as never);
+      }
+
+      await expect(result).rejects.toThrow("expectedDraftRevision");
+    },
+  );
 });

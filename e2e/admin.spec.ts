@@ -712,6 +712,47 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   await expect(adminDialog.getByText("/mara-velasquez", { exact: true })).toBeVisible();
 });
 
+test("administrator is asked before closing a profile with an unsaved slug", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  await dialog.getByRole("tab", { name: "Details & slug" }).click();
+  const detailsPanel = dialog.getByRole("tabpanel", { name: "Details & slug" });
+  const slug = detailsPanel.getByLabel("Profile slug");
+  await slug.fill("mara-unsaved-close");
+  page.once("dialog", async (confirmation) => {
+    expect(confirmation.message()).toBe("Discard unsaved changes to this profile draft?");
+    await confirmation.dismiss();
+  });
+  await dialog.getByRole("button", { name: "Close profile details" }).click();
+
+  await expect(dialog).toBeVisible();
+  await expect(slug).toHaveValue("mara-unsaved-close");
+});
+
+test("administrator is asked before switching profiles with an unsaved slug", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  await dialog.getByRole("tab", { name: "Details & slug" }).click();
+  const detailsPanel = dialog.getByRole("tabpanel", { name: "Details & slug" });
+  const slug = detailsPanel.getByLabel("Profile slug");
+  await slug.fill("mara-unsaved-switch");
+  page.once("dialog", async (confirmation) => {
+    expect(confirmation.message()).toBe("Discard unsaved changes to this profile draft?");
+    await confirmation.dismiss();
+  });
+  await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).focus();
+  await page.keyboard.press("Enter");
+
+  await expect(dialog).toBeVisible();
+  await expect(slug).toHaveValue("mara-unsaved-switch");
+});
+
 test("administrator approves a customer deletion request", async ({ page }) => {
   await signInAsCustomer(page);
   await page.getByRole("link", { name: "Account" }).click();

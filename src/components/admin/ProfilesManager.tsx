@@ -585,6 +585,8 @@ function DemoProfilesManager() {
     `${candidate.draft.name} ${candidate.draft.slug}`.toLowerCase().includes(normalizedQuery),
   );
   const profile = profiles.find((candidate) => candidate.id === selectedProfileId);
+  const hasUnsavedChanges =
+    profile !== undefined && normalizeProfileSlug(slugValue) !== profile.draft.slug;
   const registryEntries: ProfileRegistryEntry[] = matchingProfiles.map((candidate) => ({
     id: candidate.id,
     name: candidate.draft.name || "Unnamed profile",
@@ -592,6 +594,12 @@ function DemoProfilesManager() {
     status: candidate.status,
     selected: candidate.id === selectedProfileId,
     onOpen: () => {
+      if (
+        candidate.id !== selectedProfileId &&
+        hasUnsavedChanges &&
+        !window.confirm("Discard unsaved changes to this profile draft?")
+      )
+        return;
       setSelectedProfileId(candidate.id);
       setSlugValue(candidate.draft.slug);
       setSlugError(null);
@@ -844,6 +852,11 @@ function DemoProfilesManager() {
           active={confirmation === null}
           description={`${profile.draft.name || "Unnamed profile"} · owned by ${state.customers.find((customer) => customer.profileId === profile.id)?.email ?? "unassigned"}`}
           onClose={() => {
+            if (
+              hasUnsavedChanges &&
+              !window.confirm("Discard unsaved changes to this profile draft?")
+            )
+              return;
             setSelectedProfileId(null);
             setSlugValue("");
             setSlugError(null);
@@ -1106,7 +1119,9 @@ function LiveProfilesManager() {
         : profileDetails === null
           ? null
           : toProfileContent(profileDetails.profile.draft);
-  const hasUnsavedChanges = localDraftState?.dirty ?? false;
+  const hasUnsavedChanges =
+    (localDraftState?.dirty ?? false) ||
+    (profile !== undefined && normalizeProfileSlug(slugValue) !== profile.slug);
 
   function closeSelectedProfile() {
     if (pendingAction !== null || editorBusy) return;

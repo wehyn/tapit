@@ -55,7 +55,7 @@ export const attachImage = action({
   args: {
     profileId: v.id("profiles"),
     storageId: v.id("_storage"),
-    expectedDraftRevision: v.optional(v.number()),
+    expectedDraftRevision: v.number(),
   },
   returns: v.object({
     storageId: v.id("_storage"),
@@ -412,7 +412,7 @@ export const removeImage = mutation({
   args: {
     profileId: v.id("profiles"),
     expectedImageRevision: v.optional(v.number()),
-    expectedDraftRevision: v.optional(v.number()),
+    expectedDraftRevision: v.number(),
   },
   returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
@@ -431,7 +431,7 @@ export const removeImageAsAdmin = mutation({
   args: {
     profileId: v.id("profiles"),
     expectedImageRevision: v.optional(v.number()),
-    expectedDraftRevision: v.optional(v.number()),
+    expectedDraftRevision: v.number(),
   },
   returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
