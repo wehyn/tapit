@@ -684,6 +684,7 @@ test("guided link creation adds email and phone without scheme typing", async ({
   await signInAsCustomer(page);
   await page.goto("/app/links");
   const rows = page.locator('[aria-label="Editable profile links"] article');
+  await expect(rows.first()).toBeVisible();
   const initialCount = await rows.count();
   await page.getByRole("button", { name: "Add link", exact: true }).first().click();
   await page.getByRole("dialog").getByRole("button", { name: "Cancel" }).click();
