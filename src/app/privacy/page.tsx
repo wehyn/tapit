@@ -61,12 +61,12 @@ export default function PrivacyPage() {
               counts and the source of a visit when known. With your permission, Tapit stores a
               random key in browser session storage and associates it with the profile to estimate
               unique views. The key is not your name or email. Your analytics choice is saved in
-              browser local storage so you can change it later. For abuse prevention, when a strong
-              deployment key is configured, the backend uses a short-lived keyed HMAC of the network
-              address to limit repeated requests. It does not store the raw address or include this
-              pseudonymous value in owner analytics. If an address or key is unavailable, requests
-              share a fallback limit. Inactive keys become eligible for removal after 24 hours, and
-              cleanup runs hourly.
+              browser local storage so you can change it later. Public events are recorded only when
+              a strong deployment key is configured. For abuse prevention, the backend uses a
+              short-lived keyed HMAC of the network address to limit repeated requests. It does not
+              store the raw address; this pseudonymous value is not anonymous or included in owner
+              analytics. If address metadata is unavailable, requests share a fallback limit.
+              Inactive keys become eligible for removal after 24 hours, and cleanup runs hourly.
             </li>
             <li>
               <strong className="text-tapit-ink">Operations:</strong> invitations, deletion

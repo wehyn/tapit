@@ -16,9 +16,14 @@ const rangeValidator = v.union(
   v.literal("30d"),
   v.literal("90d"),
 );
-const analyticsRateLimitHmacSecret = (
-  env as typeof env & { readonly TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET?: string }
-).TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+function getAnalyticsRateLimitHmacSecret(): string | undefined {
+  return (env as typeof env & { readonly TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET?: string })
+    .TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+}
+
+function hasStrongRateLimitSecret(secret: string | undefined): secret is string {
+  return secret !== undefined && new TextEncoder().encode(secret).byteLength >= 32;
+}
 
 type AnalyticsEventType = "profile_view" | "link_click";
 
@@ -45,8 +50,8 @@ export const analyticsRateLimiter = new RateLimiter(components.rateLimiter, {
 export async function networkAddressRateLimitKey(
   address: string,
   secret: string | undefined,
-): Promise<string> {
-  if (secret === undefined || new TextEncoder().encode(secret).byteLength < 32) return "missing-ip";
+): Promise<string | null> {
+  if (!hasStrongRateLimitSecret(secret)) return null;
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
@@ -67,11 +72,16 @@ async function allowAnalyticsEvent(
   profileId: Id<"profiles">,
   eventType: AnalyticsEventType,
 ): Promise<boolean> {
+  const secret = getAnalyticsRateLimitHmacSecret();
+  if (!hasStrongRateLimitSecret(secret)) return false;
   let networkHash = "missing-ip";
   try {
     const { ip } = await ctx.meta.getRequestMetadata();
-    if (ip !== null && ip.length > 0)
-      networkHash = await networkAddressRateLimitKey(ip, analyticsRateLimitHmacSecret);
+    if (ip !== null && ip.length > 0) {
+      const key = await networkAddressRateLimitKey(ip, secret);
+      if (key === null) return false;
+      networkHash = key;
+    }
   } catch {
     networkHash = "missing-ip";
   }

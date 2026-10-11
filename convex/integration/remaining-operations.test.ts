@@ -1,5 +1,5 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 
 import { api } from "../_generated/api";
@@ -7,6 +7,18 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+const previousAnalyticsHmacSecret = process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+const testAnalyticsHmacSecret = "test-only-hmac-secret-with-at-least-32-characters";
+
+beforeAll(() => {
+  process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = testAnalyticsHmacSecret;
+});
+
+afterAll(() => {
+  if (previousAnalyticsHmacSecret === undefined)
+    delete process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+  else process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = previousAnalyticsHmacSecret;
+});
 
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",

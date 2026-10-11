@@ -2,14 +2,25 @@
 import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import type { PaginationResult } from "convex/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
-import { networkAddressRateLimitKey } from "../analytics";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+const testHmacSecret = "test-only-hmac-secret-with-at-least-32-characters";
+let previousHmacSecret: string | undefined;
+
+beforeEach(() => {
+  previousHmacSecret = process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+  process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = testHmacSecret;
+});
+
+afterEach(() => {
+  if (previousHmacSecret === undefined) delete process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+  else process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = previousHmacSecret;
+});
 
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
@@ -72,8 +83,8 @@ async function seed(t: ReturnType<typeof convexTest>) {
 
 describe("analytics hardening", () => {
   it("uses a keyed digest for network addresses and fails closed without a secret", async () => {
-    const secret = "test-only-hmac-secret-with-at-least-32-characters";
-    const keyed = await networkAddressRateLimitKey("203.0.113.7", secret);
+    const { networkAddressRateLimitKey } = await import("../analytics");
+    const keyed = await networkAddressRateLimitKey("203.0.113.7", testHmacSecret);
     const plain = await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode("tapit-analytics-rate-limit:v1:203.0.113.7"),
@@ -81,9 +92,40 @@ describe("analytics hardening", () => {
     expect(keyed).not.toBe(
       Array.from(new Uint8Array(plain), (byte) => byte.toString(16).padStart(2, "0")).join(""),
     );
-    expect(keyed).toBe(await networkAddressRateLimitKey("203.0.113.7", secret));
-    expect(await networkAddressRateLimitKey("203.0.113.7", "short")).toBe("missing-ip");
-    expect(await networkAddressRateLimitKey("203.0.113.7", undefined)).toBe("missing-ip");
+    expect(keyed).toBe(await networkAddressRateLimitKey("203.0.113.7", testHmacSecret));
+    expect(await networkAddressRateLimitKey("203.0.113.7", "short")).toBeNull();
+    expect(await networkAddressRateLimitKey("203.0.113.7", undefined)).toBeNull();
+  });
+
+  it("does not record public events when the deployment HMAC key is missing or weak", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const { profileId, userId } = await seed(t);
+    const owner = t.withIdentity(identity(userId));
+    delete process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+
+    await expect(
+      t.mutation(api.analytics.recordView, { profileId, sessionKey: "missing-key" }),
+    ).resolves.toBeNull();
+    process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = "short";
+    await expect(
+      t.mutation(api.analytics.recordLinkClick, { profileId, linkKey: "site" }),
+    ).resolves.toBeNull();
+
+    const result = await owner.query(api.analytics.mine, { range: "lifetime", now: Date.now() });
+    const stored = await t.run(async (ctx) => ({
+      analytics: await ctx.db
+        .query("analytics")
+        .withIndex("by_profile_bucket", (query) => query.eq("profileId", profileId))
+        .take(10),
+      rateLimitKeys: await ctx.db
+        .query("analyticsRateLimitKeys")
+        .withIndex("by_profileId", (query) => query.eq("profileId", profileId))
+        .take(10),
+    }));
+    expect(result).toMatchObject({ views: 0, clicks: 0 });
+    expect(stored.analytics).toHaveLength(0);
+    expect(stored.rateLimitKeys).toHaveLength(0);
   });
 
   it("deduplicates repeated browser sessions on the server and preserves anonymous totals", async () => {
