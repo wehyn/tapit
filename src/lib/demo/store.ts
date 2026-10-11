@@ -11,7 +11,11 @@ import {
   type DemoState,
   type ProfileTheme,
 } from "./fixtures";
-import { deserializeDemoState, serializeDemoState } from "./storage-codec";
+import {
+  deserializeDemoState,
+  serializeDemoState,
+  UnsupportedDemoStorageVersionError,
+} from "./storage-codec";
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -32,6 +36,8 @@ let state = serverSnapshot;
 let session: DemoSession | null = null;
 let loaded = false;
 let sessionLoaded = false;
+let persistedRaw: string | null = null;
+let unsupportedStorageVersion: UnsupportedDemoStorageVersionError | null = null;
 const listeners = new Set<() => void>();
 
 function notify() {
@@ -42,6 +48,7 @@ function loadFromStorage() {
   if (typeof window === "undefined" || loaded) return;
   loaded = true;
   const raw = window.localStorage.getItem(STORAGE_KEY);
+  persistedRaw = raw;
   if (raw !== null) {
     try {
       const parsed = deserializeDemoState(raw) as Partial<DemoState> & { profile?: DemoProfile };
@@ -84,8 +91,13 @@ function loadFromStorage() {
           })),
         } as DemoState;
       }
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
+    } catch (error) {
+      if (error instanceof UnsupportedDemoStorageVersionError) {
+        unsupportedStorageVersion = error;
+      } else {
+        window.localStorage.removeItem(STORAGE_KEY);
+        persistedRaw = null;
+      }
     }
   }
 }
@@ -103,17 +115,28 @@ function loadSession() {
   }
 }
 
-function persist(nextState: DemoState) {
+function persist(nextState: DemoState, allowChangedStorage = false) {
   if (typeof window === "undefined") return;
+  if (!loaded) loadFromStorage();
+  if (unsupportedStorageVersion !== null) {
+    throw persistenceError(unsupportedStorageVersion);
+  }
   const previousRaw = window.localStorage.getItem(STORAGE_KEY);
+  if (!allowChangedStorage && previousRaw !== persistedRaw) {
+    throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
+  }
   let serialized: string;
   try {
     serialized = serializeDemoState(nextState);
   } catch (error) {
     throw persistenceError(error);
   }
+  if (!allowChangedStorage && window.localStorage.getItem(STORAGE_KEY) !== previousRaw) {
+    throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
+  }
   try {
     window.localStorage.setItem(STORAGE_KEY, serialized);
+    persistedRaw = serialized;
   } catch (error) {
     try {
       if (previousRaw === null) window.localStorage.removeItem(STORAGE_KEY);
@@ -324,7 +347,7 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
 
 export function resetDemoState(): void {
   const nextState = createDefaultDemoState();
-  persist(nextState);
+  persist(nextState, true);
   state = nextState;
   notify();
 }

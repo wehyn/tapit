@@ -23,4 +23,80 @@ describe("demo storage codec", () => {
     const state = { profile: { draft: { imageUrl: "data:image/png;base64,abc" } } };
     expect(deserializeDemoState(JSON.stringify(state))).toEqual(state);
   });
+
+  it("round-trips marker-prefixed profile text alongside an image", () => {
+    const state = {
+      profile: {
+        draft: {
+          bio: "\u0001tapit-media:0",
+          media: { slideshow: [{ url: "data:image/png;base64,abc" }] },
+        },
+      },
+    };
+
+    expect(deserializeDemoState(serializeDemoState(state))).toEqual(state);
+  });
+
+  it("round-trips marker-prefixed text when there are no images", () => {
+    const state = { profile: { draft: { bio: "\u0001tapit-media:0" } } };
+
+    expect(deserializeDemoState(serializeDemoState(state))).toEqual(state);
+  });
+
+  it("restores data URLs in profile text from an older compacted state", () => {
+    const raw = JSON.stringify({
+      profile: { draft: { bio: "\u0001tapit-media:0" } },
+      __tapitMediaDataUrls: ["data:image/png;base64,abc"],
+    });
+
+    expect(deserializeDemoState(raw)).toEqual({
+      profile: { draft: { bio: "data:image/png;base64,abc" } },
+    });
+  });
+
+  it("restores escaped v2 text when its media sidecar is missing", () => {
+    const raw = JSON.stringify({
+      profile: { draft: { bio: "\u0001tapit-media:\u0001tapit-media:0" } },
+      __tapitMediaCodecVersion: 2,
+    });
+
+    expect(deserializeDemoState(raw)).toEqual({
+      profile: { draft: { bio: "\u0001tapit-media:0" } },
+    });
+  });
+
+  it.each([
+    ["non-numeric suffix", "\u0001tapit-media:notes"],
+    ["whitespace suffix", "\u0001tapit-media: 0"],
+    ["out-of-range index", "\u0001tapit-media:9"],
+    ["trailing newline", "\u0001tapit-media:0\n"],
+  ])("preserves invalid legacy marker text (%s)", (_case, marker) => {
+    const raw = JSON.stringify({
+      profile: { id: "legacy", draft: { bio: marker } },
+      cards: [],
+      customers: [],
+      __tapitMediaDataUrls: ["data:image/png;base64,abc"],
+    });
+
+    expect(deserializeDemoState(raw)).toEqual({
+      profile: { id: "legacy", draft: { bio: marker } },
+      cards: [],
+      customers: [],
+    });
+  });
+
+  it("preserves profile data when its media sidecar is malformed", () => {
+    const raw = JSON.stringify({
+      profile: { id: "legacy", draft: { bio: "\u0001tapit-media:0" } },
+      cards: [],
+      customers: [],
+      __tapitMediaDataUrls: [null],
+    });
+
+    expect(deserializeDemoState(raw)).toEqual({
+      profile: { id: "legacy", draft: { bio: "\u0001tapit-media:0" } },
+      cards: [],
+      customers: [],
+    });
+  });
 });
