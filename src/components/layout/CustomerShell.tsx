@@ -66,45 +66,58 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const state = useDemoState();
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
+  const [sessionError, setSessionError] = useState("");
   const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
+  const clearInvalidSession = useCallback(() => {
+    if (!clearDemoSession()) {
+      setSessionError("Could not clear the saved demo session. Try again.");
+      return;
+    }
+    router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [pathname, router]);
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
     serverHydratedSnapshot,
   );
-
-  useEffect(() => {
-    if (!hydrated || signingOut.current) return;
-    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else {
-      const customer = state.customers.find((candidate) => candidate.email === session.email);
-      const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
-      if (
-        customer === undefined ||
-        profile?.ownerId !== customer.id ||
-        customer.status !== "active" ||
-        customer.deletionStatus !== "active"
-      ) {
-        clearDemoSession();
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-      }
-    }
-  }, [hydrated, pathname, router, session, state.customers, state.profiles]);
-
   const customer =
     session !== null
       ? state.customers.find((candidate) => candidate.email === session.email)
       : undefined;
   const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
-  if (
+  const invalidSession =
     !hydrated ||
     session === null ||
     customer === undefined ||
     profile?.ownerId !== customer.id ||
     customer.status !== "active" ||
-    customer.deletionStatus !== "active"
-  )
+    customer.deletionStatus !== "active";
+
+  useEffect(() => {
+    if (!hydrated || signingOut.current) return;
+    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (invalidSession && !sessionError && !clearDemoSession()) {
+      queueMicrotask(() => setSessionError("Could not clear the saved demo session. Try again."));
+    }
+  }, [hydrated, invalidSession, pathname, router, session, sessionError]);
+
+  if (invalidSession) {
+    if (sessionError) {
+      return (
+        <div className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5">
+          <div className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-8">
+            <p className="text-sm text-tapit-danger" role="alert">
+              {sessionError}
+            </p>
+            <Button className="mt-5" onClick={clearInvalidSession} type="button" variant="quiet">
+              Return to sign in
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return <AuthLoadingState />;
+  }
 
   return (
     <AppShell

@@ -176,6 +176,45 @@ describe("demo auth isolation", () => {
     clearDemoSession();
   });
 
+  it("keeps an invalid demo session on the error screen when storage cannot clear it", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    currentPath = "/app/profile";
+    localStorage.clear();
+    const { CustomerShell, setDemoSession } = await loadDemoCustomerShell();
+    const { clearDemoSession } = await import("../../src/lib/demo/store");
+    setDemoSession({ email: "missing@example.test", role: "customer" });
+    const originalRemoveItem = Storage.prototype.removeItem;
+    const blockedRemoveItem = vi
+      .spyOn(Storage.prototype, "removeItem")
+      .mockImplementation(function (this: Storage, key: string) {
+        if (key === "tapit:demo-session:v1")
+          throw new DOMException("Storage is blocked", "SecurityError");
+        return originalRemoveItem.call(this, key);
+      });
+    const user = userEvent.setup();
+
+    try {
+      render(
+        <CustomerShell>
+          <div>customer content</div>
+        </CustomerShell>,
+      );
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Could not clear the saved demo session. Try again.",
+      );
+      await user.click(screen.getByRole("button", { name: "Return to sign in" }));
+      expect(replace).not.toHaveBeenCalled();
+      blockedRemoveItem.mockRestore();
+      await user.click(screen.getByRole("button", { name: "Return to sign in" }));
+      expect(replace).toHaveBeenCalledWith("/login?next=%2Fapp%2Fprofile");
+    } finally {
+      blockedRemoveItem.mockRestore();
+      clearDemoSession();
+    }
+  });
+
   it("keeps the local deterministic email and password form", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
