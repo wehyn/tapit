@@ -90,12 +90,19 @@ export const replaceDraft = mutation({
     profileId: v.id("profiles"),
     links: v.array(linkValidator),
     redirect: v.optional(profileRedirectValidator),
+    expectedDraftRevision: v.number(),
   },
-  returns: v.object({ updatedAt: v.number() }),
+  returns: v.object({ updatedAt: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
     if (args.links.length > MAX_PROFILE_LINKS)
       throw new Error("A profile cannot contain more than 100 links.");
     const { profile, userId } = await accessibleProfile(ctx, args.profileId);
+    const draftRevision = profile.draftRevision ?? 0;
+    if (
+      !Number.isSafeInteger(args.expectedDraftRevision) ||
+      args.expectedDraftRevision !== draftRevision
+    )
+      throw new Error("The profile draft changed while you were editing. Refresh and try again.");
     const redirect = args.redirect ?? profile.draft.redirect;
     const safetyErrors = validateDraftSafety({ ...profile.draft, links: args.links, redirect });
     if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
@@ -108,13 +115,15 @@ export const replaceDraft = mutation({
       if (seen.has(normalized)) throw new Error("Duplicate link destinations are not allowed.");
       seen.add(normalized);
     }
-    const now = Date.now();
+    const now = Math.max(Date.now(), profile.updatedAt + 1);
+    const nextDraftRevision = draftRevision + 1;
     await ctx.db.patch(profile._id, {
       draft: {
         ...profile.draft,
         links: args.links,
         ...(args.redirect === undefined ? {} : { redirect: args.redirect }),
       },
+      draftRevision: nextDraftRevision,
       updatedAt: now,
     });
     const existing = await ctx.db
@@ -133,7 +142,7 @@ export const replaceDraft = mutation({
       before: `${existing.length} links`,
       after: `${args.links.length} links`,
     });
-    return { updatedAt: now };
+    return { updatedAt: now, draftRevision: nextDraftRevision };
   },
 });
 

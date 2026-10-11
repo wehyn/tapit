@@ -37,6 +37,8 @@ function canUploadForProfile(
 }
 
 export const IMAGE_REVISION_CONFLICT = "Photo changed elsewhere. Reload and try again.";
+const DRAFT_REVISION_CONFLICT =
+  "The profile draft changed while you were editing. Refresh and try again.";
 export const IMAGE_UPLOAD_PENDING =
   "Photo upload in progress. Wait for it to finish and try again.";
 
@@ -50,9 +52,26 @@ export const generateUploadUrl = mutation({
 });
 
 export const attachImage = action({
-  args: { profileId: v.id("profiles"), storageId: v.id("_storage") },
-  returns: v.object({ storageId: v.id("_storage"), imageUrl: v.string() }),
-  handler: async (ctx, args): Promise<{ storageId: Id<"_storage">; imageUrl: string }> => {
+  args: {
+    profileId: v.id("profiles"),
+    storageId: v.id("_storage"),
+    expectedDraftRevision: v.optional(v.number()),
+  },
+  returns: v.object({
+    storageId: v.id("_storage"),
+    imageUrl: v.string(),
+    imageRevision: v.number(),
+    draftRevision: v.number(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    storageId: Id<"_storage">;
+    imageUrl: string;
+    imageRevision: number;
+    draftRevision: number;
+  }> => {
     const access = await ctx.runQuery(internal.profileAccess.getOwnerAccess, {
       profileId: args.profileId,
     });
@@ -75,7 +94,7 @@ export const attachImage = action({
       if (mapping === null) await ctx.storage.delete(args.storageId);
       throw new Error("The uploaded file must be a valid JPEG, PNG, or WebP image.");
     }
-    const { imageUrl } = await ctx.runMutation(internal.storage.attach, {
+    const attached = await ctx.runMutation(internal.storage.attach, {
       profileId: access.profileId,
       ownerId: access.ownerId,
       actorUserId: access.userId,
@@ -83,8 +102,9 @@ export const attachImage = action({
       storageId: args.storageId,
       contentType,
       size: blob.size,
+      expectedDraftRevision: args.expectedDraftRevision,
     });
-    return { storageId: args.storageId, imageUrl };
+    return { storageId: args.storageId, ...attached };
   },
 });
 
@@ -97,11 +117,12 @@ export const attach = internalMutation({
     size: v.number(),
     smallStorageId: v.optional(v.id("_storage")),
     expectedImageRevision: v.optional(v.number()),
+    expectedDraftRevision: v.optional(v.number()),
     uploadJobId: v.optional(v.id("profileImageUploadJobs")),
     actorUserId: v.optional(v.id("users")),
     accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
   },
-  returns: v.object({ imageUrl: v.string(), imageRevision: v.number() }),
+  returns: v.object({ imageUrl: v.string(), imageRevision: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
     if (profile === null || profile.ownerId !== args.ownerId)
@@ -124,6 +145,10 @@ export const attach = internalMutation({
     )
       throw new Error("Profile access denied.");
     const currentRevision = profile.imageRevision ?? 0;
+    const currentDraftRevision = profile.draftRevision ?? 0;
+    const expectedDraftRevision = job?.expectedDraftRevision ?? args.expectedDraftRevision;
+    if (expectedDraftRevision !== undefined && expectedDraftRevision !== currentDraftRevision)
+      throw new Error(DRAFT_REVISION_CONFLICT);
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== currentRevision)
       throw new Error(IMAGE_REVISION_CONFLICT);
     const metadata = await ctx.db.system.get("_storage", args.storageId);
@@ -177,10 +202,12 @@ export const attach = internalMutation({
     const oldStorageId = profile.draft.imageStorageId;
     const draft = { ...profile.draft };
     delete draft.imageUrl;
+    const draftRevision = currentDraftRevision + 1;
     await ctx.db.patch(profile._id, {
       draft: { ...draft, imageStorageId: args.storageId },
+      draftRevision,
       imageRevision: currentRevision + 1,
-      updatedAt: Date.now(),
+      updatedAt: Math.max(Date.now(), profile.updatedAt + 1),
     });
     if (actor?.role === "admin")
       await ctx.db.insert("auditLogs", {
@@ -202,7 +229,7 @@ export const attach = internalMutation({
     if (imageUrl === null) throw new Error("The uploaded image was not found.");
     if (args.uploadJobId !== undefined)
       await ctx.db.patch(args.uploadJobId, { status: "attached" });
-    return { imageUrl, imageRevision: currentRevision + 1 };
+    return { imageUrl, imageRevision: currentRevision + 1, draftRevision };
   },
 });
 
@@ -249,6 +276,7 @@ export const createUploadJob = internalMutation({
     accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     largeSha256: v.string(),
     expectedImageRevision: v.number(),
+    expectedDraftRevision: v.optional(v.number()),
   },
   returns: v.id("profileImageUploadJobs"),
   handler: async (ctx, args) => {
@@ -272,6 +300,9 @@ export const createUploadJob = internalMutation({
       throw new Error("Profile access denied.");
     if (args.expectedImageRevision !== (profile.imageRevision ?? 0))
       throw new Error(IMAGE_REVISION_CONFLICT);
+    const expectedDraftRevision = args.expectedDraftRevision ?? profile.draftRevision ?? 0;
+    if (expectedDraftRevision !== (profile.draftRevision ?? 0))
+      throw new Error(DRAFT_REVISION_CONFLICT);
     const now = Date.now();
     return await ctx.db.insert("profileImageUploadJobs", {
       profileId: args.profileId,
@@ -280,6 +311,7 @@ export const createUploadJob = internalMutation({
       ...(args.accessMode === undefined ? {} : { accessMode: args.accessMode }),
       largeSha256: args.largeSha256,
       expectedImageRevision: args.expectedImageRevision,
+      expectedDraftRevision,
       status: "pending",
       createdAt: now,
       uploadWindowEndsAt: now + 10 * 60 * 1000,
@@ -341,19 +373,25 @@ async function clearProfilePhoto(
   ctx: MutationCtx,
   profile: Doc<"profiles">,
   expectedImageRevision: number | undefined,
+  expectedDraftRevision: number | undefined,
   actorUserId: Id<"users"> | undefined,
 ) {
   const currentRevision = profile.imageRevision ?? 0;
   if (expectedImageRevision !== undefined && expectedImageRevision !== currentRevision)
     throw new Error(IMAGE_REVISION_CONFLICT);
+  const currentDraftRevision = profile.draftRevision ?? 0;
+  if (expectedDraftRevision !== undefined && expectedDraftRevision !== currentDraftRevision)
+    throw new Error(DRAFT_REVISION_CONFLICT);
   const oldStorageId = profile.draft.imageStorageId;
   const draft = { ...profile.draft };
   delete draft.imageUrl;
   const now = Date.now();
+  const draftRevision = currentDraftRevision + 1;
   await ctx.db.patch(profile._id, {
     draft: { ...draft, imageStorageId: undefined },
+    draftRevision,
     imageRevision: currentRevision + 1,
-    updatedAt: now,
+    updatedAt: Math.max(now, profile.updatedAt + 1),
   });
   if (oldStorageId !== undefined && profile.published?.imageStorageId !== oldStorageId)
     await removeIfUnreferenced(ctx, oldStorageId, profile._id);
@@ -367,28 +405,43 @@ async function clearProfilePhoto(
       accountId: profile.ownerId,
       occurredAt: now,
     });
-  return { imageRevision: currentRevision + 1 };
+  return { imageRevision: currentRevision + 1, draftRevision };
 }
 
 export const removeImage = mutation({
-  args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
-  returns: v.object({ imageRevision: v.number() }),
+  args: {
+    profileId: v.id("profiles"),
+    expectedImageRevision: v.optional(v.number()),
+    expectedDraftRevision: v.optional(v.number()),
+  },
+  returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
     const { account, profile, userId } = await profileOwnerAccess(ctx, args.profileId);
     return await clearProfilePhoto(
       ctx,
       profile,
       args.expectedImageRevision,
+      args.expectedDraftRevision,
       account.role === "admin" ? userId : undefined,
     );
   },
 });
 
 export const removeImageAsAdmin = mutation({
-  args: { profileId: v.id("profiles"), expectedImageRevision: v.optional(v.number()) },
-  returns: v.object({ imageRevision: v.number() }),
+  args: {
+    profileId: v.id("profiles"),
+    expectedImageRevision: v.optional(v.number()),
+    expectedDraftRevision: v.optional(v.number()),
+  },
+  returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
     const { profile, userId } = await profileAdministratorAccess(ctx, args.profileId);
-    return await clearProfilePhoto(ctx, profile, args.expectedImageRevision, userId);
+    return await clearProfilePhoto(
+      ctx,
+      profile,
+      args.expectedImageRevision,
+      args.expectedDraftRevision,
+      userId,
+    );
   },
 });

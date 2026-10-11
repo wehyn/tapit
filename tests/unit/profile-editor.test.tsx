@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   localMode: true,
   liveProfile: null as Record<string, unknown> | null,
-  saveDraft: vi.fn(async () => ({ imageRevision: 0, mediaRevision: 0 })),
+  saveDraft: vi.fn(async () => ({ draftRevision: 0, imageRevision: 0, mediaRevision: 0 })),
   guardedNavigation: vi.fn(),
   updateDemoState: vi.fn(),
 }));
@@ -231,6 +231,7 @@ describe("ProfileEditor workspace boundaries", () => {
         });
       } else {
         expect(mocks.saveDraft).toHaveBeenCalledWith({
+          expectedDraftRevision: 0,
           expectedImageRevision: 0,
           expectedMediaRevision: 0,
           profileId: "live-profile",
@@ -305,6 +306,7 @@ describe("ProfileEditor workspace boundaries", () => {
         });
       } else {
         expect(mocks.saveDraft).toHaveBeenCalledWith({
+          expectedDraftRevision: 0,
           expectedImageRevision: 0,
           expectedMediaRevision: 0,
           profileId: "live-profile",
@@ -355,6 +357,7 @@ describe("ProfileEditor workspace boundaries", () => {
       } else {
         expect(mocks.saveDraft).toHaveBeenCalledWith(
           expect.objectContaining({
+            expectedDraftRevision: 0,
             draft: expect.objectContaining({
               theme: "moss",
               customization: expect.objectContaining({ preset: "moss" }),

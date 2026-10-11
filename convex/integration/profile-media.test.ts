@@ -132,6 +132,10 @@ async function asset(
   });
 }
 
+async function draftRevision(t: ReturnType<typeof convexTest>, profileId: Id<"profiles">) {
+  return await t.run(async (ctx) => (await ctx.db.get(profileId))?.draftRevision ?? 0);
+}
+
 const media = (assetId: Id<"profileMediaAssets">, heroHeight = 320) => ({
   heroHeight,
   autoplay: true,
@@ -159,6 +163,7 @@ describe("profile media hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: ids.ownerProfileId,
         draft: content("owner", media(otherAsset.assetId)),
+        expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
         expectedMediaRevision: 0,
       }),
     ).rejects.toThrow("does not belong");
@@ -168,6 +173,7 @@ describe("profile media hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: ids.ownerProfileId,
         draft: content("owner", media(ownAsset.assetId, 0)),
+        expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
         expectedMediaRevision: 0,
       }),
     ).rejects.toThrow("Hero height");
@@ -181,6 +187,7 @@ describe("profile media hardening", () => {
             altText: "A",
           })),
         }),
+        expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
         expectedMediaRevision: 0,
       }),
     ).rejects.toThrow("at most ten");
@@ -188,6 +195,7 @@ describe("profile media hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(ownAsset.assetId)),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     await t.run((ctx) => ctx.db.patch(ids.ownerProfileId, { mediaRevision: 1 }));
@@ -195,6 +203,7 @@ describe("profile media hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: ids.ownerProfileId,
         draft: content("owner", media(ownAsset.assetId)),
+        expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
         expectedMediaRevision: 0,
       }),
     ).rejects.toThrow("changed elsewhere");
@@ -435,17 +444,20 @@ describe("profile media hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(oldItem.assetId)),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner"),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
     });
     expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.draft.media).toBeDefined();
 
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(replacement.assetId)),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     expect(await t.run((ctx) => ctx.storage.getUrl(oldItem.storageId))).toBeNull();
@@ -454,6 +466,7 @@ describe("profile media hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", null as never),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.draft.media).toBeUndefined();
@@ -565,6 +578,7 @@ describe("profile media hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(item.assetId)),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     expect(await t.query(api.profiles.publicBySlug, { slug: "owner" })).toBeNull();
@@ -593,6 +607,7 @@ describe("profile media hardening", () => {
         ...media(item.assetId),
         slideshow: [{ assetId: item.assetId, altText: "" }],
       }),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.draft.media?.slideshow).toEqual([
@@ -634,6 +649,7 @@ describe("profile media hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", draftMedia),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
       expectedMediaRevision: 0,
     });
     const persisted = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));

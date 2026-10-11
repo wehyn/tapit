@@ -173,6 +173,7 @@ describe("profile image storage", () => {
           Origin: "http://localhost:3000",
           "X-Profile-Id": data.ownerProfileId,
           "X-Image-Revision": "0",
+          "X-Draft-Revision": "0",
           "Content-Type": type,
         },
         body: new Uint8Array(body),
@@ -247,6 +248,7 @@ describe("profile image storage", () => {
         Origin: "http://localhost:3000",
         "X-Profile-Id": profileId,
         "X-Image-Revision": "0",
+        "X-Draft-Revision": "0",
         "Content-Type": "image/png",
       },
       body: new Uint8Array(image),
@@ -876,6 +878,9 @@ describe("profile image storage", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.ownerProfileId,
         draft: validDraft("owner", storageId),
+        expectedDraftRevision: await t.run(
+          async (ctx) => (await ctx.db.get(data.ownerProfileId))?.draftRevision ?? 0,
+        ),
       }),
     ).rejects.toThrow("does not belong to this profile");
   });

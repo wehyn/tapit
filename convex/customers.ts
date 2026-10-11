@@ -96,6 +96,7 @@ export const createCustomer = mutation({
         ...(args.bio !== undefined ? { bio: args.bio } : {}),
         theme: args.theme ?? "paper",
       },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -195,6 +196,7 @@ export const createSelfServiceAccount = mutation({
       slug,
       status: "draft",
       draft: { name, slug, email, links: [], theme: "paper" },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -255,6 +257,7 @@ export const completeSelfServiceOnboarding = mutation({
       slug,
       status: "draft",
       draft: { name, slug, email, links: [] },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });

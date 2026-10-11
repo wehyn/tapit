@@ -87,6 +87,7 @@ export async function ensureAdminPersonalProfile(
     slug,
     status: "draft",
     draft: { name, slug, email, links: [] },
+    draftRevision: 0,
     createdAt: now,
     updatedAt: now,
   });

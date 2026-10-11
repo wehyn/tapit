@@ -15,8 +15,8 @@ async function sha256(bytes: Uint8Array) {
 
 export const process = internalAction({
   args: { jobId: v.id("profileImageUploadJobs") },
-  returns: v.object({ imageRevision: v.number() }),
-  handler: async (ctx, args): Promise<{ imageRevision: number }> => {
+  returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
+  handler: async (ctx, args): Promise<{ imageRevision: number; draftRevision: number }> => {
     const job: Doc<"profileImageUploadJobs"> | null = await ctx.runQuery(
       internal.storage.getUploadJob,
       args,
@@ -52,9 +52,8 @@ export const process = internalAction({
         jobId: args.jobId,
         smallStorageId,
       });
-      const committed: { imageUrl: string; imageRevision: number } = await ctx.runMutation(
-        internal.storage.attach,
-        {
+      const committed: { imageUrl: string; imageRevision: number; draftRevision: number } =
+        await ctx.runMutation(internal.storage.attach, {
           profileId: job.profileId,
           ownerId: job.ownerId,
           storageId: largeStorageId,
@@ -62,10 +61,13 @@ export const process = internalAction({
           contentType: format === "png" ? "image/png" : "image/jpeg",
           size: sourceBytes.byteLength,
           expectedImageRevision: job.expectedImageRevision,
+          expectedDraftRevision: job.expectedDraftRevision,
           uploadJobId: args.jobId,
-        },
-      );
-      return { imageRevision: committed.imageRevision };
+        });
+      return {
+        imageRevision: committed.imageRevision,
+        draftRevision: committed.draftRevision,
+      };
     } catch (error) {
       await ctx.runMutation(internal.storage.compensateUpload, {
         jobId: args.jobId,
@@ -73,7 +75,7 @@ export const process = internalAction({
       });
       if (
         error instanceof Error &&
-        /^(Profile images|Image Content-Type|The image set|Photo changed elsewhere|Upload job)/.test(
+        /^(Profile images|Image Content-Type|The image set|Photo changed elsewhere|The profile draft changed|Upload job)/.test(
           error.message,
         )
       )

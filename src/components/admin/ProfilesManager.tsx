@@ -273,23 +273,32 @@ function parseAdminImageUploadResponse(value: unknown): {
   storageId: Id<"_storage">;
   imageUrl: string;
   imageRevision: number;
+  draftRevision: number;
 } {
   if (typeof value !== "object" || value === null)
     throw new Error("The image service returned an invalid response.");
-  const response = value as { storageId?: unknown; imageUrl?: unknown; imageRevision?: unknown };
+  const response = value as {
+    storageId?: unknown;
+    imageUrl?: unknown;
+    imageRevision?: unknown;
+    draftRevision?: unknown;
+  };
   if (
     typeof response.storageId !== "string" ||
     response.storageId.length === 0 ||
     typeof response.imageUrl !== "string" ||
     response.imageUrl.length === 0 ||
     !Number.isSafeInteger(response.imageRevision) ||
-    (response.imageRevision as number) < 0
+    (response.imageRevision as number) < 0 ||
+    !Number.isSafeInteger(response.draftRevision) ||
+    (response.draftRevision as number) < 0
   )
     throw new Error("The image service returned an invalid response.");
   return {
     storageId: response.storageId as Id<"_storage">,
     imageUrl: response.imageUrl,
     imageRevision: response.imageRevision as number,
+    draftRevision: response.draftRevision as number,
   };
 }
 
@@ -374,6 +383,7 @@ function toAdminProfileDetailsView(details: LiveAdminProfileDetails): AdminProfi
 
 function ProfileDialog({
   active,
+  closeDisabled = false,
   details,
   description,
   editor,
@@ -381,6 +391,7 @@ function ProfileDialog({
   title,
 }: {
   active: boolean;
+  closeDisabled?: boolean;
   details: ReactNode;
   description?: string;
   editor: ReactNode;
@@ -493,6 +504,7 @@ function ProfileDialog({
           <Button
             aria-label="Close profile details"
             className="h-10 w-10 shrink-0 px-0 text-xl leading-none"
+            disabled={closeDisabled}
             onClick={onClose}
             type="button"
             variant="quiet"
@@ -981,7 +993,10 @@ function LiveProfilesManager() {
     serverProfileKey: string;
   } | null>(null);
   const uploadRevisionsRef = useRef(
-    new Map<Id<"profiles">, { imageRevision: number; mediaRevision: number }>(),
+    new Map<
+      Id<"profiles">,
+      { imageRevision: number; mediaRevision: number; draftRevision: number }
+    >(),
   );
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -1014,6 +1029,14 @@ function LiveProfilesManager() {
     status: candidate.status,
     selected: candidate._id === selectedId,
     onOpen: () => {
+      if (candidate._id === selectedId || pendingAction !== null || editorBusy) return;
+      if (hasUnsavedChanges && !window.confirm("Discard unsaved changes to this profile draft?"))
+        return;
+      uploadRevisionsRef.current.set(candidate._id, {
+        imageRevision: candidate.imageRevision ?? 0,
+        mediaRevision: candidate.mediaRevision ?? 0,
+        draftRevision: candidate.draftRevision ?? 0,
+      });
       selectedIdRef.current = candidate._id;
       setSelectedId(candidate._id);
       setDraftState(null);
@@ -1085,12 +1108,35 @@ function LiveProfilesManager() {
           : toProfileContent(profileDetails.profile.draft);
   const hasUnsavedChanges = localDraftState?.dirty ?? false;
 
+  function closeSelectedProfile() {
+    if (pendingAction !== null || editorBusy) return;
+    if (hasUnsavedChanges && !window.confirm("Discard unsaved changes to this profile draft?"))
+      return;
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    setDraftState(null);
+    setSlugValue("");
+    setSlugError(null);
+    setSlugSuccess(null);
+    setMessage(null);
+    setDetailsFailure(null);
+  }
+
   function uploadRevisionsFor(selected: NonNullable<typeof profile>) {
     const existing = uploadRevisionsRef.current.get(selected._id);
-    if (existing) return existing;
+    if (existing) {
+      const serverRevision =
+        profileDetails?.profile._id === selected._id
+          ? (profileDetails.profile.draftRevision ?? 0)
+          : existing.draftRevision;
+      if (!hasUnsavedChanges && serverRevision >= existing.draftRevision)
+        existing.draftRevision = serverRevision;
+      return existing;
+    }
     const initial = {
       imageRevision: selected.imageRevision ?? 0,
       mediaRevision: selected.mediaRevision ?? 0,
+      draftRevision: selected.draftRevision ?? 0,
     };
     uploadRevisionsRef.current.set(selected._id, initial);
     return initial;
@@ -1122,6 +1168,7 @@ function LiveProfilesManager() {
         Authorization: `Bearer ${authToken}`,
         "Content-Type": prepared.contentType,
         "X-Image-Revision": String(revisions.imageRevision),
+        "X-Draft-Revision": String(revisions.draftRevision),
         "X-Profile-Id": profile._id,
       },
     });
@@ -1129,6 +1176,7 @@ function LiveProfilesManager() {
       throw new Error((await response.text()) || "The image upload failed. Choose another file.");
     const uploaded = parseAdminImageUploadResponse(await response.json());
     revisions.imageRevision = uploaded.imageRevision;
+    revisions.draftRevision = uploaded.draftRevision;
     return { imageUrl: uploaded.imageUrl, storageId: uploaded.storageId };
   }
 
@@ -1138,8 +1186,10 @@ function LiveProfilesManager() {
     const result = await removeImage({
       profileId: profile._id,
       expectedImageRevision: revisions.imageRevision,
+      expectedDraftRevision: revisions.draftRevision,
     });
     revisions.imageRevision = result.imageRevision;
+    revisions.draftRevision = result.draftRevision;
   }
 
   async function uploadMedia(file: File): Promise<ProfileMediaImage> {
@@ -1172,9 +1222,11 @@ function LiveProfilesManager() {
     const persisted = await save({
       profileId: selected._id,
       draft: adminDraftForPersistence(draft, selected.draft.media !== undefined),
+      expectedDraftRevision: revisions.draftRevision,
       expectedImageRevision: revisions.imageRevision,
       expectedMediaRevision: revisions.mediaRevision,
     });
+    revisions.draftRevision = persisted.draftRevision;
     revisions.imageRevision = persisted.imageRevision;
     revisions.mediaRevision = persisted.mediaRevision;
   }
@@ -1227,7 +1279,13 @@ function LiveProfilesManager() {
     setSlugError(null);
     setSlugSuccess(null);
     try {
-      const result = await changeSlug({ profileId, slug: slugValue });
+      const revisions = uploadRevisionsFor(profile);
+      const result = await changeSlug({
+        profileId,
+        slug: slugValue,
+        expectedDraftRevision: revisions.draftRevision,
+      });
+      revisions.draftRevision = result.draftRevision;
       setDraftState((previous) => {
         if (selectedIdRef.current !== profileId) return previous;
         let latestDraft = draftBeforeRename;
@@ -1369,15 +1427,9 @@ function LiveProfilesManager() {
       {profile ? (
         <ProfileDialog
           active={confirmation === null}
+          closeDisabled={pendingAction !== null || editorBusy}
           onClose={() => {
-            selectedIdRef.current = null;
-            setSelectedId(null);
-            setDraftState(null);
-            setSlugValue("");
-            setSlugError(null);
-            setSlugSuccess(null);
-            setMessage(null);
-            setDetailsFailure(null);
+            closeSelectedProfile();
           }}
           title={`${currentDraft?.name || profile.draft.name || "Unnamed"} profile`}
           editor={

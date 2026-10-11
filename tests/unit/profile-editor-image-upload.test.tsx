@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mutation = vi.hoisted(() => vi.fn().mockResolvedValue({ updatedAt: 2, imageRevision: 4 }));
+const mutation = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ updatedAt: 2, draftRevision: 1, imageRevision: 4 }),
+);
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
 
@@ -96,6 +98,7 @@ beforeEach(() => {
         storageId: "storage-1",
         imageUrl: "https://image.test/1",
         imageRevision: 4,
+        draftRevision: 1,
       }),
       {
         status: 200,
@@ -124,6 +127,7 @@ it("uploads the selected crop in one authenticated request with the image revisi
         Authorization: "Bearer test-token",
         "Content-Type": "image/jpeg",
         "X-Image-Revision": "3",
+        "X-Draft-Revision": "0",
         "X-Profile-Id": "profile-1",
       },
     }),
@@ -190,6 +194,7 @@ it("uploads live profile media with the media revision and strips URLs before sa
   await waitFor(() => expect(mutation).toHaveBeenCalled());
   expect(mutation).toHaveBeenLastCalledWith(
     expect.objectContaining({
+      expectedDraftRevision: 0,
       expectedImageRevision: 3,
       expectedMediaRevision: 4,
       profileId: "profile-1",

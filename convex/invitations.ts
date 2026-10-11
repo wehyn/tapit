@@ -4,17 +4,9 @@ import { mutation, query } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
 
 export const status = query({
-  args: { tokenHash: v.string(), now: v.number() },
+  args: { tokenHash: v.string() },
   returns: v.object({
-    state: v.union(
-      v.literal("missing"),
-      v.literal("revoked"),
-      v.literal("expired"),
-      v.literal("valid"),
-    ),
-    email: v.union(v.string(), v.null()),
-    profileName: v.union(v.string(), v.null()),
-    acceptedAt: v.union(v.number(), v.null()),
+    state: v.union(v.literal("missing"), v.literal("revoked"), v.literal("valid")),
     expiresAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
@@ -22,26 +14,10 @@ export const status = query({
       .query("invitations")
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
       .unique();
-    if (invitation === null)
-      return {
-        state: "missing" as const,
-        email: null,
-        profileName: null,
-        acceptedAt: null,
-        expiresAt: null,
-      };
-    const customer = await ctx.db.get(invitation.customerId);
-    const profile = customer?.profileId === undefined ? null : await ctx.db.get(customer.profileId);
-    const base = {
-      email: invitation.email,
-      profileName: profile?.draft.name ?? null,
-      acceptedAt: invitation.acceptedAt ?? null,
-      expiresAt: invitation.expiresAt ?? null,
-    };
-    if (invitation.invalidatedAt !== undefined) return { state: "revoked" as const, ...base };
-    if (invitation.expiresAt !== undefined && invitation.expiresAt <= args.now)
-      return { state: "expired" as const, ...base };
-    return { state: "valid" as const, ...base };
+    if (invitation === null) return { state: "missing" as const, expiresAt: null };
+    if (invitation.invalidatedAt !== undefined)
+      return { state: "revoked" as const, expiresAt: invitation.expiresAt ?? null };
+    return { state: "valid" as const, expiresAt: invitation.expiresAt ?? null };
   },
 });
 

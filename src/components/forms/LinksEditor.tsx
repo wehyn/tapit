@@ -376,6 +376,8 @@ export function LiveLinksEditorContent({
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
+  const serverDraftRevisionRef = useRef(profile.draftRevision ?? 0);
+  const serverDraftProfileIdRef = useRef(profile._id);
 
   const currentDraft = useMemo(
     () => ({
@@ -425,6 +427,15 @@ export function LiveLinksEditorContent({
       })
     : null;
   const isDirty = !areProfileLinksEqual(currentDraft.links, profile.draft.links);
+  useEffect(() => {
+    const incomingRevision = profile.draftRevision ?? 0;
+    if (serverDraftProfileIdRef.current !== profile._id) {
+      serverDraftProfileIdRef.current = profile._id;
+      serverDraftRevisionRef.current = incomingRevision;
+    } else if (!isDirty && incomingRevision >= serverDraftRevisionRef.current) {
+      serverDraftRevisionRef.current = incomingRevision;
+    }
+  }, [isDirty, profile._id, profile.draftRevision]);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -492,7 +503,12 @@ export function LiveLinksEditorContent({
       let nextLinks = linksToSave;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
-        await saveLinks({ profileId: profile._id, links: nextLinks });
+        const result = await saveLinks({
+          profileId: profile._id,
+          links: nextLinks,
+          expectedDraftRevision: serverDraftRevisionRef.current,
+        });
+        serverDraftRevisionRef.current = result.draftRevision;
         const latestLinks = latestLinksRef.current;
         if (revisionAtStart === draftRevisionRef.current) return;
         nextLinks = latestLinks;

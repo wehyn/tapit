@@ -114,6 +114,7 @@ test("customization stays private in drafts and is shared by public projections 
   const savedDraft = await owner.mutation(api.profiles.saveDraft, {
     profileId: data.profileId,
     draft: draft("owner", { customization }),
+    expectedDraftRevision: 0,
   });
   expect(savedDraft).toMatchObject({ customization });
   await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
@@ -143,6 +144,7 @@ test("server rejects invalid customization values and preserves ownership checks
     owner.mutation(api.profiles.saveDraft, {
       profileId: data.profileId,
       draft: draft("owner", { customization: { ...customization, accent: "violet" } }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow();
   await expect(
@@ -156,6 +158,7 @@ test("server rejects invalid customization values and preserves ownership checks
           },
         },
       }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow("The profile bio custom color does not meet contrast requirements.");
   await expect(
@@ -169,6 +172,7 @@ test("server rejects invalid customization values and preserves ownership checks
           },
         },
       }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow();
   await expect(
@@ -180,6 +184,7 @@ test("server rejects invalid customization values and preserves ownership checks
           section: { kind: "services", body: "Services", items: ["1", "2", "3", "4"] },
         },
       }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow();
   await expect(
@@ -191,12 +196,14 @@ test("server rejects invalid customization values and preserves ownership checks
           section: { kind: "about", body: "x".repeat(281) },
         },
       }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow();
   await expect(
     other.mutation(api.profiles.saveDraft, {
       profileId: data.profileId,
       draft: draft("owner", { customization }),
+      expectedDraftRevision: 0,
     }),
   ).rejects.toThrow("Profile access denied.");
 });

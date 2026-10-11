@@ -1,8 +1,11 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { createElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const saveMutation = vi.hoisted(() => vi.fn().mockResolvedValue({ updatedAt: 1 }));
+const saveMutation = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ updatedAt: 1, draftRevision: 0 }),
+);
 
 vi.mock("convex/react", () => ({
   useMutation: () => saveMutation,
@@ -102,5 +105,42 @@ describe("LinksEditor controller boundaries", () => {
       expectedImageRevision: 7,
       expectedMediaRevision: 0,
     });
+  });
+
+  it("saves live link edits against the draft revision shown to the editor", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    saveMutation.mockResolvedValue({ updatedAt: 2, draftRevision: 8 });
+    render(
+      createElement(LiveLinksEditorContent, {
+        profile: {
+          _id: "profile-1",
+          _creationTime: 1,
+          ownerId: "customer-1",
+          status: "draft",
+          draftRevision: 7,
+          draft: {
+            name: "Mara Velasquez",
+            slug: "mara-velasquez",
+            links: [{ id: "site", ...baseLink }],
+          },
+          createdAt: 1,
+          updatedAt: 1,
+        } as never,
+      }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.click(screen.getByRole("button", { name: "Website or link" }));
+    await user.type(screen.getByLabelText("Label", { exact: true }), "New site");
+    await user.type(screen.getByLabelText("Web address"), "https://new.example.com");
+    await user.click(screen.getByRole("dialog").querySelector('button[type="submit"]')!);
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(saveMutation).toHaveBeenCalledWith(
+        expect.objectContaining({ profileId: "profile-1", expectedDraftRevision: 7 }),
+      ),
+    );
   });
 });

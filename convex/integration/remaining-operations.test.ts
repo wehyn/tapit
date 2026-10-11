@@ -113,6 +113,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     await expect(
       owner.mutation(api.links.replaceDraft, {
         profileId: data.ownerProfileId,
+        expectedDraftRevision: 0,
         links: [
           {
             id: "one",
@@ -132,6 +133,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     await expect(
       owner.mutation(api.links.replaceDraft, {
         profileId: data.ownerProfileId,
+        expectedDraftRevision: 0,
         links: [
           {
             id: "unsafe",
@@ -145,6 +147,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
 
     await owner.mutation(api.links.replaceDraft, {
       profileId: data.ownerProfileId,
+      expectedDraftRevision: 0,
       links: [
         {
           id: "website",
@@ -361,6 +364,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         ...content("owner", "Owner"),
         redirect: { enabled: true, destination: "https://draft-redirect.example/card" },
       },
+      expectedDraftRevision: 0,
     });
     await expect(
       t.query(api.cards.resolve, { token: "draft-redirect-card" }),

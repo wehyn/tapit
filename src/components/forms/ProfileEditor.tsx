@@ -689,6 +689,8 @@ function LiveProfileEditorContent({
     draft: ProfileContent;
     published?: ProfileContent & { publishedAt: number };
   };
+  const serverDraftRevisionRef = useRef(liveProfile.draftRevision ?? 0);
+  const serverDraftProfileIdRef = useRef(liveProfile._id);
   const imageRevisionRef = useRef(liveProfile.imageRevision ?? 0);
   const mediaRevisionRef = useRef(liveProfile.mediaRevision ?? 0);
   const mediaRequestRef = useRef(0);
@@ -748,6 +750,15 @@ function LiveProfileEditorContent({
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
+  useEffect(() => {
+    const incomingRevision = liveProfile.draftRevision ?? 0;
+    if (serverDraftProfileIdRef.current !== liveProfile._id) {
+      serverDraftProfileIdRef.current = liveProfile._id;
+      serverDraftRevisionRef.current = incomingRevision;
+    } else if (!isDirty && incomingRevision >= serverDraftRevisionRef.current) {
+      serverDraftRevisionRef.current = incomingRevision;
+    }
+  }, [isDirty, liveProfile._id, liveProfile.draftRevision]);
   const slugLocked = true;
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
@@ -818,6 +829,7 @@ function LiveProfileEditorContent({
           Authorization: `Bearer ${authToken}`,
           "Content-Type": prepared.contentType,
           "X-Image-Revision": String(imageRevisionRef.current),
+          "X-Draft-Revision": String(serverDraftRevisionRef.current),
           "X-Profile-Id": liveProfile._id,
         },
       });
@@ -826,6 +838,7 @@ function LiveProfileEditorContent({
       const uploaded = parseImageUploadResponse(await response.json());
       if (requestId !== imageRequestRef.current) return;
       imageRevisionRef.current = uploaded.imageRevision;
+      serverDraftRevisionRef.current = uploaded.draftRevision;
       draftRevisionRef.current += 1;
       setDraft((current) => {
         return {
@@ -855,8 +868,10 @@ function LiveProfileEditorContent({
       const result = await removeImage({
         profileId: liveProfile._id,
         expectedImageRevision: imageRevisionRef.current,
+        expectedDraftRevision: serverDraftRevisionRef.current,
       });
       imageRevisionRef.current = result.imageRevision;
+      serverDraftRevisionRef.current = result.draftRevision;
       draftRevisionRef.current += 1;
       setDraft((current) => {
         const next = { ...(current ?? latestDraftRef.current) };
@@ -970,9 +985,11 @@ function LiveProfileEditorContent({
         const result = await saveDraftMutation({
           profileId: liveProfile._id,
           draft: draftForPersistence(draftToSave),
+          expectedDraftRevision: serverDraftRevisionRef.current,
           expectedImageRevision: imageRevisionRef.current,
           expectedMediaRevision: mediaRevisionRef.current,
         });
+        serverDraftRevisionRef.current = result.draftRevision;
         imageRevisionRef.current = result.imageRevision;
         const latestDraft = latestDraftRef.current;
         if (
@@ -1253,6 +1270,7 @@ function parseImageUploadResponse(value: unknown): {
   storageId: Id<"_storage">;
   imageUrl: string;
   imageRevision: number;
+  draftRevision: number;
 } {
   if (typeof value !== "object" || value === null)
     throw new Error("The image service returned an invalid response.");
@@ -1260,6 +1278,7 @@ function parseImageUploadResponse(value: unknown): {
     storageId?: unknown;
     imageUrl?: unknown;
     imageRevision?: unknown;
+    draftRevision?: unknown;
   };
   if (
     typeof response.storageId !== "string" ||
@@ -1267,13 +1286,16 @@ function parseImageUploadResponse(value: unknown): {
     typeof response.imageUrl !== "string" ||
     response.imageUrl.length === 0 ||
     !Number.isSafeInteger(response.imageRevision) ||
-    (response.imageRevision as number) < 0
+    (response.imageRevision as number) < 0 ||
+    !Number.isSafeInteger(response.draftRevision) ||
+    (response.draftRevision as number) < 0
   )
     throw new Error("The image service returned an invalid response.");
   return {
     storageId: response.storageId as Id<"_storage">,
     imageUrl: response.imageUrl,
     imageRevision: response.imageRevision as number,
+    draftRevision: response.draftRevision as number,
   };
 }
 

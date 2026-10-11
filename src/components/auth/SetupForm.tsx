@@ -44,7 +44,7 @@ export function SetupForm({ token }: { token: string }) {
 
 function useInvitationStatus(tokenHash: string | undefined) {
   const [now, setNow] = useState(Date.now);
-  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash, now } : "skip");
+  const invitation = useQuery(api.invitations.status, tokenHash ? { tokenHash } : "skip");
 
   useEffect(() => {
     if (invitation?.state !== "valid" || typeof invitation.expiresAt !== "number") return;
@@ -54,7 +54,11 @@ function useInvitationStatus(tokenHash: string | undefined) {
     return () => window.clearTimeout(timer);
   }, [invitation?.expiresAt, invitation?.state, now]);
 
-  return invitation;
+  return invitation?.state === "valid" &&
+    typeof invitation.expiresAt === "number" &&
+    invitation.expiresAt <= now
+    ? { ...invitation, state: "expired" as const }
+    : invitation;
 }
 
 function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
@@ -63,6 +67,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
   const { isAuthenticated } = useConvexAuth();
   const completeSetup = useMutation(api.customers.completeSetup);
   const [tokenHash, setTokenHash] = useState<string>();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [error, setError] = useState("");
@@ -85,7 +90,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
     if (
       tokenHash === undefined ||
       invitation?.state !== "valid" ||
-      invitation.email === null ||
+      email.trim().length === 0 ||
       (invitation.expiresAt !== null &&
         invitation.expiresAt !== undefined &&
         invitation.expiresAt <= Date.now())
@@ -100,7 +105,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
     try {
       await signIn("password", {
         flow: isAuthenticated ? "signIn" : authFlow,
-        email: invitation.email,
+        email: email.trim().toLowerCase(),
         password,
       });
       setAuthFlow("signIn");
@@ -146,21 +151,24 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
               <p className="text-sm text-tapit-muted">Checking your setup link…</p>
             ) : stateCopy ? (
               <Notice tone="error">{stateCopy}</Notice>
-            ) : invitation?.state !== "valid" || invitation.email === null ? (
+            ) : invitation?.state !== "valid" ? (
               <Notice tone="error">This setup link is not available.</Notice>
             ) : (
               <>
                 <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                  Invitation for <strong className="text-tapit-ink">{invitation.email}</strong>
-                  {invitation.profileName ? (
-                    <>
-                      {" "}
-                      to <strong className="text-tapit-ink">{invitation.profileName}</strong>
-                    </>
-                  ) : null}
+                  Enter the email address from your invitation.
                 </p>
                 <form className="grid gap-5" onSubmit={submit}>
                   {error ? <Notice tone="error">{error}</Notice> : null}
+                  <Field
+                    autoComplete="email"
+                    id="hosted-setup-email"
+                    label="Invitation email"
+                    onChange={(event) => setEmail(event.target.value)}
+                    required
+                    type="email"
+                    value={email}
+                  />
                   <Field
                     autoComplete="new-password"
                     id="hosted-setup-password"
@@ -431,13 +439,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
             ) : (
               <div className="mt-6 grid gap-5">
                 <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                  Invitation for <strong className="text-tapit-ink">{invitation.email}</strong>
-                  {invitation.profileName ? (
-                    <>
-                      {" "}
-                      to <strong className="text-tapit-ink">{invitation.profileName}</strong>
-                    </>
-                  ) : null}
+                  Continue with the Google account that received this invitation.
                 </p>
                 {error ? <Notice tone="error">{error}</Notice> : null}
                 {isAuthenticated ? (
