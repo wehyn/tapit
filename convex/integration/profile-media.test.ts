@@ -808,7 +808,7 @@ describe("profile media hardening", () => {
   });
 
   it("reclaims orphan media beyond 1000 upload jobs while retaining live references", async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 100 } });
     const ids = await seed(t);
     const candidates: {
       jobId: Id<"profileMediaUploadJobs">;

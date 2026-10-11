@@ -714,7 +714,7 @@ describe("profile image storage", () => {
   });
 
   it("reclaims orphan uploads beyond 1000 profiles and jobs without deleting live references", async () => {
-    const t = convexTest(schema, modules);
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 100 } });
     const data = await seed(t);
     const largeBytes = pngSignature();
     const smallBytes = new Uint8Array([...pngSignature(), 1]);

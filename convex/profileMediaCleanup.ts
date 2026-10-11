@@ -1,13 +1,11 @@
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
+import { internalMutation, type MutationCtx } from "./_generated/server";
 import { profileMediaAssetIds } from "./profileMedia";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
-const REFERENCE_PAGE_SIZE = 1000;
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
 
 async function isReferenced(
@@ -33,16 +31,16 @@ async function isReferenced(
     )
       return true;
   }
-  let cursor: string | null = null;
-  while (true) {
-    const page: { referenced: boolean; cursor: string; isDone: boolean } = await ctx.runQuery(
-      internal.profileMediaCleanup.uploadJobReferencePage,
-      { storageId, currentJobId, cursor },
-    );
-    if (page.referenced) return true;
-    if (page.isDone) return false;
-    cursor = page.cursor;
-  }
+  const jobs = await ctx.db
+    .query("profileMediaUploadJobs")
+    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
+    .take(2);
+  if (jobs.some((job) => job._id !== currentJobId)) return true;
+  const previewJobs = await ctx.db
+    .query("profileMediaUploadJobs")
+    .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", storageId))
+    .take(2);
+  return previewJobs.some((job) => job._id !== currentJobId);
 }
 
 function rememberCandidate(
@@ -54,30 +52,6 @@ function rememberCandidate(
     return { candidate: current, ambiguous: true };
   return { candidate: current ?? candidate, ambiguous: false };
 }
-
-export const uploadJobReferencePage = internalQuery({
-  args: {
-    storageId: v.id("_storage"),
-    currentJobId: v.id("profileMediaUploadJobs"),
-    cursor: v.union(v.null(), v.string()),
-  },
-  returns: v.object({ referenced: v.boolean(), cursor: v.string(), isDone: v.boolean() }),
-  handler: async (ctx, args) => {
-    const page = await ctx.db.query("profileMediaUploadJobs").paginate({
-      cursor: args.cursor,
-      numItems: REFERENCE_PAGE_SIZE,
-    });
-    return {
-      referenced: page.page.some(
-        (job) =>
-          job._id !== args.currentJobId &&
-          (job.storageId === args.storageId || job.previewStorageId === args.storageId),
-      ),
-      cursor: page.continueCursor,
-      isDone: page.isDone,
-    };
-  },
-});
 
 async function reconcileJob(
   ctx: MutationCtx,

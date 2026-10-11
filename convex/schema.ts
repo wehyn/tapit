@@ -106,6 +106,8 @@ export default defineSchema({
   })
     .index("by_slug", ["slug"])
     .index("by_ownerId", ["ownerId"])
+    .index("by_draft_imageStorageId", ["draft.imageStorageId"])
+    .index("by_published_imageStorageId", ["published.imageStorageId"])
     .index("by_status", ["status"])
     .index("by_scope", ["scope"])
     .index("by_scope_and_status", ["scope", "status"]),
@@ -188,6 +190,8 @@ export default defineSchema({
     scanPreviewAmbiguous: v.optional(v.boolean()),
   })
     .index("by_profileId", ["profileId"])
+    .index("by_storageId", ["storageId"])
+    .index("by_previewStorageId", ["previewStorageId"])
     .index("by_profileId_and_status_and_uploadWindowEndsAt", [
       "profileId",
       "status",
