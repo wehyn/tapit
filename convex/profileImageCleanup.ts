@@ -1,12 +1,14 @@
 import { v } from "convex/values";
 
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { getProfileImageMapping } from "./profileImages";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
+const REFERENCE_PAGE_SIZE = 1000;
 
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
 
@@ -16,22 +18,26 @@ async function isReferenced(
   currentJobId: Id<"profileImageUploadJobs">,
 ) {
   if ((await getProfileImageMapping(ctx, storageId)) !== null) return true;
-  const uploadJobs = await ctx.db.query("profileImageUploadJobs").take(1001);
-  if (uploadJobs.length > 1000) return null;
-  if (
-    uploadJobs.some(
-      (job) =>
-        job._id !== currentJobId &&
-        (job.largeStorageId === storageId || job.smallStorageId === storageId),
-    )
-  )
-    return true;
-  const profiles = await ctx.db.query("profiles").take(1001);
-  if (profiles.length > 1000) return null;
-  return profiles.some(
-    (profile) =>
-      profile.draft.imageStorageId === storageId || profile.published?.imageStorageId === storageId,
-  );
+  const largeJobs = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_largeStorageId", (query) => query.eq("largeStorageId", storageId))
+    .take(2);
+  const smallJobs = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
+    .take(2);
+  if ([...largeJobs, ...smallJobs].some((job) => job._id !== currentJobId)) return true;
+
+  let cursor: string | null = null;
+  while (true) {
+    const page: { referenced: boolean; cursor: string; isDone: boolean } = await ctx.runQuery(
+      internal.profileImageCleanup.profileReferencePage,
+      { storageId, cursor },
+    );
+    if (page.referenced) return true;
+    if (page.isDone) return false;
+    cursor = page.cursor;
+  }
 }
 
 function rememberCandidate(
@@ -43,6 +49,26 @@ function rememberCandidate(
     return { candidate: current, ambiguous: true };
   return { candidate: current ?? candidate, ambiguous: false };
 }
+
+export const profileReferencePage = internalQuery({
+  args: { storageId: v.id("_storage"), cursor: v.union(v.null(), v.string()) },
+  returns: v.object({ referenced: v.boolean(), cursor: v.string(), isDone: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("profiles").paginate({
+      cursor: args.cursor,
+      numItems: REFERENCE_PAGE_SIZE,
+    });
+    return {
+      referenced: page.page.some(
+        (profile) =>
+          profile.draft.imageStorageId === args.storageId ||
+          profile.published?.imageStorageId === args.storageId,
+      ),
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
 
 async function reconcileJob(
   ctx: MutationCtx,
@@ -122,11 +148,6 @@ async function reconcileJob(
       continue;
     }
     const referenced = await isReferenced(ctx, storageId, job._id);
-    if (referenced === null) {
-      counts.skipped += 1;
-      unresolved = true;
-      continue;
-    }
     if (referenced) {
       counts.retained += 1;
       continue;

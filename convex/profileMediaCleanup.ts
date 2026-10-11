@@ -1,11 +1,13 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { profileMediaAssetIds } from "./profileMedia";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
+const REFERENCE_PAGE_SIZE = 1000;
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
 
 async function isReferenced(
@@ -31,13 +33,16 @@ async function isReferenced(
     )
       return true;
   }
-  const jobs = await ctx.db.query("profileMediaUploadJobs").take(1001);
-  if (jobs.length > 1000) return null;
-  return jobs.some(
-    (job) =>
-      job._id !== currentJobId &&
-      (job.storageId === storageId || job.previewStorageId === storageId),
-  );
+  let cursor: string | null = null;
+  while (true) {
+    const page: { referenced: boolean; cursor: string; isDone: boolean } = await ctx.runQuery(
+      internal.profileMediaCleanup.uploadJobReferencePage,
+      { storageId, currentJobId, cursor },
+    );
+    if (page.referenced) return true;
+    if (page.isDone) return false;
+    cursor = page.cursor;
+  }
 }
 
 function rememberCandidate(
@@ -49,6 +54,30 @@ function rememberCandidate(
     return { candidate: current, ambiguous: true };
   return { candidate: current ?? candidate, ambiguous: false };
 }
+
+export const uploadJobReferencePage = internalQuery({
+  args: {
+    storageId: v.id("_storage"),
+    currentJobId: v.id("profileMediaUploadJobs"),
+    cursor: v.union(v.null(), v.string()),
+  },
+  returns: v.object({ referenced: v.boolean(), cursor: v.string(), isDone: v.boolean() }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db.query("profileMediaUploadJobs").paginate({
+      cursor: args.cursor,
+      numItems: REFERENCE_PAGE_SIZE,
+    });
+    return {
+      referenced: page.page.some(
+        (job) =>
+          job._id !== args.currentJobId &&
+          (job.storageId === args.storageId || job.previewStorageId === args.storageId),
+      ),
+      cursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
 
 async function reconcileJob(
   ctx: MutationCtx,
@@ -133,11 +162,6 @@ async function reconcileJob(
       continue;
     }
     const referenced = await isReferenced(ctx, storageId, job._id);
-    if (referenced === null) {
-      counts.skipped += 1;
-      unresolved = true;
-      continue;
-    }
     if (referenced) {
       counts.retained += 1;
       continue;
