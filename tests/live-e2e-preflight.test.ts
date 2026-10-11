@@ -234,7 +234,11 @@ describe("live Google E2E deployment preflight", () => {
     const binDirectory = mkdtempSync(path.join(tmpdir(), "tapit-live-local-server-bin-"));
     const mockNpm = path.join(binDirectory, "npm");
     const argsFile = path.join(binDirectory, "args");
-    writeFileSync(mockNpm, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$TAPIT_TEST_SERVER_ARGS_FILE"\n');
+    const portFile = path.join(binDirectory, "e2e-port");
+    writeFileSync(
+      mockNpm,
+      '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$TAPIT_TEST_SERVER_ARGS_FILE"\nprintf \'%s\' "$TAPIT_E2E_PORT" > "$TAPIT_TEST_E2E_PORT_FILE"\n',
+    );
     chmodSync(mockNpm, 0o755);
     try {
       const result = spawnSync(process.execPath, ["scripts/live-e2e.mjs"], {
@@ -245,8 +249,9 @@ describe("live Google E2E deployment preflight", () => {
           PATH: `${binDirectory}:/usr/bin:/bin`,
           NODE_ENV: "test",
           TAPIT_TEST_SERVER_ARGS_FILE: argsFile,
+          TAPIT_TEST_E2E_PORT_FILE: portFile,
           ...validEnv(paths),
-          TAPIT_LIVE_BASE_URL: "http://127.0.0.1:0",
+          TAPIT_LIVE_BASE_URL: "http://127.0.0.1:3101",
           TAPIT_LIVE_LOCAL_SERVER: "true",
           TAPIT_LIVE_APP_ENV: "development",
           TAPIT_LIVE_CONVEX_DEPLOYMENT: "dev:tapit",
@@ -262,8 +267,9 @@ describe("live Google E2E deployment preflight", () => {
         "--hostname",
         "127.0.0.1",
         "--port",
-        "0",
+        "3101",
       ]);
+      expect(readFileSync(portFile, "utf8")).toBe("3101");
     } finally {
       rmSync(binDirectory, { recursive: true, force: true });
       rmSync(directory, { recursive: true, force: true });

@@ -36,6 +36,7 @@ async function startLocalServer() {
   const isLocalURL = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/.test(baseURL);
   if (!isLocalURL || process.env.TAPIT_LIVE_LOCAL_SERVER !== "true") return;
   const port = new URL(baseURL).port || "3000";
+  process.env.TAPIT_E2E_PORT = port;
   localServer = spawn("npm", ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", port], {
     detached: true,
     env: process.env,
