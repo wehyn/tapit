@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -223,6 +223,47 @@ describe("live Google E2E deployment preflight", () => {
       expect(result.status).toBe(1);
       expect(output).toContain("production deployments are not permitted");
       expect(output).not.toContain("mock npx called");
+    } finally {
+      rmSync(binDirectory, { recursive: true, force: true });
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it("starts a local Next.js server on the configured base URL port", () => {
+    const { directory, paths } = stateFiles();
+    const binDirectory = mkdtempSync(path.join(tmpdir(), "tapit-live-local-server-bin-"));
+    const mockNpm = path.join(binDirectory, "npm");
+    const argsFile = path.join(binDirectory, "args");
+    writeFileSync(mockNpm, '#!/bin/sh\nprintf \'%s\\n\' "$@" > "$TAPIT_TEST_SERVER_ARGS_FILE"\n');
+    chmodSync(mockNpm, 0o755);
+    try {
+      const result = spawnSync(process.execPath, ["scripts/live-e2e.mjs"], {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        timeout: 5_000,
+        env: {
+          PATH: `${binDirectory}:/usr/bin:/bin`,
+          NODE_ENV: "test",
+          TAPIT_TEST_SERVER_ARGS_FILE: argsFile,
+          ...validEnv(paths),
+          TAPIT_LIVE_BASE_URL: "http://127.0.0.1:0",
+          TAPIT_LIVE_LOCAL_SERVER: "true",
+          TAPIT_LIVE_APP_ENV: "development",
+          TAPIT_LIVE_CONVEX_DEPLOYMENT: "dev:tapit",
+        },
+      });
+
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("the local Next.js server exited before live E2E was ready");
+      expect(readFileSync(argsFile, "utf8").trim().split("\n")).toEqual([
+        "run",
+        "dev",
+        "--",
+        "--hostname",
+        "127.0.0.1",
+        "--port",
+        "0",
+      ]);
     } finally {
       rmSync(binDirectory, { recursive: true, force: true });
       rmSync(directory, { recursive: true, force: true });
