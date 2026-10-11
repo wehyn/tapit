@@ -46,7 +46,7 @@ export async function networkAddressRateLimitKey(
   address: string,
   secret: string | undefined,
 ): Promise<string> {
-  if (secret === undefined || secret.length === 0) return "missing-ip";
+  if (secret === undefined || new TextEncoder().encode(secret).byteLength < 32) return "missing-ip";
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),

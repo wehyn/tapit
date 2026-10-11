@@ -72,7 +72,8 @@ async function seed(t: ReturnType<typeof convexTest>) {
 
 describe("analytics hardening", () => {
   it("uses a keyed digest for network addresses and fails closed without a secret", async () => {
-    const keyed = await networkAddressRateLimitKey("203.0.113.7", "server-only-secret");
+    const secret = "test-only-hmac-secret-with-at-least-32-characters";
+    const keyed = await networkAddressRateLimitKey("203.0.113.7", secret);
     const plain = await crypto.subtle.digest(
       "SHA-256",
       new TextEncoder().encode("tapit-analytics-rate-limit:v1:203.0.113.7"),
@@ -80,7 +81,8 @@ describe("analytics hardening", () => {
     expect(keyed).not.toBe(
       Array.from(new Uint8Array(plain), (byte) => byte.toString(16).padStart(2, "0")).join(""),
     );
-    expect(keyed).toBe(await networkAddressRateLimitKey("203.0.113.7", "server-only-secret"));
+    expect(keyed).toBe(await networkAddressRateLimitKey("203.0.113.7", secret));
+    expect(await networkAddressRateLimitKey("203.0.113.7", "short")).toBe("missing-ip");
     expect(await networkAddressRateLimitKey("203.0.113.7", undefined)).toBe("missing-ip");
   });
 
