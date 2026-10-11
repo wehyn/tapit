@@ -27,9 +27,7 @@ async function isReferenced(
   if ([...largeJobs, ...smallJobs].some((job) => job._id !== currentJobId)) return true;
   const draftProfiles = await ctx.db
     .query("profiles")
-    .withIndex("by_draft_imageStorageId", (query) =>
-      query.eq("draft.imageStorageId", storageId),
-    )
+    .withIndex("by_draft_imageStorageId", (query) => query.eq("draft.imageStorageId", storageId))
     .take(1);
   if (draftProfiles.length > 0) return true;
   const publishedProfiles = await ctx.db
