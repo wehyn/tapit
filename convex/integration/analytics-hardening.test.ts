@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import type { PaginationResult } from "convex/server";
 import { describe, expect, it } from "vitest";
 
@@ -71,6 +72,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
 describe("analytics hardening", () => {
   it("deduplicates repeated browser sessions on the server and preserves anonymous totals", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const { profileId, userId } = await seed(t);
     const owner = t.withIdentity(identity(userId));
 
@@ -83,8 +85,38 @@ describe("analytics hardening", () => {
     expect(result).toMatchObject({ views: 4, uniqueViews: 2 });
   });
 
+  it("limits rapid anonymous view and click bursts when callers rotate supplied values", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const { profileId, userId } = await seed(t);
+    const owner = t.withIdentity(identity(userId));
+
+    for (let index = 0; index < 2501; index += 1) {
+      await t.mutation(api.analytics.recordView, {
+        profileId,
+        sessionKey: `rotating-session-${index}`,
+      });
+    }
+    for (let index = 0; index < 2501; index += 1) {
+      await t.mutation(api.analytics.recordLinkClick, {
+        profileId,
+        linkKey: "site",
+        source: index % 2 === 0 ? "direct" : "qr",
+      });
+    }
+
+    const result = await owner.query(api.analytics.mine, { range: "lifetime", now: Date.now() });
+    expect(result.views).toBeGreaterThanOrEqual(2000);
+    expect(result.views).toBeLessThan(2100);
+    expect(result.uniqueViews).toBe(result.views);
+    expect(result.clicks).toBeGreaterThanOrEqual(2000);
+    expect(result.clicks).toBeLessThan(2100);
+    expect(result.linkClicks).toEqual({ site: result.clicks });
+  }, 30_000);
+
   it("does not record invalid or unpublished profiles and updates each link bucket independently", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const { profileId, unpublishedId, deletedId, userId } = await seed(t);
     const owner = t.withIdentity(identity(userId));
 
@@ -159,6 +191,7 @@ describe("analytics hardening", () => {
 
   it("coalesces legacy rows without a source into unknown attribution", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const { profileId } = await seed(t);
     const date = new Date();
     date.setUTCHours(0, 0, 0, 0);

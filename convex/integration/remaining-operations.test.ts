@@ -412,6 +412,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
 
   it("scopes analytics and protects admin settings, audits, and deletion workflows", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
