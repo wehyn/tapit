@@ -33,9 +33,11 @@ let localServer;
 
 async function startLocalServer() {
   const baseURL = process.env.TAPIT_LIVE_BASE_URL;
-  const isLocalURL = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?(?:\/|$)/.test(baseURL);
-  if (!isLocalURL || process.env.TAPIT_LIVE_LOCAL_SERVER !== "true") return;
-  localServer = spawn("npm", ["run", "dev", "--", "--hostname", "127.0.0.1"], {
+  const localURL = /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::(\d+))?(?:\/|$)/.exec(baseURL);
+  if (!localURL || process.env.TAPIT_LIVE_LOCAL_SERVER !== "true") return;
+  const port = localURL[1] || "3000";
+  process.env.TAPIT_E2E_PORT = port;
+  localServer = spawn("npm", ["run", "dev", "--", "--hostname", "127.0.0.1", "--port", port], {
     detached: true,
     env: process.env,
     stdio: "ignore",
