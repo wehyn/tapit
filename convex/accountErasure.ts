@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { internalMutation, type MutationCtx } from "./_generated/server";
+import { analyticsRateLimiter, analyticsRateLimitNames } from "./analytics";
 
 const BATCH = 25;
 
@@ -119,12 +120,23 @@ async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Pr
       .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
       .take(BATCH),
   ]);
+  const rateLimitKeys = await ctx.db
+    .query("analyticsRateLimitKeys")
+    .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
+    .take(BATCH);
   for (const row of links) await ctx.db.delete(row._id);
   for (const row of analytics) await ctx.db.delete(row._id);
   for (const row of sessions) await ctx.db.delete(row._id);
   for (const row of designs) await ctx.db.delete(row._id);
   for (const row of logs) await ctx.db.delete(row._id);
-  if ([links, analytics, sessions, designs, logs].some((rows) => rows.length > 0)) return true;
+  for (const row of rateLimitKeys) {
+    await analyticsRateLimiter.reset(ctx, analyticsRateLimitNames[row.eventType], {
+      key: `${profileId}:${row.networkHash}`,
+    });
+    await ctx.db.delete(row._id);
+  }
+  if ([links, analytics, sessions, designs, logs, rateLimitKeys].some((rows) => rows.length > 0))
+    return true;
 
   const image = await ctx.db
     .query("profileImages")

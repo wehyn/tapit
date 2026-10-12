@@ -377,6 +377,15 @@ export default defineSchema({
     .index("by_profile_session", ["profileId", "sessionKey"])
     .index("by_firstSeenAt", ["firstSeenAt"])
     .index("by_scope", ["scope"]),
+  analyticsRateLimitKeys: defineTable({
+    profileId: v.id("profiles"),
+    eventType: v.union(v.literal("profile_view"), v.literal("link_click")),
+    networkHash: v.string(),
+    lastSeenAt: v.number(),
+  })
+    .index("by_eventType_and_profileId_and_networkHash", ["eventType", "profileId", "networkHash"])
+    .index("by_profileId", ["profileId"])
+    .index("by_lastSeenAt", ["lastSeenAt"]),
   cardClaimChallenges: defineTable({
     scope: v.optional(v.literal("demo")),
     cardId: v.id("cards"),

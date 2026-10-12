@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import { describe, expect, it, vi } from "vitest";
 
 import { internal } from "../_generated/api";
@@ -82,8 +83,55 @@ describe("retention cleanup", () => {
     });
   });
 
+  it("prunes inactive analytics rate limit keys while preserving recently used keys", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const now = Date.now();
+    const ids = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "owner@example.com" });
+      const customerId = await ctx.db.insert("customers", {
+        userId,
+        email: "owner@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "owner",
+        status: "published",
+        draft: { name: "Owner", slug: "owner", links: [] },
+        createdAt: now,
+        updatedAt: now,
+      });
+      const oldKey = await ctx.db.insert("analyticsRateLimitKeys", {
+        profileId,
+        eventType: "profile_view",
+        networkHash: "expired-network-hash",
+        lastSeenAt: now - 25 * 60 * 60 * 1000,
+      });
+      const recentKey = await ctx.db.insert("analyticsRateLimitKeys", {
+        profileId,
+        eventType: "link_click",
+        networkHash: "recent-network-hash",
+        lastSeenAt: now - 23 * 60 * 60 * 1000,
+      });
+      return { oldKey, recentKey };
+    });
+
+    await t.mutation(internal.retention.prune, {});
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.oldKey)).toBeNull();
+      expect(await ctx.db.get(ids.recentKey)).not.toBeNull();
+    });
+  });
+
   it("erases an overdue deletion request and its linked sign-in and profile data", async () => {
     const t = convexTest(schema, modules);
+    rateLimiter.register(t);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
       const userId = await ctx.db.insert("users", { email: "erase@example.com" });
@@ -140,6 +188,12 @@ describe("retention cleanup", () => {
         total: 1,
         uniqueCount: 1,
       });
+      const analyticsRateLimitKeyId = await ctx.db.insert("analyticsRateLimitKeys", {
+        profileId,
+        eventType: "profile_view",
+        networkHash: "missing-ip",
+        lastSeenAt: now,
+      });
       const requestId = await ctx.db.insert("deletionRequests", {
         customerId,
         requestedAt: now - 31 * day,
@@ -156,6 +210,7 @@ describe("retention cleanup", () => {
         profileId,
         cardId,
         analyticsId,
+        analyticsRateLimitKeyId,
         requestId,
       };
     });
@@ -178,6 +233,7 @@ describe("retention cleanup", () => {
         ids.customerId,
         ids.profileId,
         ids.analyticsId,
+        ids.analyticsRateLimitKeyId,
         ids.requestId,
       ])
         expect(await ctx.db.get(id)).toBeNull();

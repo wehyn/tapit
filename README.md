@@ -89,6 +89,9 @@ go/no-go gates, and evidence requirements.
 Local demo mode never sends invitations or uses OAuth and does not point at production data. Use separate
 Convex development, Preview, and Production deployments. Real secrets, Google browser storage states, setup
 tokens, customer data, and deployment identifiers belong in ignored environment storage, never in the repository.
+Set the required `TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET` server-side Convex environment variable on every
+deployment. Generate a different value with at least 32 random bytes for each deployment, for example `openssl rand -hex 32`.
+Analytics events are dropped if the secret is missing or too short; never put this secret in a `NEXT_PUBLIC_*` variable.
 
 Demo credentials are `mara@example.test` and `admin@tapit.local`, both using `tapit-demo`. A visitor can create
 a browser-local customer through `/login?mode=signup`; the admin can still create a browser-local invitation,

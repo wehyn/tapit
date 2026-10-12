@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <h1 className="tapit-display mt-5 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
           Tapit privacy notice
         </h1>
-        <p className="mt-5 text-sm text-tapit-muted">Effective 25 September 2026</p>
+        <p className="mt-5 text-sm text-tapit-muted">Effective 12 October 2026</p>
         <p className="mt-10 text-tapit-muted">
           Tapit lets people share a digital contact profile through a web link, QR code, or NFC
           card. This notice explains what happens to information when you sign in, manage a profile,
@@ -61,7 +61,12 @@ export default function PrivacyPage() {
               counts and the source of a visit when known. With your permission, Tapit stores a
               random key in browser session storage and associates it with the profile to estimate
               unique views. The key is not your name or email. Your analytics choice is saved in
-              browser local storage so you can change it later.
+              browser local storage so you can change it later. Public events are recorded only when
+              a strong deployment key is configured. For abuse prevention, the backend uses a
+              short-lived keyed HMAC of the network address to limit repeated requests. It does not
+              store the raw address; this pseudonymous value is not anonymous or included in owner
+              analytics. If address metadata is unavailable, requests share a fallback limit.
+              Inactive keys become eligible for removal after 24 hours, and cleanup runs hourly.
             </li>
             <li>
               <strong className="text-tapit-ink">Operations:</strong> invitations, deletion
@@ -108,6 +113,10 @@ export default function PrivacyPage() {
             <li>
               Analytics session keys are removed after 90 days, and daily aggregate analytics after
               13 months.
+            </li>
+            <li>
+              Inactive network hashes used for abuse prevention become eligible for removal after 24
+              hours; cleanup runs hourly.
             </li>
             <li>
               Expired or used invitations and card-claim challenges are removed after 30 days.

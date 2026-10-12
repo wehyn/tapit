@@ -1,5 +1,6 @@
 import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { analyticsRateLimiter, analyticsRateLimitNames } from "./analytics";
 
 const DAY = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 25;
@@ -23,6 +24,7 @@ export const prune = internalMutation({
       invalidatedInvites,
       usedInvites,
       expiredChallenges,
+      expiredAnalyticsRateLimitKeys,
     ] = await Promise.all([
       ctx.db
         .query("analyticsSessions")
@@ -58,6 +60,10 @@ export const prune = internalMutation({
         .query("cardClaimChallenges")
         .withIndex("by_expiresAt", (q) => q.lt("expiresAt", invitationCutoff))
         .take(BATCH_SIZE),
+      ctx.db
+        .query("analyticsRateLimitKeys")
+        .withIndex("by_lastSeenAt", (q) => q.lt("lastSeenAt", now - DAY))
+        .take(BATCH_SIZE),
     ]);
 
     const invitations = new Map(
@@ -66,12 +72,17 @@ export const prune = internalMutation({
         row,
       ]),
     );
+    for (const row of expiredAnalyticsRateLimitKeys) {
+      const key = `${row.profileId}:${row.networkHash}`;
+      await analyticsRateLimiter.reset(ctx, analyticsRateLimitNames[row.eventType], { key });
+    }
     for (const row of [
       ...sessions,
       ...analytics,
       ...audits,
       ...invitations.values(),
       ...expiredChallenges,
+      ...expiredAnalyticsRateLimitKeys,
     ])
       await ctx.db.delete(row._id);
     if (
@@ -84,6 +95,7 @@ export const prune = internalMutation({
         invalidatedInvites,
         usedInvites,
         expiredChallenges,
+        expiredAnalyticsRateLimitKeys,
       ].some((rows) => rows.length === BATCH_SIZE)
     )
       await ctx.scheduler.runAfter(0, internal.retention.prune, {});

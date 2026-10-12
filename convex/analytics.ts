@@ -1,10 +1,14 @@
 import { v } from "convex/values";
 import { paginationResultValidator, paginationOptsValidator } from "convex/server";
+import { HOUR, RateLimiter } from "@convex-dev/rate-limiter";
 
-import { mutation, query } from "./_generated/server";
+import { env, mutation, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
 import schema from "./schema";
 import { analyticsSourceValidator, MAX_PROFILE_LINKS } from "./validators";
+import { components } from "./components";
 
 const rangeValidator = v.union(
   v.literal("lifetime"),
@@ -12,6 +16,96 @@ const rangeValidator = v.union(
   v.literal("30d"),
   v.literal("90d"),
 );
+function getAnalyticsRateLimitHmacSecret(): string | undefined {
+  return (env as typeof env & { readonly TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET?: string })
+    .TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
+}
+
+function hasStrongRateLimitSecret(secret: string | undefined): secret is string {
+  return secret !== undefined && new TextEncoder().encode(secret).byteLength >= 32;
+}
+
+type AnalyticsEventType = "profile_view" | "link_click";
+
+export const analyticsRateLimitNames = {
+  profile_view: "publicProfileView",
+  link_click: "publicLinkClick",
+} as const;
+
+export const analyticsRateLimiter = new RateLimiter(components.rateLimiter, {
+  [analyticsRateLimitNames.profile_view]: {
+    kind: "token bucket",
+    rate: 10_000,
+    period: HOUR,
+    capacity: 2_000,
+  },
+  [analyticsRateLimitNames.link_click]: {
+    kind: "token bucket",
+    rate: 10_000,
+    period: HOUR,
+    capacity: 2_000,
+  },
+});
+
+export async function networkAddressRateLimitKey(
+  address: string,
+  secret: string | undefined,
+): Promise<string | null> {
+  if (!hasStrongRateLimitSecret(secret)) return null;
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const digest = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`tapit-analytics-rate-limit:v1:${address}`),
+  );
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function allowAnalyticsEvent(
+  ctx: MutationCtx,
+  profileId: Id<"profiles">,
+  eventType: AnalyticsEventType,
+): Promise<boolean> {
+  const secret = getAnalyticsRateLimitHmacSecret();
+  if (!hasStrongRateLimitSecret(secret)) return false;
+  let networkHash = "missing-ip";
+  try {
+    const { ip } = await ctx.meta.getRequestMetadata();
+    if (ip !== null && ip.length > 0) {
+      const key = await networkAddressRateLimitKey(ip, secret);
+      if (key === null) return false;
+      networkHash = key;
+    }
+  } catch {
+    networkHash = "missing-ip";
+  }
+
+  const key = `${profileId}:${networkHash}`;
+  const now = Date.now();
+  const existingKey = await ctx.db
+    .query("analyticsRateLimitKeys")
+    .withIndex("by_eventType_and_profileId_and_networkHash", (query) =>
+      query.eq("eventType", eventType).eq("profileId", profileId).eq("networkHash", networkHash),
+    )
+    .unique();
+  if (existingKey === null)
+    await ctx.db.insert("analyticsRateLimitKeys", {
+      profileId,
+      eventType,
+      networkHash,
+      lastSeenAt: now,
+    });
+  else await ctx.db.patch(existingKey._id, { lastSeenAt: now });
+
+  const limit = await analyticsRateLimiter.limit(ctx, analyticsRateLimitNames[eventType], { key });
+  return limit.ok;
+}
 
 function bucketStart(): number {
   const date = new Date();
@@ -35,6 +129,7 @@ export const recordView = mutation({
     const profile = await ctx.db.get(args.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (profile === null || !isActiveCustomer(owner) || profile.status !== "published") return null;
+    if (!(await allowAnalyticsEvent(ctx, args.profileId, "profile_view"))) return null;
     const start = bucketStart();
     const source = args.source ?? "unknown";
     const sessionKey = args.sessionKey?.trim();
@@ -118,6 +213,7 @@ export const recordLinkClick = mutation({
       !profile.published.links.some((link) => link.id === args.linkKey && link.enabled)
     )
       return null;
+    if (!(await allowAnalyticsEvent(ctx, args.profileId, "link_click"))) return null;
     const start = bucketStart();
     const source = args.source ?? "unknown";
     let existing = await ctx.db
