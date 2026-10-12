@@ -128,6 +128,7 @@ function SectionRow({
 function copyCustomization(customization: ProfileCustomization): ProfileCustomization {
   return {
     ...customization,
+    ...(customization.layoutOrder ? { layoutOrder: [...customization.layoutOrder] } : {}),
     ...(customization.identityColors
       ? { identityColors: { ...customization.identityColors } }
       : {}),

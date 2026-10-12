@@ -20,6 +20,9 @@ export interface ProfileCustomizationValidationOptions extends ProfileIdentityCo
 export type ProfileTypeScale = "compact" | "comfortable" | "editorial";
 export type ProfileLinkTreatment = "filled" | "outlined";
 export type ProfileContentOrder = "links-first" | "section-first";
+export const PROFILE_LAYOUT_BLOCKS = ["slideshow", "links", "section"] as const;
+export type ProfileLayoutBlock = (typeof PROFILE_LAYOUT_BLOCKS)[number];
+export type ProfileLayoutOrder = ProfileLayoutBlock[];
 export type ProfileContactDisplay = "labels" | "icons-circle" | "icons-soft-square";
 export interface ProfileThemeColors {
   canvas: string;
@@ -44,6 +47,7 @@ export interface ProfileCustomization {
   typeScale: ProfileTypeScale;
   linkTreatment: ProfileLinkTreatment;
   contentOrder: ProfileContentOrder;
+  layoutOrder?: ProfileLayoutOrder;
   contactDisplay?: ProfileContactDisplay;
   customColors?: ProfileThemeColors;
   identityColors?: ProfileIdentityColors;
@@ -86,6 +90,26 @@ export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
   contactDisplay: "labels",
 };
 
+export function defaultProfileLayoutOrder(contentOrder: ProfileContentOrder): ProfileLayoutOrder {
+  return contentOrder === "section-first"
+    ? ["slideshow", "section", "links"]
+    : ["slideshow", "links", "section"];
+}
+
+const PROFILE_LAYOUT_BLOCK_SET = new Set<ProfileLayoutBlock>(PROFILE_LAYOUT_BLOCKS);
+
+function isProfileLayoutOrder(value: unknown): value is ProfileLayoutOrder {
+  return (
+    Array.isArray(value) &&
+    value.length === PROFILE_LAYOUT_BLOCKS.length &&
+    value.every(
+      (block) =>
+        typeof block === "string" && PROFILE_LAYOUT_BLOCK_SET.has(block as ProfileLayoutBlock),
+    ) &&
+    new Set(value).size === PROFILE_LAYOUT_BLOCKS.length
+  );
+}
+
 /** Returns only a complete, render-safe customization object from runtime data. */
 export function normalizeProfileCustomization(
   value: unknown,
@@ -112,6 +136,9 @@ export function normalizeProfileCustomization(
     typeScale: value.typeScale as ProfileTypeScale,
     linkTreatment: value.linkTreatment as ProfileLinkTreatment,
     contentOrder: value.contentOrder as ProfileContentOrder,
+    layoutOrder: isProfileLayoutOrder(value.layoutOrder)
+      ? [...value.layoutOrder]
+      : defaultProfileLayoutOrder(value.contentOrder as ProfileContentOrder),
     contactDisplay: normalizeContactDisplay(value.contactDisplay),
   };
   const customColors = normalizeProfileThemeColors(value.customColors);
@@ -488,6 +515,9 @@ export function validateProfileCustomization(
     errors.push("The profile customization link treatment is invalid.");
   if (!PROFILE_CONTENT_ORDERS.has(value.contentOrder as ProfileContentOrder))
     errors.push("The profile customization content order is invalid.");
+  if (value.layoutOrder !== undefined && !isProfileLayoutOrder(value.layoutOrder)) {
+    errors.push("The profile customization layout order is invalid.");
+  }
   if (
     value.contactDisplay !== undefined &&
     !PROFILE_CONTACT_DISPLAYS.has(value.contactDisplay as ProfileContactDisplay)

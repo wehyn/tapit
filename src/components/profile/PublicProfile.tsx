@@ -18,7 +18,7 @@ import {
   Phone,
   Palette,
 } from "@phosphor-icons/react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
@@ -27,10 +27,12 @@ import type { VCardPhoto } from "@/lib/vcard";
 import {
   CUSTOM_PROFILE_ACCENT_SOFT_SURFACE_PERCENT,
   DEFAULT_CUSTOM_PROFILE_COLORS,
+  defaultProfileLayoutOrder,
   getAutomaticContactActions,
   getFeaturedProfileLink,
   normalizeProfileCustomization,
   resolveProfileAppearance,
+  type ProfileLayoutBlock,
   type ProfileThemeColors,
 } from "@/lib/profile-customization";
 import { ProfileContactStrip } from "./ProfileContactStrip";
@@ -357,21 +359,6 @@ export function PublicProfile({
           : phonePreview
             ? "text-2xl"
             : "text-3xl sm:text-4xl";
-  const profileLinkMargin = phonePreview
-    ? warmStudio
-      ? compactPhonePreview
-        ? "mt-3"
-        : "mt-6"
-      : compactPhonePreview
-        ? "mt-5"
-        : "mt-9"
-    : preview
-      ? warmStudio
-        ? "mt-4"
-        : "mt-6"
-      : warmStudio
-        ? "mt-6"
-        : "mt-9";
   const profileLinkGap = phonePreview
     ? compactPhonePreview
       ? "gap-2"
@@ -463,82 +450,80 @@ export function PublicProfile({
   const nameIdentityText = whiteName ? whiteIdentityText : undefined;
   const bioIdentityText = whiteBio ? whiteIdentityText : undefined;
   const identity = (
-    <div
-      className={`flex min-w-0 flex-col ${centerIdentity ? "items-center text-center" : "items-center text-center sm:flex-row sm:items-start sm:gap-6 sm:text-left"}`}
-    >
-      {profile.imageUrl ? (
-        <img
-          alt={`${profile.name} profile`}
-          className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
-          height={96}
-          src={profile.imageUrl}
-          srcSet={profile.imageSrcSet}
-          sizes={
-            profile.imageSrcSet
-              ? compactPhonePreview
-                ? "64px"
-                : phonePreview
-                  ? "80px"
-                  : "(min-width: 640px) 96px, 80px"
-              : undefined
-          }
-          width={96}
-        />
-      ) : (
-        <div
-          aria-hidden="true"
-          className={`${compactPhonePreview ? "size-16 text-2xl" : phonePreview ? "size-20 text-3xl" : "size-20 text-3xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
-        >
-          {profile.name.slice(0, 1).toUpperCase()}
-        </div>
-      )}
+    <div className="grid min-w-0 gap-1">
       <div
-        className={`min-w-0 max-w-full ${compactPhonePreview ? "mt-3" : phonePreview ? "mt-5" : preview ? "mt-4" : "mt-5 sm:mt-0"}`}
+        className={`flex min-w-0 flex-col ${centerIdentity ? "items-center text-center" : "items-center text-center sm:flex-row sm:items-start sm:gap-6 sm:text-left"}`}
       >
-        {preview ? (
-          <h2
-            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
-            style={
-              warmStudio || customization?.identityColors?.name
-                ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
+        {profile.imageUrl ? (
+          <img
+            alt={`${profile.name} profile`}
+            className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
+            height={96}
+            src={profile.imageUrl}
+            srcSet={profile.imageSrcSet}
+            sizes={
+              profile.imageSrcSet
+                ? compactPhonePreview
+                  ? "64px"
+                  : phonePreview
+                    ? "80px"
+                    : "(min-width: 640px) 96px, 80px"
                 : undefined
             }
-          >
-            <span className={nameIdentityText}>{profile.name}</span>
-          </h2>
+            width={96}
+          />
         ) : (
-          <h1
-            className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
-            style={
-              warmStudio || customization?.identityColors?.name
-                ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
-                : undefined
-            }
+          <div
+            aria-hidden="true"
+            className={`${compactPhonePreview ? "size-16 text-2xl" : phonePreview ? "size-20 text-3xl" : "size-20 text-3xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
           >
-            <span className={nameIdentityText}>{profile.name}</span>
-          </h1>
+            {profile.name.slice(0, 1).toUpperCase()}
+          </div>
         )}
-        {profile.bio ? (
-          <p
-            className={`${compactPhonePreview ? "mt-1 max-w-sm text-xs leading-4" : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} whitespace-pre-line break-words ${mutedClasses}`}
-          >
-            <span
-              className={bioIdentityText}
+        <div
+          className={`min-w-0 max-w-full ${compactPhonePreview ? "mt-3" : phonePreview ? "mt-5" : preview ? "mt-4" : "mt-5 sm:mt-0"}`}
+        >
+          {preview ? (
+            <h2
+              className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
               style={
-                warmStudio || customization?.identityColors?.bio
-                  ? { color: identityColorForTheme(appearance.bioColor, selectedTheme) }
+                warmStudio || customization?.identityColors?.name
+                  ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
                   : undefined
               }
             >
-              {profile.bio}
-            </span>
-          </p>
-        ) : null}
+              <span className={nameIdentityText}>{profile.name}</span>
+            </h2>
+          ) : (
+            <h1
+              className={`${typeScaleClasses} max-w-full break-words font-semibold leading-tight tracking-tight`}
+              style={
+                warmStudio || customization?.identityColors?.name
+                  ? { color: identityColorForTheme(appearance.nameColor, selectedTheme) }
+                  : undefined
+              }
+            >
+              <span className={nameIdentityText}>{profile.name}</span>
+            </h1>
+          )}
+          {profile.bio ? (
+            <p
+              className={`${compactPhonePreview ? "mt-1 max-w-sm text-xs leading-4" : phonePreview ? "mt-2 max-w-sm text-base leading-7" : preview ? "mt-1 max-w-xs text-sm leading-6" : "mt-2 max-w-sm text-base leading-7"} whitespace-pre-line break-words ${mutedClasses}`}
+            >
+              <span
+                className={bioIdentityText}
+                style={
+                  warmStudio || customization?.identityColors?.bio
+                    ? { color: identityColorForTheme(appearance.bioColor, selectedTheme) }
+                    : undefined
+                }
+              >
+                {profile.bio}
+              </span>
+            </p>
+          ) : null}
+        </div>
       </div>
-    </div>
-  );
-  const profileContent = (
-    <>
       <ProfileContactStrip
         display={customization?.contactDisplay ?? "labels"}
         email={profile.email}
@@ -546,30 +531,46 @@ export function PublicProfile({
         website={profile.website}
         className={`${compactPhonePreview ? "mt-4 justify-center" : phonePreview ? "mt-7 justify-center" : preview ? "mt-5 justify-start" : "mt-7 justify-center sm:justify-start"} ${mutedClasses}`}
       />
-      {featuredLink ? (
-        <ul
-          className={`tapit-profile-stagger ${compactPhonePreview ? "mt-4" : phonePreview ? "mt-6" : preview ? "mt-4" : "mt-6"} grid gap-3`}
-          aria-label="Featured profile link"
-        >
-          {renderLink(featuredLink, true)}
-        </ul>
-      ) : null}
-      {section && customization?.contentOrder === "section-first" ? (
-        <div
-          className={`${compactPhonePreview ? "mt-4" : phonePreview ? "mt-6" : preview ? "mt-4" : "mt-6"}`}
-        >
-          {disclosure}
+    </div>
+  );
+  const layoutOrder =
+    customization?.layoutOrder ??
+    defaultProfileLayoutOrder(customization?.contentOrder ?? "links-first");
+  const contentBlockGap = compactPhonePreview
+    ? "gap-3"
+    : phonePreview
+      ? "gap-5"
+      : preview
+        ? "gap-4"
+        : "gap-6";
+  const orderedBlocks: Record<ProfileLayoutBlock, ReactNode> = {
+    slideshow:
+      media && media.slideshow.length > 0 ? (
+        <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
+      ) : null,
+    links:
+      featuredLink || links.length > 0 ? (
+        <div className={`grid ${compactPhonePreview ? "gap-3" : phonePreview ? "gap-5" : "gap-6"}`}>
+          {featuredLink ? (
+            <ul className="tapit-profile-stagger grid gap-3" aria-label="Featured profile link">
+              {renderLink(featuredLink, true)}
+            </ul>
+          ) : null}
+          <ul className={`tapit-profile-stagger ${profileLinkGap} grid`} aria-label="Profile links">
+            {links.map((link) => renderLink(link))}
+          </ul>
         </div>
-      ) : null}
-      <ul
-        className={`tapit-profile-stagger ${profileLinkMargin} ${profileLinkGap} grid`}
-        aria-label="Profile links"
-      >
-        {links.map((link) => renderLink(link))}
-      </ul>
-      {section && customization?.contentOrder !== "section-first" ? (
-        <div className={compactPhonePreview ? "mt-4" : "mt-6"}>{disclosure}</div>
-      ) : null}
+      ) : null,
+    section: section ? disclosure : null,
+  };
+  const profileContent = (
+    <>
+      <div className={`grid ${contentBlockGap}`}>
+        {layoutOrder.map((block) => {
+          const content = orderedBlocks[block];
+          return content ? <div key={block}>{content}</div> : null;
+        })}
+      </div>
       {canSaveContact ? (
         <button
           className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
@@ -643,19 +644,9 @@ export function PublicProfile({
       >
         {identity}
       </ProfileMediaSurface>
-      {media && media.slideshow.length > 0 ? (
-        <div className="mt-5 px-4 sm:px-6">
-          <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
-        </div>
-      ) : null}
     </div>
   ) : (
-    <div className={`${identityColumnSpacing} min-w-0`}>
-      {media && media.slideshow.length > 0 ? (
-        <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
-      ) : null}
-      {identity}
-    </div>
+    <div className={`${identityColumnSpacing} min-w-0`}>{identity}</div>
   );
   const pageFrameClasses = warmStudio
     ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
