@@ -243,7 +243,13 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
           ),
         }));
       } catch (cause) {
-        clearDemoSession();
+        if (!clearDemoSession()) {
+          setError(
+            "We couldn't finish setup or clear the saved session. Restore browser storage access, then retry this invitation.",
+          );
+          setSubmitting(false);
+          return;
+        }
         throw cause;
       }
       setComplete(true);

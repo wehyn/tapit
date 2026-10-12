@@ -4,6 +4,7 @@ import { resetDemoHarness, signInAsAdmin } from "./support/demo-harness";
 
 const DEMO_STATE_KEY = "tapit:demo-state:v1";
 const DEMO_SESSION_KEY = "tapit:demo-session:v1";
+const STORAGE_REMOVE_BLOCK_KEY = "tapit:e2e-storage-remove-block:v1";
 
 async function createInvitation(page: Page, email: string): Promise<string> {
   await signInAsAdmin(page);
@@ -71,6 +72,42 @@ async function restoreStorageWrites(page: Page) {
   });
 }
 
+async function blockStorageRemoval(page: Page, key: string) {
+  await page.addInitScript((blockedKey) => {
+    if (window.sessionStorage.getItem("tapit:e2e-storage-remove-block:v1") !== blockedKey) return;
+    const testWindow = window as Window & {
+      __tapitE2EOriginalRemoveItem?: typeof Storage.prototype.removeItem;
+    };
+    const originalRemoveItem = Storage.prototype.removeItem;
+    testWindow.__tapitE2EOriginalRemoveItem = originalRemoveItem;
+    Storage.prototype.removeItem = function (storageKey) {
+      if (storageKey === blockedKey) {
+        throw new DOMException("Storage access denied", "SecurityError");
+      }
+      return originalRemoveItem.call(this, storageKey);
+    };
+  }, key);
+  await page.evaluate(
+    ({ flagKey, blockedKey }) => window.sessionStorage.setItem(flagKey, blockedKey),
+    { flagKey: STORAGE_REMOVE_BLOCK_KEY, blockedKey: key },
+  );
+  await page.reload();
+}
+
+async function restoreStorageRemovals(page: Page) {
+  await page.evaluate(() => {
+    const testWindow = window as Window & {
+      __tapitE2EOriginalRemoveItem?: typeof Storage.prototype.removeItem;
+    };
+    if (!testWindow.__tapitE2EOriginalRemoveItem) {
+      throw new Error("Expected the original browser storage remover.");
+    }
+    Storage.prototype.removeItem = testWindow.__tapitE2EOriginalRemoveItem;
+    delete testWindow.__tapitE2EOriginalRemoveItem;
+    window.sessionStorage.removeItem("tapit:e2e-storage-remove-block:v1");
+  });
+}
+
 async function fillAndSubmitSetup(page: Page) {
   await page.getByLabel("Password", { exact: true }).fill("retry-password-123");
   await page.getByLabel("Confirm password").fill("retry-password-123");
@@ -135,4 +172,47 @@ test("account-state storage failure clears the session created for setup", async
 
   await page.goto("/app/profile");
   await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fprofile$/);
+});
+
+test("failed session cleanup keeps the invitation private and retryable", async ({ page }) => {
+  await resetDemoHarness(page);
+  const email = "failed-cleanup@example.test";
+  const setupPath = await createInvitation(page, email);
+  await page.goto(setupPath);
+  const before = await readInvitation(page, email);
+
+  await blockStorageRemoval(page, DEMO_SESSION_KEY);
+  await blockStorageWrite(page, DEMO_STATE_KEY);
+  await fillAndSubmitSetup(page);
+
+  expect(await readInvitation(page, email)).toEqual(before);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), DEMO_SESSION_KEY)).toEqual(
+    JSON.stringify({ email, role: "customer" }),
+  );
+  await expect(
+    page.getByText(
+      "We couldn't finish setup or clear the saved session. Restore browser storage access, then retry this invitation.",
+    ),
+  ).toBeVisible();
+
+  await restoreStorageWrites(page);
+  await page.goto("/app/profile");
+  await expect(page.getByText("Could not clear the saved demo session. Try again.")).toBeVisible();
+  await expect(page.getByLabel("Name", { exact: true })).toHaveCount(0);
+  expect(await readInvitation(page, email)).toEqual(before);
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), DEMO_SESSION_KEY)).toEqual(
+    JSON.stringify({ email, role: "customer" }),
+  );
+
+  await restoreStorageRemovals(page);
+  await page.goto(setupPath);
+  await fillAndSubmitSetup(page);
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+
+  const afterSuccess = await readInvitation(page, email);
+  expect(afterSuccess.customer.status).toBe("active");
+  expect(afterSuccess.customer.setupToken).toBeUndefined();
+  expect(afterSuccess.customer.passwordHash).toBeTruthy();
+  expect(afterSuccess.profileOwnerId).toBe(before.customer.id);
 });
