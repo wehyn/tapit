@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -57,6 +57,7 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const session = useDemoSession();
+  const [signOutError, setSignOutError] = useState("");
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
@@ -81,6 +82,11 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
       showPageIntro={false}
       sidebarFooter={
         <div className="space-y-3">
+          {signOutError && (
+            <p className="px-1 text-sm text-tapit-danger" role="alert">
+              {signOutError}
+            </p>
+          )}
           <p className="px-1 text-sm text-tapit-muted lg:sr-only xl:not-sr-only">
             Signed in as <strong className="text-tapit-ink">{session.email}</strong>
           </p>
@@ -88,7 +94,11 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
             aria-label="Sign out"
             className="lg:!px-2 xl:!px-4"
             onClick={() => {
-              clearDemoSession();
+              setSignOutError("");
+              if (!clearDemoSession()) {
+                setSignOutError("Could not sign out. Try again.");
+                return;
+              }
               router.replace("/login");
             }}
             type="button"

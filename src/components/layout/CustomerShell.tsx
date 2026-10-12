@@ -66,45 +66,58 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const state = useDemoState();
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
+  const [sessionError, setSessionError] = useState("");
   const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
+  const clearInvalidSession = useCallback(() => {
+    if (!clearDemoSession()) {
+      setSessionError("Could not clear the saved demo session. Try again.");
+      return;
+    }
+    router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+  }, [pathname, router]);
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
     serverHydratedSnapshot,
   );
-
-  useEffect(() => {
-    if (!hydrated || signingOut.current) return;
-    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else {
-      const customer = state.customers.find((candidate) => candidate.email === session.email);
-      const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
-      if (
-        customer === undefined ||
-        profile?.ownerId !== customer.id ||
-        customer.status !== "active" ||
-        customer.deletionStatus !== "active"
-      ) {
-        clearDemoSession();
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-      }
-    }
-  }, [hydrated, pathname, router, session, state.customers, state.profiles]);
-
   const customer =
     session !== null
       ? state.customers.find((candidate) => candidate.email === session.email)
       : undefined;
   const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
-  if (
+  const invalidSession =
     !hydrated ||
     session === null ||
     customer === undefined ||
     profile?.ownerId !== customer.id ||
     customer.status !== "active" ||
-    customer.deletionStatus !== "active"
-  )
+    customer.deletionStatus !== "active";
+
+  useEffect(() => {
+    if (!hydrated || signingOut.current) return;
+    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (invalidSession && !sessionError && !clearDemoSession()) {
+      queueMicrotask(() => setSessionError("Could not clear the saved demo session. Try again."));
+    }
+  }, [hydrated, invalidSession, pathname, router, session, sessionError]);
+
+  if (invalidSession) {
+    if (sessionError) {
+      return (
+        <div className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5">
+          <div className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-8">
+            <p className="text-sm text-tapit-danger" role="alert">
+              {sessionError}
+            </p>
+            <Button className="mt-5" onClick={clearInvalidSession} type="button" variant="quiet">
+              Return to sign in
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return <AuthLoadingState />;
+  }
 
   return (
     <AppShell
@@ -115,9 +128,14 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
       sidebarFooter={
         <CustomerAccountMenu
           email={customer.email}
-          onSignOut={() => {
+          onSignOut={async () => {
+            if (!(await draftSave())) {
+              throw new Error("Your draft could not be saved. You are still signed in.");
+            }
+            if (!clearDemoSession()) {
+              throw new Error("Could not end the session. You are still signed in.");
+            }
             signingOut.current = true;
-            clearDemoSession();
             router.replace("/login");
           }}
         />
@@ -174,8 +192,12 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
       sidebarFooter={
         <CustomerAccountMenu
           email={access.email ?? "Account"}
-          onSignOut={() => {
-            void signOut().finally(() => router.replace("/login"));
+          onSignOut={async () => {
+            if (!(await draftSave())) {
+              throw new Error("Your draft could not be saved. You are still signed in.");
+            }
+            await signOut();
+            router.replace("/login");
           }}
         />
       }
@@ -186,8 +208,16 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: () => void }) {
+function CustomerAccountMenu({
+  email,
+  onSignOut,
+}: {
+  email: string;
+  onSignOut: () => void | Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+  const [signOutPending, setSignOutPending] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -205,6 +235,19 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
   }, [open]);
 
   const initials = email.slice(0, 2).toUpperCase() || "U";
+
+  async function signOut() {
+    if (signOutPending) return;
+    setSignOutError("");
+    setSignOutPending(true);
+    try {
+      await onSignOut();
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Could not sign out. Try again.");
+    } finally {
+      setSignOutPending(false);
+    }
+  }
 
   return (
     <div
@@ -227,13 +270,19 @@ function CustomerAccountMenu({ email, onSignOut }: { email: string; onSignOut: (
         <p className="break-words px-3 py-2 text-sm text-tapit-ink">{email}</p>
         <Button
           className="w-full justify-start hover:bg-red-50"
-          onClick={onSignOut}
+          disabled={signOutPending}
+          onClick={() => void signOut()}
           style={{ color: "var(--tapit-danger)" }}
           type="button"
           variant="quiet"
         >
           Sign out
         </Button>
+        {signOutError ? (
+          <p className="px-3 py-2 text-sm text-tapit-danger" role="alert">
+            {signOutError}
+          </p>
+        ) : null}
       </div>
       <button
         aria-controls={menuId}

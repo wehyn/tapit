@@ -6,7 +6,7 @@ import type { LinkIcon } from "@/lib/domain";
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
 
 describe("LinksWorkspace", () => {
-  it("renders the shared links table, preview, and action callbacks", async () => {
+  it("renders the links workspace without claiming dirty changes were just saved", async () => {
     const user = userEvent.setup();
     const onAddLink = vi.fn();
     const onSaveDraft = vi.fn();
@@ -68,6 +68,7 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-4xl");
     expect(screen.getByRole("link", { name: "Featured" })).toHaveAttribute("data-featured", "true");
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
+    expect(screen.queryByText("Last saved just now")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Add link" }));
     expect(screen.getByRole("dialog")).toBeVisible();

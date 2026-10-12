@@ -10,7 +10,7 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
-import { setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
+import { clearDemoSession, setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useConvex, useMutation, useQuery } from "convex/react";
@@ -251,15 +251,26 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
     setSubmitting(true);
     try {
       const passwordHash = await hashDemoPassword(password);
-      updateDemoState((current) => ({
-        ...current,
-        customers: current.customers.map((candidate) =>
-          candidate.id === account.id
-            ? { ...candidate, status: "active", setupToken: undefined, passwordHash }
-            : candidate,
-        ),
-      }));
       setDemoSession({ email: account.email, role: "customer" });
+      try {
+        updateDemoState((current) => ({
+          ...current,
+          customers: current.customers.map((candidate) =>
+            candidate.id === account.id
+              ? { ...candidate, status: "active", setupToken: undefined, passwordHash }
+              : candidate,
+          ),
+        }));
+      } catch (cause) {
+        if (!clearDemoSession()) {
+          setError(
+            "We couldn't finish setup or clear the saved session. Restore browser storage access, then retry this invitation.",
+          );
+          setSubmitting(false);
+          return;
+        }
+        throw cause;
+      }
       setComplete(true);
       window.setTimeout(() => router.replace(nextPath || "/app/profile"), 250);
     } catch {

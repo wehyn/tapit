@@ -405,9 +405,6 @@ export function LinksWorkspace({
             <span className="font-semibold text-tapit-ink">
               {isDirty ? "Draft changes" : "Draft saved"}
             </span>
-            {isDirty ? (
-              <span className="hidden text-tapit-muted sm:inline">Last saved just now</span>
-            ) : null}
           </div>
           <div className="flex flex-wrap gap-3">
             <Button

@@ -47,7 +47,14 @@ function notify() {
 function loadFromStorage() {
   if (typeof window === "undefined" || loaded) return;
   loaded = true;
-  const raw = window.localStorage.getItem(STORAGE_KEY);
+  let storage: Storage;
+  let raw: string | null;
+  try {
+    storage = window.localStorage;
+    raw = storage.getItem(STORAGE_KEY);
+  } catch {
+    return;
+  }
   persistedRaw = raw;
   if (raw !== null) {
     try {
@@ -95,8 +102,12 @@ function loadFromStorage() {
       if (error instanceof UnsupportedDemoStorageVersionError) {
         unsupportedStorageVersion = error;
       } else {
-        window.localStorage.removeItem(STORAGE_KEY);
-        persistedRaw = null;
+        try {
+          storage.removeItem(STORAGE_KEY);
+          persistedRaw = null;
+        } catch {
+          persistedRaw = raw;
+        }
       }
     }
   }
@@ -105,12 +116,23 @@ function loadFromStorage() {
 function loadSession() {
   if (typeof window === "undefined" || sessionLoaded) return;
   sessionLoaded = true;
-  const raw = window.localStorage.getItem(SESSION_KEY);
+  let storage: Storage;
+  let raw: string | null;
+  try {
+    storage = window.localStorage;
+    raw = storage.getItem(SESSION_KEY);
+  } catch {
+    return;
+  }
   if (raw !== null) {
     try {
       session = JSON.parse(raw) as DemoSession;
     } catch {
-      window.localStorage.removeItem(SESSION_KEY);
+      try {
+        storage.removeItem(SESSION_KEY);
+      } catch {
+        // Keep the session empty when invalid local data cannot be removed.
+      }
     }
   }
 }
@@ -121,7 +143,14 @@ function persist(nextState: DemoState, allowChangedStorage = false) {
   if (unsupportedStorageVersion !== null) {
     throw persistenceError(unsupportedStorageVersion);
   }
-  const previousRaw = window.localStorage.getItem(STORAGE_KEY);
+  let storage: Storage;
+  let previousRaw: string | null;
+  try {
+    storage = window.localStorage;
+    previousRaw = storage.getItem(STORAGE_KEY);
+  } catch (error) {
+    throw persistenceError(error);
+  }
   if (!allowChangedStorage && previousRaw !== persistedRaw) {
     throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
   }
@@ -131,16 +160,24 @@ function persist(nextState: DemoState, allowChangedStorage = false) {
   } catch (error) {
     throw persistenceError(error);
   }
-  if (!allowChangedStorage && window.localStorage.getItem(STORAGE_KEY) !== previousRaw) {
-    throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
+  if (!allowChangedStorage) {
+    let currentRaw: string | null;
+    try {
+      currentRaw = storage.getItem(STORAGE_KEY);
+    } catch (error) {
+      throw persistenceError(error);
+    }
+    if (currentRaw !== previousRaw) {
+      throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
+    }
   }
   try {
-    window.localStorage.setItem(STORAGE_KEY, serialized);
+    storage.setItem(STORAGE_KEY, serialized);
     persistedRaw = serialized;
   } catch (error) {
     try {
-      if (previousRaw === null) window.localStorage.removeItem(STORAGE_KEY);
-      else window.localStorage.setItem(STORAGE_KEY, previousRaw);
+      if (previousRaw === null) storage.removeItem(STORAGE_KEY);
+      else storage.setItem(STORAGE_KEY, previousRaw);
     } catch {
       // The in-memory state is still unchanged. Report the original write failure.
     }
@@ -358,18 +395,30 @@ export function getDemoSession(): DemoSession | null {
 }
 
 export function setDemoSession(nextSession: DemoSession): void {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(nextSession));
+    } catch (error) {
+      throw persistenceError(error);
+    }
+  }
   session = nextSession;
   sessionLoaded = true;
-  if (typeof window !== "undefined")
-    window.localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   notify();
 }
 
-export function clearDemoSession(): void {
+export function clearDemoSession(): boolean {
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.removeItem(SESSION_KEY);
+    } catch {
+      return false;
+    }
+  }
   session = null;
   sessionLoaded = true;
-  if (typeof window !== "undefined") window.localStorage.removeItem(SESSION_KEY);
   notify();
+  return true;
 }
 
 export function useDemoSession(): DemoSession | null {
