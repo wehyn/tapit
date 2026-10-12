@@ -27,16 +27,16 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
-    "@auth/core": "0.41.3",
+    "@auth/core": "0.41.1",
     "@convex-dev/auth": "0.0.95",
     "@convex-dev/rate-limiter": "0.4.0",
     "@phosphor-icons/react": "^2.1.10",
     "convex": "1.45.0",
-    "next": "16.3.8",
+    "next": "16.3.5",
     "qrcode": "1.5.4",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "sharp": "0.35.5",
+    "sharp": "0.35.4",
     "zod": "4.6.5"
   },
   "devDependencies": {
@@ -55,7 +55,7 @@
     "@vitejs/plugin-react": "5.2.0",
     "convex-test": "^0.0.58",
     "eslint": "9.39.5",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.3.5",
     "jsdom": "26.1.0",
     "postcss": "8.5.28",
     "prettier": "3.9.6",
