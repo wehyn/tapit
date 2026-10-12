@@ -414,6 +414,30 @@ export const setRole = mutation({
   },
 });
 
+export const preflightSetupEmail = query({
+  args: {
+    email: v.string(),
+    now: v.number(),
+    tokenHash: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    if (!isHostedDemo()) return false;
+    const invitation = await ctx.db
+      .query("invitations")
+      .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
+      .unique();
+    if (
+      invitation === null ||
+      invitation.invalidatedAt !== undefined ||
+      (invitation.expiresAt !== undefined && invitation.expiresAt <= args.now)
+    )
+      return false;
+    const email = args.email.trim().toLowerCase();
+    return email.length > 0 && email === invitation.email.trim().toLowerCase();
+  },
+});
+
 export const completeSetup = mutation({
   args: {
     customerId: v.optional(v.id("customers")),

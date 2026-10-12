@@ -7,6 +7,7 @@ const signIn = vi.fn();
 const signOut = vi.fn();
 const useQuery = vi.fn();
 const mutation = vi.fn();
+const setupEmailPreflight = vi.fn();
 const useConvexAuth = vi.fn();
 let currentPath = "/login";
 
@@ -30,6 +31,7 @@ vi.mock("convex/react", async (importOriginal) => {
   return {
     ...actual,
     useMutation: () => mutation,
+    useConvex: () => ({ query: setupEmailPreflight }),
     useQuery: (...args: unknown[]) => useQuery(...args),
   };
 });
@@ -69,6 +71,7 @@ beforeEach(() => {
   signIn.mockReset();
   signOut.mockReset();
   mutation.mockReset();
+  setupEmailPreflight.mockReset();
   useQuery.mockReset();
   currentPath = "/login";
   useConvexAuth.mockReset();
@@ -545,6 +548,7 @@ describe("hosted-demo invitation setup", () => {
   it("uses the invitation email and completes setup with the hashed token", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    setupEmailPreflight.mockResolvedValue(true);
     signIn.mockResolvedValue({ signingIn: false });
     mutation.mockResolvedValue({ profileId: "profile_1" });
     const SetupForm = await loadSetup();
@@ -567,6 +571,26 @@ describe("hosted-demo invitation setup", () => {
     await waitFor(() => expect(mutation).toHaveBeenCalledWith({ tokenHash: expect.any(String) }));
     expect(mutation.mock.calls[0]?.[0]).not.toEqual({ tokenHash: "hosted-demo-raw-token" });
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
+  });
+
+  it("does not start password signup when the invitation email does not match", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    setupEmailPreflight.mockResolvedValue(false);
+    signIn.mockResolvedValue({ signingIn: false });
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="hosted-demo-raw-token" />);
+
+    await user.type(await screen.findByLabelText("Invitation email"), "typo@example.test");
+    await user.type(screen.getByLabelText("Password"), "safe-password");
+    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    expect(signIn).not.toHaveBeenCalled();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invitation/i);
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it("does not allow password signup for an invalid invitation", async () => {
@@ -598,6 +622,7 @@ describe("hosted-demo invitation setup", () => {
   it("retries setup with password sign-in when invitation linking fails after signup", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    setupEmailPreflight.mockResolvedValue(true);
     signIn.mockResolvedValue({ signingIn: false });
     mutation
       .mockRejectedValueOnce(new Error("temporary setup failure"))

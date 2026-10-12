@@ -13,7 +13,7 @@ import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 
@@ -65,6 +65,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
   const router = useRouter();
   const { signIn } = useAuthActions();
   const { isAuthenticated } = useConvexAuth();
+  const convex = useConvex();
   const completeSetup = useMutation(api.customers.completeSetup);
   const [tokenHash, setTokenHash] = useState<string>();
   const [email, setEmail] = useState("");
@@ -100,12 +101,23 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
     }
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     if (password !== confirmation) return setError("Passwords do not match.");
+    const normalizedEmail = email.trim().toLowerCase();
     setSubmitting(true);
     setError("");
     try {
+      const emailMatchesInvitation = await convex.query(api.customers.preflightSetupEmail, {
+        tokenHash,
+        email: normalizedEmail,
+        now: Date.now(),
+      });
+      if (!emailMatchesInvitation) {
+        setError("The email address does not match this setup invitation.");
+        setSubmitting(false);
+        return;
+      }
       await signIn("password", {
         flow: isAuthenticated ? "signIn" : authFlow,
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
       });
       setAuthFlow("signIn");
