@@ -282,7 +282,7 @@ describe("public profile preview behavior", () => {
     expect(screen.queryByRole("region", { name: "Profile slideshow" })).not.toBeInTheDocument();
   });
 
-  it("keeps identity, media, and contact content in the approved public order", () => {
+  it("keeps identity and contact together above the ordered content rows", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -312,15 +312,16 @@ describe("public profile preview behavior", () => {
     const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
     const contact = screen.getByRole("navigation", { name: "Contact actions" });
     expect(hero).toContainElement(identity);
+    expect(hero).toContainElement(contact);
     expect(hero.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(slideshow.compareDocumentPosition(contact) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    expect(contact.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
 
-  it("keeps a Warm Studio slideshow before identity when no background is configured", () => {
+  it("keeps identity above the slideshow when no background is configured", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -347,7 +348,7 @@ describe("public profile preview behavior", () => {
 
     const heading = screen.getByRole("heading", { name: projection.name });
     const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
-    expect(slideshow.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+    expect(heading.compareDocumentPosition(slideshow) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
     expect(screen.queryByRole("region", { name: "Profile hero" })).not.toBeInTheDocument();

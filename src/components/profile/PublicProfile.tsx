@@ -359,6 +359,21 @@ export function PublicProfile({
           : phonePreview
             ? "text-2xl"
             : "text-3xl sm:text-4xl";
+  const profileContentMargin = phonePreview
+    ? warmStudio
+      ? compactPhonePreview
+        ? "mt-3"
+        : "mt-6"
+      : compactPhonePreview
+        ? "mt-5"
+        : "mt-9"
+    : preview
+      ? warmStudio
+        ? "mt-4"
+        : "mt-6"
+      : warmStudio
+        ? "mt-6"
+        : "mt-9";
   const profileLinkGap = phonePreview
     ? compactPhonePreview
       ? "gap-2"
@@ -565,7 +580,7 @@ export function PublicProfile({
   };
   const profileContent = (
     <>
-      <div className={`grid ${contentBlockGap}`}>
+      <div className={`${profileContentMargin} grid ${contentBlockGap}`}>
         {layoutOrder.map((block) => {
           const content = orderedBlocks[block];
           return content ? <div key={block}>{content}</div> : null;
