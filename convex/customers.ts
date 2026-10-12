@@ -414,10 +414,9 @@ export const setRole = mutation({
   },
 });
 
-export const preflightSetupEmail = query({
+export const preflightSetupEmail = mutation({
   args: {
     email: v.string(),
-    now: v.number(),
     tokenHash: v.string(),
   },
   returns: v.boolean(),
@@ -427,10 +426,11 @@ export const preflightSetupEmail = query({
       .query("invitations")
       .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
       .unique();
+    const now = Date.now();
     if (
       invitation === null ||
       invitation.invalidatedAt !== undefined ||
-      (invitation.expiresAt !== undefined && invitation.expiresAt <= args.now)
+      (invitation.expiresAt !== undefined && invitation.expiresAt <= now)
     )
       return false;
     const email = args.email.trim().toLowerCase();

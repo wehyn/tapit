@@ -31,7 +31,7 @@ vi.mock("convex/react", async (importOriginal) => {
   return {
     ...actual,
     useMutation: () => mutation,
-    useConvex: () => ({ query: setupEmailPreflight }),
+    useConvex: () => ({ mutation: setupEmailPreflight }),
     useQuery: (...args: unknown[]) => useQuery(...args),
   };
 });
@@ -576,7 +576,12 @@ describe("hosted-demo invitation setup", () => {
   it("does not start password signup when the invitation email does not match", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue({ state: "valid", expiresAt: null });
-    setupEmailPreflight.mockResolvedValue(false);
+    let finishPreflight!: (matches: boolean) => void;
+    setupEmailPreflight.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finishPreflight = resolve;
+      }),
+    );
     signIn.mockResolvedValue({ signingIn: false });
     const SetupForm = await loadSetup();
     const user = userEvent.setup();
@@ -588,8 +593,11 @@ describe("hosted-demo invitation setup", () => {
     await user.type(screen.getByLabelText("Confirm password"), "safe-password");
     await user.click(screen.getByRole("button", { name: "Set password" }));
 
+    await waitFor(() => expect(setupEmailPreflight).toHaveBeenCalled());
     expect(signIn).not.toHaveBeenCalled();
+    finishPreflight(false);
     expect(await screen.findByRole("alert")).toHaveTextContent(/invitation/i);
+    expect(signIn).not.toHaveBeenCalled();
     expect(mutation).not.toHaveBeenCalled();
   });
 

@@ -105,10 +105,9 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
     setSubmitting(true);
     setError("");
     try {
-      const emailMatchesInvitation = await convex.query(api.customers.preflightSetupEmail, {
+      const emailMatchesInvitation = await convex.mutation(api.customers.preflightSetupEmail, {
         tokenHash,
         email: normalizedEmail,
-        now: Date.now(),
       });
       if (!emailMatchesInvitation) {
         setError("The email address does not match this setup invitation.");

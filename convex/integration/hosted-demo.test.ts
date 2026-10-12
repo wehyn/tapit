@@ -103,7 +103,7 @@ describe("hosted-demo scope boundaries", () => {
     }
   });
 
-  it("preflights a live setup invitation without returning its details", async () => {
+  it("preflights setup invitation email with server time without returning details", async () => {
     const previousMode = process.env.TAPIT_DEMO_AUTH_MODE;
     process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
     try {
@@ -139,23 +139,29 @@ describe("hosted-demo scope boundaries", () => {
           createdByUserId: "999users" as Id<"users">,
           createdAt: now,
         });
+        await ctx.db.insert("invitations", {
+          scope: "demo",
+          customerId,
+          email: "invite@example.test",
+          tokenHash: "hosted-expired-preflight-hash",
+          expiresAt: now - 60_000,
+          createdByUserId: "999users" as Id<"users">,
+          createdAt: now,
+        });
         return { customerId, invitationId, profileId };
       });
 
-      const matching = await t.query(api.customers.preflightSetupEmail, {
+      const matching = await t.mutation(api.customers.preflightSetupEmail, {
         tokenHash: "hosted-preflight-hash",
         email: "  INVITE@EXAMPLE.TEST  ",
-        now,
       });
-      const mismatching = await t.query(api.customers.preflightSetupEmail, {
+      const mismatching = await t.mutation(api.customers.preflightSetupEmail, {
         tokenHash: "hosted-preflight-hash",
         email: "typo@example.test",
-        now,
       });
-      const expired = await t.query(api.customers.preflightSetupEmail, {
-        tokenHash: "hosted-preflight-hash",
+      const expired = await t.mutation(api.customers.preflightSetupEmail, {
+        tokenHash: "hosted-expired-preflight-hash",
         email: "invite@example.test",
-        now: now + 60_000,
       });
 
       expect(matching).toBe(true);
@@ -164,6 +170,14 @@ describe("hosted-demo scope boundaries", () => {
       await t.run(async (ctx) => {
         expect(await ctx.db.query("users").take(10)).toHaveLength(0);
         expect((await ctx.db.get(customerId))?.userId).toBeUndefined();
+        const expiredInvitation = await ctx.db
+          .query("invitations")
+          .withIndex("by_tokenHash", (query) =>
+            query.eq("tokenHash", "hosted-expired-preflight-hash"),
+          )
+          .unique();
+        expect(expiredInvitation).not.toBeNull();
+        expect(expiredInvitation?.acceptedAt).toBeUndefined();
         expect((await ctx.db.get(invitationId))?.acceptedAt).toBeUndefined();
         expect((await ctx.db.get(profileId))?.draft.name).toBe("Private invitee name");
       });
