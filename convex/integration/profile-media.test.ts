@@ -807,6 +807,76 @@ describe("profile media hardening", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(failedStorageId))).toBeNull();
   });
 
+  it("reclaims orphan media beyond 1000 upload jobs while retaining live references", async () => {
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 100 } });
+    const ids = await seed(t);
+    const candidates: {
+      jobId: Id<"profileMediaUploadJobs">;
+      storageId: Id<"_storage">;
+      createdAt: number;
+    }[] = [];
+    for (const value of ["orphan-media", "shared-media"]) {
+      const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        sha256: "a".repeat(64),
+        expectedMediaRevision: 0,
+      });
+      const storageId = await t.run((ctx) => ctx.storage.store(new Blob([value])));
+      const metadata = await t.run(
+        async (ctx) => (await ctx.db.system.get("_storage", storageId))!,
+      );
+      await t.mutation(internal.profileMedia.markUploadJob, { jobId, storageId });
+      await t.run((ctx) =>
+        ctx.db.patch(jobId, {
+          status: "attached",
+          createdAt: metadata._creationTime - 1,
+          uploadWindowEndsAt: metadata._creationTime + 1,
+        }),
+      );
+      candidates.push({ jobId, storageId, createdAt: metadata._creationTime });
+    }
+
+    const orphan = candidates[0]!;
+    const shared = candidates[1]!;
+    const futureCreatedAt =
+      Math.max(...candidates.map((candidate) => candidate.createdAt)) + 2 * 24 * 60 * 60 * 1000;
+    const liveJobId = await t.run(async (ctx) => {
+      for (let index = 0; index < 1001; index += 1) {
+        await ctx.db.insert("profileMediaUploadJobs", {
+          profileId: ids.ownerProfileId,
+          ownerId: ids.ownerId,
+          sha256: "f".repeat(64),
+          expectedMediaRevision: 0,
+          status: "pending",
+          createdAt: futureCreatedAt,
+          uploadWindowEndsAt: futureCreatedAt + 10 * 60 * 1000,
+        });
+      }
+      return await ctx.db.insert("profileMediaUploadJobs", {
+        profileId: ids.otherProfileId,
+        ownerId: ids.otherId,
+        sha256: "e".repeat(64),
+        storageId: shared.storageId,
+        expectedMediaRevision: 0,
+        status: "pending",
+        createdAt: futureCreatedAt,
+        uploadWindowEndsAt: futureCreatedAt + 10 * 60 * 1000,
+      });
+    });
+
+    const result = await t.mutation(internal.profileMediaCleanup.reconcileExpired, {
+      now: futureCreatedAt - 24 * 60 * 60 * 1000,
+    });
+
+    expect(result).toMatchObject({ deleted: 1, retained: 1, skipped: 0 });
+    expect(await t.run((ctx) => ctx.storage.getUrl(orphan.storageId))).toBeNull();
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId: orphan.jobId })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(shared.storageId))).not.toBeNull();
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId: shared.jobId })).toBeNull();
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId: liveJobId })).not.toBeNull();
+  });
+
   it("deletes attached media assets that are no longer referenced", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

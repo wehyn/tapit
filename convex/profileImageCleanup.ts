@@ -16,22 +16,27 @@ async function isReferenced(
   currentJobId: Id<"profileImageUploadJobs">,
 ) {
   if ((await getProfileImageMapping(ctx, storageId)) !== null) return true;
-  const uploadJobs = await ctx.db.query("profileImageUploadJobs").take(1001);
-  if (uploadJobs.length > 1000) return null;
-  if (
-    uploadJobs.some(
-      (job) =>
-        job._id !== currentJobId &&
-        (job.largeStorageId === storageId || job.smallStorageId === storageId),
+  const largeJobs = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_largeStorageId", (query) => query.eq("largeStorageId", storageId))
+    .take(2);
+  const smallJobs = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
+    .take(2);
+  if ([...largeJobs, ...smallJobs].some((job) => job._id !== currentJobId)) return true;
+  const draftProfiles = await ctx.db
+    .query("profiles")
+    .withIndex("by_draft_imageStorageId", (query) => query.eq("draft.imageStorageId", storageId))
+    .take(1);
+  if (draftProfiles.length > 0) return true;
+  const publishedProfiles = await ctx.db
+    .query("profiles")
+    .withIndex("by_published_imageStorageId", (query) =>
+      query.eq("published.imageStorageId", storageId),
     )
-  )
-    return true;
-  const profiles = await ctx.db.query("profiles").take(1001);
-  if (profiles.length > 1000) return null;
-  return profiles.some(
-    (profile) =>
-      profile.draft.imageStorageId === storageId || profile.published?.imageStorageId === storageId,
-  );
+    .take(1);
+  return publishedProfiles.length > 0;
 }
 
 function rememberCandidate(
@@ -122,11 +127,6 @@ async function reconcileJob(
       continue;
     }
     const referenced = await isReferenced(ctx, storageId, job._id);
-    if (referenced === null) {
-      counts.skipped += 1;
-      unresolved = true;
-      continue;
-    }
     if (referenced) {
       counts.retained += 1;
       continue;

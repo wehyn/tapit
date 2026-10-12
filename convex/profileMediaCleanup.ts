@@ -31,13 +31,16 @@ async function isReferenced(
     )
       return true;
   }
-  const jobs = await ctx.db.query("profileMediaUploadJobs").take(1001);
-  if (jobs.length > 1000) return null;
-  return jobs.some(
-    (job) =>
-      job._id !== currentJobId &&
-      (job.storageId === storageId || job.previewStorageId === storageId),
-  );
+  const jobs = await ctx.db
+    .query("profileMediaUploadJobs")
+    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
+    .take(2);
+  if (jobs.some((job) => job._id !== currentJobId)) return true;
+  const previewJobs = await ctx.db
+    .query("profileMediaUploadJobs")
+    .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", storageId))
+    .take(2);
+  return previewJobs.some((job) => job._id !== currentJobId);
 }
 
 function rememberCandidate(
@@ -133,11 +136,6 @@ async function reconcileJob(
       continue;
     }
     const referenced = await isReferenced(ctx, storageId, job._id);
-    if (referenced === null) {
-      counts.skipped += 1;
-      unresolved = true;
-      continue;
-    }
     if (referenced) {
       counts.retained += 1;
       continue;

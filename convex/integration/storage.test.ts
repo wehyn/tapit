@@ -713,6 +713,88 @@ describe("profile image storage", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(registeredBlob))).not.toBeNull();
   });
 
+  it("reclaims orphan uploads beyond 1000 profiles and jobs without deleting live references", async () => {
+    const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 100 } });
+    const data = await seed(t);
+    const largeBytes = pngSignature();
+    const smallBytes = new Uint8Array([...pngSignature(), 1]);
+    const jobId = await t.mutation(internal.storage.createUploadJob, {
+      profileId: data.ownerProfileId,
+      ownerId: data.ownerCustomerId,
+      largeSha256: createHash("sha256").update(largeBytes).digest("hex"),
+      expectedImageRevision: 0,
+    });
+    const [orphanStorageId, referencedStorageId] = await t.run(async (ctx) => [
+      await ctx.storage.store(new Blob([largeBytes])),
+      await ctx.storage.store(new Blob([smallBytes])),
+    ]);
+    const [orphanMetadata, referencedMetadata] = await t.run(async (ctx) => [
+      (await ctx.db.system.get("_storage", orphanStorageId))!,
+      (await ctx.db.system.get("_storage", referencedStorageId))!,
+    ]);
+    await t.mutation(internal.storage.markUploadJob, {
+      jobId,
+      largeStorageId: orphanStorageId,
+      smallStorageId: referencedStorageId,
+      smallSha256: referencedMetadata.sha256,
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(jobId, {
+        largeSha256: orphanMetadata.sha256,
+        createdAt: Math.min(orphanMetadata._creationTime, referencedMetadata._creationTime) - 1,
+        uploadWindowEndsAt:
+          Math.max(orphanMetadata._creationTime, referencedMetadata._creationTime) + 1,
+      }),
+    );
+
+    const otherCustomerId = await t.run(
+      async (ctx) => (await ctx.db.get(data.otherProfileId))!.ownerId,
+    );
+    const futureCreatedAt =
+      Math.max(orphanMetadata._creationTime, referencedMetadata._creationTime) +
+      2 * 24 * 60 * 60 * 1000;
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 1001; index += 1) {
+        const slug = `cleanup-overflow-${index}`;
+        await ctx.db.insert("profiles", {
+          ownerId: otherCustomerId,
+          slug,
+          status: "draft",
+          draft: validDraft(slug),
+          createdAt: futureCreatedAt,
+          updatedAt: futureCreatedAt,
+        });
+      }
+      await ctx.db.insert("profiles", {
+        ownerId: otherCustomerId,
+        slug: "live-overflow-reference",
+        status: "draft",
+        draft: validDraft("live-overflow-reference", referencedStorageId),
+        createdAt: futureCreatedAt,
+        updatedAt: futureCreatedAt,
+      });
+      for (let index = 0; index < 1001; index += 1) {
+        await ctx.db.insert("profileImageUploadJobs", {
+          profileId: data.ownerProfileId,
+          ownerId: data.ownerCustomerId,
+          largeSha256: "f".repeat(64),
+          status: "pending",
+          createdAt: futureCreatedAt,
+          uploadWindowEndsAt: futureCreatedAt + 10 * 60 * 1000,
+        });
+      }
+    });
+
+    const result = await t.mutation(internal.profileImageCleanup.reconcileExpired, {
+      now: futureCreatedAt - 24 * 60 * 60 * 1000,
+    });
+
+    expect(result).toMatchObject({ deleted: 1, retained: 1, skipped: 0 });
+    expect(await t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).toBeNull();
+    expect(await t.query(internal.storage.getUploadJob, { jobId })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(referencedStorageId))).not.toBeNull();
+  });
+
   it("retains referenced files and skips jobs whose owner no longer exists", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
