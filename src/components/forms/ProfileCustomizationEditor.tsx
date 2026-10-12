@@ -13,6 +13,7 @@ import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_CUSTOM_PROFILE_COLORS,
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  defaultProfileLayoutOrder,
   isProfileIdentityHex,
   type ProfileCustomization,
   type ProfileContactDisplay,
@@ -29,6 +30,7 @@ import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
+import { ProfileLayoutOrderEditor } from "@/components/forms/ProfileLayoutOrderEditor";
 import { Notice } from "@/components/ui/Notice";
 
 export type ProfileCustomizationEditorProps = {
@@ -303,6 +305,7 @@ function ChoiceGroup<T extends string>({
 function copyCustomization(customization: ProfileCustomization): ProfileCustomization {
   return {
     ...customization,
+    ...(customization.layoutOrder ? { layoutOrder: [...customization.layoutOrder] } : {}),
     ...(customization.customColors ? { customColors: { ...customization.customColors } } : {}),
     ...(customization.identityColors
       ? { identityColors: { ...customization.identityColors } }
@@ -574,7 +577,10 @@ export function ProfileCustomizationEditor({
     "custom profile text",
     "custom profile accent",
   );
-  const orderError = findError("profile customization content order");
+  const orderError = findError(
+    "profile customization content order",
+    "profile customization layout order",
+  );
   const contactDisplayError = findError("profile customization contact display");
   const identityColorError = (field: ProfileIdentityField) =>
     field === "name"
@@ -835,16 +841,21 @@ export function ProfileCustomizationEditor({
 
           {category === "layout" ? (
             <div className="grid gap-5">
-              <ChoiceGroup
+              <ProfileLayoutOrderEditor
                 error={orderError}
-                label="Content order"
-                name={`${baseId}-order`}
-                onChange={(value) => update({ contentOrder: value })}
-                options={[
-                  ["links-first", "Links first"],
-                  ["section-first", "About/Services first"],
-                ]}
-                value={activeCustomization.contentOrder}
+                onChange={(layoutOrder) =>
+                  update({
+                    layoutOrder,
+                    contentOrder:
+                      layoutOrder.indexOf("section") < layoutOrder.indexOf("links")
+                        ? "section-first"
+                        : "links-first",
+                  })
+                }
+                value={
+                  activeCustomization.layoutOrder ??
+                  defaultProfileLayoutOrder(activeCustomization.contentOrder)
+                }
               />
               <ChoiceGroup<ProfileContactDisplay>
                 error={contactDisplayError}

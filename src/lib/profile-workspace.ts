@@ -32,7 +32,11 @@ const MARKERS: Record<ProfileCustomizationCategory, readonly string[]> = {
     "background horizontal position",
     "background vertical position",
   ],
-  layout: ["profile customization content order", "profile customization contact display"],
+  layout: [
+    "profile customization content order",
+    "profile customization layout order",
+    "profile customization contact display",
+  ],
 };
 
 function includesMarker(error: string, markers: readonly string[]): boolean {

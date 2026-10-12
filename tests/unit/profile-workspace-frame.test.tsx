@@ -47,10 +47,9 @@ describe("profile workspace mobile preview", () => {
     expect(within(mobilePreview).queryByText("Tapit", { exact: true })).not.toBeInTheDocument();
     expect(profilePanel).toHaveClass("flex", "flex-col", "min-h-full");
     expect(profilePanel).toHaveClass("rounded-tapit", "border");
-    expect(within(mobilePreview).getByRole("list", { name: "Profile links" })).toHaveClass(
-      "mt-9",
-      "gap-3",
-    );
+    const profileLinks = within(mobilePreview).getByRole("list", { name: "Profile links" });
+    expect(profileLinks).toHaveClass("gap-3");
+    expect(profileLinks.parentElement?.parentElement?.parentElement).toHaveClass("mt-9", "gap-5");
     expect(within(mobilePreview).getByRole("link", { name: "LinkedIn" })).toHaveClass(
       "min-h-14",
       "px-5",
@@ -74,10 +73,9 @@ describe("profile workspace mobile preview", () => {
     expect(within(mobilePreview).queryByText("Tapit", { exact: true })).not.toBeInTheDocument();
     expect(profilePanel).toHaveClass("flex", "flex-col", "min-h-full");
     expect(profilePanel).toHaveClass("rounded-none", "border-0");
-    expect(within(mobilePreview).getByRole("list", { name: "Profile links" })).toHaveClass(
-      "mt-6",
-      "gap-3",
-    );
+    const profileLinks = within(mobilePreview).getByRole("list", { name: "Profile links" });
+    expect(profileLinks).toHaveClass("gap-3");
+    expect(profileLinks.parentElement?.parentElement?.parentElement).toHaveClass("mt-6", "gap-5");
     expect(within(mobilePreview).getByRole("link", { name: "LinkedIn" })).toHaveClass(
       "min-h-14",
       "px-5",

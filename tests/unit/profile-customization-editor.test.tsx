@@ -104,7 +104,9 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.getByRole("tabpanel")).toHaveFocus();
 
     await user.click(screen.getByRole("tab", { name: "Layout" }));
-    expect(screen.getByRole("radio", { name: "About/Services first" })).toBeInTheDocument();
+    expect(screen.getByText("About/Services", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Move About/Services up" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Move About/Services down" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Default name color" })).not.toBeInTheDocument();
   });
 
@@ -405,7 +407,7 @@ describe("ProfileCustomizationEditor", () => {
     );
   });
 
-  it("renders only content order in Layout and updates it without losing identity values", async () => {
+  it("reorders content rows in Layout without losing identity values", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -419,13 +421,13 @@ describe("ProfileCustomizationEditor", () => {
     );
 
     await user.click(screen.getByRole("tab", { name: "Layout" }));
-    await user.click(screen.getByRole("radio", { name: "About/Services first" }));
+    await user.click(screen.getByRole("button", { name: "Move About/Services up" }));
     expect(lastChange(onChange)).toMatchObject({
       contentOrder: "section-first",
+      layoutOrder: ["slideshow", "section", "links"],
       identityColors: { name: { kind: "preset", value: "ink" } },
     });
-    expect(screen.queryByRole("radio", { name: "About" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("radio", { name: "Links first" })).toBeInTheDocument();
+    expect(screen.getAllByText("Content order", { exact: true })).toHaveLength(1);
   });
 
   it("shows category-level status and exact visible error associations", async () => {
@@ -491,9 +493,13 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.getByRole("tab", { name: "Layout" })).toBeEnabled();
 
     await user.click(screen.getByRole("tab", { name: "Layout" }));
-    await user.click(screen.getByRole("radio", { name: "About/Services first" }));
+    await user.click(screen.getByRole("button", { name: "Move About/Services up" }));
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ preset: "paper", contentOrder: "section-first" }),
+      expect.objectContaining({
+        preset: "paper",
+        contentOrder: "section-first",
+        layoutOrder: ["slideshow", "section", "links"],
+      }),
     );
     await user.click(screen.getByRole("tab", { name: "Overview" }));
 
