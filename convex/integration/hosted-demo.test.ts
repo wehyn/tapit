@@ -103,6 +103,90 @@ describe("hosted-demo scope boundaries", () => {
     }
   });
 
+  it("preflights setup invitation email with server time without returning details", async () => {
+    const previousMode = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      const now = Date.now();
+      const { customerId, invitationId, profileId } = await t.run(async (ctx) => {
+        const customerId = await ctx.db.insert("customers", {
+          scope: "demo",
+          email: "invite@example.test",
+          role: "customer",
+          status: "invited",
+          deletionStatus: "active",
+          onboardingName: "Private invitee name",
+          createdAt: now,
+          updatedAt: now,
+        });
+        const profileId = await ctx.db.insert("profiles", {
+          scope: "demo",
+          ownerId: customerId,
+          slug: "hosted-invite",
+          status: "draft",
+          draft: { name: "Private invitee name", slug: "hosted-invite", links: [] },
+          createdAt: now,
+          updatedAt: now,
+        });
+        await ctx.db.patch(customerId, { profileId });
+        const invitationId = await ctx.db.insert("invitations", {
+          scope: "demo",
+          customerId,
+          email: "invite@example.test",
+          tokenHash: "hosted-preflight-hash",
+          expiresAt: now + 60_000,
+          createdByUserId: "999users" as Id<"users">,
+          createdAt: now,
+        });
+        await ctx.db.insert("invitations", {
+          scope: "demo",
+          customerId,
+          email: "invite@example.test",
+          tokenHash: "hosted-expired-preflight-hash",
+          expiresAt: now - 60_000,
+          createdByUserId: "999users" as Id<"users">,
+          createdAt: now,
+        });
+        return { customerId, invitationId, profileId };
+      });
+
+      const matching = await t.mutation(api.customers.preflightSetupEmail, {
+        tokenHash: "hosted-preflight-hash",
+        email: "  INVITE@EXAMPLE.TEST  ",
+      });
+      const mismatching = await t.mutation(api.customers.preflightSetupEmail, {
+        tokenHash: "hosted-preflight-hash",
+        email: "typo@example.test",
+      });
+      const expired = await t.mutation(api.customers.preflightSetupEmail, {
+        tokenHash: "hosted-expired-preflight-hash",
+        email: "invite@example.test",
+      });
+
+      expect(matching).toBe(true);
+      expect(mismatching).toBe(false);
+      expect(expired).toBe(false);
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("users").take(10)).toHaveLength(0);
+        expect((await ctx.db.get(customerId))?.userId).toBeUndefined();
+        const expiredInvitation = await ctx.db
+          .query("invitations")
+          .withIndex("by_tokenHash", (query) =>
+            query.eq("tokenHash", "hosted-expired-preflight-hash"),
+          )
+          .unique();
+        expect(expiredInvitation).not.toBeNull();
+        expect(expiredInvitation?.acceptedAt).toBeUndefined();
+        expect((await ctx.db.get(invitationId))?.acceptedAt).toBeUndefined();
+        expect((await ctx.db.get(profileId))?.draft.name).toBe("Private invitee name");
+      });
+    } finally {
+      if (previousMode === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previousMode;
+    }
+  });
+
   it("completes an administrator invitation with the matching hosted-demo password identity", async () => {
     const previousMode = process.env.TAPIT_DEMO_AUTH_MODE;
     const previousSiteUrl = process.env.SITE_URL;

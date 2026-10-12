@@ -36,6 +36,13 @@ import {
 import { replaceProfileLinks } from "./links";
 import { IMAGE_REVISION_CONFLICT, IMAGE_UPLOAD_PENDING } from "./storage";
 
+const DRAFT_REVISION_CONFLICT =
+  "The profile draft changed while you were editing. Refresh and try again.";
+
+function nextUpdatedAt(profile: Doc<"profiles">) {
+  return Math.max(Date.now(), profile.updatedAt + 1);
+}
+
 const ownedProfileValidator = schema
   .doc("profiles")
   .omit("draft", "published")
@@ -185,15 +192,25 @@ export const adminDetails = query({
 });
 
 export const changeSlug = mutation({
-  args: { profileId: v.id("profiles"), slug: v.string() },
-  returns: v.object({ slug: v.string(), updatedAt: v.number() }),
+  args: {
+    profileId: v.id("profiles"),
+    slug: v.string(),
+    expectedDraftRevision: v.number(),
+  },
+  returns: v.object({ slug: v.string(), updatedAt: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const profile = await ctx.db.get(args.profileId);
     if (profile === null || profile.scope !== account.scope) throw new Error("Profile not found.");
+    const draftRevision = profile.draftRevision ?? 0;
+    if (
+      !Number.isSafeInteger(args.expectedDraftRevision) ||
+      args.expectedDraftRevision !== draftRevision
+    )
+      throw new Error(DRAFT_REVISION_CONFLICT);
     const normalizedSlug = normalizeProfileSlug(args.slug);
     if (normalizedSlug === profile.slug)
-      return { slug: profile.slug, updatedAt: profile.updatedAt };
+      return { slug: profile.slug, updatedAt: profile.updatedAt, draftRevision };
     const slugError = validateProfileSlugValue(normalizedSlug);
     if (slugError !== null) throw new Error(slugError);
     const duplicate = await ctx.db
@@ -202,10 +219,12 @@ export const changeSlug = mutation({
       .unique();
     if (duplicate !== null && duplicate._id !== profile._id)
       throw new Error("That profile slug is already in use.");
-    const now = Date.now();
+    const now = nextUpdatedAt(profile);
+    const nextDraftRevision = draftRevision + 1;
     await ctx.db.patch(profile._id, {
       slug: normalizedSlug,
       draft: { ...profile.draft, slug: normalizedSlug },
+      draftRevision: nextDraftRevision,
       ...(profile.published === undefined
         ? {}
         : { published: { ...profile.published, slug: normalizedSlug } }),
@@ -222,7 +241,7 @@ export const changeSlug = mutation({
       before: profile.slug,
       after: normalizedSlug,
     });
-    return { slug: normalizedSlug, updatedAt: now };
+    return { slug: normalizedSlug, updatedAt: now, draftRevision: nextDraftRevision };
   },
 });
 
@@ -230,17 +249,25 @@ export const saveDraft = mutation({
   args: {
     profileId: v.id("profiles"),
     draft: saveDraftContentValidator,
+    expectedDraftRevision: v.number(),
     expectedImageRevision: v.optional(v.number()),
     expectedMediaRevision: v.optional(v.number()),
   },
   returns: v.object({
     updatedAt: v.number(),
+    draftRevision: v.number(),
     imageRevision: v.number(),
     customization: v.optional(profileCustomizationValidator),
     mediaRevision: v.number(),
   }),
   handler: async (ctx, args) => {
     const { account, profile, userId } = await profileAccess(ctx, args.profileId);
+    const draftRevision = profile.draftRevision ?? 0;
+    if (
+      !Number.isSafeInteger(args.expectedDraftRevision) ||
+      args.expectedDraftRevision !== draftRevision
+    )
+      throw new Error(DRAFT_REVISION_CONFLICT);
     const imageRevision = profile.imageRevision ?? 0;
     const mediaRevision = profile.mediaRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
@@ -271,7 +298,8 @@ export const saveDraft = mutation({
       profile.ownerId,
       draft.media as Doc<"profiles">["draft"]["media"],
     );
-    const now = Date.now();
+    const now = nextUpdatedAt(profile);
+    const nextDraftRevision = draftRevision + 1;
     delete draft.imageUrl;
     if (
       args.draft.imageStorageId !== undefined &&
@@ -298,6 +326,7 @@ export const saveDraft = mutation({
     await ctx.db.patch(profile._id, {
       slug: normalizedSlug,
       draft: draft as Doc<"profiles">["draft"],
+      draftRevision: nextDraftRevision,
       updatedAt: now,
     });
     if (account.role === "admin") {
@@ -318,6 +347,7 @@ export const saveDraft = mutation({
         await removeIfMediaUnreferenced(ctx, profile._id, assetId);
     return {
       updatedAt: now,
+      draftRevision: nextDraftRevision,
       imageRevision,
       mediaRevision,
       ...(draft.customization === undefined ? {} : { customization: draft.customization }),

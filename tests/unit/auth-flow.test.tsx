@@ -7,6 +7,7 @@ const signIn = vi.fn();
 const signOut = vi.fn();
 const useQuery = vi.fn();
 const mutation = vi.fn();
+const setupEmailPreflight = vi.fn();
 const useConvexAuth = vi.fn();
 let currentPath = "/login";
 
@@ -30,6 +31,7 @@ vi.mock("convex/react", async (importOriginal) => {
   return {
     ...actual,
     useMutation: () => mutation,
+    useConvex: () => ({ mutation: setupEmailPreflight }),
     useQuery: (...args: unknown[]) => useQuery(...args),
   };
 });
@@ -69,6 +71,7 @@ beforeEach(() => {
   signIn.mockReset();
   signOut.mockReset();
   mutation.mockReset();
+  setupEmailPreflight.mockReset();
   useQuery.mockReset();
   currentPath = "/login";
   useConvexAuth.mockReset();
@@ -463,63 +466,31 @@ describe("pending Google onboarding", () => {
 });
 
 describe("reusable Google invitation setup", () => {
-  it("refreshes an invitation that expires while its status response is in flight", async () => {
-    const expiresAt = Date.now() + 60_000;
-    const clock = vi.spyOn(Date, "now");
-    useQuery.mockImplementation((_, args) => {
-      if (args === "skip") return undefined;
-      if (args.now < expiresAt) {
-        clock.mockReturnValue(expiresAt + 1);
-        return {
-          state: "valid",
-          email: "invite@example.test",
-          profileName: null,
-          acceptedAt: null,
-          expiresAt,
-        };
-      }
-      return {
-        state: "expired",
-        email: "invite@example.test",
-        profileName: null,
-        acceptedAt: null,
-        expiresAt,
-      };
-    });
-    try {
-      const SetupForm = await loadSetup();
-      render(<SetupForm token="slow-status-token" />);
+  it("marks a public invitation as expired using its expiry timestamp", async () => {
+    useQuery.mockReturnValue({ state: "valid", expiresAt: Date.now() - 1 });
+    const SetupForm = await loadSetup();
+    render(<SetupForm token="slow-status-token" />);
 
-      expect(await screen.findByRole("alert", undefined, { timeout: 1000 })).toHaveTextContent(
-        /expired/i,
-      );
-      expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
-    } finally {
-      clock.mockRestore();
-    }
-  }, 15_000);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/i);
+    expect(screen.queryByRole("button", { name: "Continue with Google" })).toBeNull();
+  });
 
   it("hashes the route token and queries invitation status without sending the raw token", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({
-      state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
-    });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
     const SetupForm = await loadSetup();
 
     render(<SetupForm token="raw-secret-token" />);
 
-    expect(await screen.findByText("invite@example.test")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Continue with the Google account that received this invitation."),
+    ).toBeInTheDocument();
     await waitFor(() => {
       const statusCall = useQuery.mock.calls.find(([, args]) => args !== "skip");
-      expect(statusCall?.[1]).toEqual({
-        tokenHash: expect.any(String),
-        now: expect.any(Number),
-      });
+      expect(statusCall?.[1]).toEqual({ tokenHash: expect.any(String) });
       expect(statusCall?.[1]).not.toEqual({ tokenHash: "raw-secret-token" });
     });
+    expect(screen.queryByText(/invite@example\.test|Invited Profile/)).not.toBeInTheDocument();
     expect(mutation).not.toHaveBeenCalledWith(
       expect.objectContaining({ token: expect.anything() }),
     );
@@ -530,12 +501,7 @@ describe("reusable Google invitation setup", () => {
 
   it("offers Google OAuth on a valid unauthenticated invitation and returns to the same setup path", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({
-      state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
-    });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
     signIn.mockResolvedValue({ signingIn: false });
     const SetupForm = await loadSetup();
     const user = userEvent.setup();
@@ -548,12 +514,7 @@ describe("reusable Google invitation setup", () => {
 
   it("accepts a valid invitation with only the token hash and routes to the profile", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
-    useQuery.mockReturnValue({
-      state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
-    });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
     mutation.mockResolvedValue({ profileId: "profile_1" });
     const SetupForm = await loadSetup();
 
@@ -567,10 +528,9 @@ describe("reusable Google invitation setup", () => {
   it.each([
     ["missing", /could not be found/i],
     ["revoked", /revoked/i],
-    ["expired", /expired/i],
   ])("renders the distinct %s invitation state", async (state, copy) => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({ state, email: null, profileName: null, acceptedAt: null });
+    useQuery.mockReturnValue({ state, expiresAt: null });
     const SetupForm = await loadSetup();
 
     render(<SetupForm token="raw-secret-token" />);
@@ -587,12 +547,8 @@ describe("hosted-demo invitation setup", () => {
 
   it("uses the invitation email and completes setup with the hashed token", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({
-      state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
-    });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    setupEmailPreflight.mockResolvedValue(true);
     signIn.mockResolvedValue({ signingIn: false });
     mutation.mockResolvedValue({ profileId: "profile_1" });
     const SetupForm = await loadSetup();
@@ -600,8 +556,7 @@ describe("hosted-demo invitation setup", () => {
 
     render(<SetupForm token="hosted-demo-raw-token" />);
 
-    expect(await screen.findByText("invite@example.test")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
+    await user.type(await screen.findByLabelText("Invitation email"), "invite@example.test");
     await user.type(screen.getByLabelText("Password"), "safe-password");
     await user.type(screen.getByLabelText("Confirm password"), "safe-password");
     await user.click(screen.getByRole("button", { name: "Set password" }));
@@ -618,9 +573,37 @@ describe("hosted-demo invitation setup", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
   });
 
+  it("does not start password signup when the invitation email does not match", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    let finishPreflight!: (matches: boolean) => void;
+    setupEmailPreflight.mockReturnValue(
+      new Promise<boolean>((resolve) => {
+        finishPreflight = resolve;
+      }),
+    );
+    signIn.mockResolvedValue({ signingIn: false });
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="hosted-demo-raw-token" />);
+
+    await user.type(await screen.findByLabelText("Invitation email"), "typo@example.test");
+    await user.type(screen.getByLabelText("Password"), "safe-password");
+    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
+    await user.click(screen.getByRole("button", { name: "Set password" }));
+
+    await waitFor(() => expect(setupEmailPreflight).toHaveBeenCalled());
+    expect(signIn).not.toHaveBeenCalled();
+    finishPreflight(false);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invitation/i);
+    expect(signIn).not.toHaveBeenCalled();
+    expect(mutation).not.toHaveBeenCalled();
+  });
+
   it("does not allow password signup for an invalid invitation", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({ state: "revoked", email: "invite@example.test" });
+    useQuery.mockReturnValue({ state: "revoked", expiresAt: null });
     const SetupForm = await loadSetup();
 
     render(<SetupForm token="revoked-hosted-demo-token" />);
@@ -630,34 +613,24 @@ describe("hosted-demo invitation setup", () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it("does not create a password account when an open invitation expires before submit", async () => {
+  it("does not show password setup after invitation expiry", async () => {
     useQuery.mockReturnValue({
       state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
       expiresAt: Date.now() - 1,
     });
     const SetupForm = await loadSetup();
-    const user = userEvent.setup();
 
     render(<SetupForm token="expired-while-open-token" />);
-    await user.type(await screen.findByLabelText("Password"), "safe-password");
-    await user.type(screen.getByLabelText("Confirm password"), "safe-password");
-    await user.click(screen.getByRole("button", { name: "Set password" }));
 
     expect(signIn).not.toHaveBeenCalled();
     expect(await screen.findByRole("alert")).toHaveTextContent(/expired/i);
-  }, 15_000);
+    expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+  });
 
   it("retries setup with password sign-in when invitation linking fails after signup", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
-    useQuery.mockReturnValue({
-      state: "valid",
-      email: "invite@example.test",
-      profileName: "Invited Profile",
-      acceptedAt: null,
-    });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    setupEmailPreflight.mockResolvedValue(true);
     signIn.mockResolvedValue({ signingIn: false });
     mutation
       .mockRejectedValueOnce(new Error("temporary setup failure"))
@@ -666,6 +639,7 @@ describe("hosted-demo invitation setup", () => {
     const user = userEvent.setup();
 
     render(<SetupForm token="hosted-demo-raw-token" />);
+    await user.type(await screen.findByLabelText("Invitation email"), "invite@example.test");
     await user.type(await screen.findByLabelText("Password"), "safe-password");
     await user.type(screen.getByLabelText("Confirm password"), "safe-password");
     await user.click(screen.getByRole("button", { name: "Set password" }));

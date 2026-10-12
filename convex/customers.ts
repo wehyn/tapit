@@ -96,6 +96,7 @@ export const createCustomer = mutation({
         ...(args.bio !== undefined ? { bio: args.bio } : {}),
         theme: args.theme ?? "paper",
       },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -195,6 +196,7 @@ export const createSelfServiceAccount = mutation({
       slug,
       status: "draft",
       draft: { name, slug, email, links: [], theme: "paper" },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -255,6 +257,7 @@ export const completeSelfServiceOnboarding = mutation({
       slug,
       status: "draft",
       draft: { name, slug, email, links: [] },
+      draftRevision: 0,
       createdAt: now,
       updatedAt: now,
     });
@@ -408,6 +411,30 @@ export const setRole = mutation({
       after: args.role,
     });
     return null;
+  },
+});
+
+export const preflightSetupEmail = mutation({
+  args: {
+    email: v.string(),
+    tokenHash: v.string(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    if (!isHostedDemo()) return false;
+    const invitation = await ctx.db
+      .query("invitations")
+      .withIndex("by_tokenHash", (query) => query.eq("tokenHash", args.tokenHash))
+      .unique();
+    const now = Date.now();
+    if (
+      invitation === null ||
+      invitation.invalidatedAt !== undefined ||
+      (invitation.expiresAt !== undefined && invitation.expiresAt <= now)
+    )
+      return false;
+    const email = args.email.trim().toLowerCase();
+    return email.length > 0 && email === invitation.email.trim().toLowerCase();
   },
 });
 

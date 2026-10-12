@@ -12,7 +12,7 @@ function corsHeaders(origin: string | null): Record<string, string> {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers":
-          "Authorization, Content-Type, X-Profile-Id, X-Image-Revision",
+          "Authorization, Content-Type, X-Profile-Id, X-Image-Revision, X-Draft-Revision",
         Vary: "Origin",
       }
     : {};
@@ -44,6 +44,14 @@ async function handleUpload(
     !Number.isSafeInteger(expectedImageRevision)
   )
     return errorResponse("A valid image revision is required.", 400, headers);
+  const rawDraftRevision = request.headers.get("X-Draft-Revision");
+  const expectedDraftRevision = rawDraftRevision === null ? NaN : Number(rawDraftRevision);
+  if (
+    rawDraftRevision === null ||
+    !/^(0|[1-9][0-9]*)$/.test(rawDraftRevision) ||
+    !Number.isSafeInteger(expectedDraftRevision)
+  )
+    return errorResponse("A valid profile draft revision is required.", 400, headers);
   const contentType = request.headers.get("Content-Type");
   if (contentType !== "image/jpeg" && contentType !== "image/png")
     return errorResponse("Profile images must be JPEG or PNG.", 415, headers);
@@ -74,6 +82,7 @@ async function handleUpload(
       accessMode: adminOnly ? "admin" : "owner",
       largeSha256,
       expectedImageRevision,
+      expectedDraftRevision,
     });
     storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
     await ctx.runMutation(internal.storage.markUploadJob, {
@@ -84,7 +93,12 @@ async function handleUpload(
     const imageUrl = await ctx.storage.getUrl(storageId);
     if (imageUrl === null) throw new Error("The uploaded image was not found.");
     return new Response(
-      JSON.stringify({ storageId, imageUrl, imageRevision: committed.imageRevision }),
+      JSON.stringify({
+        storageId,
+        imageUrl,
+        imageRevision: committed.imageRevision,
+        draftRevision: committed.draftRevision,
+      }),
       { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
     );
   } catch (error) {
@@ -99,7 +113,9 @@ async function handleUpload(
       : message.includes("Profile access denied") ||
           message.includes("Administrator permission required")
         ? 403
-        : message.includes("Photo changed elsewhere") || message.includes("Upload job")
+        : message.includes("changed while you were editing") ||
+            message.includes("Photo changed elsewhere") ||
+            message.includes("Upload job")
           ? 409
           : 400;
     return errorResponse(message, status, headers);

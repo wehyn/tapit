@@ -38,6 +38,10 @@ const validDraft = (links: TestLink[] = [validLink()]) => ({
 
 const validRedirect = { enabled: true, destination: "https://redirect.example.com/card" };
 
+async function draftRevision(t: ReturnType<typeof convexTest>, profileId: Id<"profiles">) {
+  return await t.run(async (ctx) => (await ctx.db.get(profileId))?.draftRevision ?? 0);
+}
+
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
@@ -119,12 +123,14 @@ describe("content hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.profileId,
         draft: validDraft(tooMany),
+        expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).rejects.toThrow("more than 100 links");
     await expect(
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.profileId,
         draft: validDraft([validLink("same"), validLink("same")]),
+        expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).rejects.toThrow("Duplicate link IDs");
   });
@@ -138,6 +144,7 @@ describe("content hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.profileId,
         draft: { ...validDraft(), website: "https://user:password@example.com" },
+        expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).rejects.toThrow("A profile website must be a valid HTTPS URL without credentials.");
   });
@@ -151,12 +158,14 @@ describe("content hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.profileId,
         draft: validDraft([{ ...validLink(), icon: "unknown" }]),
+        expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).rejects.toThrow("icon");
     await expect(
       owner.mutation(api.profiles.saveDraft, {
         profileId: data.profileId,
         draft: validDraft([{ ...validLink(), label: "", destination: "" }]),
+        expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).resolves.toMatchObject({ updatedAt: expect.any(Number) });
   });
@@ -170,6 +179,7 @@ describe("content hardening", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: data.profileId,
       draft: validDraft(links),
+      expectedDraftRevision: await draftRevision(t, data.profileId),
     });
     await expect(
       owner.query(api.links.listForProfile, { profileId: data.profileId }),
@@ -186,9 +196,10 @@ describe("content hardening", () => {
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
 
-    await owner.mutation(api.profiles.saveDraft, {
+    const saved = await owner.mutation(api.profiles.saveDraft, {
       profileId: data.profileId,
       draft: { ...validDraft(), redirect: validRedirect },
+      expectedDraftRevision: await draftRevision(t, data.profileId),
     });
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
       draft: { redirect: validRedirect },
@@ -199,6 +210,7 @@ describe("content hardening", () => {
       profileId: data.profileId,
       links: [validLink("updated")],
       redirect: replacement,
+      expectedDraftRevision: saved.draftRevision,
     });
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
       draft: { redirect: replacement, links: [{ id: "updated" }] },
@@ -214,6 +226,52 @@ describe("content hardening", () => {
     });
   });
 
+  it("does not let a stale full-draft save overwrite newer link edits", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const latestLinks = [validLink("latest")];
+
+    await owner.mutation(api.links.replaceDraft, {
+      profileId: data.profileId,
+      links: latestLinks,
+      expectedDraftRevision: 0,
+    });
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: data.profileId,
+        draft: { ...validDraft(), name: "Stale profile edit" },
+        expectedDraftRevision: 0,
+      }),
+    ).rejects.toThrow("profile draft changed");
+
+    const saved = await t.run((ctx) => ctx.db.get(data.profileId));
+    expect(saved?.draft).toMatchObject({ name: "Owner", links: latestLinks });
+  });
+
+  it("does not let a stale link replacement overwrite a newer full-draft save", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const latestLinks = [validLink("latest")];
+
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: data.profileId,
+      draft: { ...validDraft(latestLinks), name: "Latest profile edit" },
+      expectedDraftRevision: 0,
+    });
+    await expect(
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        links: [validLink("stale")],
+        expectedDraftRevision: 0,
+      }),
+    ).rejects.toThrow("profile draft changed");
+
+    const saved = await t.run((ctx) => ctx.db.get(data.profileId));
+    expect(saved?.draft).toMatchObject({ name: "Latest profile edit", links: latestLinks });
+  });
+
   it("rejects redirect destinations that are not credential-free HTTPS URLs", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
@@ -226,6 +284,7 @@ describe("content hardening", () => {
         owner.mutation(api.profiles.saveDraft, {
           profileId: data.profileId,
           draft: { ...validDraft(), redirect: { enabled: true, destination } },
+          expectedDraftRevision: await draftRevision(t, data.profileId),
         }),
       ).rejects.toThrow("Redirect destination must be a valid HTTPS URL without credentials.");
     }

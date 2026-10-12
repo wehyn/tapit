@@ -119,6 +119,10 @@ async function seed(t: ReturnType<typeof convexTest>) {
   });
 }
 
+async function draftRevision(t: ReturnType<typeof convexTest>, profileId: Id<"profiles">) {
+  return await t.run(async (ctx) => (await ctx.db.get(profileId))?.draftRevision ?? 0);
+}
+
 describe("Convex authentication and ownership", () => {
   it("requires a server-verified email for live onboarding", async () => {
     const t = testConvex();
@@ -321,11 +325,11 @@ describe("Convex authentication and ownership", () => {
       tokenHash: "replacement-hash",
     });
     await expect(
-      t.query(api.invitations.status, { tokenHash: "new-invite-hash", now: Date.now() }),
+      t.query(api.invitations.status, { tokenHash: "new-invite-hash" }),
     ).resolves.toMatchObject({ state: "revoked" });
     await expect(
-      t.query(api.invitations.status, { tokenHash: "replacement-hash", now: Date.now() }),
-    ).resolves.toMatchObject({ state: "valid", acceptedAt: null });
+      t.query(api.invitations.status, { tokenHash: "replacement-hash" }),
+    ).resolves.toMatchObject({ state: "valid", expiresAt: null });
     expect(replacement.invitationId).not.toBe(created.invitationId);
   });
 
@@ -357,7 +361,7 @@ describe("Convex authentication and ownership", () => {
     });
 
     await expect(
-      t.query(api.invitations.status, { tokenHash: "history-200", now: Date.now() }),
+      t.query(api.invitations.status, { tokenHash: "history-200" }),
     ).resolves.toMatchObject({
       state: "revoked",
     });
@@ -634,34 +638,48 @@ describe("Convex authentication and ownership", () => {
       await ctx.db.patch(data.invitationId, { acceptedAt: 10 });
     });
 
-    await expect(
-      t.query(api.invitations.status, { tokenHash: "owner-token", now: 10 }),
-    ).resolves.toEqual({
+    await expect(t.query(api.invitations.status, { tokenHash: "owner-token" })).resolves.toEqual({
       state: "valid",
-      email: "owner@example.com",
-      profileName: "Owner Draft",
-      acceptedAt: 10,
       expiresAt: null,
     });
   });
 
-  it("reports an invitation expiring as client time advances without a database write", async () => {
+  it("returns invitation expiry metadata without a database write", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => ctx.db.patch(data.invitationId, { expiresAt: 100 }));
+
+    await expect(t.query(api.invitations.status, { tokenHash: "owner-token" })).resolves.toEqual({
+      state: "valid",
+      expiresAt: 100,
+    });
+  });
+
+  it("does not let a client clock make an expired invitation appear valid", async () => {
     const t = testConvex();
     const data = await seed(t);
     await t.run(async (ctx) => ctx.db.patch(data.invitationId, { expiresAt: 100 }));
 
     await expect(
-      t.query(api.invitations.status, { tokenHash: "owner-token", now: 99 }),
-    ).resolves.toMatchObject({
-      state: "valid",
-      expiresAt: 100,
-    });
-    await expect(
-      t.query(api.invitations.status, { tokenHash: "owner-token", now: 100 }),
-    ).resolves.toMatchObject({
-      state: "expired",
-      expiresAt: 100,
-    });
+      t.query(api.invitations.status, { tokenHash: "owner-token", now: 99 } as never),
+    ).rejects.toThrow();
+  });
+
+  it("keeps invitation email and profile name private for valid, expired, and revoked links", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await t.run(async (ctx) => ctx.db.patch(data.invitationId, { expiresAt: 100 }));
+
+    const valid = await t.query(api.invitations.status, { tokenHash: "owner-token" });
+    const expired = await t.query(api.invitations.status, { tokenHash: "owner-token" });
+    await t.run(async (ctx) => ctx.db.patch(data.invitationId, { invalidatedAt: 50 }));
+    const revoked = await t.query(api.invitations.status, { tokenHash: "owner-token" });
+
+    expect([valid, expired, revoked]).toEqual([
+      { state: "valid", expiresAt: 100 },
+      { state: "valid", expiresAt: 100 },
+      { state: "revoked", expiresAt: 100 },
+    ]);
   });
 
   it("rejects unauthenticated private reads and writes", async () => {
@@ -674,6 +692,7 @@ describe("Convex authentication and ownership", () => {
       t.mutation(api.profiles.saveDraft, {
         profileId: data.ownerProfileId,
         draft: draft("owner", "Nope"),
+        expectedDraftRevision: await draftRevision(t, data.ownerProfileId),
       }),
     ).rejects.toThrow("Authentication required.");
     await expect(
@@ -769,6 +788,7 @@ describe("Convex authentication and ownership", () => {
     await owner.mutation(api.profiles.saveDraft, {
       profileId: data.ownerProfileId,
       draft: draft("owner", "Updated Owner"),
+      expectedDraftRevision: await draftRevision(t, data.ownerProfileId),
     });
     const published = await owner.mutation(api.profiles.publish, {
       profileId: data.ownerProfileId,
@@ -815,6 +835,7 @@ describe("Convex authentication and ownership", () => {
           contentOrder: "section-first",
         },
       },
+      expectedDraftRevision: await draftRevision(t, data.ownerProfileId),
     });
     await expect(t.query(api.profiles.publicBySlug, { slug: "owner" })).resolves.toMatchObject({
       theme: "paper",
@@ -850,6 +871,7 @@ describe("Convex authentication and ownership", () => {
       other.mutation(api.profiles.saveDraft, {
         profileId: data.ownerProfileId,
         draft: draft("owner", "Tampered"),
+        expectedDraftRevision: await draftRevision(t, data.ownerProfileId),
       }),
     ).rejects.toThrow("Profile access denied.");
     await expect(
