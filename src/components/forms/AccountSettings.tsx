@@ -227,28 +227,28 @@ function DemoAccountSettings() {
         </form>
       </Panel>
 
-      <Panel
-        description="Need help with a profile or card? The support route is intentionally generic in this local build."
-        title="Support"
-      >
-        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-muted">
-          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} weight="bold" />
-          Help is available for access, publication, or card issues.
-        </div>
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <a className="font-semibold text-tapit-accent hover:underline" href={state.supportUrl}>
-            Contact support
-          </a>
-          <span className="text-sm text-tapit-muted">
-            We will help with access, publication, or card issues.
-          </span>
-        </div>
-      </Panel>
+      {state.supportUrl ? (
+        <Panel title="Support">
+          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
+            <LifebuoyIcon
+              aria-hidden="true"
+              className="text-tapit-accent"
+              size={20}
+              weight="bold"
+            />
+            <span>Get help with access, publication, or card issues.</span>
+            <a className="font-semibold text-tapit-accent hover:underline" href={state.supportUrl}>
+              Contact support
+            </a>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
           <TrashIcon aria-hidden="true" size={20} weight="bold" />
-          This action is reviewed separately from everyday account settings.
+          Confirming this request immediately hides your profile and deactivates assigned cards; an
+          administrator reviews it before permanent removal.
         </div>
         {deletionMessage ? (
           <div className="mt-5">
@@ -369,19 +369,25 @@ function LiveAccountSettings() {
           </div>
         </Panel>
       ) : null}
-      <Panel title="Support">
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
-            Contact support
-          </a>
-          <span className="text-sm text-tapit-muted">
-            We will help with access, publication, or card issues.
-          </span>
-        </div>
-      </Panel>
+      {supportUrl ? (
+        <Panel title="Support">
+          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
+            <LifebuoyIcon
+              aria-hidden="true"
+              className="text-tapit-accent"
+              size={20}
+              weight="bold"
+            />
+            <span>Get help with access, publication, or card issues.</span>
+            <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
+              Contact support
+            </a>
+          </div>
+        </Panel>
+      ) : null}
       <Panel
         className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
-        description="Deletion hides your profile and deactivates assigned cards immediately."
+        description="A confirmed request immediately makes your profile unavailable and deactivates assigned cards. An administrator reviews it before permanent removal."
         title="Delete account"
       >
         {message ? (
@@ -404,7 +410,7 @@ function LiveAccountSettings() {
       </Panel>
       <ConfirmDialog
         confirmLabel="Request deletion"
-        description="Your public profile will become unavailable and assigned cards will be deactivated immediately. Continue?"
+        description="Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
         onCancel={() => setDeletionOpen(false)}
         onConfirm={confirmDeletion}
         open={deletionOpen}
