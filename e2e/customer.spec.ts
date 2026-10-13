@@ -136,7 +136,7 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       expect(bioBox!.height).toBeLessThanOrEqual(nameBox!.height * 2);
     } else {
       await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Layout preview draft");
-      editorControl = page.getByRole("textbox", { name: "Label for Portfolio" });
+      editorControl = page.getByRole("textbox", { name: "Label for Layout preview draft" });
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
@@ -224,7 +224,7 @@ test("customer workspace switches between editing and preview on mobile without 
     else if (route === "/app/customize")
       await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeChecked();
     else if (route === "/app/links")
-      await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+      await expect(page.getByRole("textbox", { name: "Label for Portfolio draft" })).toHaveValue(
         "Portfolio draft",
       );
     await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
@@ -235,7 +235,7 @@ test("customer workspace switches between editing and preview on mobile without 
     else if (route === "/app/customize")
       await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeChecked();
     else if (route === "/app/links")
-      await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+      await expect(page.getByRole("textbox", { name: "Label for Portfolio draft" })).toHaveValue(
         "Portfolio draft",
       );
   }
@@ -570,7 +570,7 @@ test("customization category tabs and fine-tuning controls stay clear on mobile"
   await expect(fineTune).toBeVisible();
   const fineTuneDisclosure = page.locator("details").filter({ has: fineTune });
   await expect(fineTuneDisclosure).not.toHaveAttribute("open", "");
-  await fineTune.click();
+  await fineTuneDisclosure.locator("summary").click();
   await expect(fineTuneDisclosure).toHaveAttribute("open", "");
   await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Editorial", exact: true })).toBeVisible();
@@ -979,7 +979,7 @@ test("the Links draft action is hidden while clean and appears after an edit", a
   await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.reload();
-  await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+  await expect(page.getByRole("textbox", { name: "Label for Portfolio work" })).toHaveValue(
     "Portfolio work",
   );
   await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
