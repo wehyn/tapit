@@ -745,58 +745,63 @@ export function ProfileCustomizationEditor({
                   })}
                 </div>
               </fieldset>
-              {selectedPreset === "custom" ? (
-                <CustomPaletteControls
-                  customization={activeCustomization}
-                  error={customColorError}
-                  onChange={onChange}
-                />
-              ) : null}
-              <>
-                <ChoiceGroup
-                  error={accentError}
-                  label="Accent"
-                  name={`${baseId}-accent`}
-                  onChange={(value) => update({ accent: value })}
-                  options={
-                    selectedPreset === "custom"
-                      ? [
-                          ["ink", "Palette accent"],
-                          ["coral", "Coral"],
-                          ["jade", "Jade"],
-                        ]
-                      : [
-                          ["jade", selectedPreset === "warm-studio" ? "Jade" : "Preset accent"],
-                          ["coral", "Coral"],
-                          ["ink", "Ink"],
-                        ]
-                  }
-                  value={activeCustomization.accent}
-                />
-                <ChoiceGroup
-                  error={scaleError}
-                  label="Type scale"
-                  name={`${baseId}-scale`}
-                  onChange={(value) => update({ typeScale: value })}
-                  options={[
-                    ["compact", "Compact"],
-                    ["comfortable", "Comfortable"],
-                    ["editorial", "Editorial"],
-                  ]}
-                  value={activeCustomization.typeScale}
-                />
-                <ChoiceGroup
-                  error={treatmentError}
-                  label="Save contact button treatment"
-                  name={`${baseId}-treatment`}
-                  onChange={(value) => update({ linkTreatment: value })}
-                  options={[
-                    ["filled", "Filled"],
-                    ["outlined", "Outlined"],
-                  ]}
-                  value={activeCustomization.linkTreatment}
-                />
-              </>
+              <details className="rounded-tapit border border-tapit-line bg-tapit-paper/60 px-4 py-3">
+                <summary className="min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent">
+                  Fine tune
+                </summary>
+                <div className="mt-4 grid gap-5">
+                  {selectedPreset === "custom" ? (
+                    <CustomPaletteControls
+                      customization={activeCustomization}
+                      error={customColorError}
+                      onChange={onChange}
+                    />
+                  ) : null}
+                  <ChoiceGroup
+                    error={accentError}
+                    label="Accent"
+                    name={`${baseId}-accent`}
+                    onChange={(value) => update({ accent: value })}
+                    options={
+                      selectedPreset === "custom"
+                        ? [
+                            ["ink", "Palette accent"],
+                            ["coral", "Coral"],
+                            ["jade", "Jade"],
+                          ]
+                        : [
+                            ["jade", selectedPreset === "warm-studio" ? "Jade" : "Preset accent"],
+                            ["coral", "Coral"],
+                            ["ink", "Ink"],
+                          ]
+                    }
+                    value={activeCustomization.accent}
+                  />
+                  <ChoiceGroup
+                    error={scaleError}
+                    label="Type scale"
+                    name={`${baseId}-scale`}
+                    onChange={(value) => update({ typeScale: value })}
+                    options={[
+                      ["compact", "Compact"],
+                      ["comfortable", "Comfortable"],
+                      ["editorial", "Editorial"],
+                    ]}
+                    value={activeCustomization.typeScale}
+                  />
+                  <ChoiceGroup
+                    error={treatmentError}
+                    label="Save contact button treatment"
+                    name={`${baseId}-treatment`}
+                    onChange={(value) => update({ linkTreatment: value })}
+                    options={[
+                      ["filled", "Filled"],
+                      ["outlined", "Outlined"],
+                    ]}
+                    value={activeCustomization.linkTreatment}
+                  />
+                </div>
+              </details>
             </div>
           ) : null}
 

@@ -6,13 +6,12 @@ import Link from "next/link";
 
 import type { ProfileContent, ProfileLink } from "@/lib/domain";
 import {
-  DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
-  DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  defaultProfileCustomizationForTheme,
   type ProfileCustomization,
   type ProfileSection,
 } from "@/lib/profile-customization";
 import { Button } from "@/components/ui/Button";
-import { Field, SelectField, TextareaField } from "@/components/ui/Field";
+import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
 
@@ -25,6 +24,7 @@ export type ProfileDetailsEditorProps = {
   draft: ProfileContent;
   customization?: ProfileCustomization;
   errors?: readonly string[];
+  customizationErrors?: readonly string[];
   links: readonly ProfileLink[];
   copyMessage: string;
   slugLocked: boolean;
@@ -34,12 +34,12 @@ export type ProfileDetailsEditorProps = {
   onChange: ProfileFieldChange;
   onCustomizationChange: (next: ProfileCustomization | undefined) => void;
   onCopyUrl: () => void;
+  onOpenCustomize?: ReactNode;
 };
 
-type DetailsSectionName = "contact" | "about";
+type DetailsSectionName = "about";
 
 const sectionLabels: Record<DetailsSectionName, string> = {
-  contact: "Contact and links",
   about: "About or Services",
 };
 
@@ -153,21 +153,15 @@ function ProfileIdentityForm({
   message,
   onboarding,
   onChange,
-  onCopyUrl,
-  copyMessage,
-  slugLocked,
 }: {
   draft: ProfileContent;
   imageContent?: ReactNode;
   message?: ReactNode;
   onboarding?: ReactNode;
   onChange: ProfileFieldChange;
-  onCopyUrl: () => void;
-  copyMessage: string;
-  slugLocked: boolean;
 }) {
   return (
-    <Panel className="shadow-none" title="Profile identity">
+    <Panel className="shadow-none" title="Basics">
       <div className="mt-6 grid grid-cols-1 gap-5">
         {message}
         {onboarding}
@@ -191,10 +185,113 @@ function ProfileIdentityForm({
             value={draft.bio ?? ""}
           />
         </div>
-        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
+      </div>
+    </Panel>
+  );
+}
+
+export function ProfileDetailsEditor({
+  customization,
+  draft,
+  errors = [],
+  customizationErrors = [],
+  copyMessage,
+  slugLocked,
+  imageContent,
+  message,
+  onboarding,
+  onChange,
+  onCustomizationChange,
+  onCopyUrl,
+  onOpenCustomize,
+}: ProfileDetailsEditorProps) {
+  const baseId = useId();
+  const [openSections, setOpenSections] = useState<Record<DetailsSectionName, boolean>>(() => {
+    const section = customization?.section;
+    return {
+      about: Boolean(
+        section &&
+        (section.body.trim() ||
+          (section.kind === "services" && section.items?.some((item) => item.trim()))),
+      ),
+    };
+  });
+  const activeCustomization: ProfileCustomization =
+    customization ?? defaultProfileCustomizationForTheme(draft.theme);
+
+  function toggle(name: DetailsSectionName) {
+    setOpenSections((current) => ({ ...current, [name]: !current[name] }));
+  }
+
+  function update(patch: Partial<ProfileCustomization>) {
+    onCustomizationChange({ ...copyCustomization(activeCustomization), ...patch });
+  }
+
+  function updateSection(section: ProfileSection | undefined) {
+    const nextSection =
+      section?.kind === "services"
+        ? {
+            ...section,
+            items: section.items ? [...section.items] : undefined,
+          }
+        : section;
+    onCustomizationChange({ ...copyCustomization(activeCustomization), section: nextSection });
+  }
+
+  const section = activeCustomization.section;
+  const errorId = (name: string) => `${baseId}-${name}-error`;
+  const findError = (...needles: string[]) =>
+    errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
+  const redirect = draft.redirect ?? { enabled: false, destination: "" };
+  const redirectError = redirect.enabled ? findError("redirect destination") : undefined;
+  const kindError = findError("section kind", "section is invalid");
+  const bodyError = findError("section body", "about section body", "services section body");
+  const itemError = findError("service item", "services items");
+
+  function setKind(kind: "about" | "services") {
+    updateSection(
+      kind === "about"
+        ? { kind, body: section?.kind === "about" ? section.body : "" }
+        : {
+            kind,
+            body: section?.kind === "services" ? section.body : "",
+            items: section?.kind === "services" ? [...(section.items ?? [])] : [],
+          },
+    );
+  }
+
+  return (
+    <div className="grid gap-4 sm:gap-5">
+      {errors.length > 0 ? (
+        <Notice tone="error">
+          <ul className="grid gap-2">
+            {errors.map((error) => (
+              <li key={error}>{error}</li>
+            ))}
+          </ul>
+        </Notice>
+      ) : null}
+      {customizationErrors.length > 0 ? (
+        <Notice tone="error">
+          Some customization settings need attention before you can publish.
+          {onOpenCustomize ? <span className="mt-3 block">{onOpenCustomize}</span> : null}
+        </Notice>
+      ) : null}
+      <ProfileIdentityForm
+        draft={draft}
+        imageContent={imageContent}
+        message={message}
+        onChange={onChange}
+        onboarding={onboarding}
+      />
+
+      <Panel className="shadow-none" title="Contact">
+        <p className="mt-4 text-sm leading-6 text-tapit-muted">
+          These details appear as contact options on your published profile.
+        </p>
+        <div className="mt-4 grid min-w-0 gap-5 sm:grid-cols-2">
           <Field
             id="profile-email"
-            help="This appears as a contact option on your published profile."
             label="Email"
             onChange={(event) => onChange("email", event.target.value || undefined)}
             placeholder="you@example.com"
@@ -217,21 +314,24 @@ function ProfileIdentityForm({
             type="url"
             value={draft.website ?? ""}
           />
-          <Field
-            disabled={slugLocked}
-            help={
-              slugLocked
-                ? "The slug is immutable after first publication."
-                : "Use lowercase letters, numbers, and hyphens."
-            }
-            id="profile-slug"
-            label="Stable profile slug"
-            onChange={(event) => onChange("slug", event.target.value)}
-            placeholder="alex-morgan"
-            value={draft.slug}
-          />
         </div>
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
+      </Panel>
+
+      <Panel className="shadow-none" title="Profile link">
+        <Field
+          disabled={slugLocked}
+          help={
+            slugLocked
+              ? "The slug is immutable after first publication."
+              : "Use lowercase letters, numbers, and hyphens."
+          }
+          id="profile-slug"
+          label="Stable profile slug"
+          onChange={(event) => onChange("slug", event.target.value)}
+          placeholder="alex-morgan"
+          value={draft.slug}
+        />
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
           <span className="font-semibold text-tapit-ink">Public URL</span>
           <Link
             aria-label={`Open public profile /${draft.slug}`}
@@ -249,98 +349,6 @@ function ProfileIdentityForm({
             {copyMessage || "Copy"}
           </Button>
         </div>
-      </div>
-    </Panel>
-  );
-}
-
-export function ProfileDetailsEditor({
-  customization,
-  draft,
-  errors = [],
-  links,
-  copyMessage,
-  slugLocked,
-  imageContent,
-  message,
-  onboarding,
-  onChange,
-  onCustomizationChange,
-  onCopyUrl,
-}: ProfileDetailsEditorProps) {
-  const baseId = useId();
-  const [openSections, setOpenSections] = useState<Record<DetailsSectionName, boolean>>({
-    contact: true,
-    about: true,
-  });
-  const activeCustomization: ProfileCustomization =
-    customization ??
-    (draft.theme === "custom"
-      ? DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION
-      : { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: draft.theme ?? "paper" });
-
-  function toggle(name: DetailsSectionName) {
-    setOpenSections((current) => ({ ...current, [name]: !current[name] }));
-  }
-
-  function update(patch: Partial<ProfileCustomization>) {
-    onCustomizationChange({ ...copyCustomization(activeCustomization), ...patch });
-  }
-
-  function updateSection(section: ProfileSection | undefined) {
-    const nextSection =
-      section?.kind === "services"
-        ? {
-            ...section,
-            items: section.items ? [...section.items] : undefined,
-          }
-        : section;
-    onCustomizationChange({ ...copyCustomization(activeCustomization), section: nextSection });
-  }
-
-  const section = activeCustomization.section;
-  const featuredLink = activeCustomization.featuredLinkId
-    ? links.find((link) => link.id === activeCustomization.featuredLinkId)
-    : undefined;
-  const featuredUnavailable = Boolean(activeCustomization.featuredLinkId && !featuredLink?.enabled);
-  const errorId = (name: string) => `${baseId}-${name}-error`;
-  const findError = (...needles: string[]) =>
-    errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
-  const redirect = draft.redirect ?? { enabled: false, destination: "" };
-  const redirectError = redirect.enabled ? findError("redirect destination") : undefined;
-  const featuredError = featuredUnavailable
-    ? "The selected featured link is missing or disabled. It will appear as a normal link."
-    : undefined;
-  const kindError = findError("section kind", "section is invalid");
-  const bodyError = findError("section body", "about section body", "services section body");
-  const itemError = findError("service item", "services items");
-
-  function setKind(kind: "about" | "services") {
-    updateSection(
-      kind === "about"
-        ? { kind, body: section?.kind === "about" ? section.body : "" }
-        : {
-            kind,
-            body: section?.kind === "services" ? section.body : "",
-            items: section?.kind === "services" ? [...(section.items ?? [])] : [],
-          },
-    );
-  }
-
-  return (
-    <div className="grid gap-4 sm:gap-5">
-      <ProfileIdentityForm
-        copyMessage={copyMessage}
-        draft={draft}
-        imageContent={imageContent}
-        message={message}
-        onChange={onChange}
-        onCopyUrl={onCopyUrl}
-        onboarding={onboarding}
-        slugLocked={slugLocked}
-      />
-
-      <Panel className="shadow-none" title="Profile link destination">
         <p className="mt-4 text-sm leading-6 text-tapit-muted">
           Choose what visitors see when they open your profile link or tap or scan your card.
         </p>
@@ -384,170 +392,117 @@ export function ProfileDetailsEditor({
         )}
       </Panel>
 
-      <>
-        <SectionRow
-          id={`${baseId}-contact`}
-          name="contact"
-          onToggle={() => toggle("contact")}
-          open={openSections.contact}
-        >
-          <div className="grid gap-4">
-            <p className="text-sm leading-6 text-tapit-muted">
-              Email, phone, and website are managed in Identity. They appear automatically when
-              populated.
-            </p>
-            <SelectField
-              aria-describedby={featuredError ? errorId("featured-link") : undefined}
-              id={`${baseId}-featured-link`}
-              label="Featured link"
-              onChange={(event) => update({ featuredLinkId: event.target.value || undefined })}
-              value={activeCustomization.featuredLinkId ?? ""}
-            >
-              <option value="">No featured link</option>
-              {activeCustomization.featuredLinkId && !featuredLink ? (
-                <option value={activeCustomization.featuredLinkId}>
-                  Unavailable featured link
-                </option>
-              ) : null}
-              {links.map((link) => (
-                <option disabled={!link.enabled} key={link.id} value={link.id}>
-                  {link.label}
-                  {!link.enabled ? " (disabled)" : ""}
-                </option>
-              ))}
-            </SelectField>
-            {featuredUnavailable ? (
-              <div id={errorId("featured-link")} role="alert">
-                <Notice>
-                  The selected featured link is missing or disabled. It will appear as a normal
-                  link, and this will not block publication.
-                  <span className="mt-3 block">
+      <SectionRow
+        id={`${baseId}-about`}
+        name="about"
+        onToggle={() => toggle("about")}
+        open={openSections.about}
+      >
+        <div className="grid gap-5">
+          <fieldset className="grid gap-2">
+            <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
+            {kindError ? (
+              <p className="sr-only" id={errorId("kind")} role="alert">
+                {kindError}
+              </p>
+            ) : null}
+            <div className="grid gap-2 sm:grid-cols-2">
+              <RadioChoice
+                ariaDescribedBy={kindError ? errorId("kind") : undefined}
+                checked={section?.kind === "about"}
+                name={`${baseId}-kind`}
+                onChange={() => setKind("about")}
+                value="about"
+              >
+                About
+              </RadioChoice>
+              <RadioChoice
+                ariaDescribedBy={kindError ? errorId("kind") : undefined}
+                checked={section?.kind === "services"}
+                name={`${baseId}-kind`}
+                onChange={() => setKind("services")}
+                value="services"
+              >
+                Services
+              </RadioChoice>
+            </div>
+          </fieldset>
+          {section?.kind === "about" ? (
+            <TextareaField
+              error={bodyError}
+              id={`${baseId}-about-copy`}
+              label="About copy"
+              maxLength={280}
+              onChange={(event) => updateSection({ kind: "about", body: event.target.value })}
+              value={section.body}
+            />
+          ) : null}
+          {section?.kind === "services" ? (
+            <div className="grid gap-4">
+              <TextareaField
+                error={bodyError}
+                id={`${baseId}-services-intro`}
+                label="Services intro"
+                maxLength={160}
+                onChange={(event) => updateSection({ ...section, body: event.target.value })}
+                value={section.body}
+              />
+              <div className="grid gap-3">
+                {section.items?.map((item, index) => (
+                  <div className="flex items-end gap-2" key={`${baseId}-service-${index}`}>
+                    <Field
+                      error={itemError}
+                      id={`${baseId}-service-${index}`}
+                      label={`Service ${index + 1}`}
+                      maxLength={60}
+                      onChange={(event) => {
+                        const items = [...(section.items ?? [])];
+                        items[index] = event.target.value;
+                        updateSection({ ...section, items });
+                      }}
+                      value={item}
+                    />
                     <Button
-                      onClick={() => update({ featuredLinkId: undefined })}
+                      aria-label={`Remove Service ${index + 1}`}
+                      className="shrink-0"
+                      onClick={() =>
+                        updateSection({
+                          ...section,
+                          items: section.items?.filter((_, itemIndex) => itemIndex !== index),
+                        })
+                      }
                       type="button"
                       variant="quiet"
                     >
-                      Clear featured link
+                      Remove
                     </Button>
-                  </span>
-                </Notice>
+                  </div>
+                ))}
+                {(section.items?.length ?? 0) < 3 ? (
+                  <Button
+                    onClick={() =>
+                      updateSection({ ...section, items: [...(section.items ?? []), ""] })
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    Add service
+                  </Button>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        </SectionRow>
-
-        <SectionRow
-          id={`${baseId}-about`}
-          name="about"
-          onToggle={() => toggle("about")}
-          open={openSections.about}
-        >
-          <div className="grid gap-5">
-            <fieldset className="grid gap-2">
-              <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
-              {kindError ? (
-                <p className="sr-only" id={errorId("kind")} role="alert">
-                  {kindError}
-                </p>
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                <RadioChoice
-                  ariaDescribedBy={kindError ? errorId("kind") : undefined}
-                  checked={section?.kind === "about"}
-                  name={`${baseId}-kind`}
-                  onChange={() => setKind("about")}
-                  value="about"
-                >
-                  About
-                </RadioChoice>
-                <RadioChoice
-                  ariaDescribedBy={kindError ? errorId("kind") : undefined}
-                  checked={section?.kind === "services"}
-                  name={`${baseId}-kind`}
-                  onChange={() => setKind("services")}
-                  value="services"
-                >
-                  Services
-                </RadioChoice>
-              </div>
-            </fieldset>
-            {section?.kind === "about" ? (
-              <TextareaField
-                error={bodyError}
-                id={`${baseId}-about-copy`}
-                label="About copy"
-                maxLength={280}
-                onChange={(event) => updateSection({ kind: "about", body: event.target.value })}
-                value={section.body}
-              />
-            ) : null}
-            {section?.kind === "services" ? (
-              <div className="grid gap-4">
-                <TextareaField
-                  error={bodyError}
-                  id={`${baseId}-services-intro`}
-                  label="Services intro"
-                  maxLength={160}
-                  onChange={(event) => updateSection({ ...section, body: event.target.value })}
-                  value={section.body}
-                />
-                <div className="grid gap-3">
-                  {section.items?.map((item, index) => (
-                    <div className="flex items-end gap-2" key={`${baseId}-service-${index}`}>
-                      <Field
-                        error={itemError}
-                        id={`${baseId}-service-${index}`}
-                        label={`Service ${index + 1}`}
-                        maxLength={60}
-                        onChange={(event) => {
-                          const items = [...(section.items ?? [])];
-                          items[index] = event.target.value;
-                          updateSection({ ...section, items });
-                        }}
-                        value={item}
-                      />
-                      <Button
-                        aria-label={`Remove Service ${index + 1}`}
-                        className="shrink-0"
-                        onClick={() =>
-                          updateSection({
-                            ...section,
-                            items: section.items?.filter((_, itemIndex) => itemIndex !== index),
-                          })
-                        }
-                        type="button"
-                        variant="quiet"
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                  {(section.items?.length ?? 0) < 3 ? (
-                    <Button
-                      onClick={() =>
-                        updateSection({ ...section, items: [...(section.items ?? []), ""] })
-                      }
-                      type="button"
-                      variant="secondary"
-                    >
-                      Add service
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            {section ? (
-              <Button onClick={() => updateSection(undefined)} type="button" variant="quiet">
-                Remove {section.kind === "about" ? "About" : "Services"} section
-              </Button>
-            ) : (
-              <Button onClick={() => setKind("about")} type="button" variant="secondary">
-                Add About or Services section
-              </Button>
-            )}
-          </div>
-        </SectionRow>
-      </>
+            </div>
+          ) : null}
+          {section ? (
+            <Button onClick={() => updateSection(undefined)} type="button" variant="quiet">
+              Remove {section.kind === "about" ? "About" : "Services"} section
+            </Button>
+          ) : (
+            <Button onClick={() => setKind("about")} type="button" variant="secondary">
+              Add About or Services section
+            </Button>
+          )}
+        </div>
+      </SectionRow>
     </div>
   );
 }

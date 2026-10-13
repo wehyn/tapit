@@ -46,7 +46,6 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
-import { ProfilePublicationPanel } from "@/components/forms/ProfilePublicationPanel";
 import { ProfileWorkspaceFrame } from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
@@ -517,12 +516,16 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               copyMessage={copyMessage}
               draft={draft}
               errors={profileErrors}
+              customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={draft.links}
               message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
+              onOpenCustomize={
+                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
+              }
               onboarding={
                 needsLinkOnboarding(draft, profile.published) ? (
                   <Notice>
@@ -537,16 +540,6 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 ) : null
               }
               slugLocked={slugLocked}
-            />
-            <ProfilePublicationPanel
-              customizationErrors={customizationErrors}
-              errors={profileErrors}
-              hasChangesSincePublish={hasChangesSincePublish}
-              onOpenCustomize={
-                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
-              }
-              publicationState={publicationState}
-              status={profile.status}
             />
           </>
         ) : (
@@ -1125,12 +1118,16 @@ function LiveProfileEditorContent({
               copyMessage={copyMessage}
               draft={currentDraft}
               errors={profileErrors}
+              customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={currentDraft.links}
               message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
+              onOpenCustomize={
+                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
+              }
               onboarding={
                 needsLinkOnboarding(currentDraft, publishedForValidation) ? (
                   <Notice>
@@ -1145,16 +1142,6 @@ function LiveProfileEditorContent({
                 ) : null
               }
               slugLocked={slugLocked}
-            />
-            <ProfilePublicationPanel
-              customizationErrors={customizationErrors}
-              errors={profileErrors}
-              hasChangesSincePublish={hasChangesSincePublish}
-              onOpenCustomize={
-                <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
-              }
-              publicationState={publicationState}
-              status={liveProfile.status}
             />
           </>
         ) : (
