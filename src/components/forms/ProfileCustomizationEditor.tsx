@@ -41,7 +41,7 @@ export type ProfileCustomizationEditorProps = {
   mediaError?: string;
   onChange: (next: ProfileCustomization | undefined) => void;
   onMediaChange?: (next: ProfileMediaPresentation | undefined) => void;
-  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onMediaPendingPreviewChange?: (pending: PendingProfileMediaUpload[]) => void;
   onMediaErrorClear?: () => void;
   onMediaUploadCancel?: () => void;
   onMediaUpload?: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { CaretDownIcon, CaretUpIcon, TrashIcon } from "@phosphor-icons/react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { CaretDownIcon, CaretUpIcon, DotsSixVerticalIcon, TrashIcon } from "@phosphor-icons/react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -16,12 +17,13 @@ import {
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
+import { validateProfileImageFile } from "@/lib/profile-image";
 
 export type ProfileMediaEditorProps = {
   media?: ProfileMediaPresentation;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
-  onPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onPendingPreviewChange?: (pending: PendingProfileMediaUpload[]) => void;
   onMediaErrorClear?: () => void;
   onMediaUploadCancel?: () => void;
   busy?: boolean;
@@ -64,11 +66,21 @@ export function ProfileMediaEditor({
     message: string;
     target: "background" | "slideshow";
   }>();
+  const [slideshowQueue, setSlideshowQueue] = useState<PendingProfileMediaUpload[]>([]);
+  const [draggingSlide, setDraggingSlide] = useState<number | null>(null);
+  const [slideshowAnnouncement, setSlideshowAnnouncement] = useState("");
+  const dragStartIndex = useRef(-1);
+  const draggingSlideIndex = useRef(-1);
   const value = copyMedia(media);
   const latestMedia = useRef<ProfileMediaPresentation | undefined>(value);
   const uploadRequests = useRef({ background: 0, slideshow: 0 });
-  const activePreviewUrl = useRef<string | undefined>(undefined);
-  const activePending = useRef<PendingProfileMediaUpload | null>(null);
+  const clientKeyCounter = useRef(0);
+  const slideshowQueueRef = useRef<PendingProfileMediaUpload[]>([]);
+  const backgroundPending = useRef<PendingProfileMediaUpload | null>(null);
+  const previewUrls = useRef(new Set<string>());
+  const processingQueue = useRef(false);
+  const mounted = useRef(true);
+  const onUploadRef = useRef(onUpload);
   const latestPendingPreviewChange = useRef(onPendingPreviewChange);
   const latestMediaUploadCancel = useRef(onMediaUploadCancel);
   const activeRequest = useRef<
@@ -83,26 +95,29 @@ export function ProfileMediaEditor({
     latestMedia.current = copyMedia(media);
   }, [media]);
   useEffect(() => {
+    onUploadRef.current = onUpload;
+  }, [onUpload]);
+  useEffect(() => {
     latestPendingPreviewChange.current = onPendingPreviewChange;
   }, [onPendingPreviewChange]);
   useEffect(() => {
     latestMediaUploadCancel.current = onMediaUploadCancel;
   }, [onMediaUploadCancel]);
-  useEffect(
-    () => () => {
-      uploadRequests.current.background += 1;
-      uploadRequests.current.slideshow += 1;
-      activePending.current = null;
+  useEffect(() => {
+    mounted.current = true;
+    const requestIds = uploadRequests.current;
+    const ownedPreviewUrls = previewUrls.current;
+    return () => {
+      mounted.current = false;
+      requestIds.background += 1;
+      requestIds.slideshow += 1;
       activeRequest.current = undefined;
-      if (activePreviewUrl.current) {
-        URL.revokeObjectURL(activePreviewUrl.current);
-        activePreviewUrl.current = undefined;
-      }
-      latestPendingPreviewChange.current?.(null);
+      for (const previewUrl of ownedPreviewUrls) URL.revokeObjectURL(previewUrl);
+      ownedPreviewUrls.clear();
+      latestPendingPreviewChange.current?.([]);
       latestMediaUploadCancel.current?.();
-    },
-    [],
-  );
+    };
+  }, []);
   const uploadError = (target: "background" | "slideshow") =>
     uploadFailure?.target === target ? uploadFailure.message : undefined;
   const uploadDescription = (target: "background" | "slideshow") =>
@@ -114,26 +129,44 @@ export function ProfileMediaEditor({
     onChange(next);
   }
 
-  function revokeActivePreview(previewUrl: string) {
-    if (activePreviewUrl.current !== previewUrl) return;
+  const revokePreview = useCallback((previewUrl: string) => {
+    if (!previewUrls.current.delete(previewUrl)) return;
     URL.revokeObjectURL(previewUrl);
-    activePreviewUrl.current = undefined;
-  }
+  }, []);
 
-  function isCurrentUpload(pending: PendingProfileMediaUpload, requestId: number): boolean {
-    const currentRequest = activeRequest.current;
-    return (
-      uploadRequests.current[pending.target] === requestId &&
-      currentRequest !== undefined &&
-      currentRequest.target === pending.target &&
-      currentRequest.requestId === requestId &&
-      currentRequest.previewUrl === pending.previewUrl
-    );
-  }
+  const publishPending = useCallback(
+    (queue: PendingProfileMediaUpload[], background = backgroundPending.current) => {
+      latestPendingPreviewChange.current?.([...(background ? [background] : []), ...queue]);
+    },
+    [],
+  );
 
-  async function upload(pending: PendingProfileMediaUpload, requestId: number) {
+  const setQueue = useCallback(
+    (next: PendingProfileMediaUpload[]) => {
+      slideshowQueueRef.current = next;
+      setSlideshowQueue(next);
+      publishPending(next);
+    },
+    [publishPending],
+  );
+
+  const isCurrentUpload = useCallback(
+    (pending: PendingProfileMediaUpload, requestId: number): boolean => {
+      const currentRequest = activeRequest.current;
+      return (
+        uploadRequests.current[pending.target] === requestId &&
+        currentRequest !== undefined &&
+        currentRequest.target === pending.target &&
+        currentRequest.requestId === requestId &&
+        currentRequest.previewUrl === pending.previewUrl
+      );
+    },
+    [],
+  );
+
+  async function uploadBackground(pending: PendingProfileMediaUpload, requestId: number) {
     try {
-      const image = await onUpload(pending.file, pending.target);
+      const image = await onUploadRef.current(pending.file, pending.target);
       if (!isCurrentUpload(pending, requestId)) return;
       const current = latestMedia.current ?? copyMedia(media);
       if (pending.target === "background") {
@@ -144,93 +177,178 @@ export function ProfileMediaEditor({
         };
         latestMedia.current = next;
         onChange(next);
-      } else if (current.slideshow.length < MAX_PROFILE_SLIDESHOW_IMAGES) {
-        const next = {
-          ...current,
-          slideshow: [...current.slideshow.map((item) => ({ ...item })), { ...image }],
-          ...(current.background ? { background: { ...current.background } } : {}),
-        };
-        latestMedia.current = next;
-        onChange(next);
       }
-      activePending.current = null;
+      backgroundPending.current = null;
       activeRequest.current = undefined;
-      onPendingPreviewChange?.(null);
-      revokeActivePreview(pending.previewUrl);
+      publishPending(slideshowQueueRef.current, null);
+      revokePreview(pending.previewUrl);
     } catch (uploadFailure) {
       if (!isCurrentUpload(pending, requestId)) return;
       const message =
         uploadFailure instanceof Error ? uploadFailure.message : "Image upload failed.";
-      const nextPending = { ...pending, state: "error" as const, error: message };
-      activePending.current = nextPending;
+      const nextPending = { ...pending, status: "failed" as const, error: message };
+      backgroundPending.current = nextPending;
       setUploadFailure({
         message,
         target: pending.target,
       });
-      onPendingPreviewChange?.(nextPending);
+      publishPending(slideshowQueueRef.current, nextPending);
     }
   }
 
-  function startUpload(file: File | undefined, target: "background" | "slideshow") {
+  function startBackgroundUpload(file: File | undefined) {
     if (!file) return;
-    if (activePreviewUrl.current) {
-      URL.revokeObjectURL(activePreviewUrl.current);
-      activePreviewUrl.current = undefined;
+    if (backgroundPending.current?.status === "uploading") return;
+    const validationError = validateProfileImageFile(file);
+    if (validationError) {
+      setUploadFailure({ message: validationError, target: "background" });
+      return;
     }
+    if (backgroundPending.current) revokePreview(backgroundPending.current.previewUrl);
     uploadRequests.current.background += 1;
-    uploadRequests.current.slideshow += 1;
     const previewUrl = URL.createObjectURL(file);
+    previewUrls.current.add(previewUrl);
     const pending: PendingProfileMediaUpload = {
-      target,
+      clientKey: `${baseId}-background-${uploadRequests.current.background}`,
+      target: "background",
       file,
       previewUrl,
-      altText: file.name || `Selected ${target} image`,
+      altText: file.name || "Selected background image",
       positionX: 50,
       positionY: 50,
-      state: "uploading",
+      status: "uploading",
     };
-    const requestId = uploadRequests.current[target];
-    activePreviewUrl.current = previewUrl;
-    activePending.current = pending;
-    activeRequest.current = { target, requestId, previewUrl };
+    const requestId = uploadRequests.current.background;
+    backgroundPending.current = pending;
+    activeRequest.current = { target: "background", requestId, previewUrl };
     setUploadFailure(undefined);
-    onPendingPreviewChange?.(pending);
-    void upload(pending, requestId);
+    publishPending(slideshowQueueRef.current, pending);
+    void uploadBackground(pending, requestId);
   }
 
-  function retryUpload() {
-    const pending = activePending.current;
-    if (!pending || pending.state !== "error") return;
-    const requestId = ++uploadRequests.current[pending.target];
-    const nextPending: PendingProfileMediaUpload = {
-      ...pending,
-      state: "uploading",
-      error: undefined,
-    };
-    activePending.current = nextPending;
-    activeRequest.current = {
-      target: nextPending.target,
-      requestId,
-      previewUrl: nextPending.previewUrl,
-    };
-    setUploadFailure(undefined);
-    onPendingPreviewChange?.(nextPending);
-    void upload(nextPending, requestId);
+  const drainSlideshowQueue = useCallback(async () => {
+    if (processingQueue.current || busy || slideshowQueueRef.current.length === 0) return;
+    processingQueue.current = true;
+    try {
+      while (mounted.current) {
+        const first = slideshowQueueRef.current[0];
+        if (!first || first.status === "failed") break;
+        if (backgroundPending.current !== null || busy) break;
+        const uploading = { ...first, status: "uploading" as const, error: undefined };
+        setQueue([uploading, ...slideshowQueueRef.current.slice(1)]);
+        const requestId = ++uploadRequests.current.slideshow;
+        activeRequest.current = {
+          target: "slideshow",
+          requestId,
+          previewUrl: uploading.previewUrl,
+        };
+        try {
+          const image = await onUploadRef.current(uploading.file, "slideshow");
+          if (!isCurrentUpload(uploading, requestId)) break;
+          const current = latestMedia.current ?? copyMedia(media);
+          const next = {
+            ...current,
+            slideshow: [
+              ...current.slideshow.map((item) => ({ ...item })),
+              { ...image, altText: uploading.altText },
+            ],
+            ...(current.background ? { background: { ...current.background } } : {}),
+          };
+          latestMedia.current = next;
+          onChange(next);
+          activeRequest.current = undefined;
+          setQueue(slideshowQueueRef.current.slice(1));
+          revokePreview(uploading.previewUrl);
+        } catch (error) {
+          if (!isCurrentUpload(uploading, requestId)) break;
+          const message = error instanceof Error ? error.message : "Image upload failed.";
+          const failed = { ...uploading, status: "failed" as const, error: message };
+          activeRequest.current = undefined;
+          setQueue([failed, ...slideshowQueueRef.current.slice(1)]);
+          break;
+        }
+      }
+    } finally {
+      processingQueue.current = false;
+    }
+  }, [busy, isCurrentUpload, media, onChange, revokePreview, setQueue]);
+
+  function enqueueSlideshowFiles(files: FileList | File[]) {
+    const selected = Array.from(files);
+    if (selected.length === 0) return;
+    const available = Math.max(
+      0,
+      MAX_PROFILE_SLIDESHOW_IMAGES - value.slideshow.length - slideshowQueueRef.current.length,
+    );
+    const accepted = selected.slice(0, available);
+    let hasValidationError = false;
+    for (const file of accepted) {
+      const validationError = validateProfileImageFile(file);
+      if (validationError) {
+        hasValidationError = true;
+        setUploadFailure({ message: validationError, target: "slideshow" });
+        continue;
+      }
+      const previewUrl = URL.createObjectURL(file);
+      previewUrls.current.add(previewUrl);
+      slideshowQueueRef.current.push({
+        clientKey: `${baseId}-slideshow-${++clientKeyCounter.current}`,
+        target: "slideshow",
+        file,
+        previewUrl,
+        altText: file.name || "Selected slideshow image",
+        positionX: 50,
+        positionY: 50,
+        status: "queued",
+      });
+    }
+    if (selected.length > available) {
+      setUploadFailure({
+        message: `You can add up to ${MAX_PROFILE_SLIDESHOW_IMAGES} slideshow images.`,
+        target: "slideshow",
+      });
+    } else if (accepted.length > 0 && !hasValidationError) setUploadFailure(undefined);
+    setQueue([...slideshowQueueRef.current]);
+    void drainSlideshowQueue();
   }
 
-  function discardSelectedImage() {
-    const pending = activePending.current;
-    if (!pending) return;
-    uploadRequests.current.background += 1;
-    uploadRequests.current.slideshow += 1;
-    activePending.current = null;
-    activeRequest.current = undefined;
-    setUploadFailure(undefined);
-    revokeActivePreview(pending.previewUrl);
-    onPendingPreviewChange?.(null);
-    onMediaErrorClear?.();
-    if (pending.state === "uploading") onMediaUploadCancel?.();
+  function retrySlideshowUpload(clientKey: string) {
+    const queue = slideshowQueueRef.current;
+    const index = queue.findIndex((entry) => entry.clientKey === clientKey);
+    if (index !== 0 || queue[index]?.status !== "failed") return;
+    const retrying = { ...queue[0]!, status: "queued" as const, error: undefined };
+    setQueue([retrying, ...queue.slice(1)]);
+    void drainSlideshowQueue();
   }
+
+  function removeSlideshowUpload(clientKey: string) {
+    const queue = slideshowQueueRef.current;
+    const entry = queue.find((item) => item.clientKey === clientKey);
+    if (!entry || entry.status === "uploading") return;
+    setQueue(queue.filter((item) => item.clientKey !== clientKey));
+    revokePreview(entry.previewUrl);
+    if (entry.status === "failed") {
+      setUploadFailure(undefined);
+      onMediaErrorClear?.();
+    }
+    void drainSlideshowQueue();
+  }
+
+  function retryBackgroundUpload() {
+    const pending = backgroundPending.current;
+    if (!pending || pending.status !== "failed") return;
+    const requestId = ++uploadRequests.current.background;
+    const retrying = { ...pending, status: "uploading" as const, error: undefined };
+    backgroundPending.current = retrying;
+    activeRequest.current = { target: "background", requestId, previewUrl: pending.previewUrl };
+    setUploadFailure(undefined);
+    publishPending(slideshowQueueRef.current, retrying);
+    void uploadBackground(retrying, requestId);
+  }
+
+  useEffect(() => {
+    if (!busy) void drainSlideshowQueue();
+  }, [busy, drainSlideshowQueue, slideshowQueue]);
 
   function hasMeaningfulSettings(next: ProfileMediaPresentation) {
     return (
@@ -265,10 +383,69 @@ export function ProfileMediaEditor({
     update({ slideshow });
   }
 
-  function reorderSlide(fromIndex: number, toIndex: number) {
-    const next = reorderProfileMediaSlides(value, fromIndex, toIndex);
+  function reorderSlide(fromIndex: number, toIndex: number, announce = true) {
+    const current = latestMedia.current ?? value;
+    const next = reorderProfileMediaSlides(current, fromIndex, toIndex);
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      fromIndex >= current.slideshow.length ||
+      toIndex < 0 ||
+      toIndex >= current.slideshow.length
+    )
+      return;
     latestMedia.current = next;
     onChange(next);
+    if (announce) {
+      setSlideshowAnnouncement(
+        `Image ${fromIndex + 1} moved to position ${toIndex + 1} of ${next.slideshow.length}.`,
+      );
+    }
+  }
+
+  function handleSlidePointerDown(event: ReactPointerEvent<HTMLButtonElement>, index: number) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartIndex.current = index;
+    draggingSlideIndex.current = index;
+    setDraggingSlide(index);
+  }
+
+  function handleSlidePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (draggingSlideIndex.current < 0 || (event.buttons !== 1 && event.pointerType !== "touch"))
+      return;
+    const row = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>("[data-slideshow-order-index]");
+    const targetIndex = Number(row?.dataset.slideshowOrderIndex);
+    if (row && Number.isInteger(targetIndex) && targetIndex >= 0) {
+      draggingSlideIndex.current = targetIndex;
+    }
+  }
+
+  function finishSlidePointerDrag(event: ReactPointerEvent<HTMLButtonElement>, commit = true) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const current = latestMedia.current ?? value;
+    const fromIndex = dragStartIndex.current;
+    const targetIndex = draggingSlideIndex.current;
+    if (
+      commit &&
+      draggingSlide !== null &&
+      fromIndex >= 0 &&
+      targetIndex >= 0 &&
+      targetIndex !== fromIndex
+    ) {
+      reorderSlide(fromIndex, targetIndex, false);
+      setSlideshowAnnouncement(
+        `Image ${fromIndex + 1} moved to position ${targetIndex + 1} of ${current.slideshow.length}.`,
+      );
+    }
+    dragStartIndex.current = -1;
+    draggingSlideIndex.current = -1;
+    setDraggingSlide(null);
   }
 
   return (
@@ -299,7 +476,7 @@ export function ProfileMediaEditor({
             <Button
               aria-describedby={uploadDescription("background")}
               aria-invalid={uploadError("background") ? true : undefined}
-              disabled={busy}
+              disabled={busy || slideshowQueue.length > 0}
               onClick={() => backgroundInput.current?.click()}
               type="button"
               variant="secondary"
@@ -313,9 +490,9 @@ export function ProfileMediaEditor({
             aria-describedby={uploadDescription("background")}
             aria-invalid={uploadError("background") ? true : undefined}
             className="sr-only"
-            disabled={busy}
+            disabled={busy || slideshowQueue.length > 0}
             onChange={(event) => {
-              startUpload(event.target.files?.[0], "background");
+              startBackgroundUpload(event.target.files?.[0]);
               event.currentTarget.value = "";
             }}
             ref={backgroundInput}
@@ -404,14 +581,21 @@ export function ProfileMediaEditor({
           <div>
             <h3 className="text-sm font-semibold text-tapit-ink">Slideshow</h3>
             <p className="mt-1 text-xs leading-5 text-tapit-muted">
-              {value.slideshow.length} of {MAX_PROFILE_SLIDESHOW_IMAGES} images. Reorder or remove
-              thumbnails below.
+              {value.slideshow.length + slideshowQueue.length} of {MAX_PROFILE_SLIDESHOW_IMAGES}{" "}
+              images. Reorder uploaded images in the list below.
             </p>
+            {value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES ? (
+              <p className="mt-1 text-xs leading-5 text-tapit-muted">
+                Maximum of 10 images. Remove an image to add another.
+              </p>
+            ) : null}
           </div>
           <Button
             aria-describedby={uploadDescription("slideshow")}
             aria-invalid={uploadError("slideshow") ? true : undefined}
-            disabled={busy || value.slideshow.length >= MAX_PROFILE_SLIDESHOW_IMAGES}
+            disabled={
+              value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
+            }
             onClick={() => slideshowInput.current?.click()}
             type="button"
             variant="secondary"
@@ -424,77 +608,161 @@ export function ProfileMediaEditor({
             aria-describedby={uploadDescription("slideshow")}
             aria-invalid={uploadError("slideshow") ? true : undefined}
             className="sr-only"
-            disabled={busy || value.slideshow.length >= MAX_PROFILE_SLIDESHOW_IMAGES}
+            disabled={
+              value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
+            }
+            multiple
             onChange={(event) => {
-              startUpload(event.target.files?.[0], "slideshow");
+              enqueueSlideshowFiles(event.target.files ?? []);
               event.currentTarget.value = "";
             }}
             ref={slideshowInput}
             type="file"
           />
         </div>
-        {value.slideshow.map((image, index) => (
+        {slideshowQueue.map((entry, index) => (
           <div
-            className="grid gap-3 rounded-tapit border border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
-            key={`${image.assetId}-${index}`}
+            className="grid gap-3 rounded-tapit border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
+            key={entry.clientKey}
           >
-            {imageSource(image) ? (
-              <div
-                aria-label={image.altText}
-                className="h-16 w-20 rounded-tapit bg-cover bg-center"
-                role="img"
-                style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
-              />
-            ) : (
-              <div aria-hidden="true" className="h-16 w-20 rounded-tapit bg-tapit-soft-surface" />
-            )}
-            <Field
-              id={`${baseId}-slide-${index}-alt`}
-              label={`Slideshow image ${index + 1} description`}
-              help="Optional. Add a description if it helps explain the image."
-              maxLength={160}
-              onChange={(event) => updateSlide(index, { altText: event.target.value })}
-              value={image.altText}
+            <div
+              aria-label={entry.altText}
+              className="h-16 w-20 rounded-tapit bg-cover bg-center"
+              role="img"
+              style={{ backgroundImage: `url(${JSON.stringify(entry.previewUrl)})` }}
             />
+            <div className="grid gap-1">
+              <p className="text-sm font-medium text-tapit-ink">{entry.file.name}</p>
+              <p className="text-xs text-tapit-muted">Upload position {index + 1}</p>
+              <p aria-live="polite" className="text-sm text-tapit-muted" role="status">
+                {entry.status === "uploading"
+                  ? "Uploading"
+                  : entry.status === "failed"
+                    ? `Upload failed: ${entry.error ?? "Try again."}`
+                    : "Waiting"}
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2 sm:flex-col">
+              {entry.status === "failed" ? (
+                <Button
+                  aria-label="Retry upload"
+                  onClick={() => retrySlideshowUpload(entry.clientKey)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Retry
+                </Button>
+              ) : null}
               <Button
-                aria-label={`Move slideshow image ${index + 1} up`}
-                disabled={index === 0}
-                onClick={() => reorderSlide(index, index - 1)}
+                aria-label={`Remove ${entry.status === "failed" ? "failed slideshow image" : "slideshow upload"} ${entry.file.name}`}
+                disabled={entry.status === "uploading"}
+                onClick={() => removeSlideshowUpload(entry.clientKey)}
                 type="button"
                 variant="quiet"
               >
-                <CaretUpIcon aria-hidden="true" size={18} />
-              </Button>
-              <Button
-                aria-label={`Move slideshow image ${index + 1} down`}
-                disabled={index === value.slideshow.length - 1}
-                onClick={() => reorderSlide(index, index + 1)}
-                type="button"
-                variant="quiet"
-              >
-                <CaretDownIcon aria-hidden="true" size={18} />
-              </Button>
-              <Button
-                aria-label={`Use slideshow image ${index + 1} as background`}
-                onClick={() => update({ background: { ...image, positionX: 50, positionY: 50 } })}
-                type="button"
-                variant="quiet"
-              >
-                Use as background
-              </Button>
-              <Button
-                aria-label={`Remove slideshow image ${index + 1}`}
-                onClick={() => removeSlide(index)}
-                type="button"
-                variant="quiet"
-              >
-                <TrashIcon aria-hidden="true" size={16} />
                 Remove
               </Button>
             </div>
           </div>
         ))}
+        <ol aria-label="Uploaded slideshow image order" className="grid min-w-0 gap-3">
+          {value.slideshow.map((image, index) => (
+            <li
+              aria-posinset={index + 1}
+              aria-setsize={value.slideshow.length}
+              className={`grid min-w-0 gap-3 rounded-tapit border border-tapit-line p-3 motion-safe:transition-colors ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+              data-slideshow-order-index={index}
+              key={image.assetId}
+            >
+              <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-tapit-line pb-3">
+                <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold text-tapit-ink">
+                  Image {index + 1} of {value.slideshow.length}
+                </span>
+                <button
+                  aria-label={`Reorder slideshow image ${index + 1}`}
+                  className="grid size-12 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                  onPointerCancel={(event) => finishSlidePointerDrag(event, false)}
+                  onPointerDown={(event) => handleSlidePointerDown(event, index)}
+                  onPointerMove={handleSlidePointerMove}
+                  onPointerUp={finishSlidePointerDrag}
+                  title="Drag to reorder"
+                  type="button"
+                >
+                  <DotsSixVerticalIcon aria-hidden="true" size={20} weight="bold" />
+                </button>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    aria-label={`Move slideshow image ${index + 1} up`}
+                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    disabled={index === 0}
+                    onClick={() => reorderSlide(index, index - 1)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <CaretUpIcon aria-hidden="true" size={18} />
+                  </Button>
+                  <Button
+                    aria-label={`Move slideshow image ${index + 1} down`}
+                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    disabled={index === value.slideshow.length - 1}
+                    onClick={() => reorderSlide(index, index + 1)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <CaretDownIcon aria-hidden="true" size={18} />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
+                {imageSource(image) ? (
+                  <div
+                    aria-label={image.altText}
+                    className="h-16 w-20 rounded-tapit bg-cover bg-center"
+                    role="img"
+                    style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="h-16 w-20 rounded-tapit bg-tapit-soft-surface"
+                  />
+                )}
+                <Field
+                  id={`${baseId}-slide-${index}-alt`}
+                  label={`Slideshow image ${index + 1} description`}
+                  help="Optional. Add a description if it helps explain the image."
+                  maxLength={160}
+                  onChange={(event) => updateSlide(index, { altText: event.target.value })}
+                  value={image.altText}
+                />
+                <div className="flex min-w-0 flex-wrap gap-2 sm:flex-col">
+                  <Button
+                    aria-label={`Use slideshow image ${index + 1} as background`}
+                    onClick={() =>
+                      update({ background: { ...image, positionX: 50, positionY: 50 } })
+                    }
+                    type="button"
+                    variant="quiet"
+                  >
+                    Use as background
+                  </Button>
+                  <Button
+                    aria-label={`Remove slideshow image ${index + 1}`}
+                    onClick={() => removeSlide(index)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <TrashIcon aria-hidden="true" size={16} />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+          {slideshowAnnouncement}
+        </p>
       </div>
 
       <label className="flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-ink">
@@ -530,13 +798,31 @@ export function ProfileMediaEditor({
               ? `${error} ${uploadFailure.message}`
               : error || uploadFailure?.message}
           </p>
-          {uploadFailure ? (
+          {uploadFailure?.target === "background" ? (
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busy} onClick={retryUpload} type="button" variant="secondary">
+              <Button
+                disabled={busy}
+                onClick={retryBackgroundUpload}
+                type="button"
+                variant="secondary"
+              >
                 Retry upload
               </Button>
-              <Button onClick={discardSelectedImage} type="button" variant="quiet">
-                Discard selected image
+              <Button
+                onClick={() => {
+                  const pending = backgroundPending.current;
+                  if (!pending || pending.status === "uploading") return;
+                  backgroundPending.current = null;
+                  revokePreview(pending.previewUrl);
+                  setUploadFailure(undefined);
+                  publishPending(slideshowQueueRef.current, null);
+                  onMediaErrorClear?.();
+                  void drainSlideshowQueue();
+                }}
+                type="button"
+                variant="quiet"
+              >
+                Remove failed image
               </Button>
             </div>
           ) : null}

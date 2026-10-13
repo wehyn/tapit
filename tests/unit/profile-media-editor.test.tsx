@@ -233,7 +233,7 @@ describe("ProfileMediaEditor", () => {
     );
   });
 
-  it("scopes slideshow upload errors to the slideshow target", async () => {
+  it("keeps failed slideshow uploads scoped to their queue item", async () => {
     const user = userEvent.setup();
     render(
       <ProfileMediaEditor
@@ -248,19 +248,19 @@ describe("ProfileMediaEditor", () => {
       new File(["image"], "bad.webp", { type: "image/webp" }),
     );
 
-    expect(screen.getByLabelText("Upload slideshow images")).toHaveAttribute(
+    expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute(
       "aria-describedby",
-      expect.stringContaining("-slideshow-upload-error"),
     );
-    expect(screen.getByLabelText("Upload slideshow images")).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByLabelText("Upload background image")).not.toHaveAttribute(
       "aria-describedby",
     );
     expect(screen.getByLabelText("Upload background image")).not.toHaveAttribute("aria-invalid");
-    expect(screen.getByRole("alert")).toHaveTextContent("Slideshow upload failed");
+    expect(screen.getByText("Upload failed: Slideshow upload failed")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    expect(screen.getByRole("button", { name: "Retry upload" })).toBeInTheDocument();
   });
 
   it("removes the last media region without changing the caller object", async () => {

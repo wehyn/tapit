@@ -1,39 +1,47 @@
 import type { PublicProfileProjection } from "./domain";
 
 export type PendingProfileMediaUpload = {
+  clientKey: string;
   target: "background" | "slideshow";
   file: File;
   previewUrl: string;
   altText: string;
   positionX: number;
   positionY: number;
-  state: "uploading" | "error";
+  status: "queued" | "uploading" | "failed";
   error?: string;
 };
 
 export function mergePendingProfileMediaPreview(
   profile: PublicProfileProjection,
-  pending: PendingProfileMediaUpload | null,
+  pending: readonly PendingProfileMediaUpload[],
 ): PublicProfileProjection {
-  if (pending === null) return profile;
+  if (pending.length === 0) return profile;
 
   const currentMedia = profile.media ?? {
     heroHeight: 320,
     slideshow: [],
     autoplay: true,
   };
-  const localImage = { src: pending.previewUrl, alt: pending.altText };
-  const media =
-    pending.target === "background"
-      ? {
-          ...currentMedia,
-          background: {
-            ...localImage,
-            positionX: pending.positionX,
-            positionY: pending.positionY,
-          },
-        }
-      : { ...currentMedia, slideshow: [...currentMedia.slideshow, localImage] };
+  let background = currentMedia.background;
+  const slideshow = [...currentMedia.slideshow];
+  for (const entry of pending) {
+    const localImage = { src: entry.previewUrl, alt: entry.altText };
+    if (entry.target === "background") {
+      background = {
+        ...localImage,
+        positionX: entry.positionX,
+        positionY: entry.positionY,
+      };
+    } else {
+      slideshow.push(localImage);
+    }
+  }
+  const media = {
+    ...currentMedia,
+    ...(background ? { background } : {}),
+    slideshow,
+  };
 
   return { ...profile, media };
 }

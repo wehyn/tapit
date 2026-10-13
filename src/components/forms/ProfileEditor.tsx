@@ -44,7 +44,6 @@ import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
 import { ProfilePublicationPanel } from "@/components/forms/ProfilePublicationPanel";
@@ -59,7 +58,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 function profileForPreview(
   draft: ProfileContent,
   legacyTheme: ProfileTheme | undefined,
-  pendingMedia: PendingProfileMediaUpload | null,
+  pendingMedia: readonly PendingProfileMediaUpload[],
 ) {
   const projected =
     legacyTheme !== undefined
@@ -135,8 +134,9 @@ function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; hr
   );
 }
 
-function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpload | null }) {
-  if (pending?.state !== "uploading") return null;
+function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpload[] }) {
+  if (!pending.some((entry) => entry.status === "uploading" || entry.status === "queued"))
+    return null;
   return (
     <p aria-live="polite" className="text-sm font-medium text-tapit-muted" role="status">
       Uploading image… Keep this page open.
@@ -144,8 +144,10 @@ function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpl
   );
 }
 
-function unresolvedMediaMessage(pending: PendingProfileMediaUpload | null) {
-  return pending?.state === "error" ? FAILED_MEDIA_MESSAGE : PENDING_MEDIA_MESSAGE;
+function unresolvedMediaMessage(pending: PendingProfileMediaUpload[]) {
+  return pending.some((entry) => entry.status === "failed")
+    ? FAILED_MEDIA_MESSAGE
+    : PENDING_MEDIA_MESSAGE;
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
@@ -174,10 +176,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
-    null,
-  );
-  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
@@ -564,25 +564,19 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            {draft.customization === undefined ? (
-              <Panel className="shadow-none" title="Profile presets">
-                <ProfileCustomizationEditor
-                  customization={draft.customization}
-                  errors={customizationErrors}
-                  media={draft.media}
-                  mediaBusy={mediaBusy}
-                  mediaError={mediaError}
-                  onChange={(customization) => updateField("customization", customization)}
-                  onMediaErrorClear={() => setMediaError("")}
-                  onMediaUploadCancel={cancelMediaUpload}
-                  onMediaPendingPreviewChange={setPendingMediaPreview}
-                  onMediaChange={(media) => updateField("media", media)}
-                  onMediaUpload={uploadDemoMedia}
-                  onThemeChange={chooseTheme}
-                  theme={theme}
-                />
-              </Panel>
-            ) : (
+            <div
+              className={
+                draft.customization === undefined
+                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+                  : "contents"
+              }
+            >
+              <h2
+                className="text-lg font-semibold tracking-tight text-tapit-ink"
+                hidden={draft.customization !== undefined}
+              >
+                Profile presets
+              </h2>
               <ProfileCustomizationEditor
                 customization={draft.customization}
                 errors={customizationErrors}
@@ -598,7 +592,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 onThemeChange={chooseTheme}
                 theme={theme}
               />
-            )}
+            </div>
           </>
         )
       }
@@ -675,10 +669,8 @@ function LiveProfileEditorContent({
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
-    null,
-  );
-  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
@@ -919,8 +911,8 @@ function LiveProfileEditorContent({
       if (!response.ok)
         throw new Error((await response.text()) || "The media upload failed. Choose another file.");
       const uploaded = parseMediaUploadResponse(await response.json());
-      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
       mediaRevisionRef.current = uploaded.mediaRevision;
+      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
       return uploaded;
     } catch (error) {
       const wasCanceled =
@@ -1179,25 +1171,19 @@ function LiveProfileEditorContent({
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            {currentDraft.customization === undefined ? (
-              <Panel className="shadow-none" title="Profile presets">
-                <ProfileCustomizationEditor
-                  customization={currentDraft.customization}
-                  errors={customizationErrors}
-                  media={currentDraft.media}
-                  mediaBusy={mediaBusy}
-                  mediaError={mediaError}
-                  onChange={(customization) => updateField("customization", customization)}
-                  onMediaErrorClear={() => setMediaError("")}
-                  onMediaUploadCancel={cancelMediaUpload}
-                  onMediaPendingPreviewChange={setPendingMediaPreview}
-                  onMediaChange={(media) => updateField("media", media)}
-                  onMediaUpload={uploadLiveMedia}
-                  onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
-                  theme={theme}
-                />
-              </Panel>
-            ) : (
+            <div
+              className={
+                currentDraft.customization === undefined
+                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+                  : "contents"
+              }
+            >
+              <h2
+                className="text-lg font-semibold tracking-tight text-tapit-ink"
+                hidden={currentDraft.customization !== undefined}
+              >
+                Profile presets
+              </h2>
               <ProfileCustomizationEditor
                 customization={currentDraft.customization}
                 errors={customizationErrors}
@@ -1213,7 +1199,7 @@ function LiveProfileEditorContent({
                 onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
                 theme={theme}
               />
-            )}
+            </div>
           </>
         )
       }

@@ -6,6 +6,7 @@ const mutation = vi.hoisted(() =>
 );
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
+const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("convex/react", () => ({
@@ -22,13 +23,15 @@ vi.mock("convex/react", () => ({
     draft: {
       name: "Mara Velasquez",
       slug: "mara-velasquez",
-      customization: {
-        preset: "warm-studio",
-        accent: "coral",
-        typeScale: "comfortable",
-        linkTreatment: "filled",
-        contentOrder: "links-first",
-      },
+      customization: useUncustomizedProfile.current
+        ? undefined
+        : {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
       imageStorageId: "storage-old",
       imageUrl: "https://image.test/old",
       media: {
@@ -89,6 +92,7 @@ vi.mock("@/components/forms/ProfileImageCropDialog", () => ({
 import { ProfileEditor } from "@/components/forms/ProfileEditor";
 
 beforeEach(() => {
+  useUncustomizedProfile.current = false;
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://preview-123.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://preview-123.convex.site");
   mutation.mockClear();
@@ -217,6 +221,93 @@ it("uploads live profile media with the media revision and strips URLs before sa
   expect(JSON.stringify(savedDraft)).not.toContain("image.test/media-1");
 });
 
+it("serializes live slideshow uploads and saves the latest media revision", async () => {
+  useUncustomizedProfile.current = true;
+  const resolveUploads: Array<(response: Response) => void> = [];
+  fetchMock.mockImplementation(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveUploads.push(resolve);
+      }),
+  );
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  const slideshowInput = screen.getByLabelText("Upload slideshow images");
+  fireEvent.change(slideshowInput, {
+    target: { files: [new File(["first"], "first.png", { type: "image/png" })] },
+  });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+  fireEvent.change(slideshowInput, {
+    target: { files: [new File(["second"], "second.png", { type: "image/png" })] },
+  });
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "Remove slideshow upload second.png" })).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+  fireEvent.click(screen.getByLabelText("Moss"));
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  expect(screen.getByText("Uploading", { exact: true })).toBeVisible();
+  expect(screen.getByText("Waiting", { exact: true })).toBeVisible();
+  expect(fetchMock).toHaveBeenCalledOnce();
+  expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBeInstanceOf(File);
+  expect(((fetchMock.mock.calls[0]?.[1] as RequestInit).body as File).name).toBe("first.png");
+
+  const resolveFirstUpload = resolveUploads[0];
+  if (!resolveFirstUpload) throw new Error("Expected the first deferred upload request.");
+  resolveFirstUpload(
+    new Response(
+      JSON.stringify({
+        assetId: "media-1",
+        url: "https://image.test/media-1",
+        previewUrl: "https://image.test/media-1-preview",
+        mediaRevision: 4,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect((fetchMock.mock.calls[1]?.[1] as RequestInit).body).toBeInstanceOf(File);
+  expect(((fetchMock.mock.calls[1]?.[1] as RequestInit).body as File).name).toBe("second.png");
+  expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+    expect.objectContaining({
+      headers: expect.objectContaining({ "X-Media-Revision": "4" }),
+    }),
+  );
+
+  const resolveSecondUpload = resolveUploads[1];
+  if (!resolveSecondUpload) throw new Error("Expected the second deferred upload request.");
+  resolveSecondUpload(
+    new Response(
+      JSON.stringify({
+        assetId: "media-2",
+        url: "https://image.test/media-2",
+        previewUrl: "https://image.test/media-2-preview",
+        mediaRevision: 5,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalled());
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedMediaRevision: 5,
+      draft: expect.objectContaining({
+        media: expect.objectContaining({
+          slideshow: [
+            expect.objectContaining({ assetId: "media-1" }),
+            expect.objectContaining({ assetId: "media-2" }),
+          ],
+        }),
+      }),
+    }),
+  );
+});
+
 it("keeps existing media after a failed upload", async () => {
   fetchMock.mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }));
   render(<ProfileEditor view="customize" />);
@@ -228,6 +319,40 @@ it("keeps existing media after a failed upload", async () => {
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Temporary media failure");
   expect(screen.getByLabelText("Background image description")).toHaveValue("Existing backdrop");
+});
+
+it("revokes a failed background preview when replacing it but keeps the active preview", async () => {
+  const createObjectUrl = vi
+    .spyOn(URL, "createObjectURL")
+    .mockReturnValueOnce("blob:failed-background")
+    .mockReturnValueOnce("blob:active-background");
+  const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+  fetchMock
+    .mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }))
+    .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+  const { unmount } = render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  const backgroundInput = screen.getByLabelText("Upload background image");
+  fireEvent.change(backgroundInput, {
+    target: { files: [new File(["failed"], "failed-background.png", { type: "image/png" })] },
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Temporary media failure");
+
+  fireEvent.change(backgroundInput, {
+    target: {
+      files: [new File(["replacement"], "replacement-background.png", { type: "image/png" })],
+    },
+  });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(createObjectUrl).toHaveBeenCalledTimes(2);
+  expect(revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:failed-background");
+  expect(revokeObjectUrl).not.toHaveBeenCalledWith("blob:active-background");
+
+  unmount();
+  expect(revokeObjectUrl).toHaveBeenCalledWith("blob:active-background");
+  createObjectUrl.mockRestore();
+  revokeObjectUrl.mockRestore();
 });
 
 it("passes the current media revision when publishing", async () => {

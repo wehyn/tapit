@@ -1505,6 +1505,8 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await expect(page.getByText("1 of 10 images")).toBeVisible();
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await page.getByRole("textbox", { name: "Slideshow image 1 description" }).fill("");
+  await page.getByRole("textbox", { name: "Slideshow image 2 description" }).fill("");
 
   const preview = page.getByTestId("profile-preview-device").getByRole("region", {
     name: "Profile slideshow",
@@ -1523,6 +1525,223 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
   await publicSlideshow.getByRole("button", { name: "Next image" }).click();
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
+});
+
+async function openSlideshowEditor(page: Page) {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+}
+
+test("slideshow upload queue waits for the active upload and preserves selection order", async ({
+  page,
+}) => {
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { delayMs: 1200 });
+  const upload = page.getByLabel("Upload slideshow images");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 1 description")).toBeVisible();
+  await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
+  await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "opaque-landscape.png",
+  );
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+});
+
+test("slideshow upload queue pauses on failure and retries before later selections", async ({
+  page,
+}) => {
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
+  const upload = page.getByLabel("Upload slideshow images");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
+  ).toBeDisabled();
+  await expect(page.getByText("2 of 10 images")).toBeVisible();
+
+  await setDemoMediaUploadControl(page, { delayMs: 1200, fail: false });
+  await page.getByRole("button", { name: "Retry upload" }).click();
+  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "opaque-landscape.png",
+  );
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+});
+
+test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
+  const upload = page.getByLabel("Upload slideshow images");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+  const pendingSlideshow = page
+    .getByTestId("profile-preview-device")
+    .getByRole("region", { name: "Profile slideshow" });
+  await expect(pendingSlideshow.getByRole("img")).toHaveAttribute("src", /^blob:/);
+
+  await setDemoMediaUploadControl(page, { fail: false });
+  await page
+    .getByRole("button", { name: /Remove failed slideshow image.*opaque-landscape\.png/ })
+    .click();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+});
+
+test("slideshow image ordering works by buttons and pointer with accessible mobile controls", async ({
+  page,
+}) => {
+  await openSlideshowEditor(page);
+  const upload = page.getByLabel("Upload slideshow images");
+  for (let index = 0; index < 3; index += 1) {
+    const fixture = index === 1 ? "transparent-logo.png" : "opaque-landscape.png";
+    await upload.setInputFiles(`tests/fixtures/profile-images/${fixture}`);
+    await expect(page.getByLabel(`Slideshow image ${index + 1} description`)).toBeVisible();
+  }
+  await expect(page.getByLabel("Slideshow image 3 description")).toBeVisible();
+
+  const orderList = page.getByRole("list", { name: "Uploaded slideshow image order" });
+  await expect(orderList.getByRole("listitem")).toHaveCount(3);
+  for (let index = 1; index <= 3; index += 1) {
+    await expect(page.getByText(`Image ${index} of 3`, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Reorder slideshow image ${index}` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Move slideshow image ${index} up` }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: `Move slideshow image ${index} down` }),
+    ).toBeVisible();
+  }
+  await expect(page.getByRole("button", { name: "Move slideshow image 1 up" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Move slideshow image 3 down" })).toBeDisabled();
+
+  const preview = page.getByTestId("profile-preview-device").getByRole("region", {
+    name: "Profile slideshow",
+  });
+  await page.getByRole("button", { name: "Move slideshow image 2 up" }).click();
+  await expect(page.getByRole("status").filter({ hasText: /moved to position 1/i })).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await expect(preview.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
+
+  const firstHandle = page.getByRole("button", { name: "Reorder slideshow image 1" });
+  const thirdRow = orderList.getByRole("listitem").filter({
+    has: page.getByLabel("Slideshow image 3 description"),
+  });
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  const handleBox = await firstHandle.boundingBox();
+  const rowBox = await thirdRow.boundingBox();
+  expect(handleBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rowBox!.x + rowBox!.width / 2, rowBox!.y + 40, { steps: 8 });
+  await page.mouse.up();
+  await expect(
+    page.getByRole("status").filter({ hasText: /moved to position 3 of 3/i }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 3 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await preview.getByRole("button", { name: "Image 3 of 3" }).click();
+  await expect(preview.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
+
+  const beforeSettingsDrag = await Promise.all(
+    [1, 2, 3].map((index) => page.getByLabel(`Slideshow image ${index} description`).inputValue()),
+  );
+  await page.getByLabel("Slideshow image 1 description").dragTo(thirdRow);
+  const afterSettingsDrag = await Promise.all(
+    [1, 2, 3].map((index) => page.getByLabel(`Slideshow image ${index} description`).inputValue()),
+  );
+  expect(afterSettingsDrag).toEqual(beforeSettingsDrag);
+
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  const moveDown = page.getByRole("button", { name: "Move slideshow image 1 down" });
+  await moveDown.focus();
+  await expect(moveDown).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: /moved to position 2/i })).toBeVisible();
+  await expect(page.locator(":focus")).toHaveAttribute("aria-label", "Move slideshow image 2 down");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  const mobileMoveDown = page.getByRole("button", { name: "Move slideshow image 1 down" });
+  await mobileMoveDown.focus();
+  await expect(mobileMoveDown).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 1600 });
+  await orderList
+    .getByRole("listitem")
+    .first()
+    .screenshot({ path: "test-results/tapit-slideshow-order-mobile.png" });
+});
+
+test("slideshow upload queue counts failed and queued items toward the ten image limit", async ({
+  page,
+}) => {
+  await openSlideshowEditor(page);
+  const upload = page.getByLabel("Upload slideshow images");
+  for (let index = 0; index < 8; index += 1) {
+    await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+  }
+
+  await setDemoMediaUploadControl(page, { delayMs: 1500, fail: true });
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+  await expect(page.getByText("10 of 10 images")).toBeVisible();
+  await expect(upload).toBeDisabled();
+  await expect(
+    page.getByText(/maximum of 10 images|10 image limit|remove an image/i),
+  ).toBeVisible();
 });
 
 test("ten distinct demo slideshow images fit local storage and reload", async ({ page }) => {
