@@ -317,29 +317,31 @@ export default function HomePage() {
           aria-hidden="true"
           className="tapit-ambient absolute -right-24 top-[-10rem] size-[32rem] rounded-full bg-[radial-gradient(circle,#cbd8fa_0%,transparent_68%)] blur-3xl"
         />
-        <div className="relative mx-auto flex w-full max-w-[95rem] flex-col items-center gap-1 px-4 pb-8 pt-8 text-center sm:px-8 sm:pb-10 sm:pt-10 lg:px-[clamp(2rem,5vw,5.25rem)] lg:py-10">
-          <div className="relative z-10 mx-auto w-full max-w-4xl py-4">
-            <div className="tapit-page-entry tapit-glass inline-flex min-h-9 items-center gap-2 rounded-full border border-tapit-line px-3.5 text-xs font-semibold text-tapit-accent-strong shadow-[0_4px_16px_rgba(27,36,51,0.04)] sm:text-sm">
-              <span className="size-1.5 rounded-full bg-tapit-accent" />
-              NFC business cards, made personal
+        <div className="relative mx-auto grid w-full max-w-[95rem] grid-cols-1 items-center gap-0 px-4 pb-8 pt-8 text-center sm:px-8 sm:pb-10 sm:pt-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] lg:gap-12 lg:px-[clamp(2rem,5vw,5.25rem)] lg:py-12 lg:text-left">
+          <div className="relative z-10 mx-auto w-full max-w-4xl py-4 lg:mx-0 lg:max-w-none">
+            <div className="tapit-page-entry">
+              <div className="tapit-glass inline-flex min-h-9 items-center gap-2 rounded-full border border-tapit-line px-3.5 text-xs font-semibold text-tapit-accent-strong shadow-[0_4px_16px_rgba(27,36,51,0.04)] sm:text-sm">
+                <span className="size-1.5 rounded-full bg-tapit-accent" />
+                NFC business cards, made personal
+              </div>
+              <h1 className="mx-auto mt-6 max-w-[13ch] text-balance text-[clamp(2.75rem,12vw,5.5rem)] leading-[0.98] font-semibold tracking-[-0.075em] text-tapit-ink sm:mt-7 sm:text-[clamp(3.5rem,8vw,6.5rem)] lg:mx-0 lg:text-[clamp(4.2rem,6.2vw,6.25rem)]">
+                A better introduction, in one tap.
+              </h1>
             </div>
-            <h1 className="tapit-page-entry mx-auto mt-6 max-w-[13ch] text-balance text-[clamp(2.75rem,12vw,5.5rem)] leading-[0.98] font-semibold tracking-[-0.075em] text-tapit-ink sm:mt-7 sm:text-[clamp(3.5rem,8vw,6.5rem)] lg:text-[clamp(4.2rem,6.2vw,6.25rem)]">
-              A better introduction, in one tap.
-            </h1>
-            <p className="tapit-page-entry mx-auto mt-5 max-w-xl text-base leading-7 text-tapit-muted sm:mt-6 sm:text-lg sm:leading-8">
+            <p className="tapit-page-entry tapit-page-entry--second mx-auto mt-5 max-w-xl text-base leading-7 text-tapit-muted sm:mt-6 sm:text-lg sm:leading-8 lg:mx-0">
               Your NFC business card opens one polished profile for your socials, work, and contact
               details. Update what you share whenever life or work changes.
             </p>
-            <div className="tapit-page-entry mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center sm:justify-center">
+            <div className="tapit-page-entry tapit-page-entry--third mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center sm:justify-center lg:justify-start">
               <Link
                 aria-label="Go to your profile"
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,95,228,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 sm:px-6"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,95,228,0.18)] transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6"
                 href="/app/profile"
               >
                 Go to your profile
                 <ArrowRightIcon
                   aria-hidden="true"
-                  className="transition-transform duration-200 group-hover:translate-x-1"
+                  className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
                   size={18}
                   weight="bold"
                 />
@@ -355,13 +357,13 @@ export default function HomePage() {
               Keep your profile current—your NFC card continues to open the latest version.
             </p>
           </div>
-          <div className="tapit-page-entry relative z-10 w-full max-w-2xl self-center pt-4">
+          <div className="tapit-page-entry tapit-page-entry--fourth relative z-10 w-full max-w-2xl justify-self-center pt-0 lg:max-w-none">
             <ProductCardVisual />
           </div>
         </div>
         <a
           aria-label="Scroll to product facts"
-          className="absolute bottom-5 left-1/2 hidden size-10 -translate-x-1/2 items-center justify-center rounded-full border border-tapit-line/80 bg-white/65 text-tapit-accent transition hover:translate-y-1 hover:bg-white md:flex"
+          className="absolute bottom-5 left-1/2 hidden size-10 -translate-x-1/2 items-center justify-center rounded-full border border-tapit-line/80 bg-white/65 text-tapit-accent transition-[background-color,border-color,translate] duration-150 ease-out motion-safe:hover:translate-y-1 hover:bg-white md:flex"
           href="#product-proof"
         >
           <ArrowRightIcon aria-hidden="true" className="rotate-90" size={17} />
@@ -407,8 +409,8 @@ export default function HomePage() {
           </ScrollReveal>
           <div className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 xl:grid-cols-4">
             <ScrollReveal className="h-full" delayMs={0}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
-                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition-[translate,border-color,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
+                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <ShareNetworkIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
                 <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
@@ -420,8 +422,8 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={75}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
-                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition-[translate,border-color,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
+                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <GlobeIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
                 <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
@@ -433,8 +435,8 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={150}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
-                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition-[translate,border-color,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
+                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <EnvelopeSimpleIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
                 <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
@@ -446,8 +448,8 @@ export default function HomePage() {
               </article>
             </ScrollReveal>
             <ScrollReveal className="h-full" delayMs={225}>
-              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition duration-200 hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
-                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition group-hover:scale-105">
+              <article className="group h-full min-h-56 rounded-[1.6rem] border border-tapit-line bg-white p-6 shadow-[0_12px_32px_rgba(27,36,51,0.035)] transition-[translate,border-color,box-shadow] duration-150 ease-out motion-safe:hover:-translate-y-1 hover:border-tapit-accent/35 hover:shadow-[0_22px_48px_rgba(27,36,51,0.09)] sm:p-7">
+                <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <UserPlusIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
                 <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
@@ -508,7 +510,7 @@ export default function HomePage() {
                 Explore card designs
                 <ArrowRightIcon
                   aria-hidden="true"
-                  className="transition-transform group-hover:translate-x-1"
+                  className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
                   size={17}
                   weight="bold"
                 />
@@ -649,9 +651,10 @@ export default function HomePage() {
                     {faq.question}
                     <span
                       aria-hidden="true"
-                      className="grid size-8 shrink-0 place-items-center rounded-full border border-tapit-line text-tapit-accent transition-transform duration-200 group-open:rotate-45"
+                      className="grid size-8 shrink-0 place-items-center rounded-full border border-tapit-line text-tapit-accent"
                     >
-                      +
+                      <span className="group-open:hidden">+</span>
+                      <span className="hidden group-open:inline">−</span>
                     </span>
                   </summary>
                   <p className="max-w-2xl pb-2 pr-10 pt-1 text-sm leading-6 text-tapit-muted sm:text-base sm:leading-7">
@@ -688,13 +691,13 @@ export default function HomePage() {
           </ScrollReveal>
           <ScrollReveal className="shrink-0" delayMs={100}>
             <Link
-              className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-tapit-accent transition duration-200 hover:-translate-y-0.5 hover:bg-[#e5f3eb] active:translate-y-0 sm:px-6"
+              className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-tapit-accent transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#e5f3eb] motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6"
               href="/app/profile"
             >
               Go to your profile
               <ArrowRightIcon
                 aria-hidden="true"
-                className="transition-transform group-hover:translate-x-1"
+                className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
                 size={18}
                 weight="bold"
               />

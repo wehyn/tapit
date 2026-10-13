@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-0 active:scale-[0.985] disabled:transform-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:enabled:hover:-translate-y-px motion-safe:enabled:active:translate-y-0 motion-safe:enabled:active:scale-[0.96] disabled:translate-none disabled:scale-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
       data-state={loading ? "loading" : "ready"}
       {...props}
       disabled={loading || props.disabled}
@@ -58,7 +58,7 @@ export function ButtonLink({
 }) {
   return (
     <Link
-      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition duration-150 hover:-translate-y-px active:translate-y-px active:scale-[0.985] ${variantClasses[variant]} ${className}`}
+      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-px motion-safe:active:translate-y-px motion-safe:active:scale-[0.96] ${variantClasses[variant]} ${className}`}
       href={href}
       onClick={onClick}
     >

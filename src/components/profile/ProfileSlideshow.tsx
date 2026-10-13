@@ -28,9 +28,11 @@ function getReducedMotionSnapshot() {
 export function ProfileSlideshow({
   images,
   autoplay,
+  imageOutlineColor = "oklch(0 0 0 / 0.1)",
 }: {
   images: PublicProfileMediaImage[];
   autoplay: boolean;
+  imageOutlineColor?: string;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -128,11 +130,12 @@ export function ProfileSlideshow({
       <div className="relative aspect-[16/9] min-h-40">
         <img
           alt={current.alt.trim() || `Slideshow image ${safeActiveIndex + 1}`}
-          className={`tapit-profile-slideshow-image absolute inset-0 size-full object-cover ${reducedMotion ? "tapit-profile-slideshow-image--reduced" : ""}`}
+          className={`tapit-profile-slideshow-image tapit-image-outline absolute inset-0 size-full object-cover ${reducedMotion ? "tapit-profile-slideshow-image--reduced" : ""}`}
           decoding="async"
           key={current.src}
           loading={safeActiveIndex === 0 ? "eager" : "lazy"}
           src={current.src}
+          style={{ outlineColor: imageOutlineColor }}
         />
         {total > 1 ? (
           <>
