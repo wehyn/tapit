@@ -247,8 +247,8 @@ function DemoAccountSettings() {
       <Panel className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
           <TrashIcon aria-hidden="true" size={20} weight="bold" />
-          Confirming this request immediately hides your profile and deactivates assigned cards; an
-          administrator reviews it before permanent removal.
+          Confirming this request immediately hides your profile and deactivates active or
+          registered cards. An administrator reviews it before permanent removal.
         </div>
         {deletionMessage ? (
           <div className="mt-5">
@@ -276,7 +276,7 @@ function DemoAccountSettings() {
 
       <ConfirmDialog
         confirmLabel="Request deletion"
-        description="Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
+        description="Your public profile will become unavailable and active or registered cards will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
         onCancel={() => setDeletionOpen(false)}
         onConfirm={requestDeletion}
         open={deletionOpen}
