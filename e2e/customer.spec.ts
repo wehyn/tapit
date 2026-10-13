@@ -614,7 +614,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
   const preview = page.getByRole("dialog", { name: "Looks good?" });
   await expect(preview).toBeVisible();
   await expect(preview.getByRole("img", { name: "Preview of transparent-logo.png" })).toBeVisible();
-  await preview.getByRole("button", { name: /Order a card now/ }).click();
+  await preview.getByRole("button", { name: "Ordering is not open yet" }).click();
   await expect(
     page.getByRole("status").filter({ hasText: "Ordering is coming soon" }),
   ).toBeVisible();
@@ -2571,7 +2571,7 @@ test("Account support and deletion copy explain the current outcomes", async ({ 
   expect.soft(supportCopy.match(/[.!?](?:\s|$)/g) ?? []).toHaveLength(1);
   await page.getByRole("button", { name: "Request deletion" }).click();
   await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toContainText(
-    /profile.*unavailable.*cards?.*deactivated immediately.*administrator.*review.*permanent removal/i,
+    /profile.*unavailable.*active or registered cards.*deactivated immediately.*administrator.*review.*permanent removal/i,
   );
 });
 
