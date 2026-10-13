@@ -226,6 +226,119 @@ describe("content hardening", () => {
     });
   });
 
+  it("links.replaceDraft saves featured selection atomically with links", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(data.profileId);
+      if (profile)
+        await ctx.db.patch(data.profileId, { draft: { ...profile.draft, theme: "moss" } });
+    });
+    const original = [validLink("first"), validLink("second")];
+    const replaceDraft = (args: {
+      links: TestLink[];
+      expectedDraftRevision: number;
+      featuredLinkId?: string | null;
+    }) =>
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        ...args,
+      } as never);
+
+    await replaceDraft({ links: original, expectedDraftRevision: 0, featuredLinkId: "second" });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: {
+        links: original,
+        theme: "moss",
+        customization: {
+          featuredLinkId: "second",
+          preset: "moss",
+          accent: "jade",
+          typeScale: "comfortable",
+          linkTreatment: "filled",
+          contentOrder: "links-first",
+        },
+      },
+    });
+    await expect(
+      owner.query(api.links.listForProfile, { profileId: data.profileId }),
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ position: 0, label: "Website" }),
+        expect.objectContaining({ position: 1, label: "Website" }),
+      ]),
+    );
+
+    await replaceDraft({ links: [validLink("third")], expectedDraftRevision: 1 });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { links: [validLink("third")], customization: { featuredLinkId: "second" } },
+    });
+
+    await replaceDraft({
+      links: [validLink("third")],
+      expectedDraftRevision: 2,
+      featuredLinkId: null,
+    });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { customization: { featuredLinkId: undefined } },
+    });
+
+    const audits = await t.run((ctx) => ctx.db.query("auditLogs").collect());
+    expect(audits.filter((entry) => entry.action === "profile.links_updated")).toHaveLength(3);
+    expect(await draftRevision(t, data.profileId)).toBe(3);
+  });
+
+  it("links.replaceDraft rejects invalid or stale featured selections without partial writes", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const replaceDraft = (args: {
+      links: TestLink[];
+      expectedDraftRevision: number;
+      featuredLinkId?: string | null;
+    }) =>
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        ...args,
+      } as never);
+    const first = [validLink("first")];
+
+    await expect(
+      replaceDraft({ links: first, expectedDraftRevision: 0, featuredLinkId: "not-submitted" }),
+    ).rejects.toThrow();
+    await expect(
+      replaceDraft({
+        links: [validLink("disabled"), { ...validLink("inactive"), enabled: false }],
+        expectedDraftRevision: 0,
+        featuredLinkId: "inactive",
+      }),
+    ).rejects.toThrow();
+    const unchanged = await owner.query(api.profiles.mine, {});
+    expect(unchanged?.draft.links).toEqual([validLink()]);
+    expect(unchanged?.draft.customization).toBeUndefined();
+    await expect(
+      owner.query(api.links.listForProfile, { profileId: data.profileId }),
+    ).resolves.toEqual([]);
+    expect(await draftRevision(t, data.profileId)).toBe(0);
+    await expect(t.run((ctx) => ctx.db.query("auditLogs").collect())).resolves.toHaveLength(0);
+
+    await replaceDraft({ links: first, expectedDraftRevision: 0, featuredLinkId: "first" });
+    await expect(
+      replaceDraft({
+        links: [validLink("stale")],
+        expectedDraftRevision: 0,
+        featuredLinkId: "stale",
+      }),
+    ).rejects.toThrow("profile draft changed");
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { links: first, customization: { featuredLinkId: "first" } },
+    });
+    expect(await draftRevision(t, data.profileId)).toBe(1);
+    const audits = await t.run((ctx) => ctx.db.query("auditLogs").collect());
+    expect(audits.filter((entry) => entry.action === "profile.links_updated")).toHaveLength(1);
+  });
+
   it("does not let a stale full-draft save overwrite newer link edits", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
