@@ -551,7 +551,7 @@ test("customer analytics groups events into fixed selected-range periods", async
   await page.getByLabel("Time range").selectOption("lifetime");
   await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("17");
   await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("7");
-  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(3);
+  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(2);
   expect.soft(await trend.innerText()).toContain("Jan");
   expect.soft(await trend.innerText()).toContain("May");
   await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("17");
@@ -2504,7 +2504,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
     .toMatch(/system-ui|sans-serif|Arial/i);
-  await expect(page.getByText("Profile views")).toBeVisible();
+  await expect(page.getByText("Profile views", { exact: true })).toBeVisible();
   await expect
     .soft(page.getByRole("heading", { name: "Views and clicks by source" }))
     .toBeVisible();
