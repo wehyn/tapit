@@ -296,7 +296,7 @@ describe("BuildCardExperience auth-aware order action", () => {
   it("pushes the exact login return URL when logged out", async () => {
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
 
     expect(push).toHaveBeenCalledWith("/login?next=%2Fbuild-card");
   });
@@ -313,7 +313,7 @@ describe("BuildCardExperience auth-aware order action", () => {
     useQuery.mockReturnValue({ authenticated: true, role: "customer" });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
     expect(push).not.toHaveBeenCalled();
@@ -324,7 +324,7 @@ describe("BuildCardExperience auth-aware order action", () => {
     useDemoSession.mockReturnValue({ email: "admin@tapit.local", role: "admin" });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
     expect(push).not.toHaveBeenCalled();
@@ -335,7 +335,7 @@ describe("BuildCardExperience auth-aware order action", () => {
     useQuery.mockReturnValue({ authenticated: true, role: "admin" });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
 
     expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
     expect(push).not.toHaveBeenCalled();
@@ -345,7 +345,7 @@ describe("BuildCardExperience auth-aware order action", () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: true });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Order a card now" }));
+    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
 
     expect(push).not.toHaveBeenCalled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

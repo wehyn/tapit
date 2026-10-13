@@ -17,9 +17,8 @@ import {
 // - identity/contact controls can drift from the existing labels, IDs, placeholders, or limits;
 // - clearing optional fields can incorrectly persist empty strings instead of undefined;
 // - slug locking and the Public URL copy action can be lost during extraction;
-// - Featured link and About/Services updates can drop unrelated customization values;
+// - About/Services updates can drop unrelated customization values;
 // - Services item edits can mutate the previous nested array instead of cloning it;
-// - unavailable or disabled featured links can lose their warning and clear action;
 // - visual customization controls can accidentally remain on the Profile details surface;
 // - profiles without saved customization can fail to initialize content controls.
 
@@ -101,7 +100,9 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Profile identity" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Basics", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Contact", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Profile link", exact: true })).toBeInTheDocument();
     expect(screen.getByText("Draft message")).toBeInTheDocument();
     expect(screen.getByText("Onboarding slot")).toBeInTheDocument();
     expect(screen.getByText("Profile image slot")).toBeInTheDocument();
@@ -136,34 +137,6 @@ describe("ProfileDetailsEditor", () => {
     expect(onCopyUrl).toHaveBeenCalledOnce();
   });
 
-  it("updates Featured link while preserving unrelated customization values", async () => {
-    const user = userEvent.setup();
-    const onCustomizationChange = vi.fn();
-    render(
-      <ControlledDetails
-        initialCustomization={{
-          ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-          accent: "jade",
-          typeScale: "editorial",
-          identityColors: { name: { kind: "preset", value: "ink" } },
-        }}
-        onCustomizationChange={onCustomizationChange}
-      />,
-    );
-
-    expect(screen.getByLabelText("Featured link")).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Old link (disabled)" })).toBeDisabled();
-    await user.selectOptions(screen.getByLabelText("Featured link"), "booking");
-
-    expect(lastCustomizationChange(onCustomizationChange)).toEqual({
-      ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-      accent: "jade",
-      typeScale: "editorial",
-      identityColors: { name: { kind: "preset", value: "ink" } },
-      featuredLinkId: "booking",
-    });
-  });
-
   it("supports About and Services content with cloned service items and exact limits", async () => {
     const user = userEvent.setup();
     const onCustomizationChange = vi.fn();
@@ -179,6 +152,10 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
+      await user.click(aboutDisclosure);
+    }
     expect(screen.getByLabelText("Services intro")).toHaveAttribute("maxlength", "160");
     expect(screen.getByLabelText("Service 1")).toHaveAttribute("maxlength", "60");
     expect(screen.queryByLabelText("About copy")).not.toBeInTheDocument();
@@ -245,6 +222,10 @@ describe("ProfileDetailsEditor", () => {
     const onCustomizationChange = vi.fn();
     render(<ControlledDetails onCustomizationChange={onCustomizationChange} />);
 
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
+      await user.click(aboutDisclosure);
+    }
     await user.click(screen.getByRole("radio", { name: "About" }));
     expect(lastCustomizationChange(onCustomizationChange)).toMatchObject({
       accent: "jade",
@@ -270,6 +251,10 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
+      await user.click(aboutDisclosure);
+    }
     await user.click(screen.getByRole("radio", { name: "Services" }));
     expect(lastCustomizationChange(onCustomizationChange)?.section).toEqual({
       kind: "services",
@@ -281,8 +266,9 @@ describe("ProfileDetailsEditor", () => {
     expect(screen.getByLabelText("Service 1")).toBeInTheDocument();
   });
 
-  it("preserves Featured link, section, and field validation accessibility", () => {
+  it("preserves section and field validation accessibility", async () => {
     const onCustomizationChange = vi.fn();
+    const user = userEvent.setup();
     render(
       <ControlledDetails
         errors={[
@@ -292,18 +278,16 @@ describe("ProfileDetailsEditor", () => {
         ]}
         initialCustomization={{
           ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
-          featuredLinkId: "old",
           section: { kind: "services", body: "", items: [""] },
         }}
         onCustomizationChange={onCustomizationChange}
       />,
     );
 
-    const featuredLink = screen.getByLabelText("Featured link");
-    const featuredErrorId = featuredLink.getAttribute("aria-describedby");
-    expect(featuredErrorId).toEqual(expect.stringMatching(/-featured-link-error$/));
-    expect(document.getElementById(featuredErrorId!)).toHaveAttribute("role", "alert");
-    expect(document.getElementById(featuredErrorId!)).toHaveTextContent(/missing or disabled/i);
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
+      await user.click(aboutDisclosure);
+    }
 
     const sectionKindErrorId = screen
       .getByRole("radio", { name: "About" })
@@ -335,38 +319,6 @@ describe("ProfileDetailsEditor", () => {
     );
   });
 
-  it("warns about and clears an unavailable Featured link", async () => {
-    const user = userEvent.setup();
-    const onCustomizationChange = vi.fn();
-    render(
-      <ControlledDetails
-        initialCustomization={{ ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, featuredLinkId: "missing" }}
-        onCustomizationChange={onCustomizationChange}
-      />,
-    );
-
-    expect(screen.getByRole("option", { name: "Unavailable featured link" })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/missing or disabled/i);
-    await user.click(screen.getByRole("button", { name: "Clear featured link" }));
-    expect(lastCustomizationChange(onCustomizationChange)?.featuredLinkId).toBeUndefined();
-  });
-
-  it("warns about and clears a disabled Featured link", async () => {
-    const user = userEvent.setup();
-    const onCustomizationChange = vi.fn();
-    render(
-      <ControlledDetails
-        initialCustomization={{ ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, featuredLinkId: "old" }}
-        onCustomizationChange={onCustomizationChange}
-      />,
-    );
-
-    expect(screen.getByRole("option", { name: "Old link (disabled)" })).toBeDisabled();
-    expect(screen.getByRole("alert")).toHaveTextContent(/missing or disabled/i);
-    await user.click(screen.getByRole("button", { name: "Clear featured link" }));
-    expect(lastCustomizationChange(onCustomizationChange)?.featuredLinkId).toBeUndefined();
-  });
-
   it("keeps visual controls in Customize and offers content controls on legacy profiles", async () => {
     const onCustomizationChange = vi.fn();
     const { rerender } = render(
@@ -386,7 +338,6 @@ describe("ProfileDetailsEditor", () => {
     expect(screen.queryByRole("button", { name: "Default name color" })).not.toBeInTheDocument();
     expect(screen.queryByText("Type scale")).not.toBeInTheDocument();
     expect(screen.queryByText("Link/button treatment")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Featured link")).toBeInTheDocument();
     expect(screen.queryByText("Content order")).not.toBeInTheDocument();
     expect(screen.queryByText("Media")).not.toBeInTheDocument();
 
@@ -403,11 +354,11 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
+    expect(screen.getByRole("heading", { name: "Basics", exact: true })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Featured link")).toBeInTheDocument();
-    await userEvent.setup().selectOptions(screen.getByLabelText("Featured link"), "booking");
-    expect(onCustomizationChange).toHaveBeenCalledWith(
-      expect.objectContaining({ preset: "paper", featuredLinkId: "booking" }),
-    );
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    expect(aboutDisclosure).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(aboutDisclosure);
+    expect(screen.getByRole("button", { name: "Add About or Services section" })).toBeVisible();
   });
 });

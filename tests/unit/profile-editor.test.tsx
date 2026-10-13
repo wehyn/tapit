@@ -148,21 +148,23 @@ describe("ProfileEditor workspace boundaries", () => {
   });
 
   it.each(["demo", "live"] as const)(
-    "defaults to the details and publication Profile view in the %s branch",
+    "defaults to the details Profile view in the %s branch",
     async (branch) => {
       const user = userEvent.setup();
       renderBranch(branch);
 
       expect(screen.getByRole("heading", { name: "Your profile" })).toBeVisible();
-      expect(screen.getByRole("heading", { name: "Profile identity" })).toBeVisible();
-      expect(screen.getByRole("heading", { name: "Publication" })).toBeVisible();
+      for (const heading of ["Basics", "Contact", "Profile link"]) {
+        expect(screen.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      }
       expect(screen.getByRole("heading", { name: "Preview" })).toBeVisible();
       expect(screen.getByText("Public URL")).toBeVisible();
       expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
       expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez");
       expect(screen.getByLabelText("Email")).toHaveValue("mara@example.com");
-      expect(screen.getByRole("combobox", { name: "Featured link" })).toBeVisible();
-      expect(screen.getByRole("radio", { name: "About" })).toBeVisible();
+      expect(
+        screen.getByRole("button", { name: "About or Services", exact: true }),
+      ).toHaveAttribute("aria-expanded", "false");
       await user.click(screen.getByRole("button", { name: "Copy" }));
       expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
       expect(screen.queryByText("Accent", { selector: "legend" })).not.toBeInTheDocument();
@@ -189,8 +191,8 @@ describe("ProfileEditor workspace boundaries", () => {
         "Layout",
       ]);
       expect(screen.getByRole("tab", { name: "Overview" })).toBeVisible();
-      expect(screen.getByRole("radio", { name: "Jade" })).toBeVisible();
-      expect(screen.queryByRole("heading", { name: "Profile identity" })).not.toBeInTheDocument();
+      expect(screen.getByText("Jade", { exact: true })).toBeVisible();
+      expect(screen.queryByRole("heading", { name: "Basics" })).not.toBeInTheDocument();
       expect(screen.queryByRole("heading", { name: "Publication" })).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
@@ -275,7 +277,7 @@ describe("ProfileEditor workspace boundaries", () => {
   );
 
   it.each(["demo", "live"] as const)(
-    "keeps Featured link, About/Services, name, bio, and customization values together in %s",
+    "keeps About/Services, name, bio, and customization values together in %s",
     async (branch) => {
       const user = userEvent.setup();
       renderBranch(branch, "profile");
@@ -283,7 +285,7 @@ describe("ProfileEditor workspace boundaries", () => {
       await user.type(screen.getByLabelText("Name"), " Studio");
       await user.clear(screen.getByLabelText("Bio or role"));
       await user.type(screen.getByLabelText("Bio or role"), "Designer and maker");
-      await user.selectOptions(screen.getByRole("combobox", { name: "Featured link" }), "site");
+      await user.click(screen.getByRole("button", { name: "About or Services", exact: true }));
       await user.click(screen.getByRole("radio", { name: "Services" }));
       await user.click(screen.getByRole("button", { name: "Add service" }));
 
@@ -294,7 +296,6 @@ describe("ProfileEditor workspace boundaries", () => {
         bio: "Designer and maker",
         customization: expect.objectContaining({
           accent: "coral",
-          featuredLinkId: "site",
           section: { kind: "services", body: "", items: [""] },
         }),
       });
@@ -327,14 +328,14 @@ describe("ProfileEditor workspace boundaries", () => {
 
       expect(screen.getByRole("heading", { name: "Profile presets" })).toBeVisible();
       expect(screen.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
-      expect(screen.getByRole("radio", { name: "Moss" })).toBeVisible();
-      expect(screen.getByRole("radio", { name: "Night" })).toBeVisible();
-      expect(screen.getByRole("radio", { name: "Warm Studio" })).toBeVisible();
+      expect(screen.getByText("Moss", { exact: true })).toBeVisible();
+      expect(screen.getByText("Night", { exact: true })).toBeVisible();
+      expect(screen.getByText("Warm Studio", { exact: true })).toBeVisible();
       expect(screen.getByRole("tab", { name: "Overview" })).toBeEnabled();
       expect(screen.getByRole("tab", { name: "Identity" })).toBeEnabled();
       expect(screen.getByRole("tab", { name: "Media" })).toBeEnabled();
       expect(screen.getByRole("tab", { name: "Layout" })).toBeEnabled();
-      expect(screen.queryByRole("heading", { name: "Profile identity" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("heading", { name: "Basics" })).not.toBeInTheDocument();
 
       await user.click(screen.getByRole("radio", { name: "Moss" }));
       const save = screen.getByRole("button", { name: "Save draft" });
@@ -373,7 +374,7 @@ describe("ProfileEditor workspace boundaries", () => {
     };
     render(<ProfileEditor view="profile" />);
 
-    expect(screen.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Basics", exact: true })).toBeVisible();
     expect(screen.queryByRole("heading", { name: "Profile presets" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Soft Precision (Paper)" })).not.toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: "Moss" })).not.toBeInTheDocument();
