@@ -1505,6 +1505,8 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await expect(page.getByText("1 of 10 images")).toBeVisible();
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await page.getByRole("textbox", { name: "Slideshow image 1 description" }).fill("");
+  await page.getByRole("textbox", { name: "Slideshow image 2 description" }).fill("");
 
   const preview = page.getByTestId("profile-preview-device").getByRole("region", {
     name: "Profile slideshow",

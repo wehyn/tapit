@@ -294,7 +294,7 @@ describe("ProfileCustomizationEditor", () => {
 
     await user.click(screen.getByRole("tab", { name: "Media" }));
     expect(screen.getByRole("button", { name: "Replace background" })).toBeDisabled();
-    expect(screen.getByLabelText("Upload slideshow images")).toBeDisabled();
+    expect(screen.getByLabelText("Upload slideshow images")).toBeEnabled();
 
     rerender(
       <ProfileCustomizationEditor
