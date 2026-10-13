@@ -197,10 +197,7 @@ function PresetRadio({
           <span className="mt-1 block text-xs leading-5 text-tapit-muted">{description}</span>
         </span>
       </span>
-      <span
-        aria-hidden="true"
-        className="flex items-center gap-2.5 px-1 py-1.5"
-      >
+      <span aria-hidden="true" className="flex items-center gap-2.5 px-1 py-1.5">
         <span className="flex shrink-0 gap-1">
           <span className="size-3 rounded-full" style={{ backgroundColor: colors.canvas }} />
           <span
