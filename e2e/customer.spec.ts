@@ -1566,7 +1566,7 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   page,
 }) => {
   await openSlideshowEditor(page);
-  await setDemoMediaUploadControl(page, { fail: true });
+  await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
@@ -1601,7 +1601,7 @@ test("slideshow upload queue pauses on failure and retries before later selectio
 
 test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
   await openSlideshowEditor(page);
-  await setDemoMediaUploadControl(page, { fail: true });
+  await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
