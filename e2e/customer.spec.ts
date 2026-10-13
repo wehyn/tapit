@@ -119,7 +119,7 @@ test("a failed draft save keeps the customer signed in when they try to sign out
 });
 
 test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
-  await page.setViewportSize({ width: 1467, height: 899 });
+  await page.setViewportSize({ width: 1280, height: 899 });
   await signInAsCustomer(page);
 
   for (const route of ["/app/profile", "/app/links"]) {
@@ -164,7 +164,7 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     expect(saveBox).not.toBeNull();
     expect(publishBox).not.toBeNull();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
-      1467,
+      1280,
     );
 
     for (const width of [320, 390, 768]) {
@@ -173,12 +173,54 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       await expect(publish).toBeInViewport();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth).toBeLessThanOrEqual(width);
+      if (route === "/app/profile" && width === 390) {
+        await page.screenshot({ path: "test-results/customer-workbench-390.png" });
+      }
     }
-    await page.screenshot({
-      path: `test-results/${route === "/app/profile" ? "profile" : "links"}-actions-mobile.png`,
-      fullPage: false,
-    });
+    if (route === "/app/profile") {
+      await page.setViewportSize({ width: 1280, height: 899 });
+      await page.screenshot({ path: "test-results/customer-workbench-1280.png" });
+    }
     await page.setViewportSize({ width: 1467, height: 899 });
+  }
+});
+
+test("customer workspace switches between editing and preview on mobile without losing drafts", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInAsCustomer(page);
+  for (const route of ["/app/profile", "/app/customize", "/app/links"] as const) {
+    await page.goto(route);
+    if (route === "/app/profile") {
+      await page.getByLabel("Bio or role").fill("Draft survives preview switching");
+    } else if (route === "/app/customize") {
+      await page.getByRole("radio", { name: "Coral", exact: true }).check();
+    } else {
+      await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Portfolio draft");
+    }
+
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
+    if (route === "/app/profile")
+      await page.screenshot({ path: "test-results/customer-workbench-preview-390.png" });
+    await page.getByRole("button", { name: "Edit", exact: true }).click();
+    if (route === "/app/profile")
+      await expect(page.getByLabel("Bio or role")).toHaveValue("Draft survives preview switching");
+    else if (route === "/app/links")
+      await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+        "Portfolio draft",
+      );
+    await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await page.reload();
+    if (route === "/app/profile")
+      await expect(page.getByLabel("Bio or role")).toHaveValue("Draft survives preview switching");
+    else if (route === "/app/links")
+      await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+        "Portfolio draft",
+      );
   }
 });
 
@@ -348,6 +390,181 @@ test("customer build card stays inside the authenticated workspace", async ({ pa
     page.getByRole("navigation", { name: /Your Tapit profile navigation/ }),
   ).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
+});
+
+test("featured link is managed with Links and publishes with its selected link", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await expect(page.getByLabel("Featured link")).toHaveCount(0);
+
+  await page.goto("/app/links");
+  const featured = page.getByLabel("Featured link");
+  await expect(featured).toBeVisible();
+  await featured.selectOption({ label: "Portfolio" });
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.reload();
+  await expect(featured).toHaveValue("portfolio");
+  await featured.selectOption("");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.reload();
+  await expect(featured).toHaveValue("");
+
+  await featured.selectOption({ label: "Portfolio" });
+  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
+  await expect(
+    page.getByText("The public profile now uses this order and enabled state."),
+  ).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(page.locator('a[data-featured="true"]', { hasText: "Portfolio" })).toBeVisible();
+});
+
+test("a missing featured link can be cleared from Links without blocking draft save", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Persist setup before legacy fixture.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving the setup draft.");
+    const state = JSON.parse(raw);
+    const addUnavailableSelection = (profile: { id?: string; draft?: Record<string, unknown> }) => {
+      if (profile.id !== "profile-mara") return profile;
+      const draft = profile.draft ?? {};
+      return {
+        ...profile,
+        draft: {
+          ...draft,
+          customization: {
+            preset: "warm-studio",
+            accent: "jade",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+            featuredLinkId: "removed-link",
+          },
+        },
+      };
+    };
+    state.profiles = state.profiles.map(addUnavailableSelection);
+    if (state.profile) state.profile = addUnavailableSelection(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/links");
+  await expect(page.getByText(/featured link.*missing|unavailable/i)).toBeVisible();
+  await page.getByRole("button", { name: "Clear featured link", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
+});
+
+test("customer analytics groups events into fixed selected-range periods", async ({ page }) => {
+  await resetDemoHarness(page);
+  await page.clock.install({ time: new Date("2026-05-20T12:00:00Z") });
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Analytics fixture setup");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after sign-in.");
+    const state = JSON.parse(raw);
+    state.analytics = [
+      {
+        profileId: "profile-mara",
+        bucketStart: Date.UTC(2026, 4, 19),
+        views: 2,
+        uniqueViews: 2,
+        clicks: 1,
+        linkClicks: { portfolio: 1 },
+      },
+      {
+        profileId: "profile-mara",
+        bucketStart: Date.UTC(2026, 4, 6),
+        views: 3,
+        uniqueViews: 2,
+        clicks: 2,
+        linkClicks: { portfolio: 2 },
+      },
+      {
+        profileId: "profile-mara",
+        bucketStart: Date.UTC(2026, 3, 21),
+        views: 5,
+        uniqueViews: 4,
+        clicks: 1,
+        linkClicks: { portfolio: 1 },
+      },
+      {
+        profileId: "profile-mara",
+        bucketStart: Date.UTC(2026, 0, 19),
+        views: 7,
+        uniqueViews: 5,
+        clicks: 3,
+        linkClicks: { portfolio: 3 },
+      },
+    ];
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/analytics");
+
+  const trend = page.getByLabel("Aggregate engagement trend");
+  await page.getByLabel("Time range").selectOption("7d");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("2");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("1");
+  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(6);
+  for (const day of [14, 15, 16, 17, 18, 19, 20])
+    expect.soft(await trend.innerText()).toContain(`May ${day}`);
+  await page.getByLabel("Time range").selectOption("30d");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("10");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("4");
+  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(2);
+  expect.soft(await trend.innerText()).toContain("Apr 20");
+  expect.soft(await trend.innerText()).toContain("May 18");
+  await page.getByLabel("Time range").selectOption("90d");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("10");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("4");
+  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(11);
+  expect.soft(await trend.innerText()).toContain("Feb 19");
+  expect.soft(await trend.innerText()).toContain("May 20");
+  await page.getByLabel("Time range").selectOption("lifetime");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("17");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("7");
+  expect.soft(await trend.getByText("0", { exact: true }).count()).toBe(3);
+  expect.soft(await trend.innerText()).toContain("Jan");
+  expect.soft(await trend.innerText()).toContain("May");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("17");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("7");
+});
+
+test("customization category tabs and fine-tuning controls stay clear on mobile", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await expect(page.getByRole("radio", { name: "Warm Studio", exact: true })).toBeVisible();
+  const fineTune = page.getByText("Fine tune", { exact: true });
+  await expect(fineTune).toBeVisible();
+  const fineTuneDisclosure = page.locator("details").filter({ has: fineTune });
+  await expect(fineTuneDisclosure).not.toHaveAttribute("open", "");
+  await fineTune.click();
+  await expect(fineTuneDisclosure).toHaveAttribute("open", "");
+  await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Editorial", exact: true })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Outlined", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Overview" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Identity" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Media" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Layout" })).toBeVisible();
+  await page.getByRole("tab", { name: "Identity" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("tab", { name: "Media" })).toBeFocused();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
 test("standalone card builder keeps its public shell and upload preview usable", async ({
@@ -695,6 +912,22 @@ test("profile editors show their page title without redundant subtitles", async 
   }
 });
 
+test("Profile keeps essentials visible and secondary About content collapsed", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  await expect(page.getByLabel("Name", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Bio or role")).toBeVisible();
+  const about = page.getByRole("button", { name: "About or Services", exact: true });
+  await expect.soft(about).toHaveAttribute("aria-expanded", "false");
+  await expect
+    .soft(page.getByText(/Email, phone, and website are managed in Identity/))
+    .toHaveCount(0);
+  if ((await about.getAttribute("aria-expanded")) === "true") await about.click();
+  await about.click();
+  await expect(page.getByRole("button", { name: "Add About or Services section" })).toBeVisible();
+});
+
 async function addGuidedLink(page: Page, label: string, destination: string) {
   await page.getByRole("button", { name: "Add link", exact: true }).first().click();
   await page.getByRole("button", { name: "Website or link" }).click();
@@ -718,6 +951,21 @@ test("the link table contains its add action", async ({ page }) => {
   await page.getByLabel("Web address").fill("https://new-site.example.test");
   await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(linkTable.locator("article")).toHaveCount(originalCount + 1);
+});
+
+test("the Links draft action is hidden while clean and appears after an edit", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Portfolio work");
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
+    "Portfolio work",
+  );
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
 });
 
 test("guided link creation adds email and phone without scheme typing", async ({ page }) => {
@@ -1199,8 +1447,12 @@ test("customer customization drafts stay private until the profile is published"
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
+  await page.goto("/app/links");
+  const featuredLink = page.getByRole("combobox", { name: "Featured link" });
+  await expect(featuredLink).toBeVisible();
+  await featuredLink.selectOption("booking");
+  await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
-  await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
   await page.getByRole("radio", { name: "About", exact: true }).check();
   await page.getByLabel("About copy").fill("A private draft introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -2219,6 +2471,15 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await signInAsCustomer(page);
   await page.getByRole("link", { name: "Analytics" }).click();
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
+  await expect.soft(page.locator("main h1")).toHaveCount(1);
+  const rangeBox = await page.getByLabel("Time range").boundingBox();
+  const summaryBox = await page.getByRole("heading", { name: "Engagement summary" }).boundingBox();
+  const trendBox = await page.getByRole("heading", { name: "Engagement trend" }).boundingBox();
+  expect(rangeBox).not.toBeNull();
+  expect(summaryBox).not.toBeNull();
+  expect(trendBox).not.toBeNull();
+  expect.soft(rangeBox!.y).toBeLessThan(summaryBox!.y);
+  expect.soft(summaryBox!.y).toBeLessThan(trendBox!.y);
   await expect
     .poll(() =>
       page
@@ -2227,6 +2488,13 @@ test("customer analytics and account controls stay scoped to the customer", asyn
     )
     .toMatch(/system-ui|sans-serif|Arial/i);
   await expect(page.getByText("Profile views")).toBeVisible();
+  await expect
+    .soft(page.getByRole("heading", { name: "Views and clicks by source" }))
+    .toBeVisible();
+  await expect.soft(page.getByText(/Sources include profile views and link clicks/)).toBeVisible();
+  await expect
+    .soft(page.getByText(/Unknown \/ legacy.*without recorded attribution/i))
+    .toBeVisible();
   for (const copy of [
     "Aggregate activity for your profile only. Tapit does not expose visitor identities or raw visit history.",
     "Each column is one aggregate time bucket. Views and clicks are shown together to make momentum easy to read.",
@@ -2242,6 +2510,9 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   }
   await page.getByLabel("Time range").selectOption("7d");
   await expect(page.getByLabel("Time range")).toHaveValue("7d");
+  await expect(page.getByText("Unknown / legacy", { exact: true }).locator("..")).toContainText(
+    "27",
+  );
   await expect(
     page.getByText("Profile views", { exact: true }).locator("..").getByText("18", { exact: true }),
   ).toBeVisible();
@@ -2270,6 +2541,73 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),
   ).toBeVisible();
+});
+
+test("Account support and deletion copy explain the current outcomes", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/account");
+  const support = page.getByRole("heading", { name: "Support" }).locator("..");
+  await expect.soft(support).not.toContainText(/local build|generic/i);
+  await expect(support.getByRole("link", { name: "Contact support", exact: true })).toBeVisible();
+  const supportCopy = await support.innerText();
+  expect.soft(supportCopy.match(/[.!?](?:\s|$)/g) ?? []).toHaveLength(1);
+  await page.getByRole("button", { name: "Request deletion" }).click();
+  await expect(page.getByRole("dialog", { name: "Request account deletion?" })).toContainText(
+    /profile.*unavailable.*cards?.*deactivated immediately.*administrator.*review.*permanent removal/i,
+  );
+});
+
+test("Account does not offer support when its destination is missing", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Persist setup before support fixture.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after saving the setup draft.");
+    const state = JSON.parse(raw);
+    state.supportUrl = "";
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/account");
+  await expect(page.getByRole("link", { name: "Contact support", exact: true })).toHaveCount(0);
+  await expect(page.getByText(/help is available/i)).toHaveCount(0);
+});
+
+test("customer analytics keeps zero totals and privacy context for an empty range", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Analytics fixture setup");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected demo state after sign-in.");
+    const state = JSON.parse(raw);
+    state.analytics = [];
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/analytics");
+  await expect(page.getByText("Profile views", { exact: true }).locator("..")).toContainText("0");
+  await expect(page.getByText("Link clicks", { exact: true }).locator("..")).toContainText("0");
+  await expect(page.getByText(/No activity in this range yet/)).toBeVisible();
+  await expect(page.getByText(/without identifying the people who viewed it/)).toBeVisible();
+});
+
+test("customer can prepare a card design before ordering opens", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.goto("/app/account/build-card");
+  await expect.soft(page.getByText(/design preparation is available now/i)).toBeVisible();
+  await expect.soft(page.getByText(/custom ordering is not open/i)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Build your own with Canva" })).toHaveAttribute(
+    "href",
+    "https://canva.link/tapit-templates",
+  );
+  await expect(page.getByLabel("Upload your design")).toBeAttached();
 });
 
 test("customer can unpublish from Account", async ({ page }) => {
@@ -2316,6 +2654,12 @@ test("customer utility workspaces fit phone, tablet, and desktop widths", async 
     for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(page.locator("main").first()).toBeVisible();
+      if (route === "/app/analytics" && (width === 390 || width === 1280)) {
+        await page.screenshot({ path: `test-results/customer-analytics-${width}.png` });
+      }
+      if (route === "/app/account/build-card" && (width === 390 || width === 1280)) {
+        await page.screenshot({ path: `test-results/customer-build-card-${width}.png` });
+      }
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       if (scrollWidth > width) {
         const overflowingElements = await page.evaluate(() => {
