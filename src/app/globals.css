@@ -115,6 +115,34 @@ body {
   color: transparent;
 }
 
+.tapit-button-motion {
+  transition:
+    transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 150ms ease-out,
+    border-color 150ms ease-out,
+    color 150ms ease-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .tapit-button-motion:not(:disabled):hover {
+    transform: translateY(-1px);
+  }
+
+  .tapit-button-motion:not(:disabled):hover:not([data-variant="quiet"]) {
+    box-shadow: 0 8px 18px rgb(27 36 51 / 0.1);
+  }
+}
+
+.tapit-button-motion:not(:disabled):active {
+  transform: translateY(1px) scale(0.98);
+  transition-duration: 120ms;
+}
+
+.tapit-button-motion:not(:disabled):active:not([data-variant="quiet"]) {
+  box-shadow: 0 2px 5px rgb(27 36 51 / 0.08);
+}
+
 .tapit-ambient {
   animation: tapit-ambient-drift 18s ease-in-out infinite alternate;
 }
@@ -288,6 +316,15 @@ select {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
+  }
+
+  .tapit-button-motion {
+    transition: none !important;
+  }
+
+  .tapit-button-motion:hover,
+  .tapit-button-motion:active {
+    transform: none !important;
   }
 
   *,
