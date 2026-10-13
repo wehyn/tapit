@@ -2,7 +2,7 @@
 
 ## Status
 
-Design approved during brainstorming on 2026-10-13. Written spec awaits user review before implementation planning.
+Design and written spec approved by the user on 2026-10-13.
 
 ## Goal
 
