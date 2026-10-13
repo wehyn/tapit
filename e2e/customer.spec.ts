@@ -1547,7 +1547,10 @@ test("slideshow upload queue waits for the active upload and preserves selection
   await expect(page.getByLabel("Slideshow image 1 description")).toBeVisible();
   await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
   await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
     "opaque-landscape.png",
   );
@@ -1585,6 +1588,9 @@ test("slideshow upload queue pauses on failure and retries before later selectio
     "transparent-logo.png",
   );
   await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
