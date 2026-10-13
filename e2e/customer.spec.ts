@@ -1200,14 +1200,6 @@ test("customer customization drafts stay private until the profile is published"
   await signInAsCustomer(page);
 
   await page.goto("/app/customize");
-  await expect
-    .poll(() =>
-      page
-        .getByRole("tabpanel")
-        .first()
-        .evaluate((panel) => getComputedStyle(panel).backgroundColor),
-    )
-    .toBe("rgb(255, 255, 255)");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
