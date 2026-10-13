@@ -241,7 +241,9 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBeInstanceOf(File);
   expect(((fetchMock.mock.calls[0]?.[1] as RequestInit).body as File).name).toBe("first.png");
 
-  resolveUploads[0](
+  const resolveFirstUpload = resolveUploads[0];
+  if (!resolveFirstUpload) throw new Error("Expected the first deferred upload request.");
+  resolveFirstUpload(
     new Response(
       JSON.stringify({ assetId: "media-1", url: "https://image.test/media-1", mediaRevision: 4 }),
       { status: 200, headers: { "Content-Type": "application/json" } },
@@ -256,7 +258,9 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
     }),
   );
 
-  resolveUploads[1](
+  const resolveSecondUpload = resolveUploads[1];
+  if (!resolveSecondUpload) throw new Error("Expected the second deferred upload request.");
+  resolveSecondUpload(
     new Response(
       JSON.stringify({ assetId: "media-2", url: "https://image.test/media-2", mediaRevision: 5 }),
       { status: 200, headers: { "Content-Type": "application/json" } },
