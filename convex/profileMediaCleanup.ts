@@ -1,6 +1,8 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { profileMediaAssetIds } from "./profileMedia";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -57,6 +59,7 @@ async function reconcileJob(
   ctx: MutationCtx,
   job: Doc<"profileMediaUploadJobs">,
   dryRun: boolean,
+  now: number,
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
   const owner = await ctx.db.get(job.ownerId);
@@ -98,6 +101,11 @@ async function reconcileJob(
         scanPreviewCandidateId: previewCandidate,
         scanSourceAmbiguous: sourceAmbiguous,
         scanPreviewAmbiguous: previewAmbiguous,
+      });
+      await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileOneJob, {
+        jobId: job._id,
+        now,
+        dryRun,
       });
       return counts;
     }
@@ -160,6 +168,84 @@ async function reconcileJob(
   return counts;
 }
 
+const jobStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("failed"),
+  v.literal("attached"),
+);
+
+export const pageExpiredJobs = internalQuery({
+  args: {
+    status: jobStatusValidator,
+    now: v.number(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_status_and_createdAt", (q) =>
+        q.eq("status", args.status).lte("createdAt", args.now - ORPHAN_GRACE_MS),
+      )
+      .paginate(args.paginationOpts),
+});
+
+export const reconcileOneJob = internalMutation({
+  args: { jobId: v.id("profileMediaUploadJobs"), now: v.number(), dryRun: v.boolean() },
+  returns: v.object({
+    scanned: v.number(),
+    deleted: v.number(),
+    retained: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (job === null || job.uploadWindowEndsAt > args.now)
+      return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    return await reconcileJob(ctx, job, args.dryRun, args.now);
+  },
+});
+
+export const reconcileStatusPage = internalMutation({
+  args: {
+    status: jobStatusValidator,
+    cursor: v.union(v.string(), v.null()),
+    now: v.number(),
+    dryRun: v.boolean(),
+    batchSize: v.number(),
+  },
+  returns: v.object({
+    scanned: v.number(),
+    deleted: v.number(),
+    retained: v.number(),
+    skipped: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.runQuery(internal.profileMediaCleanup.pageExpiredJobs, {
+      status: args.status,
+      now: args.now,
+      paginationOpts: { cursor: args.cursor, numItems: args.batchSize },
+    });
+    const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    for (const job of page.page) {
+      const result: Counts = await ctx.runMutation(internal.profileMediaCleanup.reconcileOneJob, {
+        jobId: job._id,
+        now: args.now,
+        dryRun: args.dryRun,
+      });
+      totals.scanned += result.scanned;
+      totals.deleted += result.deleted;
+      totals.retained += result.retained;
+      totals.skipped += result.skipped;
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileStatusPage, {
+        ...args,
+        cursor: page.continueCursor,
+      });
+    return totals;
+  },
+});
+
 export const reconcileExpired = internalMutation({
   args: {
     now: v.optional(v.number()),
@@ -176,32 +262,18 @@ export const reconcileExpired = internalMutation({
     const now = args.now ?? Date.now();
     const dryRun = args.dryRun ?? false;
     const batchSize = Math.max(1, Math.min(Math.floor(args.jobBatchSize ?? DEFAULT_JOB_BATCH), 32));
-    const cutoff = now - ORPHAN_GRACE_MS;
-    const pending = await ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_status_and_createdAt", (q) =>
-        q.eq("status", "pending").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const failed = await ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_status_and_createdAt", (q) =>
-        q.eq("status", "failed").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const attached = await ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_status_and_createdAt", (q) =>
-        q.eq("status", "attached").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const jobs = [...pending, ...failed]
-      .filter((job) => job.uploadWindowEndsAt <= now)
-      .sort((a, b) => a.createdAt - b.createdAt)
-      .slice(0, batchSize);
     const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-    for (const job of [...jobs, ...attached]) {
-      const result = await reconcileJob(ctx, job, dryRun);
+    for (const status of ["pending", "failed", "attached"] as const) {
+      const result: Counts = await ctx.runMutation(
+        internal.profileMediaCleanup.reconcileStatusPage,
+        {
+          status,
+          cursor: null,
+          now,
+          dryRun,
+          batchSize,
+        },
+      );
       totals.scanned += result.scanned;
       totals.deleted += result.deleted;
       totals.retained += result.retained;
