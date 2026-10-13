@@ -32,6 +32,15 @@ async function selectWarmStudio(page: Page) {
   await expect(preset).toBeChecked();
 }
 
+async function openFineTune(page: Page) {
+  const fineTune = page.getByText("Fine tune", { exact: true });
+  const disclosure = page.locator("details").filter({ has: fineTune });
+  if ((await disclosure.getAttribute("open")) === null) {
+    await disclosure.locator("summary").click();
+  }
+  await expect(disclosure).toHaveAttribute("open", "");
+}
+
 async function prepareLegacyMaraProfile(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -208,6 +217,7 @@ test("customer workspace switches between editing and preview on mobile without 
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Draft survives preview switching");
     } else if (route === "/app/customize") {
+      await openFineTune(page);
       await page.getByRole("radio", { name: "Coral", exact: true }).check();
     } else {
       await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Portfolio draft");
@@ -278,6 +288,7 @@ test("profile draft actions only appear when a draft needs action", async ({ pag
       await page.getByLabel("Bio or role").fill("Draft action bar test");
     } else {
       await selectWarmStudio(page);
+      await openFineTune(page);
       await page.getByRole("radio", { name: "Coral", exact: true }).check();
     }
 
@@ -305,6 +316,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
     await page.setViewportSize(viewport);
     await page.goto("/app/customize");
     await selectWarmStudio(page);
+    await openFineTune(page);
     await page.getByRole("radio", { name: "Coral", exact: true }).check();
 
     const previewHeading = page.getByRole("heading", { name: "Preview", exact: true });
@@ -658,7 +670,12 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   page,
 }) => {
   await signInAsCustomer(page);
-  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  for (const heading of ["Basics", "Contact", "Profile link"]) {
+    await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  }
+  await expect(
+    page.getByRole("button", { name: "About or Services", exact: true }),
+  ).toHaveAttribute("aria-expanded", "false");
   const island = page.getByTestId("workspace-sidebar");
   await expect
     .poll(() => island.evaluate((element) => getComputedStyle(element).backgroundColor))
@@ -762,7 +779,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
 
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Profile identity" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Basics", exact: true })).toBeVisible();
   await expect(openNavigation).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   const openerBox = await openNavigation.boundingBox();
@@ -791,9 +808,12 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
 test("refreshed profile editor and preview preserve draft controls", async ({ page }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInAsCustomer(page);
-  for (const heading of ["Profile identity", "Profile link destination", "Publication"]) {
+  for (const heading of ["Basics", "Contact", "Profile link"]) {
     await expect(page.getByRole("heading", { name: heading })).toBeVisible();
   }
+  await expect(
+    page.getByRole("button", { name: "About or Services", exact: true }),
+  ).toHaveAttribute("aria-expanded", "false");
   await page.getByRole("link", { name: "Customize", exact: true }).click();
   await expect(page.getByRole("radio", { name: "Soft Precision (Paper)" })).toBeChecked();
   await expect(page.getByTestId("profile-preview-device")).toBeVisible();
@@ -801,7 +821,7 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await expect
     .poll(() =>
       page
-        .getByRole("heading", { name: "Profile identity", exact: true })
+        .getByRole("heading", { name: "Basics", exact: true })
         .evaluate((heading) => getComputedStyle(heading).fontFamily),
     )
     .toMatch(/system-ui|sans-serif|Arial/i);
@@ -1163,12 +1183,17 @@ test("customer drafts stay private until link and profile publication", async ({
       { exact: true },
     ),
   ).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeHidden();
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
   await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "phone" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "desktop" })).toHaveCount(0);
   await expect(page.getByTestId("profile-preview-device")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Save draft" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 
   const linkedinIcon = page.getByRole("button", { name: /Preset icon for LinkedIn/ });
@@ -1205,6 +1230,7 @@ test("customer drafts stay private until link and profile publication", async ({
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Links saved to draft.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
   await page.goto("/app/links");
   await expect(labels.nth(3)).toHaveValue("Private note");
   await expect(page.getByRole("textbox", { name: "Label for Private note" })).toHaveValue(
@@ -1212,7 +1238,8 @@ test("customer drafts stay private until link and profile publication", async ({
   );
   await expect(page.getByRole("checkbox", { name: "Enable Private note" })).not.toBeChecked();
   await expect(page.getByRole("button", { name: "Preset icon for LinkedIn: Email" })).toBeVisible();
-  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Publish changes", exact: true }).click();
   await expect(
     page.getByText("The public profile now uses this order and enabled state."),
   ).toBeVisible();
@@ -1248,6 +1275,7 @@ test("customer can switch profile presets while preserving customization and med
     .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByLabel("Background image description").fill("Warm studio backdrop");
   await page.getByRole("tab", { name: "Overview" }).click();
+  await openFineTune(page);
   await page.getByRole("radio", { name: "Editorial" }).check();
 
   await softPrecision.click();
@@ -1259,6 +1287,7 @@ test("customer can switch profile presets while preserving customization and med
       .getByRole("region", { name: "Profile hero" })
       .getByRole("heading", { name: "Mara Velasquez" }),
   ).toBeVisible();
+  await openFineTune(page);
   await expect(page.getByRole("radio", { name: "Editorial" })).toBeChecked();
   await page.getByRole("tab", { name: "Media" }).click();
   await expect(page.getByLabel("Background image description")).toHaveValue("Warm studio backdrop");
@@ -1334,6 +1363,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   const custom = page.getByRole("radio", { name: "Custom" });
   await expect(custom).toBeVisible();
   await custom.check();
+  await openFineTune(page);
   await expect(
     page.getByText("The custom profile accent color does not meet contrast requirements."),
   ).toHaveCount(0);
@@ -1413,6 +1443,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText(/Draft saved/)).toBeVisible();
   await page.goto("/app/customize");
+  await openFineTune(page);
   await expect(custom).toBeChecked();
   await expect(background).toHaveValue("#fef2e8");
   await expect(accent).toHaveValue("#8d3b2f");
@@ -1427,6 +1458,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   await page.getByRole("radio", { name: "Moss" }).check();
   await expect(publishChanges).toBeEnabled();
   await page.getByRole("radio", { name: "Custom" }).check();
+  await openFineTune(page);
   await expect(background).toHaveValue("#fef2e8");
   await expect(accent).toHaveValue("#ffffff");
   await expect(
@@ -1461,6 +1493,7 @@ test("customer customization drafts stay private until the profile is published"
 
   await page.goto("/app/customize");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
+  await openFineTune(page);
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
@@ -1992,7 +2025,7 @@ test("slideshow upload queue counts failed and queued items toward the ten image
   await expect(
     page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
   ).toBeVisible();
-  await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
+  await expect(page.getByText("Waiting", { exact: true })).toHaveCount(2);
   await expect(page.getByText("10 of 10 images")).toBeVisible();
   await expect(upload).toBeDisabled();
   await expect(
@@ -2641,7 +2674,7 @@ test("customer can unpublish from Account", async ({ page }) => {
   ).toBeVisible();
 
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Basics", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Unpublish", exact: true })).toHaveCount(0);
   await page.goto("/mara-velasquez");
   await expect(
