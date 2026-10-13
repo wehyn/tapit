@@ -21,7 +21,7 @@ export type ProfileMediaEditorProps = {
   media?: ProfileMediaPresentation;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
-  onPendingPreviewChange?: (pending: PendingProfileMediaUpload | null) => void;
+  onPendingPreviewChange?: (pending: PendingProfileMediaUpload[]) => void;
   onMediaErrorClear?: () => void;
   onMediaUploadCancel?: () => void;
   busy?: boolean;
@@ -98,7 +98,7 @@ export function ProfileMediaEditor({
         URL.revokeObjectURL(activePreviewUrl.current);
         activePreviewUrl.current = undefined;
       }
-      latestPendingPreviewChange.current?.(null);
+      latestPendingPreviewChange.current?.([]);
       latestMediaUploadCancel.current?.();
     },
     [],
@@ -155,19 +155,19 @@ export function ProfileMediaEditor({
       }
       activePending.current = null;
       activeRequest.current = undefined;
-      onPendingPreviewChange?.(null);
+      onPendingPreviewChange?.([]);
       revokeActivePreview(pending.previewUrl);
     } catch (uploadFailure) {
       if (!isCurrentUpload(pending, requestId)) return;
       const message =
         uploadFailure instanceof Error ? uploadFailure.message : "Image upload failed.";
-      const nextPending = { ...pending, state: "error" as const, error: message };
+      const nextPending = { ...pending, status: "failed" as const, error: message };
       activePending.current = nextPending;
       setUploadFailure({
         message,
         target: pending.target,
       });
-      onPendingPreviewChange?.(nextPending);
+      onPendingPreviewChange?.([nextPending]);
     }
   }
 
@@ -181,30 +181,31 @@ export function ProfileMediaEditor({
     uploadRequests.current.slideshow += 1;
     const previewUrl = URL.createObjectURL(file);
     const pending: PendingProfileMediaUpload = {
+      clientKey: `${baseId}-${target}-${uploadRequests.current[target]}`,
       target,
       file,
       previewUrl,
       altText: file.name || `Selected ${target} image`,
       positionX: 50,
       positionY: 50,
-      state: "uploading",
+      status: "uploading",
     };
     const requestId = uploadRequests.current[target];
     activePreviewUrl.current = previewUrl;
     activePending.current = pending;
     activeRequest.current = { target, requestId, previewUrl };
     setUploadFailure(undefined);
-    onPendingPreviewChange?.(pending);
+    onPendingPreviewChange?.([pending]);
     void upload(pending, requestId);
   }
 
   function retryUpload() {
     const pending = activePending.current;
-    if (!pending || pending.state !== "error") return;
+    if (!pending || pending.status !== "failed") return;
     const requestId = ++uploadRequests.current[pending.target];
     const nextPending: PendingProfileMediaUpload = {
       ...pending,
-      state: "uploading",
+      status: "uploading",
       error: undefined,
     };
     activePending.current = nextPending;
@@ -214,7 +215,7 @@ export function ProfileMediaEditor({
       previewUrl: nextPending.previewUrl,
     };
     setUploadFailure(undefined);
-    onPendingPreviewChange?.(nextPending);
+    onPendingPreviewChange?.([nextPending]);
     void upload(nextPending, requestId);
   }
 
@@ -227,9 +228,9 @@ export function ProfileMediaEditor({
     activeRequest.current = undefined;
     setUploadFailure(undefined);
     revokeActivePreview(pending.previewUrl);
-    onPendingPreviewChange?.(null);
+    onPendingPreviewChange?.([]);
     onMediaErrorClear?.();
-    if (pending.state === "uploading") onMediaUploadCancel?.();
+    if (pending.status === "uploading") onMediaUploadCancel?.();
   }
 
   function hasMeaningfulSettings(next: ProfileMediaPresentation) {

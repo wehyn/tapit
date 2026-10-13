@@ -59,7 +59,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 function profileForPreview(
   draft: ProfileContent,
   legacyTheme: ProfileTheme | undefined,
-  pendingMedia: PendingProfileMediaUpload | null,
+  pendingMedia: readonly PendingProfileMediaUpload[],
 ) {
   const projected =
     legacyTheme !== undefined
@@ -135,8 +135,9 @@ function DraftSaveButtonLink({ children, href }: { children: React.ReactNode; hr
   );
 }
 
-function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpload | null }) {
-  if (pending?.state !== "uploading") return null;
+function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpload[] }) {
+  if (!pending.some((entry) => entry.status === "uploading" || entry.status === "queued"))
+    return null;
   return (
     <p aria-live="polite" className="text-sm font-medium text-tapit-muted" role="status">
       Uploading image… Keep this page open.
@@ -144,8 +145,10 @@ function PendingMediaUploadStatus({ pending }: { pending: PendingProfileMediaUpl
   );
 }
 
-function unresolvedMediaMessage(pending: PendingProfileMediaUpload | null) {
-  return pending?.state === "error" ? FAILED_MEDIA_MESSAGE : PENDING_MEDIA_MESSAGE;
+function unresolvedMediaMessage(pending: PendingProfileMediaUpload[]) {
+  return pending.some((entry) => entry.status === "failed")
+    ? FAILED_MEDIA_MESSAGE
+    : PENDING_MEDIA_MESSAGE;
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
@@ -174,10 +177,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
-    null,
-  );
-  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
@@ -675,10 +676,8 @@ function LiveProfileEditorContent({
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
-  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload | null>(
-    null,
-  );
-  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview !== null;
+  const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
+  const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
   const registeredSave = useCallback(() => navigationSaveRef.current(), []);
