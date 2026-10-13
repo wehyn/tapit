@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
   resetDemoHarness,
@@ -123,14 +123,20 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
   await signInAsCustomer(page);
 
   for (const route of ["/app/profile", "/app/links"]) {
+    await page.setViewportSize({ width: 1280, height: 899 });
     await page.goto(route);
+    let editorControl: Locator;
     if (route === "/app/profile") {
       await page.getByLabel("Bio or role").fill("Layout preview draft");
+      editorControl = page.getByLabel("Name");
       const nameBox = await page.getByLabel("Name").boundingBox();
       const bioBox = await page.getByLabel("Bio or role").boundingBox();
       expect(nameBox).not.toBeNull();
       expect(bioBox).not.toBeNull();
       expect(bioBox!.height).toBeLessThanOrEqual(nameBox!.height * 2);
+    } else {
+      await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Layout preview draft");
+      editorControl = page.getByRole("textbox", { name: "Label for Portfolio" });
     }
     const preview = page.getByRole("heading", { name: "Preview", exact: true });
     const save = page.getByRole("button", { name: "Save draft", exact: true });
@@ -157,10 +163,18 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       ).toBeLessThanOrEqual(2);
     }
 
-    const previewBox = await preview.boundingBox();
+    const previewFrame = page.locator("#workspace-preview");
+    const previewBox = await previewFrame.boundingBox();
+    const editorBox = await editorControl.boundingBox();
     const saveBox = await save.boundingBox();
     const publishBox = await publish.boundingBox();
     expect(previewBox).not.toBeNull();
+    expect(editorBox).not.toBeNull();
+    expect(previewBox!.x).toBeGreaterThan(editorBox!.x + editorBox!.width);
+    expect(
+      previewBox!.y < editorBox!.y + editorBox!.height &&
+        previewBox!.y + previewBox!.height > editorBox!.y,
+    ).toBe(true);
     expect(saveBox).not.toBeNull();
     expect(publishBox).not.toBeNull();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
@@ -169,12 +183,17 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
 
     for (const width of [320, 390, 768]) {
       await page.setViewportSize({ width, height: 700 });
+      await expect(preview).toBeHidden();
+      const previewSwitch = page.getByRole("button", { name: "Preview", exact: true });
+      await expect(previewSwitch).toBeVisible();
+      await previewSwitch.click();
+      await expect(preview).toBeVisible();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
       await expect(save).toBeInViewport();
       await expect(publish).toBeInViewport();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth).toBeLessThanOrEqual(width);
     }
-    await page.setViewportSize({ width: 1467, height: 899 });
   }
 });
 
@@ -194,6 +213,7 @@ test("customer workspace switches between editing and preview on mobile without 
       await page.getByRole("textbox", { name: "Label for Portfolio" }).fill("Portfolio draft");
     }
 
+    await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeHidden();
     await page.getByRole("button", { name: "Preview", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
     if (route === "/app/profile")
@@ -201,6 +221,8 @@ test("customer workspace switches between editing and preview on mobile without 
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     if (route === "/app/profile")
       await expect(page.getByLabel("Bio or role")).toHaveValue("Draft survives preview switching");
+    else if (route === "/app/customize")
+      await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeChecked();
     else if (route === "/app/links")
       await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
         "Portfolio draft",
@@ -210,6 +232,8 @@ test("customer workspace switches between editing and preview on mobile without 
     await page.reload();
     if (route === "/app/profile")
       await expect(page.getByLabel("Bio or role")).toHaveValue("Draft survives preview switching");
+    else if (route === "/app/customize")
+      await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeChecked();
     else if (route === "/app/links")
       await expect(page.getByRole("textbox", { name: "Label for Portfolio" })).toHaveValue(
         "Portfolio draft",
@@ -217,25 +241,24 @@ test("customer workspace switches between editing and preview on mobile without 
   }
 });
 
-test("profile preview can be reached from the editor header on phones", async ({ page }) => {
+test("profile preview can be reached from the editor switch on phones", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signInAsCustomer(page);
   await page.goto("/app/profile");
 
-  const previewShortcut = page.getByRole("link", { name: "View preview", exact: true });
-  await expect(previewShortcut).toBeVisible();
-  await previewShortcut.click();
-  await expect(page).toHaveURL(/#workspace-preview$/);
+  await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeHidden();
+  const previewSwitch = page.getByRole("button", { name: "Preview", exact: true });
+  await expect(previewSwitch).toBeVisible();
+  await previewSwitch.click();
   await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/app/profile");
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
-  const webPreviewShortcut = page.getByRole("link", { name: "View preview", exact: true });
   await page.screenshot({
     path: "test-results/ui-redesign/customer-profile-web-preview-shortcut.png",
   });
-  await webPreviewShortcut.click();
   await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeInViewport();
   await page.screenshot({ path: "test-results/ui-redesign/customer-profile-web-preview.png" });
 });
@@ -274,6 +297,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
 
   for (const viewport of [
     { width: 1467, height: 899 },
+    { width: 1280, height: 899 },
     { width: 768, height: 900 },
     { width: 390, height: 844 },
     { width: 320, height: 720 },
@@ -283,12 +307,17 @@ test("customize keeps the private draft preview clear of the fixed action toolba
     await selectWarmStudio(page);
     await page.getByRole("radio", { name: "Coral", exact: true }).check();
 
-    await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
+    const previewHeading = page.getByRole("heading", { name: "Preview", exact: true });
+    if (viewport.width < 1280) {
+      await expect(previewHeading).toBeHidden();
+      await expect(page.getByRole("button", { name: "Preview", exact: true })).toBeVisible();
+      await page.getByRole("button", { name: "Preview", exact: true }).click();
+    }
+    await expect(previewHeading).toBeVisible();
     await expect(
       page.getByText("Only you can see this draft until you publish it.", { exact: true }),
     ).toBeVisible();
 
-    const preview = page.locator("#workspace-preview > section");
     const actions = page.getByRole("region", { name: "Draft actions", exact: true });
     const saveContact = page
       .locator("#workspace-preview")
@@ -299,8 +328,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
       "/mara-velasquez",
     );
     await expect(actions).toBeVisible();
-    if (viewport.width < 1400) {
-      await page.getByRole("link", { name: "View preview", exact: true }).click();
+    if (viewport.width < 1280) {
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-top.png" });
     } else {
@@ -329,10 +357,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
       `URL control overlapped the draft bar at ${viewport.width}px: ${JSON.stringify({ copyUrlBox, updatedActionBox })}`,
     ).toBe(false);
 
-    if (viewport.width >= 1400) {
-      const previewBox = await preview.boundingBox();
-      expect(previewBox).not.toBeNull();
-      expect(previewBox!.y + previewBox!.height).toBeLessThanOrEqual(updatedActionBox!.y);
+    if (viewport.width >= 1280) {
       await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
       await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-actions.png" });
     } else {
