@@ -1641,6 +1641,8 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
   }
   await expect(page.getByLabel("Slideshow image 3 description")).toBeVisible();
 
+  const orderList = page.getByRole("list", { name: "Uploaded slideshow image order" });
+  await expect(orderList.getByRole("listitem")).toHaveCount(3);
   for (let index = 1; index <= 3; index += 1) {
     await expect(page.getByText(`Image ${index} of 3`, { exact: true })).toBeVisible();
     await expect(
@@ -1653,6 +1655,8 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
       page.getByRole("button", { name: `Move slideshow image ${index} down` }),
     ).toBeVisible();
   }
+  await expect(page.getByRole("button", { name: "Move slideshow image 1 up" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Move slideshow image 3 down" })).toBeDisabled();
 
   const preview = page.getByTestId("profile-preview-device").getByRole("region", {
     name: "Profile slideshow",
@@ -1665,13 +1669,25 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
   await expect(preview.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
 
   const firstHandle = page.getByRole("button", { name: "Reorder slideshow image 1" });
-  const thirdRow = page.getByRole("listitem").filter({
+  const thirdRow = orderList.getByRole("listitem").filter({
     has: page.getByLabel("Slideshow image 3 description"),
   });
-  await firstHandle.dragTo(thirdRow, { targetPosition: { x: 30, y: 30 } });
+  await page.setViewportSize({ width: 1280, height: 1400 });
+  const handleBox = await firstHandle.boundingBox();
+  const rowBox = await thirdRow.boundingBox();
+  expect(handleBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  await page.mouse.move(handleBox!.x + handleBox!.width / 2, handleBox!.y + handleBox!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rowBox!.x + rowBox!.width / 2, rowBox!.y + 40, { steps: 8 });
+  await page.mouse.up();
+  await expect(
+    page.getByRole("status").filter({ hasText: /moved to position 3 of 3/i }),
+  ).toBeVisible();
   await expect(page.getByLabel("Slideshow image 3 description")).toHaveValue(
     "transparent-logo.png",
   );
+  await preview.getByRole("button", { name: "Image 3 of 3" }).click();
   await expect(preview.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
 
   const beforeSettingsDrag = await Promise.all(
@@ -1691,6 +1707,14 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status").filter({ hasText: /moved to position 2/i })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  const mobileMoveDown = page.getByRole("button", { name: "Move slideshow image 1 down" });
+  await mobileMoveDown.focus();
+  await expect(mobileMoveDown).toBeFocused();
+  await page.setViewportSize({ width: 320, height: 1600 });
+  await orderList
+    .getByRole("listitem")
+    .first()
+    .screenshot({ path: "test-results/tapit-slideshow-order-mobile.png" });
 });
 
 test("slideshow upload queue counts failed and queued items toward the ten image limit", async ({

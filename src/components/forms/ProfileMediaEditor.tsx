@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { CaretDownIcon, CaretUpIcon, TrashIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, CaretUpIcon, DotsSixVerticalIcon, TrashIcon } from "@phosphor-icons/react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
@@ -66,6 +67,10 @@ export function ProfileMediaEditor({
     target: "background" | "slideshow";
   }>();
   const [slideshowQueue, setSlideshowQueue] = useState<PendingProfileMediaUpload[]>([]);
+  const [draggingSlide, setDraggingSlide] = useState<number | null>(null);
+  const [slideshowAnnouncement, setSlideshowAnnouncement] = useState("");
+  const dragStartIndex = useRef(-1);
+  const draggingSlideIndex = useRef(-1);
   const value = copyMedia(media);
   const latestMedia = useRef<ProfileMediaPresentation | undefined>(value);
   const uploadRequests = useRef({ background: 0, slideshow: 0 });
@@ -378,10 +383,69 @@ export function ProfileMediaEditor({
     update({ slideshow });
   }
 
-  function reorderSlide(fromIndex: number, toIndex: number) {
-    const next = reorderProfileMediaSlides(value, fromIndex, toIndex);
+  function reorderSlide(fromIndex: number, toIndex: number, announce = true) {
+    const current = latestMedia.current ?? value;
+    const next = reorderProfileMediaSlides(current, fromIndex, toIndex);
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      fromIndex >= current.slideshow.length ||
+      toIndex < 0 ||
+      toIndex >= current.slideshow.length
+    )
+      return;
     latestMedia.current = next;
     onChange(next);
+    if (announce) {
+      setSlideshowAnnouncement(
+        `Image ${fromIndex + 1} moved to position ${toIndex + 1} of ${next.slideshow.length}.`,
+      );
+    }
+  }
+
+  function handleSlidePointerDown(event: ReactPointerEvent<HTMLButtonElement>, index: number) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragStartIndex.current = index;
+    draggingSlideIndex.current = index;
+    setDraggingSlide(index);
+  }
+
+  function handleSlidePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (draggingSlideIndex.current < 0 || (event.buttons !== 1 && event.pointerType !== "touch"))
+      return;
+    const row = document
+      .elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>("[data-slideshow-order-index]");
+    const targetIndex = Number(row?.dataset.slideshowOrderIndex);
+    if (row && Number.isInteger(targetIndex) && targetIndex >= 0) {
+      draggingSlideIndex.current = targetIndex;
+    }
+  }
+
+  function finishSlidePointerDrag(event: ReactPointerEvent<HTMLButtonElement>, commit = true) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    const current = latestMedia.current ?? value;
+    const fromIndex = dragStartIndex.current;
+    const targetIndex = draggingSlideIndex.current;
+    if (
+      commit &&
+      draggingSlide !== null &&
+      fromIndex >= 0 &&
+      targetIndex >= 0 &&
+      targetIndex !== fromIndex
+    ) {
+      reorderSlide(fromIndex, targetIndex, false);
+      setSlideshowAnnouncement(
+        `Image ${fromIndex + 1} moved to position ${targetIndex + 1} of ${current.slideshow.length}.`,
+      );
+    }
+    dragStartIndex.current = -1;
+    draggingSlideIndex.current = -1;
+    setDraggingSlide(null);
   }
 
   return (
@@ -518,7 +582,7 @@ export function ProfileMediaEditor({
             <h3 className="text-sm font-semibold text-tapit-ink">Slideshow</h3>
             <p className="mt-1 text-xs leading-5 text-tapit-muted">
               {value.slideshow.length + slideshowQueue.length} of {MAX_PROFILE_SLIDESHOW_IMAGES}{" "}
-              images. Reorder or remove thumbnails below.
+              images. Reorder uploaded images in the list below.
             </p>
             {value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES ? (
               <p className="mt-1 text-xs leading-5 text-tapit-muted">
@@ -601,68 +665,104 @@ export function ProfileMediaEditor({
             </div>
           </div>
         ))}
-        {value.slideshow.map((image, index) => (
-          <div
-            className="grid gap-3 rounded-tapit border border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
-            key={`${image.assetId}-${index}`}
-          >
-            {imageSource(image) ? (
-              <div
-                aria-label={image.altText}
-                className="h-16 w-20 rounded-tapit bg-cover bg-center"
-                role="img"
-                style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
-              />
-            ) : (
-              <div aria-hidden="true" className="h-16 w-20 rounded-tapit bg-tapit-soft-surface" />
-            )}
-            <Field
-              id={`${baseId}-slide-${index}-alt`}
-              label={`Slideshow image ${index + 1} description`}
-              help="Optional. Add a description if it helps explain the image."
-              maxLength={160}
-              onChange={(event) => updateSlide(index, { altText: event.target.value })}
-              value={image.altText}
-            />
-            <div className="flex flex-wrap gap-2 sm:flex-col">
-              <Button
-                aria-label={`Move slideshow image ${index + 1} up`}
-                disabled={index === 0}
-                onClick={() => reorderSlide(index, index - 1)}
-                type="button"
-                variant="quiet"
-              >
-                <CaretUpIcon aria-hidden="true" size={18} />
-              </Button>
-              <Button
-                aria-label={`Move slideshow image ${index + 1} down`}
-                disabled={index === value.slideshow.length - 1}
-                onClick={() => reorderSlide(index, index + 1)}
-                type="button"
-                variant="quiet"
-              >
-                <CaretDownIcon aria-hidden="true" size={18} />
-              </Button>
-              <Button
-                aria-label={`Use slideshow image ${index + 1} as background`}
-                onClick={() => update({ background: { ...image, positionX: 50, positionY: 50 } })}
-                type="button"
-                variant="quiet"
-              >
-                Use as background
-              </Button>
-              <Button
-                aria-label={`Remove slideshow image ${index + 1}`}
-                onClick={() => removeSlide(index)}
-                type="button"
-                variant="quiet"
-              >
-                <TrashIcon aria-hidden="true" size={16} />
-                Remove
-              </Button>
-            </div>
-          </div>
-        ))}
+        <ol aria-label="Uploaded slideshow image order" className="grid min-w-0 gap-3">
+          {value.slideshow.map((image, index) => (
+            <li
+              aria-posinset={index + 1}
+              aria-setsize={value.slideshow.length}
+              className={`grid min-w-0 gap-3 rounded-tapit border border-tapit-line p-3 motion-safe:transition-colors ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+              data-slideshow-order-index={index}
+              key={`${image.assetId}-${index}`}
+            >
+              <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-tapit-line pb-3">
+                <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold text-tapit-ink">
+                  Image {index + 1} of {value.slideshow.length}
+                </span>
+                <button
+                  aria-label={`Reorder slideshow image ${index + 1}`}
+                  className="grid size-12 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                  onPointerCancel={(event) => finishSlidePointerDrag(event, false)}
+                  onPointerDown={(event) => handleSlidePointerDown(event, index)}
+                  onPointerMove={handleSlidePointerMove}
+                  onPointerUp={finishSlidePointerDrag}
+                  title="Drag to reorder"
+                  type="button"
+                >
+                  <DotsSixVerticalIcon aria-hidden="true" size={20} weight="bold" />
+                </button>
+                <div className="flex shrink-0 gap-1">
+                  <Button
+                    aria-label={`Move slideshow image ${index + 1} up`}
+                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    disabled={index === 0}
+                    onClick={() => reorderSlide(index, index - 1)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <CaretUpIcon aria-hidden="true" size={18} />
+                  </Button>
+                  <Button
+                    aria-label={`Move slideshow image ${index + 1} down`}
+                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    disabled={index === value.slideshow.length - 1}
+                    onClick={() => reorderSlide(index, index + 1)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <CaretDownIcon aria-hidden="true" size={18} />
+                  </Button>
+                </div>
+              </div>
+              <div className="grid min-w-0 gap-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
+                {imageSource(image) ? (
+                  <div
+                    aria-label={image.altText}
+                    className="h-16 w-20 rounded-tapit bg-cover bg-center"
+                    role="img"
+                    style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
+                  />
+                ) : (
+                  <div
+                    aria-hidden="true"
+                    className="h-16 w-20 rounded-tapit bg-tapit-soft-surface"
+                  />
+                )}
+                <Field
+                  id={`${baseId}-slide-${index}-alt`}
+                  label={`Slideshow image ${index + 1} description`}
+                  help="Optional. Add a description if it helps explain the image."
+                  maxLength={160}
+                  onChange={(event) => updateSlide(index, { altText: event.target.value })}
+                  value={image.altText}
+                />
+                <div className="flex min-w-0 flex-wrap gap-2 sm:flex-col">
+                  <Button
+                    aria-label={`Use slideshow image ${index + 1} as background`}
+                    onClick={() =>
+                      update({ background: { ...image, positionX: 50, positionY: 50 } })
+                    }
+                    type="button"
+                    variant="quiet"
+                  >
+                    Use as background
+                  </Button>
+                  <Button
+                    aria-label={`Remove slideshow image ${index + 1}`}
+                    onClick={() => removeSlide(index)}
+                    type="button"
+                    variant="quiet"
+                  >
+                    <TrashIcon aria-hidden="true" size={16} />
+                    Remove
+                  </Button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">
+          {slideshowAnnouncement}
+        </p>
       </div>
 
       <label className="flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-ink">
