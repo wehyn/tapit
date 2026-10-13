@@ -681,7 +681,7 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await expect(page).toHaveURL(/\/app\/profile$/);
 });
 
-test("profile editors remove redundant visible titles and subtitles", async ({ page }) => {
+test("profile editors show their page title without redundant subtitles", async ({ page }) => {
   await signInAsCustomer(page);
 
   for (const [route, title, subtitle] of [
@@ -690,11 +690,7 @@ test("profile editors remove redundant visible titles and subtitles", async ({ p
   ] as const) {
     await page.goto(route);
     const heading = page.getByRole("heading", { name: title, exact: true });
-    await expect(heading).toBeAttached();
-    const headingBox = await heading.boundingBox();
-    expect(headingBox).not.toBeNull();
-    expect(headingBox!.width).toBeLessThanOrEqual(1);
-    expect(headingBox!.height).toBeLessThanOrEqual(1);
+    await expect(heading).toBeVisible();
     await expect(page.getByText(subtitle, { exact: true })).toHaveCount(0);
   }
 });
@@ -869,10 +865,9 @@ test("link rows shift while the drag is still held", async ({ page }, testInfo) 
 test("customer drafts stay private until link and profile publication", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/");
-  await expect(page.getByRole("link", { name: "Profile", exact: true })).toHaveAttribute(
-    "href",
-    "/app/profile",
-  );
+  await expect(
+    page.locator("header").getByRole("link", { name: "Go to your profile", exact: true }),
+  ).toHaveAttribute("href", "/app/profile");
   await page.goto("/app/profile");
   await expect(
     page.getByText("These controls stay deliberately small so every theme remains readable.", {

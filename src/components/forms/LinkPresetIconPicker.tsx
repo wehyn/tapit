@@ -81,7 +81,7 @@ export function LinkPresetIconPicker({
         <div
           role="listbox"
           aria-label={`Preset icon for ${label || "link"}`}
-          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto rounded-tapit border border-tapit-line bg-white p-1 shadow-xl"
+          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-tapit border border-tapit-line bg-white p-1 shadow-xl"
         >
           {options.map((option) => (
             <button

@@ -43,22 +43,28 @@ export function PublicBrand() {
   return <Brand />;
 }
 
-function AccountLink() {
-  return isLocalDemoMode() ? <DemoAccountLink /> : <LiveAccountLink />;
+function AccountLink({ hideCustomerProfile = false }: { hideCustomerProfile?: boolean }) {
+  return isLocalDemoMode() ? (
+    <DemoAccountLink hideCustomerProfile={hideCustomerProfile} />
+  ) : (
+    <LiveAccountLink hideCustomerProfile={hideCustomerProfile} />
+  );
 }
 
-function DemoAccountLink() {
+function DemoAccountLink({ hideCustomerProfile }: { hideCustomerProfile: boolean }) {
   const session = useDemoSession();
+  if (hideCustomerProfile && session?.role === "customer") return null;
   const href =
     session === null ? "/login" : session.role === "admin" ? "/admin/customers" : "/app/profile";
   const label = session === null ? "Sign in" : session.role === "admin" ? "Dashboard" : "Profile";
   return <AccountAnchor href={href}>{label}</AccountAnchor>;
 }
 
-function LiveAccountLink() {
+function LiveAccountLink({ hideCustomerProfile }: { hideCustomerProfile: boolean }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const signedIn = !isLoading && access?.authenticated === true;
+  if (hideCustomerProfile && signedIn && access.role === "customer") return null;
   const href = signedIn
     ? access.role === "admin"
       ? "/admin/customers"
@@ -94,7 +100,7 @@ function ProfileActionLink({ mobile = false }: { mobile?: boolean }) {
   return (
     <Link
       aria-label="Go to your profile"
-      className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-tapit-accent px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(49,95,228,0.18)] transition hover:-translate-y-px hover:bg-tapit-accent-strong focus-visible:outline-offset-4 active:translate-y-0 ${mobile ? "text-xs sm:text-sm" : ""}`}
+      className={`inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-tapit-accent px-4 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(49,95,228,0.18)] transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-px hover:bg-tapit-accent-strong focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] ${mobile ? "text-xs sm:text-sm" : ""}`}
       href="/app/profile"
     >
       {mobile ? (
@@ -178,7 +184,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
         </nav>
         <div className="ml-auto flex items-center gap-2 sm:gap-4 lg:ml-0">
           <div className="hidden sm:block lg:block">
-            <AccountLink />
+            <AccountLink hideCustomerProfile={showProfileAction} />
           </div>
           {showProfileAction ? <ProfileActionLink mobile /> : null}
           <button
@@ -219,16 +225,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
             })}
           </nav>
           <div className="mx-auto flex w-full max-w-[95rem] items-center justify-between px-[clamp(1rem,5vw,5.25rem)] pb-4 pt-2 sm:hidden">
-            <AccountLink />
-            {showProfileAction ? (
-              <Link
-                className="inline-flex min-h-11 items-center text-sm font-semibold text-tapit-accent"
-                href="/app/profile"
-                onClick={() => setMenuPathname(null)}
-              >
-                Go to your profile
-              </Link>
-            ) : null}
+            <AccountLink hideCustomerProfile={showProfileAction} />
           </div>
         </div>
       ) : null}
