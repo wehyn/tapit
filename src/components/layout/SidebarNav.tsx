@@ -122,7 +122,9 @@ export function SidebarNav({
           <Icon name="fingerprint" size={20} weight="bold" />
         </div>
         {eyebrow ? <p className="tapit-eyebrow mt-10 hidden px-3 xl:block">{eyebrow}</p> : null}
-        <div className="mt-7 flex-1 overflow-y-auto">{renderGroups("desktop")}</div>
+        <div className="mt-7 flex-1 overflow-y-auto overscroll-contain">
+          {renderGroups("desktop")}
+        </div>
         {sidebarFooter ? (
           <div className="mt-5 border-t border-tapit-line pt-3 xl:mt-8 xl:pt-5">
             {sidebarFooter}
