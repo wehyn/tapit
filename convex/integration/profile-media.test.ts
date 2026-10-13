@@ -979,4 +979,75 @@ describe("profile media hardening", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(first))).not.toBeNull();
     expect(await t.run((ctx) => ctx.storage.getUrl(second))).not.toBeNull();
   });
+
+  it("advances past ambiguous jobs and reclaims later expired orphans", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const ambiguous: { jobId: Id<"profileMediaUploadJobs">; storageIds: Id<"_storage">[] }[] = [];
+    for (let index = 0; index < 8; index += 1) {
+      const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        sha256: "placeholder",
+        expectedMediaRevision: 0,
+      });
+      if (index === 0)
+        for (let filler = 0; filler < 65; filler += 1)
+          await t.run((ctx) => ctx.storage.store(new Blob([`scan-page-filler-${filler}`])));
+      const storageIds = await Promise.all([
+        t.run((ctx) => ctx.storage.store(new Blob([`ambiguous-${index}`]))),
+        t.run((ctx) => ctx.storage.store(new Blob([`ambiguous-${index}`]))),
+      ]);
+      const sha256 = await t.run(
+        async (ctx) => (await ctx.db.system.get("_storage", storageIds[0]!))!.sha256,
+      );
+      await t.run(async (ctx) => {
+        const job = (await ctx.db.get(jobId))!;
+        await ctx.db.patch(jobId, {
+          sha256,
+          createdAt: job.createdAt,
+          uploadWindowEndsAt: job.createdAt + 10 * 60 * 1000,
+        });
+      });
+      ambiguous.push({ jobId, storageIds });
+    }
+    const orphanJob = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.ownerProfileId,
+      ownerId: ids.ownerId,
+      sha256: "placeholder",
+      expectedMediaRevision: 0,
+    });
+    const orphanStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["later-orphan"])));
+    const orphanSha256 = await t.run(
+      async (ctx) => (await ctx.db.system.get("_storage", orphanStorageId))!.sha256,
+    );
+    await t.run(async (ctx) => {
+      const job = (await ctx.db.get(orphanJob))!;
+      await ctx.db.patch(orphanJob, {
+        sha256: orphanSha256,
+        createdAt: job.createdAt,
+        uploadWindowEndsAt: job.createdAt + 10 * 60 * 1000,
+      });
+    });
+
+    await t.mutation(internal.profileMediaCleanup.reconcileExpired, {
+      now: Date.now() + 2 * 24 * 60 * 60 * 1000,
+    });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    for (const job of ambiguous) {
+      expect(
+        await t.query(internal.profileMedia.getUploadJob, { jobId: job.jobId }),
+      ).not.toBeNull();
+      for (const storageId of job.storageIds)
+        expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).not.toBeNull();
+    }
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId: orphanJob })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).toBeNull();
+  });
 });

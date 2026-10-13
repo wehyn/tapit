@@ -1,22 +1,71 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
-// Hosted demo runs are intentionally opt-in and must identify a non-production
-// Convex deployment. Local demo coverage remains in public-profile.spec.ts.
+// Hosted demo runs are intentionally opt-in and must identify their exact
+// non-production app and Convex target. Local demo coverage remains in public-profile.spec.ts.
 const deployment = process.env.CONVEX_DEPLOYMENT ?? "";
-const hostedDemoEnabled =
-  process.env.TAPIT_HOSTED_DEMO_E2E === "true" &&
-  deployment.length > 0 &&
-  !/prod/i.test(deployment) &&
-  Boolean(process.env.TAPIT_HOSTED_DEMO_ADMIN_EMAIL) &&
-  Boolean(process.env.TAPIT_HOSTED_DEMO_ADMIN_PASSWORD);
+const hostedDemoEnabled = process.env.TAPIT_HOSTED_DEMO_E2E === "true";
+const expectedAppEnvironment = process.env.TAPIT_HOSTED_DEMO_APP_ENV ?? "";
+const expectedConvexURL = process.env.TAPIT_HOSTED_DEMO_CONVEX_URL ?? "";
+const expectedConvexSiteURL = process.env.TAPIT_HOSTED_DEMO_CONVEX_SITE_URL ?? "";
 
 test.skip(
   !hostedDemoEnabled,
-  "Set TAPIT_HOSTED_DEMO_E2E=true with an explicitly named non-production Convex deployment and hosted admin credentials.",
+  "Set TAPIT_HOSTED_DEMO_E2E=true to opt in. The test also requires an acknowledged disposable deployment, explicit expected app and Convex targets, and hosted admin credentials; it leaves persistent records behind.",
 );
 
 const adminEmail = process.env.TAPIT_HOSTED_DEMO_ADMIN_EMAIL ?? "";
 const adminPassword = process.env.TAPIT_HOSTED_DEMO_ADMIN_PASSWORD ?? "";
+
+function requireURL(value: string, name: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`${name} must be a valid HTTPS URL.`);
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      `${name} must be an HTTPS origin without credentials, path, query, or fragment.`,
+    );
+  }
+  return url;
+}
+
+test.beforeEach(async ({ request }) => {
+  expect(process.env.TAPIT_HOSTED_DEMO_DISPOSABLE_TARGET).toBe("I_UNDERSTAND_DATA_PERSISTS");
+  expect(deployment).toMatch(/^(?:dev|preview)(?::|\/).+/i);
+  expect(expectedAppEnvironment).toMatch(/^(?:development|preview)$/);
+  expect(expectedAppEnvironment).not.toBe("production");
+  expect(adminEmail).toBeTruthy();
+  expect(adminPassword).toBeTruthy();
+
+  const convexURL = requireURL(expectedConvexURL, "TAPIT_HOSTED_DEMO_CONVEX_URL");
+  const siteURL = requireURL(expectedConvexSiteURL, "TAPIT_HOSTED_DEMO_CONVEX_SITE_URL");
+  expect(convexURL.hostname).toMatch(/^[^.]+\.convex\.cloud$/);
+  expect(siteURL.hostname).toBe(convexURL.hostname.replace(/\.convex\.cloud$/, ".convex.site"));
+
+  const response = await request.get("/api/live-contract", {
+    failOnStatusCode: false,
+    maxRedirects: 0,
+  });
+  expect(response.status(), "the hosted app live contract must return HTTP 200").toBe(200);
+  const observed = await response.json();
+  expect(observed?.mode).toBe("live");
+  expect(observed?.appEnvironment).toBe(expectedAppEnvironment);
+  expect(typeof observed?.convexUrl).toBe("string");
+  expect(typeof observed?.convexSiteUrl).toBe("string");
+  expect(requireURL(observed.convexUrl, "live contract convexUrl").origin).toBe(convexURL.origin);
+  expect(requireURL(observed.convexSiteUrl, "live contract convexSiteUrl").origin).toBe(
+    siteURL.origin,
+  );
+});
 
 async function signInAsAdmin(page: Page) {
   await page.goto("/login");

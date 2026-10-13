@@ -22,6 +22,39 @@ stable Preview deployment, never Production. The wrapper fails closed before pro
 missing, points at Production, contains credentials in a URL, has mismatched Convex origins, or reports an app
 provider other than Google.
 
+## Hosted demo card-claim E2E
+
+`e2e/hosted-demo.spec.ts` is a separate, opt-in hosted-demo flow. It signs in as the hosted-demo administrator,
+creates and invites a customer, registers a card, completes password setup, claims the card, and publishes the
+profile. This leaves the invited customer application account and Convex Auth identity, profile, registered card,
+and their resulting claimed and published state in the deployment. The test closes its browser context only; it
+does not clean up these records. Do not use shared hosted-demo data or any deployment containing other users'
+data. Run it only against an isolated disposable non-production deployment
+that can be retired after the run. Retire the deployment after testing; `demo:reset` leaves the Convex Auth
+identity and affects the entire demo scope, so it is not full E2E cleanup.
+
+The opt-in contract requires the deployment name, the expected hosted app environment and exact Convex cloud/site
+origins, hosted administrator credentials, and this explicit acknowledgement:
+
+```text
+TAPIT_HOSTED_DEMO_E2E=true
+TAPIT_HOSTED_DEMO_DISPOSABLE_TARGET=I_UNDERSTAND_DATA_PERSISTS
+CONVEX_DEPLOYMENT=dev:<isolated-disposable-deployment> # or preview:<isolated-disposable-deployment>
+TAPIT_HOSTED_DEMO_APP_ENV=development # or preview
+TAPIT_HOSTED_DEMO_CONVEX_URL=https://<deployment>.convex.cloud
+TAPIT_HOSTED_DEMO_CONVEX_SITE_URL=https://<deployment>.convex.site
+TAPIT_HOSTED_DEMO_ADMIN_EMAIL=admin@example.test
+TAPIT_HOSTED_DEMO_ADMIN_PASSWORD=<hosted-admin-password>
+```
+
+Keep credentials in ignored environment storage. When opted in, the test requires a `dev:` or `preview:` deployment
+name, a `development` or `preview` app environment, and HTTPS Convex cloud/site origins. Before creating any
+records, it fetches `/api/live-contract` through Playwright's configured base URL and requires live mode and exact
+matches for the expected app environment and both URL origins. Missing, malformed, or mismatched contract fields
+fail the preflight. The test process's deployment name is only a separate safeguard; it does not establish which
+deployment the hosted app uses. The operator must still confirm isolation and disposability before opting in.
+The test is intentionally not run as part of local/demo verification.
+
 ## Google provider setup
 
 Configure a separate Google OAuth client for each live development deployment, the stable Preview origin, and

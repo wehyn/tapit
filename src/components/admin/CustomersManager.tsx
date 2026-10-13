@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
@@ -443,6 +443,7 @@ function DemoCustomersManager() {
 }
 
 function LiveCustomersManager() {
+  const [now, setNow] = useState(() => Date.now());
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -465,7 +466,7 @@ function LiveCustomersManager() {
     status: requestsStatus,
     loadMore: loadMoreRequests,
   } = usePaginatedQuery(api.customers.listDeletionRequests, {}, { initialNumItems: 50 });
-  const hasOverdueDeletionRequests = useQuery(api.customers.hasOverdueDeletionRequests);
+  const hasOverdueDeletionRequests = useQuery(api.customers.hasOverdueDeletionRequests, { now });
   const {
     results: invitations,
     status: invitationsStatus,
@@ -476,6 +477,10 @@ function LiveCustomersManager() {
   const revokeInvitation = useMutation(api.invitations.revoke);
   const replaceInvitation = useMutation(api.invitations.replace);
   const setRole = useMutation(api.customers.setRole);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
   const invitationByCustomer = useMemo(() => {
     const byCustomer = new Map<string, (typeof invitations)[number]>();
     for (const invitation of invitations) {
@@ -838,7 +843,7 @@ function LiveCustomersManager() {
           {requests.length === 0 ? (
             <Notice>No deletion requests.</Notice>
           ) : (
-            requests.map(({ request, customer, overdue }) => (
+            requests.map(({ request, customer }) => (
               <article
                 className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
                 key={request._id}
@@ -850,7 +855,8 @@ function LiveCustomersManager() {
                   <p className="mt-1 text-sm text-tapit-muted">
                     Requested {new Date(request.requestedAt).toLocaleString()}
                   </p>
-                  {overdue ? (
+                  {request.status === "requested" &&
+                  request.requestedAt < now - 30 * 24 * 60 * 60 * 1000 ? (
                     <p className="mt-1 text-sm font-semibold text-red-700" role="status">
                       Overdue — review and approve or resolve this request now.
                     </p>

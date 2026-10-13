@@ -24,6 +24,14 @@ For a hosted demo backed by shared, non-production Convex data, set
 `NEXT_PUBLIC_CONVEX_URL`, and set `TAPIT_DEMO_AUTH_MODE=hosted-demo` on that Convex deployment.
 Hosted demo data is shared across users and devices; never point it at production.
 
+The hosted card-claim E2E is separately gated and must use an isolated disposable non-production Convex
+deployment. It creates an invited customer account and Auth identity, a profile, and a registered and claimed
+card, then publishes the profile. The test closes its browser context but does not clean up those persistent
+records. See the [hosted demo E2E instructions](docs/live-e2e.md#hosted-demo-card-claim-e2e) before running it;
+retire the disposable deployment after the run. Opt-in also requires explicit expected app environment and Convex
+cloud/site URLs; before any writes, the test checks the actual Playwright base URL's live contract against them.
+`demo:reset` leaves the Auth identity and is not full cleanup.
+
 After an operator provisions the isolated hosted-demo administrator through its supported Auth setup flow,
 initialize the fixed Mara demo seed with the identity's user ID:
 

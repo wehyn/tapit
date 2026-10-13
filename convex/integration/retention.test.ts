@@ -3,13 +3,59 @@ import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import { describe, expect, it, vi } from "vitest";
 
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
 const day = 24 * 60 * 60 * 1000;
 
 describe("retention cleanup", () => {
+  it("refreshes the overdue deletion warning when its supplied time crosses 30 days", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const requestedAt = now - 30 * day;
+    const adminUserId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "admin@example.com" });
+      await ctx.db.insert("customers", {
+        userId,
+        email: "admin@example.com",
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: now,
+        updatedAt: now,
+      });
+      const ownerUserId = await ctx.db.insert("users", { email: "owner@example.com" });
+      const ownerId = await ctx.db.insert("customers", {
+        userId: ownerUserId,
+        email: "owner@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "requested",
+        createdAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId: ownerId,
+        requestedAt,
+        status: "requested",
+      });
+      return userId;
+    });
+    const admin = t.withIdentity({
+      issuer: "https://tapit.test",
+      subject: adminUserId,
+      tokenIdentifier: `https://tapit.test|${adminUserId}`,
+    });
+
+    await expect(admin.query(api.customers.hasOverdueDeletionRequests, { now })).resolves.toBe(
+      false,
+    );
+    await expect(
+      admin.query(api.customers.hasOverdueDeletionRequests, { now: requestedAt + 30 * day + 1 }),
+    ).resolves.toBe(true);
+  });
+
   it("removes expired analytics and audit records while preserving newer records", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
