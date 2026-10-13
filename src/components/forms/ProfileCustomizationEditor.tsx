@@ -58,7 +58,7 @@ const categoryLabels: Record<ProfileCustomizationCategory, string> = {
 };
 
 const radioClass =
-  "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+  "relative flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
 
 type ProfileAppearancePreset = ProfileTheme | "warm-studio";
 
@@ -165,7 +165,7 @@ function PresetRadio({
 }) {
   return (
     <label
-      className={`grid cursor-pointer gap-2.5 rounded-tapit border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
+      className={`relative grid cursor-pointer gap-2.5 rounded-tapit border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
         disabled ? "cursor-not-allowed opacity-55" : ""
       } ${
         checked
@@ -178,7 +178,7 @@ function PresetRadio({
           aria-describedby={ariaDescribedBy}
           aria-label={label}
           checked={checked}
-          className="mt-0.5 size-4 shrink-0 accent-tapit-accent"
+          className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
           disabled={disabled}
           name={name}
           onChange={() => onChange(value)}
@@ -243,7 +243,7 @@ function RadioChoice({
       <input
         checked={checked}
         aria-describedby={ariaDescribedBy}
-        className="size-4 accent-tapit-accent"
+        className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
         name={name}
         onChange={onChange}
         type="radio"
