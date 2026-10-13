@@ -173,13 +173,6 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
       await expect(publish).toBeInViewport();
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
       expect(scrollWidth).toBeLessThanOrEqual(width);
-      if (route === "/app/profile" && width === 390) {
-        await page.screenshot({ path: "test-results/customer-workbench-390.png" });
-      }
-    }
-    if (route === "/app/profile") {
-      await page.setViewportSize({ width: 1280, height: 899 });
-      await page.screenshot({ path: "test-results/customer-workbench-1280.png" });
     }
     await page.setViewportSize({ width: 1467, height: 899 });
   }
@@ -815,7 +808,7 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.screenshot({
-    path: "test-results/ui-redesign/profile-editor-desktop.png",
+    path: "test-results/customer-workbench-1280.png",
     fullPage: true,
   });
   for (const width of [1117, 390]) {
@@ -823,15 +816,14 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
+    if (width === 390) {
+      await page.screenshot({ path: "test-results/customer-workbench-390.png", fullPage: true });
+    }
   }
   expect(
     (await page.getByRole("link", { name: "/mara-velasquez", exact: true }).boundingBox())!.width,
   ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.screenshot({
-    path: "test-results/ui-redesign/profile-editor-mobile.png",
-    fullPage: true,
-  });
 });
 
 test("profile workspace keeps Powered by Tapit at the bottom of the phone screen", async ({
