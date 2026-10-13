@@ -68,7 +68,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 alt={`${content.name || "Profile"} profile image`}
-                className="size-28 rounded-tapit border border-tapit-line bg-tapit-surface object-cover"
+                className="tapit-image-outline size-28 rounded-tapit bg-tapit-surface object-cover"
                 src={content.imageUrl}
               />
             ) : (
@@ -164,7 +164,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   alt={media.background.altText}
-                  className="h-24 w-full rounded-tapit border border-tapit-line object-cover"
+                  className="tapit-image-outline h-24 w-full rounded-tapit object-cover"
                   src={media.background.previewUrl ?? media.background.url}
                 />
               ) : null}
@@ -189,7 +189,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       alt={image.altText}
-                      className="size-14 shrink-0 rounded-tapit object-cover"
+                      className="tapit-image-outline size-14 shrink-0 rounded-tapit object-cover"
                       src={image.previewUrl ?? image.url}
                     />
                   ) : null}

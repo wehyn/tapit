@@ -77,7 +77,7 @@ export function CardPreviewDialog({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-tapit-ink/70 px-5 py-8 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-tapit-ink/70 px-5 py-8 backdrop-blur-[2px]">
       <div
         aria-labelledby={titleId}
         aria-modal="true"
@@ -106,7 +106,7 @@ export function CardPreviewDialog({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             alt={`Preview of ${file.name}`}
-            className="max-h-[52vh] max-w-full object-contain sm:max-h-[57vh]"
+            className="tapit-image-outline max-h-[52vh] max-w-full object-contain sm:max-h-[57vh]"
             src={file.url}
           />
         </div>

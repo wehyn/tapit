@@ -163,7 +163,7 @@ export function ProfileImageCropDialog({
           {sourceUrl ? (
             <img
               alt="Profile photo crop preview"
-              className="pointer-events-none absolute max-w-none rounded-full"
+              className="tapit-image-outline pointer-events-none absolute max-w-none rounded-full"
               onError={() => setError("That image could not be decoded. Choose another file.")}
               onLoad={(event) => {
                 const image = event.currentTarget;

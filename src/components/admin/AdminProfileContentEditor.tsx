@@ -160,7 +160,7 @@ function PhotoEditor({
           {draft.imageUrl ? (
             <NextImage
               alt={`${draft.name} profile`}
-              className="size-full object-cover"
+              className="tapit-image-outline size-full object-cover"
               height={80}
               src={draft.imageUrl}
               unoptimized
