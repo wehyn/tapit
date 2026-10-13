@@ -1615,7 +1615,9 @@ test("slideshow upload queue resumes after removing a failed item", async ({ pag
   await expect(pendingSlideshow.getByRole("img")).toHaveAttribute("src", /^blob:/);
 
   await setDemoMediaUploadControl(page, { fail: false });
-  await page.getByRole("button", { name: "Remove failed slideshow image", exact: true }).click();
+  await page
+    .getByRole("button", { name: /Remove failed slideshow image.*opaque-landscape\.png/ })
+    .click();
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
     "transparent-logo.png",
   );

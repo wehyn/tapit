@@ -193,11 +193,13 @@ export function ProfileMediaEditor({
 
   function startBackgroundUpload(file: File | undefined) {
     if (!file) return;
+    if (backgroundPending.current?.status === "uploading") return;
     const validationError = validateProfileImageFile(file);
     if (validationError) {
       setUploadFailure({ message: validationError, target: "background" });
       return;
     }
+    if (backgroundPending.current) revokePreview(backgroundPending.current.previewUrl);
     uploadRequests.current.background += 1;
     const previewUrl = URL.createObjectURL(file);
     previewUrls.current.add(previewUrl);
@@ -588,7 +590,7 @@ export function ProfileMediaEditor({
                 </Button>
               ) : null}
               <Button
-                aria-label={entry.status === "failed" ? "Remove failed slideshow image" : undefined}
+                aria-label={`Remove ${entry.status === "failed" ? "failed slideshow image" : "slideshow upload"} ${entry.file.name}`}
                 disabled={entry.status === "uploading"}
                 onClick={() => removeSlideshowUpload(entry.clientKey)}
                 type="button"

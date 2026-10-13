@@ -243,6 +243,7 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
     target: { files: [new File(["second"], "second.png", { type: "image/png" })] },
   });
   expect(fetchMock).toHaveBeenCalledOnce();
+  expect(screen.getByRole("button", { name: "Remove slideshow upload second.png" })).toBeVisible();
   fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
   fireEvent.click(screen.getByLabelText("Moss"));
   expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
@@ -318,6 +319,40 @@ it("keeps existing media after a failed upload", async () => {
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Temporary media failure");
   expect(screen.getByLabelText("Background image description")).toHaveValue("Existing backdrop");
+});
+
+it("revokes a failed background preview when replacing it but keeps the active preview", async () => {
+  const createObjectUrl = vi
+    .spyOn(URL, "createObjectURL")
+    .mockReturnValueOnce("blob:failed-background")
+    .mockReturnValueOnce("blob:active-background");
+  const revokeObjectUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+  fetchMock
+    .mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }))
+    .mockImplementationOnce(() => new Promise<Response>(() => undefined));
+  const { unmount } = render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  const backgroundInput = screen.getByLabelText("Upload background image");
+  fireEvent.change(backgroundInput, {
+    target: { files: [new File(["failed"], "failed-background.png", { type: "image/png" })] },
+  });
+  expect(await screen.findByRole("alert")).toHaveTextContent("Temporary media failure");
+
+  fireEvent.change(backgroundInput, {
+    target: {
+      files: [new File(["replacement"], "replacement-background.png", { type: "image/png" })],
+    },
+  });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(createObjectUrl).toHaveBeenCalledTimes(2);
+  expect(revokeObjectUrl).toHaveBeenCalledExactlyOnceWith("blob:failed-background");
+  expect(revokeObjectUrl).not.toHaveBeenCalledWith("blob:active-background");
+
+  unmount();
+  expect(revokeObjectUrl).toHaveBeenCalledWith("blob:active-background");
+  createObjectUrl.mockRestore();
+  revokeObjectUrl.mockRestore();
 });
 
 it("passes the current media revision when publishing", async () => {
