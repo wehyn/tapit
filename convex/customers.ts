@@ -632,7 +632,6 @@ export const listDeletionRequests = query({
     v.object({
       request: schema.doc("deletionRequests"),
       customer: v.union(v.null(), schema.doc("customers")),
-      overdue: v.boolean(),
     }),
   ),
   handler: async (ctx, args) => {
@@ -648,9 +647,6 @@ export const listDeletionRequests = query({
         requests.page.map(async (request) => ({
           request,
           customer: await ctx.db.get(request.customerId),
-          overdue:
-            request.status === "requested" &&
-            request.requestedAt < Date.now() - 30 * 24 * 60 * 60 * 1000,
         })),
       ),
     };
@@ -658,9 +654,9 @@ export const listDeletionRequests = query({
 });
 
 export const hasOverdueDeletionRequests = query({
-  args: {},
+  args: { now: v.number() },
   returns: v.boolean(),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const oldest = await ctx.db
       .query("deletionRequests")
@@ -668,7 +664,7 @@ export const hasOverdueDeletionRequests = query({
         q
           .eq("scope", account.scope)
           .eq("status", "requested")
-          .lt("requestedAt", Date.now() - 30 * 24 * 60 * 60 * 1000),
+          .lt("requestedAt", args.now - 30 * 24 * 60 * 60 * 1000),
       )
       .first();
     return oldest !== null;
