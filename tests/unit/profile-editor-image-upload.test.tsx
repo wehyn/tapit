@@ -217,6 +217,54 @@ it("uploads live profile media with the media revision and strips URLs before sa
   expect(JSON.stringify(savedDraft)).not.toContain("image.test/media-1");
 });
 
+it("serializes live slideshow uploads and saves the latest media revision", async () => {
+  const resolveUploads: Array<(response: Response) => void> = [];
+  fetchMock.mockImplementation(
+    () =>
+      new Promise<Response>((resolve) => {
+        resolveUploads.push(resolve);
+      }),
+  );
+  render(<ProfileEditor view="customize" />);
+
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  const slideshowInput = screen.getByLabelText("Upload slideshow images");
+  fireEvent.change(slideshowInput, {
+    target: { files: [new File(["first"], "first.png", { type: "image/png" })] },
+  });
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+  fireEvent.change(slideshowInput, {
+    target: { files: [new File(["second"], "second.png", { type: "image/png" })] },
+  });
+  expect(fetchMock).toHaveBeenCalledOnce();
+
+  resolveUploads[0](
+    new Response(
+      JSON.stringify({ assetId: "media-1", url: "https://image.test/media-1", mediaRevision: 4 }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(fetchMock.mock.calls[1]?.[1]).toEqual(
+    expect.objectContaining({
+      headers: expect.objectContaining({ "X-Media-Revision": "4" }),
+    }),
+  );
+
+  resolveUploads[1](
+    new Response(
+      JSON.stringify({ assetId: "media-2", url: "https://image.test/media-2", mediaRevision: 5 }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    ),
+  );
+  await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled());
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalled());
+  expect(mutation).toHaveBeenLastCalledWith(expect.objectContaining({ expectedMediaRevision: 5 }));
+});
+
 it("keeps existing media after a failed upload", async () => {
   fetchMock.mockResolvedValueOnce(new Response("Temporary media failure", { status: 503 }));
   render(<ProfileEditor view="customize" />);
