@@ -172,7 +172,7 @@ function ProfileAnalyticsDialog({
       aria-describedby="profile-analytics-description"
       aria-labelledby="profile-analytics-title"
       aria-modal="true"
-      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto border-0 bg-tapit-ink/70 px-4 py-6 text-left sm:px-8 sm:py-10"
+      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain border-0 bg-tapit-ink/70 px-4 py-6 text-left sm:px-8 sm:py-10"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -204,7 +204,7 @@ function ProfileAnalyticsDialog({
       }}
       ref={dialogRef}
     >
-      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
+      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2
