@@ -44,7 +44,6 @@ import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
 import { ProfilePublicationPanel } from "@/components/forms/ProfilePublicationPanel";
@@ -565,25 +564,19 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            {draft.customization === undefined ? (
-              <Panel className="shadow-none" title="Profile presets">
-                <ProfileCustomizationEditor
-                  customization={draft.customization}
-                  errors={customizationErrors}
-                  media={draft.media}
-                  mediaBusy={mediaBusy}
-                  mediaError={mediaError}
-                  onChange={(customization) => updateField("customization", customization)}
-                  onMediaErrorClear={() => setMediaError("")}
-                  onMediaUploadCancel={cancelMediaUpload}
-                  onMediaPendingPreviewChange={setPendingMediaPreview}
-                  onMediaChange={(media) => updateField("media", media)}
-                  onMediaUpload={uploadDemoMedia}
-                  onThemeChange={chooseTheme}
-                  theme={theme}
-                />
-              </Panel>
-            ) : (
+            <div
+              className={
+                draft.customization === undefined
+                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+                  : "contents"
+              }
+            >
+              <h2
+                className="text-lg font-semibold tracking-tight text-tapit-ink"
+                hidden={draft.customization !== undefined}
+              >
+                Profile presets
+              </h2>
               <ProfileCustomizationEditor
                 customization={draft.customization}
                 errors={customizationErrors}
@@ -599,7 +592,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 onThemeChange={chooseTheme}
                 theme={theme}
               />
-            )}
+            </div>
           </>
         )
       }
@@ -1178,25 +1171,19 @@ function LiveProfileEditorContent({
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            {currentDraft.customization === undefined ? (
-              <Panel className="shadow-none" title="Profile presets">
-                <ProfileCustomizationEditor
-                  customization={currentDraft.customization}
-                  errors={customizationErrors}
-                  media={currentDraft.media}
-                  mediaBusy={mediaBusy}
-                  mediaError={mediaError}
-                  onChange={(customization) => updateField("customization", customization)}
-                  onMediaErrorClear={() => setMediaError("")}
-                  onMediaUploadCancel={cancelMediaUpload}
-                  onMediaPendingPreviewChange={setPendingMediaPreview}
-                  onMediaChange={(media) => updateField("media", media)}
-                  onMediaUpload={uploadLiveMedia}
-                  onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
-                  theme={theme}
-                />
-              </Panel>
-            ) : (
+            <div
+              className={
+                currentDraft.customization === undefined
+                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+                  : "contents"
+              }
+            >
+              <h2
+                className="text-lg font-semibold tracking-tight text-tapit-ink"
+                hidden={currentDraft.customization !== undefined}
+              >
+                Profile presets
+              </h2>
               <ProfileCustomizationEditor
                 customization={currentDraft.customization}
                 errors={customizationErrors}
@@ -1212,7 +1199,7 @@ function LiveProfileEditorContent({
                 onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
                 theme={theme}
               />
-            )}
+            </div>
           </>
         )
       }

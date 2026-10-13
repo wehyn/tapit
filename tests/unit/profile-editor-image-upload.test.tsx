@@ -6,6 +6,7 @@ const mutation = vi.hoisted(() =>
 );
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
+const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("convex/react", () => ({
@@ -22,13 +23,15 @@ vi.mock("convex/react", () => ({
     draft: {
       name: "Mara Velasquez",
       slug: "mara-velasquez",
-      customization: {
-        preset: "warm-studio",
-        accent: "coral",
-        typeScale: "comfortable",
-        linkTreatment: "filled",
-        contentOrder: "links-first",
-      },
+      customization: useUncustomizedProfile.current
+        ? undefined
+        : {
+            preset: "warm-studio",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
       imageStorageId: "storage-old",
       imageUrl: "https://image.test/old",
       media: {
@@ -89,6 +92,7 @@ vi.mock("@/components/forms/ProfileImageCropDialog", () => ({
 import { ProfileEditor } from "@/components/forms/ProfileEditor";
 
 beforeEach(() => {
+  useUncustomizedProfile.current = false;
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://preview-123.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://preview-123.convex.site");
   mutation.mockClear();
@@ -218,6 +222,7 @@ it("uploads live profile media with the media revision and strips URLs before sa
 });
 
 it("serializes live slideshow uploads and saves the latest media revision", async () => {
+  useUncustomizedProfile.current = true;
   const resolveUploads: Array<(response: Response) => void> = [];
   fetchMock.mockImplementation(
     () =>
@@ -237,6 +242,13 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   fireEvent.change(slideshowInput, {
     target: { files: [new File(["second"], "second.png", { type: "image/png" })] },
   });
+  expect(fetchMock).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
+  fireEvent.click(screen.getByLabelText("Moss"));
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  expect(screen.getByText("Uploading", { exact: true })).toBeVisible();
+  expect(screen.getByText("Waiting", { exact: true })).toBeVisible();
   expect(fetchMock).toHaveBeenCalledOnce();
   expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBeInstanceOf(File);
   expect(((fetchMock.mock.calls[0]?.[1] as RequestInit).body as File).name).toBe("first.png");
