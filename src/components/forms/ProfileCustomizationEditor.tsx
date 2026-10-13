@@ -178,7 +178,7 @@ function PresetRadio({
           aria-describedby={ariaDescribedBy}
           aria-label={label}
           checked={checked}
-          className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+          className="absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           disabled={disabled}
           name={name}
           onChange={() => onChange(value)}
