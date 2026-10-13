@@ -3,6 +3,9 @@ import type { ButtonHTMLAttributes, MouseEventHandler, ReactNode } from "react";
 
 type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 
+const buttonClasses =
+  "inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold tapit-button-motion";
+
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
     "border border-tapit-accent bg-tapit-accent text-white shadow-[0_6px_16px_rgba(27,36,51,0.12)] hover:border-tapit-accent-strong hover:bg-tapit-accent-strong",
@@ -27,8 +30,9 @@ export function Button({
   return (
     <button
       aria-busy={loading || undefined}
-      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:enabled:hover:-translate-y-px motion-safe:enabled:active:translate-y-0 motion-safe:enabled:active:scale-[0.96] disabled:translate-none disabled:scale-none disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
+      className={`${buttonClasses} disabled:cursor-not-allowed disabled:opacity-55 ${variantClasses[variant]} ${loading ? "cursor-wait" : ""} ${className}`}
       data-state={loading ? "loading" : "ready"}
+      data-variant={variant}
       {...props}
       disabled={loading || props.disabled}
     >
@@ -58,7 +62,8 @@ export function ButtonLink({
 }) {
   return (
     <Link
-      className={`inline-flex min-h-12 items-center justify-center rounded-[14px] px-4 py-2.5 text-sm font-semibold transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-px motion-safe:active:translate-y-px motion-safe:active:scale-[0.96] ${variantClasses[variant]} ${className}`}
+      className={`${buttonClasses} ${variantClasses[variant]} ${className}`}
+      data-variant={variant}
       href={href}
       onClick={onClick}
     >
