@@ -566,7 +566,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
             <div
               className={
-                draft.customization === undefined
+                draft.customization === undefined && view !== "customize"
                   ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
                   : "contents"
               }
@@ -578,6 +578,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 Profile presets
               </h2>
               <ProfileCustomizationEditor
+                barePanels={view === "customize"}
                 customization={draft.customization}
                 errors={customizationErrors}
                 media={draft.media}
@@ -1173,7 +1174,7 @@ function LiveProfileEditorContent({
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
             <div
               className={
-                currentDraft.customization === undefined
+                currentDraft.customization === undefined && view !== "customize"
                   ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
                   : "contents"
               }
@@ -1185,6 +1186,7 @@ function LiveProfileEditorContent({
                 Profile presets
               </h2>
               <ProfileCustomizationEditor
+                barePanels={view === "customize"}
                 customization={currentDraft.customization}
                 errors={customizationErrors}
                 media={currentDraft.media}

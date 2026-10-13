@@ -34,6 +34,7 @@ import { ProfileLayoutOrderEditor } from "@/components/forms/ProfileLayoutOrderE
 import { Notice } from "@/components/ui/Notice";
 
 export type ProfileCustomizationEditorProps = {
+  barePanels?: boolean;
   customization?: ProfileCustomization;
   errors?: readonly string[];
   media?: ProfileMediaPresentation;
@@ -198,30 +199,25 @@ function PresetRadio({
       </span>
       <span
         aria-hidden="true"
-        className="rounded-[0.9rem] border p-2.5"
-        style={{ backgroundColor: colors.canvas, borderColor: colors.border }}
+        className="flex items-center gap-2.5 px-1 py-1.5"
       >
-        <span
-          className="block rounded-[0.7rem] border p-2.5"
-          style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-        >
-          <span className="flex items-center gap-2">
-            <span
-              className="size-5 rounded-full border"
-              style={{ backgroundColor: colors.accent, borderColor: colors.border }}
-            />
-            <span className="h-1.5 w-16 rounded-full" style={{ backgroundColor: colors.ink }} />
-          </span>
+        <span className="flex shrink-0 gap-1">
+          <span className="size-3 rounded-full" style={{ backgroundColor: colors.canvas }} />
+          <span
+            className="size-3 rounded-full border"
+            style={{ backgroundColor: colors.surface, borderColor: colors.border }}
+          />
+        </span>
+        <span className="size-5 shrink-0 rounded-full" style={{ backgroundColor: colors.accent }} />
+        <span className="min-w-0 flex-1">
+          <span className="block h-1.5 w-16 rounded-full" style={{ backgroundColor: colors.ink }} />
           <span
             className="mt-2 block h-1 w-24 max-w-full rounded-full"
             style={{ backgroundColor: colors.muted }}
           />
-          <span
-            className="mt-2 block rounded-lg border px-2 py-1 text-[10px] font-semibold"
-            style={{ borderColor: colors.accent, color: colors.accent }}
-          >
-            Profile link
-          </span>
+        </span>
+        <span className="shrink-0 text-[10px] font-semibold" style={{ color: colors.accent }}>
+          Profile link
         </span>
       </span>
     </label>
@@ -352,7 +348,7 @@ function IdentityColorControls({
       <p className="text-sm leading-6 text-tapit-muted">
         Set the name and bio / role independently for this profile preset.
       </p>
-      <div className="grid gap-4 rounded-tapit border border-tapit-line/70 bg-tapit-paper/60 p-3.5 sm:p-4">
+      <div className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-3.5 sm:p-4">
         {(["name", "bio"] as const).map((field) => (
           <ProfileIdentityColorPicker
             allowWhite={allowWhite}
@@ -499,6 +495,7 @@ function CategoryErrorList({ errors }: { errors: readonly string[] }) {
 }
 
 export function ProfileCustomizationEditor({
+  barePanels = false,
   customization,
   errors = [],
   media,
@@ -656,7 +653,7 @@ export function ProfileCustomizationEditor({
       <nav
         aria-label="Customization categories"
         aria-orientation="horizontal"
-        className="flex min-w-0 gap-2 overflow-x-auto pb-1"
+        className="flex min-w-0 gap-4 overflow-x-auto border-b border-tapit-line"
         role="tablist"
       >
         {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
@@ -669,10 +666,10 @@ export function ProfileCustomizationEditor({
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
-              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 rounded-tapit border px-4 text-left text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-tapit-accent ${
+              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${
                 selected
-                  ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink"
-                  : "border-tapit-line bg-tapit-surface text-tapit-muted hover:border-tapit-accent hover:text-tapit-ink"
+                  ? "border-tapit-accent text-tapit-ink"
+                  : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"
               } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
               disabled={disabled}
               id={`${baseId}-tab-${category}`}
@@ -699,7 +696,11 @@ export function ProfileCustomizationEditor({
         <section
           aria-labelledby={`${baseId}-tab-${category}`}
           aria-label={`${categoryLabels[category]} settings`}
-          className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
+          className={
+            barePanels
+              ? "outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
+              : "rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
+          }
           hidden={activeCategory !== category}
           id={`${baseId}-panel-${category}`}
           key={category}

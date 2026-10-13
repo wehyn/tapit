@@ -206,6 +206,7 @@ export function ProfileIdentityColorPicker({
             return (
               <span className="group relative" key={preset}>
                 <button
+                  aria-label={`${presetLabel} ${label.toLowerCase()} color`}
                   aria-pressed={selected}
                   className={`size-9 min-h-0 shrink-0 rounded-full border border-[#2c2420]/15 shadow-sm transition hover:scale-105 focus-visible:outline-none ${selected ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
                   onClick={() => {
@@ -227,6 +228,7 @@ export function ProfileIdentityColorPicker({
           })}
           <span className="group relative">
             <button
+              aria-label={`Choose custom ${label.toLowerCase()} color`}
               aria-expanded={open}
               aria-haspopup="dialog"
               className={`grid size-9 min-h-0 shrink-0 place-items-center rounded-full border border-[#2c2420]/15 shadow-sm transition hover:scale-105 focus-visible:outline-none ${value?.kind === "custom" ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
