@@ -90,6 +90,17 @@ export const DEFAULT_WARM_STUDIO_CUSTOMIZATION: ProfileCustomization = {
   contactDisplay: "labels",
 };
 
+export function defaultProfileCustomizationForTheme(
+  theme?: ProfileAppearanceTheme,
+): ProfileCustomization {
+  return theme === "custom"
+    ? {
+        ...DEFAULT_CUSTOM_PROFILE_CUSTOMIZATION,
+        customColors: { ...DEFAULT_CUSTOM_PROFILE_COLORS },
+      }
+    : { ...DEFAULT_WARM_STUDIO_CUSTOMIZATION, preset: theme ?? "paper" };
+}
+
 export function defaultProfileLayoutOrder(contentOrder: ProfileContentOrder): ProfileLayoutOrder {
   return contentOrder === "section-first"
     ? ["slideshow", "section", "links"]

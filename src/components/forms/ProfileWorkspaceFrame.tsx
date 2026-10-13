@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { CheckCircleIcon, EyeIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
@@ -43,14 +43,17 @@ export function ProfileWorkspaceFrame({
   draftStatus,
   cropDialog,
 }: ProfileWorkspaceFrameProps) {
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const isBusy = saveLoading || publishLoading;
   const shouldShowActions = hasDraftChanges || isBusy;
+  const selectedViewClass = "block min-[1280px]:block";
+  const hiddenViewClass = "hidden min-[1280px]:block";
 
   return (
     <div
-      className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-6 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1280px]:grid-cols-[minmax(32rem,1.12fr)_minmax(25rem,0.88fr)] min-[1280px]:gap-10 min-[1280px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
-      <div className="grid min-w-0 self-start gap-6">
+      <div className="col-span-full flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
             {title}
@@ -68,19 +71,43 @@ export function ProfileWorkspaceFrame({
             ) : null}
           </div>
         </div>
-        <div className="pb-1 min-[1400px]:hidden">
-          <a
-            className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent"
-            href="#workspace-preview"
+        <div className="min-[1280px]:hidden">
+          <div
+            aria-label={`${title} view`}
+            className="inline-flex rounded-tapit border border-tapit-line bg-tapit-surface p-1"
+            role="group"
           >
-            <EyeIcon aria-hidden="true" size={17} weight="bold" />
-            View preview
-          </a>
+            {(["edit", "preview"] as const).map((view) => (
+              <button
+                aria-pressed={mobileView === view}
+                className={`min-h-9 rounded-[10px] px-3 text-sm font-semibold capitalize transition ${mobileView === view ? "bg-tapit-accent text-white" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
+                key={view}
+                onClick={() => setMobileView(view)}
+                type="button"
+              >
+                {view === "edit" ? (
+                  "Edit"
+                ) : (
+                  <>
+                    <EyeIcon aria-hidden="true" className="mr-1.5 inline" size={16} />
+                    Preview
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+      <div
+        className={`grid min-w-0 self-start gap-6 ${mobileView === "edit" ? selectedViewClass : hiddenViewClass}`}
+      >
         {message}
         {controls}
       </div>
-      <div className="h-fit min-w-0 scroll-mt-24" id="workspace-preview">
+      <div
+        className={`h-fit min-w-0 scroll-mt-24 min-[1280px]:sticky min-[1280px]:top-6 ${mobileView === "preview" ? selectedViewClass : hiddenViewClass}`}
+        id="workspace-preview"
+      >
         {preview ? (
           <WorkspacePreview
             preview={preview}

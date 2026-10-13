@@ -20,6 +20,7 @@ import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
 import { displayDestination, linkKind } from "./LinkDestination";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
+import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 
 export type LinksWorkspaceMessage = {
@@ -30,6 +31,7 @@ export type LinksWorkspaceMessage = {
 export type LinksWorkspaceProps = {
   profileUrl: string;
   links: ProfileLink[];
+  featuredLinkId?: string | null;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
   publicationErrors: string[];
@@ -38,6 +40,7 @@ export type LinksWorkspaceProps = {
   isDirty: boolean;
   publicationLabel: string;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
+  onFeaturedLinkChange?: (id: string | null) => void;
   onAddLink: (link: Pick<ProfileLink, "label" | "destination" | "icon">) => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
   onReorderLink: (sourceId: string, targetId: string, insertAfter: boolean) => void;
@@ -49,6 +52,7 @@ export type LinksWorkspaceProps = {
 export function LinksWorkspace({
   profileUrl,
   links,
+  featuredLinkId = null,
   preview,
   validation,
   publicationErrors,
@@ -57,6 +61,7 @@ export function LinksWorkspace({
   isDirty,
   publicationLabel,
   onUpdateLink,
+  onFeaturedLinkChange = () => {},
   onAddLink,
   onMoveLink,
   onReorderLink,
@@ -64,6 +69,7 @@ export function LinksWorkspace({
   onSaveDraft,
   onPublish,
 }: LinksWorkspaceProps) {
+  const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
   const draggedLinkIdRef = useRef<string | null>(null);
@@ -72,6 +78,16 @@ export function LinksWorkspace({
   const linksListRef = useRef<HTMLElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const previousPositionsRef = useRef<Map<string, number> | null>(null);
+  const featuredUnavailable =
+    featuredLinkId !== null && !links.some((link) => link.id === featuredLinkId && link.enabled);
+  const status =
+    pendingAction === "save"
+      ? "Saving draft"
+      : pendingAction === "publish"
+        ? "Publishing"
+        : isDirty
+          ? "Unsaved changes"
+          : "Draft saved";
   function captureRowPositions() {
     previousPositionsRef.current = new Map(
       [...rowRefs.current].map(([id, row]) => [id, row.getBoundingClientRect().top]),
@@ -135,8 +151,30 @@ export function LinksWorkspace({
           }}
         />
       ) : null}
-      <div className="grid gap-8 min-[1400px]:grid-cols-[minmax(0,1fr)_minmax(24rem,0.42fr)]">
-        <section aria-labelledby="links-workspace-title">
+      <div className="mb-5 min-[1280px]:hidden">
+        <div
+          aria-label="Links view"
+          className="inline-flex rounded-tapit border border-tapit-line bg-tapit-surface p-1"
+          role="group"
+        >
+          {(["edit", "preview"] as const).map((view) => (
+            <button
+              aria-pressed={mobileView === view}
+              className={`min-h-9 rounded-[10px] px-3 text-sm font-semibold transition ${mobileView === view ? "bg-tapit-accent text-white" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
+              key={view}
+              onClick={() => setMobileView(view)}
+              type="button"
+            >
+              {view === "edit" ? "Edit" : "Preview"}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grid min-w-0 gap-8 min-[1280px]:grid-cols-[minmax(32rem,1fr)_minmax(25rem,0.75fr)]">
+        <section
+          aria-labelledby="links-workspace-title"
+          className={mobileView === "edit" ? "block" : "hidden min-[1280px]:block"}
+        >
           <h1 className="sr-only" id="links-workspace-title">
             Links
           </h1>
@@ -154,10 +192,54 @@ export function LinksWorkspace({
               <h2 className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink">
                 Profile links
               </h2>
-              <Button onClick={() => setAddDialogOpen(true)} type="button">
-                <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-                Add link
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <span
+                  aria-live="polite"
+                  className="text-xs font-medium text-tapit-muted"
+                  role="status"
+                >
+                  {status}
+                </span>
+                <Button onClick={() => setAddDialogOpen(true)} type="button">
+                  <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                  Add link
+                </Button>
+              </div>
+            </div>
+            <div className="grid gap-3 border-b border-tapit-line px-4 py-4 sm:px-5 sm:py-5">
+              <SelectField
+                id="featured-link"
+                label="Featured link"
+                onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
+                value={featuredLinkId ?? ""}
+              >
+                <option value="">No featured link</option>
+                {featuredUnavailable ? (
+                  <option value={featuredLinkId}>Previously selected link</option>
+                ) : null}
+                {links
+                  .filter((link) => link.enabled)
+                  .map((link) => (
+                    <option key={link.id} value={link.id}>
+                      {link.label}
+                    </option>
+                  ))}
+              </SelectField>
+              {featuredUnavailable ? (
+                <Notice>
+                  The selected featured link is missing or disabled. It will appear as a normal
+                  link, and this will not block publication.
+                  <span className="mt-3 block">
+                    <Button
+                      onClick={() => onFeaturedLinkChange(null)}
+                      type="button"
+                      variant="quiet"
+                    >
+                      Clear featured link
+                    </Button>
+                  </span>
+                </Notice>
+              ) : null}
             </div>
             <div className="hidden border-b border-tapit-line bg-tapit-surface px-5 py-4 text-sm font-medium text-tapit-muted md:grid md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
               <span aria-hidden="true" />
@@ -383,8 +465,9 @@ export function LinksWorkspace({
           ) : null}
         </section>
         <section
-          className="h-fit min-[1400px]:sticky min-[1400px]:top-6"
+          className={`h-fit min-[1280px]:sticky min-[1280px]:top-6 ${mobileView === "preview" ? "block" : "hidden min-[1280px]:block"}`}
           aria-label="Live profile preview"
+          id="workspace-preview"
         >
           {preview ? (
             <WorkspacePreview preview={preview} profileUrl={profileUrl} />
@@ -393,47 +476,49 @@ export function LinksWorkspace({
           )}
         </section>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
-        <div className="mx-auto flex max-w-[1480px] flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2 text-sm">
-            <CheckCircleIcon
-              aria-hidden="true"
-              className="shrink-0 text-tapit-accent"
-              size={21}
-              weight="fill"
-            />
-            <span className="font-semibold text-tapit-ink">
-              {isDirty ? "Draft changes" : "Draft saved"}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button
-              disabled={!isDirty || pendingAction !== null}
-              loading={pendingAction === "save"}
-              onClick={onSaveDraft}
-              type="button"
-              variant="secondary"
-            >
-              <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {pendingAction === "save" ? "Saving..." : "Save draft"}
-            </Button>
-            <Button
-              disabled={
-                publicationErrors.length > 0 ||
-                Object.keys(validation).length > 0 ||
-                publicationLabel === "Published" ||
-                pendingAction !== null
-              }
-              loading={pendingAction === "publish"}
-              onClick={onPublish}
-              type="button"
-            >
-              <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-              {pendingAction === "publish" ? "Publishing..." : publicationLabel}
-            </Button>
-          </div>
+      {isDirty || pendingAction !== null ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
+          <section aria-label="Draft actions" className="mx-auto max-w-[1480px]" role="region">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2 text-sm">
+                <CheckCircleIcon
+                  aria-hidden="true"
+                  className="shrink-0 text-tapit-accent"
+                  size={21}
+                  weight="fill"
+                />
+                <span className="font-semibold text-tapit-ink">{status}</span>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  disabled={!isDirty || pendingAction !== null}
+                  loading={pendingAction === "save"}
+                  onClick={onSaveDraft}
+                  type="button"
+                  variant="secondary"
+                >
+                  <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                  {pendingAction === "save" ? "Saving..." : "Save draft"}
+                </Button>
+                <Button
+                  disabled={
+                    publicationErrors.length > 0 ||
+                    Object.keys(validation).length > 0 ||
+                    publicationLabel === "Published" ||
+                    pendingAction !== null
+                  }
+                  loading={pendingAction === "publish"}
+                  onClick={onPublish}
+                  type="button"
+                >
+                  <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                  {pendingAction === "publish" ? "Publishing..." : publicationLabel}
+                </Button>
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
