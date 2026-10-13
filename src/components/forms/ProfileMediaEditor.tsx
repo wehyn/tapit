@@ -672,7 +672,7 @@ export function ProfileMediaEditor({
               aria-setsize={value.slideshow.length}
               className={`grid min-w-0 gap-3 rounded-tapit border border-tapit-line p-3 motion-safe:transition-colors ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
               data-slideshow-order-index={index}
-              key={`${image.assetId}-${index}`}
+              key={image.assetId}
             >
               <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-tapit-line pb-3">
                 <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold text-tapit-ink">

@@ -1706,6 +1706,7 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
   await expect(moveDown).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status").filter({ hasText: /moved to position 2/i })).toBeVisible();
+  await expect(page.locator(":focus")).toHaveAttribute("aria-label", "Move slideshow image 2 down");
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   const mobileMoveDown = page.getByRole("button", { name: "Move slideshow image 1 down" });
   await mobileMoveDown.focus();
