@@ -245,7 +245,12 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   if (!resolveFirstUpload) throw new Error("Expected the first deferred upload request.");
   resolveFirstUpload(
     new Response(
-      JSON.stringify({ assetId: "media-1", url: "https://image.test/media-1", mediaRevision: 4 }),
+      JSON.stringify({
+        assetId: "media-1",
+        url: "https://image.test/media-1",
+        previewUrl: "https://image.test/media-1-preview",
+        mediaRevision: 4,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ),
   );
@@ -262,7 +267,12 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   if (!resolveSecondUpload) throw new Error("Expected the second deferred upload request.");
   resolveSecondUpload(
     new Response(
-      JSON.stringify({ assetId: "media-2", url: "https://image.test/media-2", mediaRevision: 5 }),
+      JSON.stringify({
+        assetId: "media-2",
+        url: "https://image.test/media-2",
+        previewUrl: "https://image.test/media-2-preview",
+        mediaRevision: 5,
+      }),
       { status: 200, headers: { "Content-Type": "application/json" } },
     ),
   );

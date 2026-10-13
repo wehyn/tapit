@@ -918,8 +918,8 @@ function LiveProfileEditorContent({
       if (!response.ok)
         throw new Error((await response.text()) || "The media upload failed. Choose another file.");
       const uploaded = parseMediaUploadResponse(await response.json());
-      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
       mediaRevisionRef.current = uploaded.mediaRevision;
+      if (requestId !== mediaRequestRef.current) throw new Error("The media upload was canceled.");
       return uploaded;
     } catch (error) {
       const wasCanceled =
