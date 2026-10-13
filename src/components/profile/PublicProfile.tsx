@@ -259,6 +259,13 @@ export function PublicProfile({
   const wideProfile = !phonePreview;
   const centerIdentity = phonePreview;
   const theme = selectedTheme === "custom" && !customTheme ? "paper" : selectedTheme;
+  const imageOutlineColor =
+    theme === "night" ||
+    (theme === "custom" &&
+      readableTextOn(appearance.customColors?.surface ?? DEFAULT_CUSTOM_PROFILE_COLORS.surface) ===
+        "#ffffff")
+      ? "oklch(1 0 0 / 0.1)"
+      : "oklch(0 0 0 / 0.1)";
   void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
   const hasVCardContactAction = automaticContactActions.some(
@@ -430,7 +437,7 @@ export function PublicProfile({
     return (
       <li key={link.id}>
         <a
-          className={`group flex items-center justify-between rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-sm active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${linkClasses}`}
+          className={`group flex items-center justify-between rounded-full border font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${linkClasses}`}
           data-featured={featured ? "true" : undefined}
           data-icon={iconKey}
           href={link.destination}
@@ -449,7 +456,7 @@ export function PublicProfile({
           </span>
           <ArrowUpRight
             aria-hidden="true"
-            className={`transition motion-reduce:transition-none ${arrowClasses}`}
+            className={`transition-colors duration-150 ${arrowClasses}`}
             size={compactPhonePreview ? 15 : phonePreview || !preview ? 19 : 17}
           />
         </a>
@@ -472,10 +479,11 @@ export function PublicProfile({
         {profile.imageUrl ? (
           <img
             alt={`${profile.name} profile`}
-            className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover`}
+            className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover tapit-image-outline`}
             height={96}
             src={profile.imageUrl}
             srcSet={profile.imageSrcSet}
+            style={{ outlineColor: imageOutlineColor }}
             sizes={
               profile.imageSrcSet
                 ? compactPhonePreview
@@ -561,7 +569,11 @@ export function PublicProfile({
   const orderedBlocks: Record<ProfileLayoutBlock, ReactNode> = {
     slideshow:
       media && media.slideshow.length > 0 ? (
-        <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
+        <ProfileSlideshow
+          autoplay={media.autoplay ?? true}
+          imageOutlineColor={imageOutlineColor}
+          images={media.slideshow}
+        />
       ) : null,
     links:
       featuredLink || links.length > 0 ? (
@@ -588,7 +600,7 @@ export function PublicProfile({
       </div>
       {canSaveContact ? (
         <button
-          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition motion-reduce:transition-none motion-reduce:transform-none hover:-translate-y-px hover:shadow-md active:translate-y-px ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
+          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition-colors duration-150 ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
           style={
             configured && !warmStudio && appearance.linkTreatment === "filled"
               ? { color: readableTextOn(activeAccent) }

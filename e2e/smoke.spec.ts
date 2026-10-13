@@ -16,9 +16,11 @@ test("homepage presents a Tapit profile on an iPhone and profile action at mobil
     await page.setViewportSize(viewport);
     await page.goto("/");
 
-    await expect(
-      page.getByRole("heading", { name: "A better introduction, in one tap." }),
-    ).toBeVisible();
+    const heroHeading = page.getByRole("heading", {
+      name: "A better introduction, in one tap.",
+    });
+    await expect(heroHeading).toBeVisible();
+    await expect(heroHeading).toHaveCSS("text-align", viewport.width >= 1024 ? "left" : "center");
     await expect(profileActions).toHaveCount(3);
     for (let index = 0; index < 3; index += 1) {
       await expect(profileActions.nth(index)).toHaveAttribute("href", "/app/profile");
@@ -58,7 +60,6 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   await expect(hero).toContainText("A better introduction, in one tap.");
   await expect(hero.getByRole("group", { name: "Tapit profile on an iPhone" })).toBeVisible();
   await expect(hero.locator("[data-scroll-reveal]")).toHaveCount(0);
-  await expect(hero.getByRole("heading", { level: 1 })).toHaveCSS("text-align", "center");
   const orderedSections = await page
     .locator("#product-proof, #product, #showcase, #benefits, #how-it-works, #faq")
     .evaluateAll((sections) => sections.map((section) => section.id));

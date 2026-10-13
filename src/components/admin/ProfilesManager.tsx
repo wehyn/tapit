@@ -478,7 +478,7 @@ function ProfileDialog({
   }, [active]);
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto bg-tapit-ink/70 px-3 py-3 sm:px-6 sm:py-6">
+    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto overscroll-contain bg-tapit-ink/70 px-3 py-3 sm:px-6 sm:py-6">
       <div
         aria-labelledby="admin-profile-dialog-title"
         aria-hidden={!active}
@@ -544,7 +544,7 @@ function ProfileDialog({
             </button>
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8">
           <div
             aria-labelledby="admin-profile-editor-tab"
             hidden={selectedTab !== "edit"}

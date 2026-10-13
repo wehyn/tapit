@@ -27,7 +27,7 @@ export function ProfileSectionDisclosure({
         <span>{section.kind === "about" ? "About" : "Services"}</span>
         <CaretDown
           aria-hidden="true"
-          className="transition-transform duration-200 motion-reduce:transition-none group-open:rotate-180"
+          className="motion-safe:transition-transform duration-150 group-open:rotate-180"
           size={18}
         />
       </summary>

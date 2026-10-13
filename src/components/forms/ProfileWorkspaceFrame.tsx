@@ -50,8 +50,24 @@ export function ProfileWorkspaceFrame({
     <div
       className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-8 px-4 pt-6 sm:gap-10 sm:px-8 sm:pt-7 min-[1400px]:grid-cols-[minmax(0,1.12fr)_minmax(25rem,0.88fr)] min-[1400px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
     >
-      <h1 className="sr-only">{title}</h1>
       <div className="grid min-w-0 self-start gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+            {title}
+          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${hasPublishedProfile ? "bg-tapit-accent-soft text-tapit-accent-strong" : "bg-tapit-paper text-tapit-muted"}`}
+            >
+              {hasPublishedProfile ? "Published" : "Draft"}
+            </span>
+            {draftStatus != null ? (
+              <span aria-live="polite" className="text-sm text-tapit-muted" role="status">
+                {draftStatus}
+              </span>
+            ) : null}
+          </div>
+        </div>
         <div className="pb-1 min-[1400px]:hidden">
           <a
             className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-4 text-sm font-semibold text-tapit-accent-strong transition hover:border-tapit-accent hover:text-tapit-accent"
@@ -87,15 +103,6 @@ export function ProfileWorkspaceFrame({
                   weight="fill"
                 />
                 <span className="font-semibold text-tapit-ink">Draft changes</span>
-                {draftStatus != null ? (
-                  <span
-                    aria-live="polite"
-                    className="min-w-0 truncate text-tapit-muted"
-                    role="status"
-                  >
-                    {draftStatus}
-                  </span>
-                ) : null}
               </div>
               <div className="flex flex-wrap gap-3">
                 <Button

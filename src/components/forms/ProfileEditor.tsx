@@ -459,7 +459,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           {draft.imageUrl ? (
             <NextImage
               alt={`${draft.name} profile`}
-              className="size-full object-cover"
+              className="tapit-image-outline size-full object-cover"
               height={80}
               src={draft.imageUrl}
               unoptimized
@@ -1054,7 +1054,7 @@ function LiveProfileEditorContent({
           {currentDraft.imageUrl ? (
             <NextImage
               alt={`${currentDraft.name} profile`}
-              className="size-full object-cover"
+              className="tapit-image-outline size-full object-cover"
               height={80}
               src={currentDraft.imageUrl}
               unoptimized

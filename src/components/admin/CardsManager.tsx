@@ -440,7 +440,7 @@ function DemoCardsManager() {
                       <StatusBadge status={card.status} />
                       <CaretDownIcon
                         aria-hidden="true"
-                        className="text-tapit-muted transition-transform group-open:rotate-180"
+                        className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
                         size={18}
                         weight="bold"
                       />
@@ -902,7 +902,7 @@ function LiveCardsManager() {
                         <StatusBadge status={card.status} />
                         <CaretDownIcon
                           aria-hidden="true"
-                          className="text-tapit-muted transition-transform group-open:rotate-180"
+                          className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
                           size={18}
                           weight="bold"
                         />

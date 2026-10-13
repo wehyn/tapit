@@ -178,9 +178,7 @@ describe("ProfileEditor workspace boundaries", () => {
     (branch) => {
       renderBranch(branch, "customize");
 
-      expect(screen.getByRole("heading", { name: "Customize your profile" })).toHaveClass(
-        "sr-only",
-      );
+      expect(screen.getByRole("heading", { name: "Customize your profile" })).toBeVisible();
       expect(
         screen.queryByText("Tune the look and feel of your public profile."),
       ).not.toBeInTheDocument();
