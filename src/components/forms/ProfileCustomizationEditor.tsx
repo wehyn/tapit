@@ -663,7 +663,7 @@ export function ProfileCustomizationEditor({
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
-              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${
+              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent focus-visible:outline-none ${
                 selected
                   ? "border-tapit-accent text-tapit-ink"
                   : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"
