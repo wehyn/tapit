@@ -1557,6 +1557,9 @@ test("slideshow upload queue waits for the active upload and preserves selection
   await expect(page.getByLabel("Slideshow image 2 description")).toHaveValue(
     "transparent-logo.png",
   );
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
 test("slideshow upload queue pauses on failure and retries before later selections", async ({
@@ -1591,6 +1594,8 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
@@ -1610,11 +1615,15 @@ test("slideshow upload queue resumes after removing a failed item", async ({ pag
   await expect(pendingSlideshow.getByRole("img")).toHaveAttribute("src", /^blob:/);
 
   await setDemoMediaUploadControl(page, { fail: false });
-  await page.getByRole("button", { name: "Remove failed slideshow image" }).click();
+  await page.getByRole("button", { name: "Remove failed slideshow image", exact: true }).click();
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
     "transparent-logo.png",
   );
   await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
+  await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 

@@ -238,6 +238,8 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
     target: { files: [new File(["second"], "second.png", { type: "image/png" })] },
   });
   expect(fetchMock).toHaveBeenCalledOnce();
+  expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBeInstanceOf(File);
+  expect(((fetchMock.mock.calls[0]?.[1] as RequestInit).body as File).name).toBe("first.png");
 
   resolveUploads[0](
     new Response(
@@ -246,6 +248,8 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
     ),
   );
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect((fetchMock.mock.calls[1]?.[1] as RequestInit).body).toBeInstanceOf(File);
+  expect(((fetchMock.mock.calls[1]?.[1] as RequestInit).body as File).name).toBe("second.png");
   expect(fetchMock.mock.calls[1]?.[1]).toEqual(
     expect.objectContaining({
       headers: expect.objectContaining({ "X-Media-Revision": "4" }),
@@ -262,7 +266,19 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
   await waitFor(() => expect(mutation).toHaveBeenCalled());
-  expect(mutation).toHaveBeenLastCalledWith(expect.objectContaining({ expectedMediaRevision: 5 }));
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedMediaRevision: 5,
+      draft: expect.objectContaining({
+        media: expect.objectContaining({
+          slideshow: [
+            expect.objectContaining({ assetId: "media-1" }),
+            expect.objectContaining({ assetId: "media-2" }),
+          ],
+        }),
+      }),
+    }),
+  );
 });
 
 it("keeps existing media after a failed upload", async () => {
