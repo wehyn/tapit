@@ -339,7 +339,7 @@ function LiveCustomerAnalytics() {
   const [range, setRange] = useState<AnalyticsRange>("lifetime");
   const [now] = useState(() => Date.now());
   const profile = useQuery(api.profiles.mine);
-  const pages = usePaginatedQuery(api.analytics.minePage, { range, now }, { initialNumItems: 500 });
+  const pages = usePaginatedQuery(api.analytics.minePage, { range, now }, { initialNumItems: 50 });
   useEffect(() => {
     if (pages.status === "CanLoadMore") pages.loadMore(500);
   }, [pages]);

@@ -41,18 +41,19 @@ function AuthBoundary({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
+  const isProtectedPage =
+    pathname.startsWith("/app") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/onboarding");
+  const needsAuth = isProtectedPage || pathname === "/login";
+  const isSetupPage = pathname.startsWith("/setup/");
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,
     getServerHydrationSnapshot,
   );
-  const isProtectedPage =
-    pathname.startsWith("/app") ||
-    pathname.startsWith("/admin") ||
-    pathname.startsWith("/onboarding");
-  const isSetupPage = pathname.startsWith("/setup/");
-  const accessLoading = isAuthenticated && access === undefined;
+  const accessLoading = needsAuth && isAuthenticated && access === undefined;
   const activeAccess = isActiveAccess(access);
   let redirectPath: string | null = null;
 
@@ -87,6 +88,8 @@ function AuthBoundary({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (redirectPath !== null) router.replace(redirectPath);
   }, [redirectPath, router]);
+
+  if (!needsAuth) return children;
 
   if (!hydrated || authLoading || accessLoading) {
     return <AuthLoadingState />;

@@ -525,7 +525,7 @@ function LiveAdminAnalytics() {
   const [now] = useState(() => Date.now());
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const closeProfileAnalytics = useCallback(() => setSelectedProfileId(null), []);
-  const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 500 });
+  const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 50 });
   useEffect(() => {
     if (pages.status === "CanLoadMore") pages.loadMore(500);
   }, [pages]);
