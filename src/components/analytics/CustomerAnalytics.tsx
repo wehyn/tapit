@@ -26,6 +26,95 @@ const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "90d", label: "Last 90 days" },
 ];
 
+type DailyEngagementBucket = { bucketStart: number; views: number; clicks: number };
+type EngagementPeriod = { start: number; end: number; views: number; clicks: number };
+
+function groupEngagementTrend(
+  dailyBuckets: DailyEngagementBucket[],
+  range: AnalyticsRange,
+  now: number,
+): EngagementPeriod[] {
+  const dayMs = 86400000;
+  const cutoff = range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * dayMs;
+  const utcDayStart = (timestamp: number) => {
+    const date = new Date(timestamp);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  };
+  const byDay = new Map<number, { views: number; clicks: number }>();
+  for (const bucket of dailyBuckets) {
+    if (bucket.bucketStart < cutoff) continue;
+    const dayStart = utcDayStart(bucket.bucketStart);
+    const daily = byDay.get(dayStart) ?? { views: 0, clicks: 0 };
+    daily.views += bucket.views;
+    daily.clicks += bucket.clicks;
+    byDay.set(dayStart, daily);
+  }
+
+  const today = utcDayStart(now);
+  const periods: EngagementPeriod[] = [];
+  const addPeriod = (start: number, end: number) => {
+    let views = 0;
+    let clicks = 0;
+    for (let day = start; day <= end; day += dayMs) {
+      const totals = byDay.get(day);
+      views += totals?.views ?? 0;
+      clicks += totals?.clicks ?? 0;
+    }
+    periods.push({ start, end, views, clicks });
+  };
+
+  if (range === "7d") {
+    for (let day = Math.ceil(cutoff / dayMs) * dayMs; day <= today; day += dayMs) {
+      addPeriod(day, day);
+    }
+  } else if (range === "lifetime") {
+    let firstDay: number | undefined;
+    for (const day of byDay.keys()) {
+      if (firstDay === undefined || day < firstDay) firstDay = day;
+    }
+    if (firstDay !== undefined) {
+      const firstDate = new Date(firstDay);
+      const currentDate = new Date(today);
+      let month = Date.UTC(firstDate.getUTCFullYear(), firstDate.getUTCMonth(), 1);
+      const currentMonth = Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), 1);
+      while (month <= currentMonth) {
+        const nextMonthDate = new Date(month);
+        nextMonthDate.setUTCMonth(nextMonthDate.getUTCMonth() + 1);
+        const nextMonth = nextMonthDate.getTime();
+        addPeriod(Math.max(month, firstDay), Math.min(nextMonth - dayMs, today));
+        month = nextMonth;
+      }
+    }
+  } else {
+    const mondayStart = (timestamp: number) => {
+      const day = utcDayStart(timestamp);
+      return day - ((new Date(day).getUTCDay() + 6) % 7) * dayMs;
+    };
+    const firstWeek = mondayStart(cutoff);
+    const currentWeek = mondayStart(today);
+    for (let week = firstWeek; week <= currentWeek; week += 7 * dayMs) {
+      addPeriod(Math.max(week, utcDayStart(cutoff)), Math.min(week + 6 * dayMs, today));
+    }
+  }
+
+  return periods;
+}
+
+function formatTrendPeriod(period: EngagementPeriod): string {
+  const start = new Date(period.start);
+  const end = new Date(period.end);
+  const format = (date: Date, year = false) =>
+    date.toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(year ? { year: "numeric" as const } : {}),
+      timeZone: "UTC",
+    });
+  if (period.start === period.end) return format(start);
+  const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
+  return `${format(start, !sameYear)}–${format(end, !sameYear)}`;
+}
+
 export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
 export type SourceTotals = Record<AnalyticsSource, number>;
 
@@ -71,9 +160,9 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5">
-      <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
-      <dd className="mt-2 text-3xl font-semibold tracking-tight text-tapit-ink">
+    <div className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:p-5">
+      <dt className="text-xs font-semibold text-tapit-muted sm:text-sm">{label}</dt>
+      <dd className="mt-2 text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
         {value.toLocaleString()}
       </dd>
     </div>
@@ -99,31 +188,28 @@ function DemoCustomerAnalytics() {
         .map((bucket) => ({ total: bucket.views + bucket.clicks, source: bucket.source })),
     );
   }, [now, profile.id, range, state.analytics]);
-  const trend = useMemo(() => {
-    const days = range === "lifetime" ? Number.POSITIVE_INFINITY : Number(range.slice(0, -1));
-    const cutoff = Number.isFinite(days) ? now - days * 24 * 60 * 60 * 1000 : 0;
-    const byDay = new Map<number, { bucketStart: number; views: number; clicks: number }>();
-    for (const bucket of state.analytics) {
-      if (bucket.profileId !== profile.id || bucket.bucketStart < cutoff) continue;
-      const daily = byDay.get(bucket.bucketStart) ?? {
-        bucketStart: bucket.bucketStart,
-        views: 0,
-        clicks: 0,
-      };
-      daily.views += bucket.views;
-      daily.clicks += bucket.clicks;
-      byDay.set(bucket.bucketStart, daily);
-    }
-    return [...byDay.values()].sort((left, right) => left.bucketStart - right.bucketStart);
-  }, [now, profile.id, range, state.analytics]);
-  const peak = Math.max(1, ...trend.map((bucket) => bucket.views + bucket.clicks));
+  const trend = useMemo(
+    () =>
+      groupEngagementTrend(
+        state.analytics
+          .filter((bucket) => bucket.profileId === profile.id)
+          .map(({ bucketStart, views, clicks }) => ({ bucketStart, views, clicks })),
+        range,
+        now,
+      ),
+    [now, profile.id, range, state.analytics],
+  );
+  const peak = Math.max(1, ...trend.map((period) => period.views + period.clicks));
   const linkResults = profile.draft.links
     .map((link) => ({ ...link, clicks: totals.linkClicks[link.id] ?? 0 }))
     .sort((left, right) => right.clicks - left.clicks);
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel title="Profile analytics">
+      <Panel>
+        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+          Profile analytics
+        </h1>
         <div className="mt-6 max-w-xs">
           <SelectField
             id="analytics-range"
@@ -140,54 +226,55 @@ function DemoCustomerAnalytics() {
         </div>
       </Panel>
 
-      <Panel title="Engagement trend">
-        <div
-          className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
-          aria-label="Aggregate engagement trend"
-        >
-          {trend.length > 0 ? (
-            trend.map((bucket) => {
-              const total = bucket.views + bucket.clicks;
-              return (
-                <div
-                  className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                  key={bucket.bucketStart}
-                >
-                  <span className="text-[0.65rem] font-semibold text-tapit-muted">
-                    {total.toLocaleString()}
-                  </span>
-                  <div
-                    className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
-                    style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
-                    title={`${bucket.views} views, ${bucket.clicks} clicks`}
-                  />
-                  <span className="text-[0.65rem] text-tapit-muted">
-                    {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                    })}
-                  </span>
-                </div>
-              );
-            })
-          ) : (
-            <p className="mb-6 w-full text-center text-sm text-tapit-muted">
-              Share your profile to start a trend.
-            </p>
-          )}
-        </div>
-      </Panel>
-
       <Panel title="Engagement summary">
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+        <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
         </dl>
       </Panel>
 
-      <Panel title="Traffic sources">
-        <SourceBreakdown totals={sourceTotals} />
+      <Panel title="Engagement trend">
+        <div
+          aria-label="Aggregate engagement trend"
+          className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
+          role="region"
+          tabIndex={0}
+        >
+          <div
+            className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
+            style={{ minWidth: `${Math.max(100, trend.length * 56)}px` }}
+          >
+            {trend.length > 0 ? (
+              trend.map((period) => {
+                const total = period.views + period.clicks;
+                const label = formatTrendPeriod(period);
+                return (
+                  <div
+                    aria-label={`${label}: ${total} total, ${period.views} views, ${period.clicks} clicks`}
+                    className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                    key={period.start}
+                    role="group"
+                  >
+                    <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                      {total.toLocaleString()}
+                    </span>
+                    <div
+                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                      style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
+                      title={`${period.views} views, ${period.clicks} clicks`}
+                    />
+                    <span className="text-[0.6rem] text-tapit-muted">{label}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+                Share your profile to start a trend.
+              </p>
+            )}
+          </div>
+        </div>
       </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>
@@ -195,6 +282,13 @@ function DemoCustomerAnalytics() {
           aggregate results.
         </Notice>
       ) : null}
+
+      <Panel
+        description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
+        title="Views and clicks by source"
+      >
+        <SourceBreakdown totals={sourceTotals} />
+      </Panel>
 
       <Panel title="Link results">
         <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
@@ -285,8 +379,25 @@ function LiveCustomerAnalytics() {
       ),
     [buckets],
   );
+  const trend = useMemo(() => {
+    const dailyBuckets = new Map<number, DailyEngagementBucket>();
+    for (const row of buckets) {
+      const date = new Date(row.bucketStart);
+      const dayStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+      const daily = dailyBuckets.get(dayStart) ?? {
+        bucketStart: row.bucketStart,
+        views: 0,
+        clicks: 0,
+      };
+      daily.bucketStart = Math.min(daily.bucketStart, row.bucketStart);
+      if (row.eventType === "profile_view") daily.views += row.total;
+      else daily.clicks += row.total;
+      dailyBuckets.set(dayStart, daily);
+    }
+    return groupEngagementTrend([...dailyBuckets.values()], range, now);
+  }, [buckets, now, range]);
   const loading = profile === undefined || pages.status === "LoadingFirstPage";
-  const peak = Math.max(1, ...buckets.map((bucket) => bucket.total));
+  const peak = Math.max(1, ...trend.map((period) => period.views + period.clicks));
   const linkResults = (profile?.draft.links ?? [])
     .map((link) => ({ ...link, clicks: totals?.linkClicks[link.id] ?? 0 }))
     .sort((left, right) => right.clicks - left.clicks);
@@ -297,7 +408,10 @@ function LiveCustomerAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel title="Profile analytics">
+      <Panel>
+        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+          Profile analytics
+        </h1>
         <div className="mt-6 max-w-xs">
           <SelectField
             id="analytics-range"
@@ -313,56 +427,67 @@ function LiveCustomerAnalytics() {
           </SelectField>
         </div>
       </Panel>
-      <Panel title="Engagement trend">
-        {pages.status !== "Exhausted" ? (
-          <Notice>Loading the complete analytics range…</Notice>
-        ) : null}
-        <div
-          className="mt-5 flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
-          aria-label="Aggregate engagement trend"
-        >
-          {buckets.length > 0 ? (
-            buckets.map((bucket) => (
-              <div
-                className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                key={bucket._id}
-              >
-                <span className="text-[0.65rem] font-semibold text-tapit-muted">
-                  {bucket.total.toLocaleString()}
-                </span>
-                <div
-                  className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
-                  style={{ height: `${Math.max(10, (bucket.total / peak) * 125)}px` }}
-                  title={`${bucket.eventType}: ${bucket.total}`}
-                />
-                <span className="text-[0.65rem] text-tapit-muted">
-                  {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-            ))
-          ) : (
-            <p className="mb-6 w-full text-center text-sm text-tapit-muted">
-              Share your profile to start a trend.
-            </p>
-          )}
-        </div>
-      </Panel>
       <Panel title="Engagement summary">
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
+        <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
         </dl>
       </Panel>
-      <Panel title="Traffic sources">
-        <SourceBreakdown totals={sourceTotals} />
+      <Panel title="Engagement trend">
+        {pages.status !== "Exhausted" ? (
+          <Notice>Loading the complete analytics range…</Notice>
+        ) : null}
+        <div
+          aria-label="Aggregate engagement trend"
+          className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
+          role="region"
+          tabIndex={0}
+        >
+          <div
+            className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
+            style={{ minWidth: `${Math.max(100, trend.length * 56)}px` }}
+          >
+            {trend.length > 0 ? (
+              trend.map((period) => {
+                const total = period.views + period.clicks;
+                const label = formatTrendPeriod(period);
+                return (
+                  <div
+                    aria-label={`${label}: ${total} total, ${period.views} views, ${period.clicks} clicks`}
+                    className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                    key={period.start}
+                    role="group"
+                  >
+                    <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                      {total.toLocaleString()}
+                    </span>
+                    <div
+                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                      style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
+                      title={`${period.views} views, ${period.clicks} clicks`}
+                    />
+                    <span className="text-[0.6rem] text-tapit-muted">{label}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+                Share your profile to start a trend.
+              </p>
+            )}
+          </div>
+        </div>
       </Panel>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No activity in this range yet.</Notice>
       ) : null}
+      <Panel
+        description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
+        title="Views and clicks by source"
+      >
+        <SourceBreakdown totals={sourceTotals} />
+      </Panel>
       <Panel title="Link results">
         <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
           {linkResults.length === 0 ? (

@@ -13,8 +13,11 @@ import {
   validatePublication,
   validatePublicationAccess,
   type LinkIcon,
+  type ProfileContent,
   type ProfileLink,
+  type ProfileTheme,
 } from "@/lib/domain";
+import { defaultProfileCustomizationForTheme } from "@/lib/profile-customization";
 import {
   getDemoProfileForSession,
   getDemoProfiles,
@@ -75,6 +78,9 @@ const LINK_ICON_VALUES: readonly LinkIcon[] = [
 ];
 
 type PersistedProfileLink = Omit<ProfileLink, "icon"> & { icon?: string };
+type ProfileDraftWithPersistedLinks = Omit<ProfileContent, "links"> & {
+  links: readonly PersistedProfileLink[];
+};
 
 export function normalizeLinkIcon(value: string | undefined): LinkIcon {
   return value !== undefined && LINK_ICON_VALUES.includes(value as LinkIcon)
@@ -109,12 +115,36 @@ export function canPreviewLinks(
   return Object.keys(validation).length === 0 && publicationErrors.length === 0;
 }
 
+function draftWithLinksAndFeaturedLink(
+  draft: ProfileDraftWithPersistedLinks,
+  links: ProfileLink[],
+  featuredLinkId: string | null,
+  theme?: ProfileTheme,
+): ProfileContent {
+  let customization = draft.customization;
+  if (featuredLinkId !== (customization?.featuredLinkId ?? null)) {
+    if (featuredLinkId === null) {
+      if (customization !== undefined) {
+        customization = { ...customization };
+        delete customization.featuredLinkId;
+      }
+    } else {
+      customization = {
+        ...(customization ?? defaultProfileCustomizationForTheme(theme)),
+        featuredLinkId,
+      };
+    }
+  }
+  return { ...draft, links, ...(customization === undefined ? {} : { customization }) };
+}
+
 function previewForLinks(
   profile: ReturnType<typeof getDemoProfileForSession>,
   links: ProfileLink[],
+  featuredLinkId: string | null,
   legacyTheme: ReturnType<typeof getDemoTheme>,
 ) {
-  const draft = { ...profile.draft, links };
+  const draft = draftWithLinksAndFeaturedLink(profile.draft, links, featuredLinkId, legacyTheme);
   return projectDemoPublicProfile(profile, draft, legacyTheme);
 }
 
@@ -123,6 +153,9 @@ function DemoLinksEditor() {
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
+  const [featuredLinkId, setFeaturedLinkId] = useState<string | null>(
+    () => profile.draft.customization?.featuredLinkId ?? null,
+  );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
 
@@ -148,7 +181,8 @@ function DemoLinksEditor() {
     return errors;
   }, [links]);
 
-  const draft = { ...profile.draft, links };
+  const legacyTheme = getDemoTheme(state, profile.id);
+  const draft = draftWithLinksAndFeaturedLink(profile.draft, links, featuredLinkId, legacyTheme);
   const customer = session
     ? state.customers.find((candidate) => candidate.email === session.email)
     : undefined;
@@ -177,9 +211,11 @@ function DemoLinksEditor() {
       : []),
   ];
   const preview = canPreviewLinks(validation, publicationErrors)
-    ? previewForLinks(profile, links, getDemoTheme(state, profile.id))
+    ? previewForLinks(profile, links, featuredLinkId, legacyTheme)
     : null;
-  const isDirty = !areProfileLinksEqual(links, profile.draft.links);
+  const isDirty =
+    !areProfileLinksEqual(links, profile.draft.links) ||
+    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
     profile.status === "published"
@@ -197,6 +233,18 @@ function DemoLinksEditor() {
   function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
     setLinks((current) => current.map((link) => (link.id === id ? { ...link, ...patch } : link)));
+    if (
+      patch.enabled === false &&
+      featuredLinkId === id &&
+      featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null)
+    )
+      setFeaturedLinkId(null);
+    setMessage(null);
+  }
+
+  function updateFeaturedLink(id: string | null) {
+    draftRevisionRef.current += 1;
+    setFeaturedLinkId(id);
     setMessage(null);
   }
 
@@ -212,6 +260,11 @@ function DemoLinksEditor() {
   function removeLink(id: string) {
     draftRevisionRef.current += 1;
     setLinks((current) => current.filter((link) => link.id !== id));
+    if (
+      featuredLinkId === id &&
+      featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null)
+    )
+      setFeaturedLinkId(null);
     setMessage(null);
   }
 
@@ -249,12 +302,17 @@ function DemoLinksEditor() {
       updateDemoState((current) =>
         updateDemoProfile(current, profile.id, (currentProfile) => ({
           ...currentProfile,
-          draft: { ...currentProfile.draft, links: copyLinks(links) },
+          draft: draftWithLinksAndFeaturedLink(
+            currentProfile.draft,
+            copyLinks(links),
+            featuredLinkId,
+            legacyTheme,
+          ),
         })),
       );
       setMessage({
         tone: "success",
-        text: "Links saved to draft. Visitors still see the last published order.",
+        text: "Links saved to draft.",
       });
       return true;
     } catch (error) {
@@ -266,7 +324,7 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, links, profile.id, validation]);
+  }, [featuredLinkId, isDirty, legacyTheme, links, profile.id, validation]);
 
   useDraftSaveRegistration(saveDraft);
 
@@ -287,7 +345,12 @@ function DemoLinksEditor() {
         ...publishProfile(
           {
             ...profile,
-            draft: { ...profile.draft, links: copyLinks(links) },
+            draft: draftWithLinksAndFeaturedLink(
+              profile.draft,
+              copyLinks(links),
+              featuredLinkId,
+              legacyTheme,
+            ),
           },
           new Date().toISOString(),
           {
@@ -333,14 +396,17 @@ function DemoLinksEditor() {
     <LinksWorkspace
       profileUrl={`/${profile.draft.slug}`}
       links={links}
+      featuredLinkId={featuredLinkId}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
       message={message}
       pendingAction={pendingAction}
       isDirty={isDirty}
+      hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
+      onFeaturedLinkChange={updateFeaturedLink}
       onAddLink={addLink}
       onMoveLink={moveLink}
       onReorderLink={reorderLink}
@@ -370,6 +436,9 @@ export function LiveLinksEditorContent({
   const saveLinks = useMutation(api.links.replaceDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
+  const [featuredLinkId, setFeaturedLinkId] = useState<string | null>(
+    () => profile.draft.customization?.featuredLinkId ?? null,
+  );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
@@ -378,13 +447,17 @@ export function LiveLinksEditorContent({
   const draftRevisionRef = useRef(0);
   const serverDraftRevisionRef = useRef(profile.draftRevision ?? 0);
   const serverDraftProfileIdRef = useRef(profile._id);
+  const serverFeaturedLinkIdRef = useRef(profile.draft.customization?.featuredLinkId ?? null);
 
   const currentDraft = useMemo(
-    () => ({
-      ...profile.draft,
-      links: links ?? normalizeProfileLinks(profile.draft.links),
-    }),
-    [links, profile.draft],
+    () =>
+      draftWithLinksAndFeaturedLink(
+        profile.draft,
+        links ?? normalizeProfileLinks(profile.draft.links),
+        featuredLinkId,
+        profile.draft.theme,
+      ),
+    [featuredLinkId, links, profile.draft],
   );
   const normalizedDraftLinks = useMemo(
     () => normalizeProfileLinks(profile.draft.links),
@@ -426,16 +499,29 @@ export function LiveLinksEditorContent({
         published: { ...currentDraft, publishedAt: new Date().toISOString() },
       })
     : null;
-  const isDirty = !areProfileLinksEqual(currentDraft.links, profile.draft.links);
+  const isDirty =
+    !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
+    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null);
   useEffect(() => {
     const incomingRevision = profile.draftRevision ?? 0;
     if (serverDraftProfileIdRef.current !== profile._id) {
       serverDraftProfileIdRef.current = profile._id;
       serverDraftRevisionRef.current = incomingRevision;
+      serverFeaturedLinkIdRef.current = profile.draft.customization?.featuredLinkId ?? null;
+      setFeaturedLinkId(serverFeaturedLinkIdRef.current);
     } else if (!isDirty && incomingRevision >= serverDraftRevisionRef.current) {
       serverDraftRevisionRef.current = incomingRevision;
+      serverFeaturedLinkIdRef.current = profile.draft.customization?.featuredLinkId ?? null;
+      if (featuredLinkId !== serverFeaturedLinkIdRef.current)
+        setFeaturedLinkId(serverFeaturedLinkIdRef.current);
     }
-  }, [isDirty, profile._id, profile.draftRevision]);
+  }, [
+    featuredLinkId,
+    isDirty,
+    profile._id,
+    profile.draft.customization?.featuredLinkId,
+    profile.draftRevision,
+  ]);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -444,10 +530,15 @@ export function LiveLinksEditorContent({
         : "Published"
       : "Publish";
   const latestLinksRef = useRef(currentDraft.links);
+  const latestFeaturedLinkIdRef = useRef(featuredLinkId);
 
   useEffect(() => {
     latestLinksRef.current = currentDraft.links;
   }, [currentDraft.links]);
+
+  useEffect(() => {
+    latestFeaturedLinkIdRef.current = featuredLinkId;
+  }, [featuredLinkId]);
 
   function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
@@ -456,6 +547,21 @@ export function LiveLinksEditorContent({
         link.id === id ? { ...link, ...patch } : link,
       ),
     );
+    if (
+      patch.enabled === false &&
+      featuredLinkId === id &&
+      featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null)
+    ) {
+      latestFeaturedLinkIdRef.current = null;
+      setFeaturedLinkId(null);
+    }
+    setMessage(null);
+  }
+
+  function updateFeaturedLink(id: string | null) {
+    draftRevisionRef.current += 1;
+    latestFeaturedLinkIdRef.current = id;
+    setFeaturedLinkId(id);
     setMessage(null);
   }
   function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
@@ -474,6 +580,13 @@ export function LiveLinksEditorContent({
     setLinks((currentLinks) =>
       (currentLinks ?? currentDraft.links).filter((link) => link.id !== id),
     );
+    if (
+      featuredLinkId === id &&
+      featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null)
+    ) {
+      latestFeaturedLinkIdRef.current = null;
+      setFeaturedLinkId(null);
+    }
     setMessage(null);
   }
   function moveLink(id: string, direction: -1 | 1) {
@@ -499,19 +612,25 @@ export function LiveLinksEditorContent({
   }
 
   const persistLinks = useCallback(
-    async (linksToSave: ProfileLink[]) => {
+    async (linksToSave: ProfileLink[], featuredLinkIdToSave: string | null) => {
       let nextLinks = linksToSave;
+      let nextFeaturedLinkId = featuredLinkIdToSave;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
         const result = await saveLinks({
           profileId: profile._id,
           links: nextLinks,
+          ...(nextFeaturedLinkId === serverFeaturedLinkIdRef.current
+            ? {}
+            : { featuredLinkId: nextFeaturedLinkId }),
           expectedDraftRevision: serverDraftRevisionRef.current,
         });
         serverDraftRevisionRef.current = result.draftRevision;
+        serverFeaturedLinkIdRef.current = nextFeaturedLinkId;
         const latestLinks = latestLinksRef.current;
         if (revisionAtStart === draftRevisionRef.current) return;
         nextLinks = latestLinks;
+        nextFeaturedLinkId = latestFeaturedLinkIdRef.current;
       }
       throw new Error("Your links changed while they were saving. Try again.");
     },
@@ -528,11 +647,11 @@ export function LiveLinksEditorContent({
     }
     setPendingAction("save");
     try {
-      await persistLinks(latestLinksRef.current);
+      await persistLinks(latestLinksRef.current, latestFeaturedLinkIdRef.current);
       setLinks(null);
       setMessage({
         tone: "success",
-        text: "Links saved to draft. Visitors still see the last published order.",
+        text: "Links saved to draft.",
       });
       return true;
     } catch (error) {
@@ -564,7 +683,7 @@ export function LiveLinksEditorContent({
     setMessage(null);
     try {
       if (isDirty) {
-        await persistLinks(latestLinksRef.current);
+        await persistLinks(latestLinksRef.current, latestFeaturedLinkIdRef.current);
         setLinks(null);
       }
       await publishMutation({
@@ -590,14 +709,17 @@ export function LiveLinksEditorContent({
     <LinksWorkspace
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
+      featuredLinkId={featuredLinkId}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
       message={message}
       pendingAction={pendingAction}
       isDirty={isDirty}
+      hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
+      onFeaturedLinkChange={updateFeaturedLink}
       onAddLink={addLink}
       onMoveLink={moveLink}
       onReorderLink={reorderLink}

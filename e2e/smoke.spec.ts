@@ -109,12 +109,12 @@ test("homepage profile CTAs open the customer profile", async ({ page }) => {
 
   await profileActions.nth(1).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByText("Profile identity")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
 
   await page.goto("/");
   await page.getByRole("link", { name: "Go to your profile", exact: true }).first().click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByText("Profile identity")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
 
   await resetDemoHarness(page);
   await page.goto("/");

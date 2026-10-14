@@ -26,7 +26,7 @@ test("published profile destination controls where the slug link goes", async ({
   await page.getByRole("textbox", { name: "HTTPS destination URL" }).fill(destination);
   const settingsArtifact = testInfo.outputPath("profile-destination-settings.png");
   await page
-    .getByRole("heading", { name: "Profile link destination" })
+    .getByRole("heading", { name: "Profile link", exact: true })
     .locator("xpath=..")
     .screenshot({ path: settingsArtifact });
   await testInfo.attach("profile-destination-settings", {

@@ -34,7 +34,7 @@ describe("CardPreviewDialog", () => {
       "src",
       file.url,
     );
-    expect(screen.getByRole("button", { name: "Order a card now" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Ordering is not open yet" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Choose another design" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Close card preview" })).toBeVisible();
   });
@@ -125,7 +125,7 @@ describe("CardPreviewDialog", () => {
     renderDialog({ orderingComingSoon: true, onChooseAnother, onOrder });
 
     expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
-    fireEvent.click(screen.getByRole("button", { name: "Order a card now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose another design" }));
     expect(onOrder).toHaveBeenCalledOnce();
     expect(onChooseAnother).toHaveBeenCalledOnce();

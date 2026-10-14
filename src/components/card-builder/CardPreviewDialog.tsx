@@ -112,7 +112,7 @@ export function CardPreviewDialog({
         </div>
         <div className="mt-6 flex flex-col gap-3">
           <Button className="w-full" onClick={onOrder} type="button">
-            Order a card now <span aria-hidden="true">→</span>
+            Ordering is not open yet <span aria-hidden="true">→</span>
           </Button>
           <Button className="w-full" onClick={onChooseAnother} type="button" variant="secondary">
             Choose another design

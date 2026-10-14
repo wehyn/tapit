@@ -151,13 +151,12 @@ export function BuildCardWorkspace({
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
             <div className="mx-auto max-w-2xl text-center">
-              <StatusBadge prominent status="Coming soon" />
+              <StatusBadge prominent status="Custom ordering coming soon" />
               <h1 className="tapit-display mt-5 text-4xl font-medium tracking-[-0.055em] sm:text-6xl">
                 Bring your card to life
               </h1>
               <p className="mx-auto mt-5 max-w-xl text-center text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
-                Start with a template in Canva, or upload a design you already love. We&apos;ll take
-                it from there when custom card ordering opens.
+                Design preparation is available now. Custom ordering is not open yet.
               </p>
             </div>
 
