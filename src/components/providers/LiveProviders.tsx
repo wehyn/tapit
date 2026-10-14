@@ -47,7 +47,7 @@ function AuthBoundary({ children }: { children: ReactNode }) {
     pathname.startsWith("/onboarding");
   const needsAuth = isProtectedPage || pathname === "/login";
   const isSetupPage = pathname.startsWith("/setup/");
-  const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
+  const access = useQuery(api.admin.currentAccess, isAuthenticated && needsAuth ? {} : "skip");
   const hydrated = useSyncExternalStore(
     subscribeToHydration,
     getClientHydrationSnapshot,

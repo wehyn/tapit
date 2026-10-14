@@ -527,7 +527,9 @@ function LiveAdminAnalytics() {
   const closeProfileAnalytics = useCallback(() => setSelectedProfileId(null), []);
   const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 50 });
   useEffect(() => {
-    if (pages.status === "CanLoadMore") pages.loadMore(500);
+    // Finish the first 1,000 rows before continuing in 500-row batches.
+    if (pages.status === "CanLoadMore")
+      pages.loadMore(pages.results.length < 1_000 ? 1_000 - pages.results.length : 500);
   }, [pages]);
   const totals = useMemo(
     () =>

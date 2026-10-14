@@ -6,6 +6,12 @@ const authState = vi.hoisted(() => ({
   auth: { isAuthenticated: false, isLoading: true },
   replace: vi.fn(),
 }));
+const convexHooks = vi.hoisted(() => ({
+  useQuery: vi.fn((...args: unknown[]) => {
+    void args;
+    return undefined;
+  }),
+}));
 
 vi.mock("@convex-dev/auth/nextjs", () => ({
   ConvexAuthNextjsProvider: ({ children }: { children: React.ReactNode }) => children,
@@ -20,7 +26,7 @@ vi.mock("convex/react", () => ({
       void args;
     }
   },
-  useQuery: () => undefined,
+  useQuery: convexHooks.useQuery,
 }));
 vi.mock("next/navigation", () => ({
   usePathname: () => authState.pathname,
@@ -38,6 +44,8 @@ beforeEach(() => {
   authState.pathname = "/";
   authState.auth = { isAuthenticated: false, isLoading: true };
   authState.replace.mockReset();
+  convexHooks.useQuery.mockReset();
+  convexHooks.useQuery.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -55,7 +63,7 @@ describe("live route authentication boundary", () => {
     expect(screen.getByText("Tapit home content")).toBeInTheDocument();
   });
 
-  it("does not wait for an access lookup on public pages", () => {
+  it("skips the access lookup on authenticated public pages", () => {
     authState.auth = { isAuthenticated: true, isLoading: false };
 
     render(
@@ -65,6 +73,7 @@ describe("live route authentication boundary", () => {
     );
 
     expect(screen.getByText("Tapit home content")).toBeInTheDocument();
+    expect(convexHooks.useQuery.mock.calls.map((call) => call[1])).toContain("skip");
   });
 
   it("keeps protected content hidden while session restoration is pending", () => {
@@ -76,6 +85,21 @@ describe("live route authentication boundary", () => {
       </LiveProviders>,
     );
 
+    expect(screen.queryByText("Private profile content")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading your Tapit workspace...");
+  });
+
+  it("keeps the access lookup enabled on authenticated protected pages", () => {
+    authState.pathname = "/app/profile";
+    authState.auth = { isAuthenticated: true, isLoading: false };
+
+    render(
+      <LiveProviders>
+        <main>Private profile content</main>
+      </LiveProviders>,
+    );
+
+    expect(convexHooks.useQuery.mock.calls.map((call) => call[1])).toContainEqual({});
     expect(screen.queryByText("Private profile content")).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Loading your Tapit workspace...");
   });

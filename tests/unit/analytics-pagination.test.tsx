@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const convexHooks = vi.hoisted(() => ({
+  loadMore: vi.fn(),
   usePaginatedQuery: vi.fn(),
   useQuery: vi.fn(),
 }));
@@ -22,14 +23,33 @@ const profile = {
   status: "published" as const,
   draft: { name: "Owner", slug: "owner", links: [] },
 };
+const analyticsRow = {
+  _id: "analytics:row",
+  _creationTime: 1,
+  profileId: "profiles:owner",
+  eventType: "profile_view",
+  bucketStart: 1,
+  total: 1,
+  uniqueCount: 1,
+  source: "direct",
+};
+
+function analyticsPage(count: number) {
+  return {
+    results: Array.from({ length: count }, () => analyticsRow),
+    status: "CanLoadMore",
+    loadMore: convexHooks.loadMore,
+  };
+}
 
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   convexHooks.usePaginatedQuery.mockReturnValue({
     results: [],
     status: "CanLoadMore",
-    loadMore: vi.fn(),
+    loadMore: convexHooks.loadMore,
   });
+  convexHooks.loadMore.mockReset();
   convexHooks.useQuery.mockReset();
 });
 
@@ -59,5 +79,35 @@ describe("live analytics pagination", () => {
       screen.getByText("Analytics totals are partial while the complete range loads."),
     ).toBeInTheDocument();
     expect(screen.queryByText("No aggregate activity in this range.")).not.toBeInTheDocument();
+  });
+
+  it("loads a 1,000-row analytics window, then continues in 500-row pages", () => {
+    convexHooks.useQuery.mockReturnValue(profile);
+    convexHooks.usePaginatedQuery
+      .mockReturnValueOnce(analyticsPage(50))
+      .mockReturnValueOnce(analyticsPage(1_000));
+
+    const { rerender } = render(<CustomerAnalytics />);
+    expect(convexHooks.loadMore.mock.calls.map(([numItems]) => numItems)).toEqual([950]);
+
+    rerender(<CustomerAnalytics />);
+    expect(convexHooks.loadMore.mock.calls.map(([numItems]) => numItems)).toEqual([950, 500]);
+  });
+
+  it("uses the same fast-start pagination window in administrator analytics", () => {
+    convexHooks.useQuery
+      .mockReturnValueOnce([profile])
+      .mockReturnValueOnce([])
+      .mockReturnValueOnce([profile])
+      .mockReturnValueOnce([]);
+    convexHooks.usePaginatedQuery
+      .mockReturnValueOnce(analyticsPage(50))
+      .mockReturnValueOnce(analyticsPage(1_000));
+
+    const { rerender } = render(<AdminAnalytics />);
+    expect(convexHooks.loadMore.mock.calls.map(([numItems]) => numItems)).toEqual([950]);
+
+    rerender(<AdminAnalytics />);
+    expect(convexHooks.loadMore.mock.calls.map(([numItems]) => numItems)).toEqual([950, 500]);
   });
 });
