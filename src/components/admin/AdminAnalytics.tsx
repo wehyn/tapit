@@ -525,9 +525,11 @@ function LiveAdminAnalytics() {
   const [now] = useState(() => Date.now());
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const closeProfileAnalytics = useCallback(() => setSelectedProfileId(null), []);
-  const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 500 });
+  const pages = usePaginatedQuery(api.analytics.allPage, { range, now }, { initialNumItems: 50 });
   useEffect(() => {
-    if (pages.status === "CanLoadMore") pages.loadMore(500);
+    // Finish the first 1,000 rows before continuing in 500-row batches.
+    if (pages.status === "CanLoadMore")
+      pages.loadMore(pages.results.length < 1_000 ? 1_000 - pages.results.length : 500);
   }, [pages]);
   const totals = useMemo(
     () =>
@@ -601,10 +603,10 @@ function LiveAdminAnalytics() {
         description="Review aggregate profile engagement and operational activity over time."
         title="Analytics"
       />
+      {pages.status !== "Exhausted" ? (
+        <Notice>Analytics totals are partial while the complete range loads.</Notice>
+      ) : null}
       <Panel description="Cross-customer totals are aggregate-only." title="Operational analytics">
-        {pages.status !== "Exhausted" ? (
-          <Notice>Loading the complete analytics range…</Notice>
-        ) : null}
         <div className="mt-6 max-w-xs">
           <SelectField
             id="admin-analytics-range"
@@ -645,7 +647,7 @@ function LiveAdminAnalytics() {
           </div>
         </dl>
       </Panel>
-      {totals.views === 0 && totals.clicks === 0 ? (
+      {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
       <Panel title="Profile and card status">

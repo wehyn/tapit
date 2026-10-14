@@ -72,6 +72,31 @@ describe("ProfileSlideshow", () => {
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
   });
 
+  it("keeps repeated image sources navigable without duplicate React keys", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const duplicateSource = "data:image/jpeg;base64,duplicate";
+    try {
+      render(
+        <ProfileSlideshow
+          autoplay={false}
+          images={[
+            { src: duplicateSource, alt: "First copy" },
+            { src: duplicateSource, alt: "Second copy" },
+          ]}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Image 2 of 2" }));
+
+      expect(screen.getByRole("img")).toHaveAttribute("alt", "Second copy");
+      expect(error.mock.calls.some(([message]) => String(message).includes("same key"))).toBe(
+        false,
+      );
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it("captures the pointer so a swipe can finish after crossing the surface edge", () => {
     render(<ProfileSlideshow autoplay={false} images={images} />);
     const slideshow = screen.getByRole("region", { name: "Profile slideshow" });

@@ -132,7 +132,7 @@ export function ProfileSlideshow({
           alt={current.alt.trim() || `Slideshow image ${safeActiveIndex + 1}`}
           className={`tapit-profile-slideshow-image tapit-image-outline absolute inset-0 size-full object-cover ${reducedMotion ? "tapit-profile-slideshow-image--reduced" : ""}`}
           decoding="async"
-          key={current.src}
+          key={safeActiveIndex}
           loading={safeActiveIndex === 0 ? "eager" : "lazy"}
           src={current.src}
           style={{ outlineColor: imageOutlineColor }}
@@ -175,7 +175,7 @@ export function ProfileSlideshow({
               aria-current={index === safeActiveIndex ? "true" : undefined}
               aria-label={`Image ${index + 1} of ${total}`}
               className="grid min-h-8 min-w-8 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
-              key={image.src}
+              key={index}
               onClick={() => goTo(index)}
               type="button"
             >
