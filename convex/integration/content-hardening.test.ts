@@ -235,7 +235,11 @@ describe("content hardening", () => {
       if (profile)
         await ctx.db.patch(data.profileId, { draft: { ...profile.draft, theme: "moss" } });
     });
-    const original = [validLink("first"), validLink("second")];
+    const sensitiveFeaturedLinkId = "owner@example.com";
+    const original = [
+      { ...validLink("first"), destination: "https://first.example.com" },
+      { ...validLink(sensitiveFeaturedLinkId), destination: "https://second.example.com" },
+    ];
     const replaceDraft = (args: {
       links: TestLink[];
       expectedDraftRevision: number;
@@ -244,15 +248,19 @@ describe("content hardening", () => {
       owner.mutation(api.links.replaceDraft, {
         profileId: data.profileId,
         ...args,
-      } as never);
+      });
 
-    await replaceDraft({ links: original, expectedDraftRevision: 0, featuredLinkId: "second" });
+    await replaceDraft({
+      links: original,
+      expectedDraftRevision: 0,
+      featuredLinkId: sensitiveFeaturedLinkId,
+    });
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
       draft: {
         links: original,
         theme: "moss",
         customization: {
-          featuredLinkId: "second",
+          featuredLinkId: sensitiveFeaturedLinkId,
           preset: "moss",
           accent: "jade",
           typeScale: "comfortable",
@@ -272,7 +280,10 @@ describe("content hardening", () => {
 
     await replaceDraft({ links: [validLink("third")], expectedDraftRevision: 1 });
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
-      draft: { links: [validLink("third")], customization: { featuredLinkId: "second" } },
+      draft: {
+        links: [validLink("third")],
+        customization: { featuredLinkId: sensitiveFeaturedLinkId },
+      },
     });
 
     await replaceDraft({
@@ -280,12 +291,47 @@ describe("content hardening", () => {
       expectedDraftRevision: 2,
       featuredLinkId: null,
     });
-    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
-      draft: { customization: { featuredLinkId: undefined } },
-    });
+    const cleared = await owner.query(api.profiles.mine, {});
+    expect(cleared?.draft.customization).not.toHaveProperty("featuredLinkId");
+    expect(cleared?.draft.customization).toMatchObject({ preset: "moss", accent: "jade" });
 
     const audits = await t.run((ctx) => ctx.db.query("auditLogs").collect());
-    expect(audits.filter((entry) => entry.action === "profile.links_updated")).toHaveLength(3);
+    const linkAudits = audits.filter((entry) => entry.action === "profile.links_updated");
+    expect(linkAudits).toHaveLength(3);
+    expect(linkAudits.map(({ before, after }) => `${before}\n${after}`).join("\n")).not.toContain(
+      sensitiveFeaturedLinkId,
+    );
+    expect(
+      linkAudits.map(({ before, after }) => ({
+        before: JSON.parse(before ?? "null"),
+        after: JSON.parse(after ?? "null"),
+      })),
+    ).toEqual([
+      {
+        before: {
+          links: 0,
+          featuredLinkSelected: false,
+          featuredSelectionChanged: false,
+        },
+        after: { links: 2, featuredLinkSelected: true, featuredSelectionChanged: true },
+      },
+      {
+        before: {
+          links: 2,
+          featuredLinkSelected: true,
+          featuredSelectionChanged: false,
+        },
+        after: { links: 1, featuredLinkSelected: true, featuredSelectionChanged: false },
+      },
+      {
+        before: {
+          links: 1,
+          featuredLinkSelected: true,
+          featuredSelectionChanged: false,
+        },
+        after: { links: 1, featuredLinkSelected: false, featuredSelectionChanged: true },
+      },
+    ]);
     expect(await draftRevision(t, data.profileId)).toBe(3);
   });
 
@@ -301,7 +347,7 @@ describe("content hardening", () => {
       owner.mutation(api.links.replaceDraft, {
         profileId: data.profileId,
         ...args,
-      } as never);
+      });
     const first = [validLink("first")];
 
     await expect(

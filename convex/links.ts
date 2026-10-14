@@ -122,6 +122,7 @@ export const replaceDraft = mutation({
       !args.links.some((link) => link.id === args.featuredLinkId && link.enabled)
     )
       throw new Error("The featured link must be enabled in the submitted links.");
+    const previousFeaturedLinkId = profile.draft.customization?.featuredLinkId;
     let customization = profile.draft.customization;
     if (args.featuredLinkId === null && customization !== undefined) {
       customization = { ...customization };
@@ -136,7 +137,7 @@ export const replaceDraft = mutation({
     const nextDraftRevision = draftRevision + 1;
     const nextFeaturedLinkId =
       args.featuredLinkId === undefined
-        ? profile.draft.customization?.featuredLinkId
+        ? previousFeaturedLinkId
         : (args.featuredLinkId ?? undefined);
     await ctx.db.patch(profile._id, {
       draft: {
@@ -163,8 +164,16 @@ export const replaceDraft = mutation({
       profileId: profile._id,
       accountId: profile.ownerId,
       occurredAt: now,
-      before: `${existing.length} links; featured ${profile.draft.customization?.featuredLinkId ?? "none"}`,
-      after: `${args.links.length} links; featured ${nextFeaturedLinkId ?? "none"}`,
+      before: JSON.stringify({
+        links: existing.length,
+        featuredLinkSelected: previousFeaturedLinkId !== undefined,
+        featuredSelectionChanged: false,
+      }),
+      after: JSON.stringify({
+        links: args.links.length,
+        featuredLinkSelected: nextFeaturedLinkId !== undefined,
+        featuredSelectionChanged: previousFeaturedLinkId !== nextFeaturedLinkId,
+      }),
     });
     return { updatedAt: now, draftRevision: nextDraftRevision };
   },
