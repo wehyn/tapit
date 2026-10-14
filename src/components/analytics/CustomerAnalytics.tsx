@@ -427,6 +427,9 @@ function LiveCustomerAnalytics() {
           </SelectField>
         </div>
       </Panel>
+      {pages.status !== "Exhausted" ? (
+        <Notice>Analytics totals are partial while the complete range loads.</Notice>
+      ) : null}
       <Panel title="Engagement summary">
         <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Metric label="Profile views" value={totals.views} />
@@ -435,9 +438,6 @@ function LiveCustomerAnalytics() {
         </dl>
       </Panel>
       <Panel title="Engagement trend">
-        {pages.status !== "Exhausted" ? (
-          <Notice>Loading the complete analytics range…</Notice>
-        ) : null}
         <div
           aria-label="Aggregate engagement trend"
           className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
@@ -473,13 +473,15 @@ function LiveCustomerAnalytics() {
               })
             ) : (
               <p className="mb-6 w-full text-center text-sm text-tapit-muted">
-                Share your profile to start a trend.
+                {pages.status === "Exhausted"
+                  ? "Share your profile to start a trend."
+                  : "Loading trend…"}
               </p>
             )}
           </div>
         </div>
       </Panel>
-      {totals.views === 0 && totals.clicks === 0 ? (
+      {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No activity in this range yet.</Notice>
       ) : null}
       <Panel

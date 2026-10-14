@@ -601,10 +601,10 @@ function LiveAdminAnalytics() {
         description="Review aggregate profile engagement and operational activity over time."
         title="Analytics"
       />
+      {pages.status !== "Exhausted" ? (
+        <Notice>Analytics totals are partial while the complete range loads.</Notice>
+      ) : null}
       <Panel description="Cross-customer totals are aggregate-only." title="Operational analytics">
-        {pages.status !== "Exhausted" ? (
-          <Notice>Loading the complete analytics range…</Notice>
-        ) : null}
         <div className="mt-6 max-w-xs">
           <SelectField
             id="admin-analytics-range"
@@ -645,7 +645,7 @@ function LiveAdminAnalytics() {
           </div>
         </dl>
       </Panel>
-      {totals.views === 0 && totals.clicks === 0 ? (
+      {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
       <Panel title="Profile and card status">
