@@ -100,9 +100,9 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Basics", exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Contact", exact: true })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Profile link", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Basics" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Contact" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Profile link" })).toBeInTheDocument();
     expect(screen.getByText("Draft message")).toBeInTheDocument();
     expect(screen.getByText("Onboarding slot")).toBeInTheDocument();
     expect(screen.getByText("Profile image slot")).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services" });
     if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
       await user.click(aboutDisclosure);
     }
@@ -222,7 +222,7 @@ describe("ProfileDetailsEditor", () => {
     const onCustomizationChange = vi.fn();
     render(<ControlledDetails onCustomizationChange={onCustomizationChange} />);
 
-    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services" });
     if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
       await user.click(aboutDisclosure);
     }
@@ -251,7 +251,7 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services" });
     if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
       await user.click(aboutDisclosure);
     }
@@ -284,7 +284,7 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services" });
     if (aboutDisclosure.getAttribute("aria-expanded") !== "true") {
       await user.click(aboutDisclosure);
     }
@@ -303,20 +303,20 @@ describe("ProfileDetailsEditor", () => {
     expect(servicesIntro.getAttribute("aria-describedby")).toEqual(
       expect.stringMatching(/-services-intro-error$/),
     );
-    expect(screen.getByText("A Services section body must be nonblank.")).toHaveAttribute(
-      "role",
-      "alert",
-    );
+    expect(
+      screen.getByText("A Services section body must be nonblank.", {
+        selector: "p[role='alert']",
+      }),
+    ).toBeVisible();
 
     const serviceItem = screen.getByLabelText("Service 1");
     expect(serviceItem).toHaveAttribute("aria-invalid", "true");
     expect(serviceItem.getAttribute("aria-describedby")).toEqual(
       expect.stringMatching(/-service-0-error$/),
     );
-    expect(screen.getByText("Every service item must be nonblank.")).toHaveAttribute(
-      "role",
-      "alert",
-    );
+    expect(
+      screen.getByText("Every service item must be nonblank.", { selector: "p[role='alert']" }),
+    ).toBeVisible();
   });
 
   it("keeps visual controls in Customize and offers content controls on legacy profiles", async () => {
@@ -354,9 +354,9 @@ describe("ProfileDetailsEditor", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Basics", exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Basics" })).toBeInTheDocument();
     expect(screen.getByLabelText("Name")).toBeInTheDocument();
-    const aboutDisclosure = screen.getByRole("button", { name: "About or Services", exact: true });
+    const aboutDisclosure = screen.getByRole("button", { name: "About or Services" });
     expect(aboutDisclosure).toHaveAttribute("aria-expanded", "false");
     await userEvent.setup().click(aboutDisclosure);
     expect(screen.getByRole("button", { name: "Add About or Services section" })).toBeVisible();

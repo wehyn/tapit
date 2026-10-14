@@ -38,6 +38,7 @@ export type LinksWorkspaceProps = {
   message: LinksWorkspaceMessage | null;
   pendingAction: "save" | "publish" | null;
   isDirty: boolean;
+  hasUnpublishedChanges: boolean;
   publicationLabel: string;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
   onFeaturedLinkChange?: (id: string | null) => void;
@@ -59,6 +60,7 @@ export function LinksWorkspace({
   message,
   pendingAction,
   isDirty,
+  hasUnpublishedChanges,
   publicationLabel,
   onUpdateLink,
   onFeaturedLinkChange = () => {},
@@ -88,6 +90,12 @@ export function LinksWorkspace({
         : isDirty
           ? "Unsaved changes"
           : "Draft saved";
+  const publishDisabled =
+    publicationErrors.length > 0 ||
+    Object.keys(validation).length > 0 ||
+    publicationLabel === "Published" ||
+    pendingAction !== null;
+  const shouldShowActions = isDirty || pendingAction !== null;
   function captureRowPositions() {
     previousPositionsRef.current = new Map(
       [...rowRefs.current].map(([id, row]) => [id, row.getBoundingClientRect().top]),
@@ -200,6 +208,12 @@ export function LinksWorkspace({
                 >
                   {status}
                 </span>
+                {!isDirty && hasUnpublishedChanges && pendingAction === null ? (
+                  <Button disabled={publishDisabled} onClick={onPublish} type="button">
+                    <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                    {publicationLabel}
+                  </Button>
+                ) : null}
                 <Button onClick={() => setAddDialogOpen(true)} type="button">
                   <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
                   Add link
@@ -476,7 +490,7 @@ export function LinksWorkspace({
           )}
         </section>
       </div>
-      {isDirty || pendingAction !== null ? (
+      {shouldShowActions ? (
         <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
           <section aria-label="Draft actions" className="mx-auto max-w-[1480px]" role="region">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -501,12 +515,7 @@ export function LinksWorkspace({
                   {pendingAction === "save" ? "Saving..." : "Save draft"}
                 </Button>
                 <Button
-                  disabled={
-                    publicationErrors.length > 0 ||
-                    Object.keys(validation).length > 0 ||
-                    publicationLabel === "Published" ||
-                    pendingAction !== null
-                  }
+                  disabled={publishDisabled}
                   loading={pendingAction === "publish"}
                   onClick={onPublish}
                   type="button"

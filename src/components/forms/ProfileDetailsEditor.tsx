@@ -223,10 +223,6 @@ export function ProfileDetailsEditor({
     setOpenSections((current) => ({ ...current, [name]: !current[name] }));
   }
 
-  function update(patch: Partial<ProfileCustomization>) {
-    onCustomizationChange({ ...copyCustomization(activeCustomization), ...patch });
-  }
-
   function updateSection(section: ProfileSection | undefined) {
     const nextSection =
       section?.kind === "services"

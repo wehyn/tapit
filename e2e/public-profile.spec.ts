@@ -10,11 +10,16 @@ async function publishWarmStudioProfile(page: Page) {
   await signInAsCustomer(page);
   await page.goto("/app/customize");
   await page.getByRole("radio", { name: "Warm Studio" }).check();
+  await page.getByText("Fine tune", { exact: true }).click();
   await page.getByRole("radio", { name: "Editorial" }).check();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
-  await page.goto("/app/profile");
+  await page.goto("/app/links");
   await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "About or Services" }).click();
   await page.getByRole("radio", { name: "About", exact: true }).check();
   await page.getByLabel("About copy").fill("A published studio introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -480,7 +485,7 @@ test("legacy customer typography and selected theme remain intact after publishi
   expect(directProfile.pageClass).toContain("bg-[#17211f]");
 });
 
-test("tagged profile activity appears by source and aggregates to one daily trend point", async ({
+test("tagged profile activity appears by source and aggregates into the current monthly period", async ({
   page,
 }) => {
   for (const source of ["nfc", "qr"] as const) {
@@ -521,8 +526,48 @@ test("tagged profile activity appears by source and aggregates to one daily tren
   ).toHaveText("1");
 
   const trend = page.getByLabel("Aggregate engagement trend");
-  const today = new Date().toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  await expect(trend.getByText(today, { exact: true })).toHaveCount(1);
+  const currentPeriod = await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the tagged activity to be persisted.");
+    const state = JSON.parse(raw) as {
+      analytics?: Array<{
+        profileId?: string;
+        bucketStart: number;
+        views: number;
+        clicks: number;
+      }>;
+    };
+    const rows = state.analytics?.filter((bucket) => bucket.profileId === "profile-mara") ?? [];
+    const utcDayStart = (timestamp: number) => {
+      const date = new Date(timestamp);
+      return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    };
+    const today = utcDayStart(Date.now());
+    const monthStart = Date.UTC(new Date(today).getUTCFullYear(), new Date(today).getUTCMonth(), 1);
+    const firstDay = Math.min(...rows.map((bucket) => utcDayStart(bucket.bucketStart)));
+    const start = Math.max(monthStart, firstDay);
+    const counts = rows
+      .filter((bucket) => {
+        const day = utcDayStart(bucket.bucketStart);
+        return day >= start && day <= today;
+      })
+      .reduce(
+        (total, bucket) => ({
+          views: total.views + bucket.views,
+          clicks: total.clicks + bucket.clicks,
+        }),
+        { views: 0, clicks: 0 },
+      );
+    const format = (timestamp: number) =>
+      new Date(timestamp).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+    const label = start === today ? format(start) : `${format(start)}–${format(today)}`;
+    return `${label}: ${counts.views + counts.clicks} total, ${counts.views} views, ${counts.clicks} clicks`;
+  });
+  await expect(trend.getByRole("group", { name: currentPeriod, exact: true })).toHaveCount(1);
 });
 
 test("inactive cards never reveal their former profile and vCard includes approved profile fields", async ({

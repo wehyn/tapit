@@ -46,12 +46,18 @@ export function ProfileWorkspaceFrame({
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const isBusy = saveLoading || publishLoading;
   const shouldShowActions = hasDraftChanges || isBusy;
+  const actionBarVisibility = mobileView === "preview" ? "hidden min-[1280px]:block" : "";
+  const bottomPadding = shouldShowActions
+    ? mobileView === "preview"
+      ? "pb-8 min-[1280px]:pb-28"
+      : "pb-44 sm:pb-28"
+    : "pb-8";
   const selectedViewClass = "block min-[1280px]:block";
   const hiddenViewClass = "hidden min-[1280px]:block";
 
   return (
     <div
-      className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-6 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1280px]:grid-cols-[minmax(32rem,1.12fr)_minmax(25rem,0.88fr)] min-[1280px]:gap-10 min-[1280px]:pt-8 ${shouldShowActions ? "pb-44 sm:pb-28" : "pb-8"}`}
+      className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-6 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1280px]:grid-cols-[minmax(32rem,1.12fr)_minmax(25rem,0.88fr)] min-[1280px]:gap-10 min-[1280px]:pt-8 ${bottomPadding}`}
     >
       <div className="col-span-full flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -119,7 +125,9 @@ export function ProfileWorkspaceFrame({
         )}
       </div>
       {shouldShowActions ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-surface/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
+        <div
+          className={`fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-surface/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8 xl:right-auto xl:w-[min(calc(50vw_-_122px),48rem)] ${actionBarVisibility}`}
+        >
           <section aria-label="Draft actions" className="mx-auto max-w-[1440px]" role="region">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex min-w-0 items-center gap-2 text-sm">

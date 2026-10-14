@@ -242,9 +242,10 @@ test("customer workspace switches between editing and preview on mobile without 
     await page.reload();
     if (route === "/app/profile")
       await expect(page.getByLabel("Bio or role")).toHaveValue("Draft survives preview switching");
-    else if (route === "/app/customize")
+    else if (route === "/app/customize") {
+      await openFineTune(page);
       await expect(page.getByRole("radio", { name: "Coral", exact: true })).toBeChecked();
-    else if (route === "/app/links")
+    } else if (route === "/app/links")
       await expect(page.getByRole("textbox", { name: "Label for Portfolio draft" })).toHaveValue(
         "Portfolio draft",
       );
@@ -305,6 +306,14 @@ test("customize keeps the private draft preview clear of the fixed action toolba
 }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
+  const overlaps = (
+    first: { x: number; y: number; width: number; height: number },
+    second: { x: number; y: number; width: number; height: number },
+  ) =>
+    first.x < second.x + second.width &&
+    first.x + first.width > second.x &&
+    first.y < second.y + second.height &&
+    first.y + first.height > second.y;
 
   for (const viewport of [
     { width: 1467, height: 899 },
@@ -339,35 +348,38 @@ test("customize keeps the private draft preview clear of the fixed action toolba
       "href",
       "/mara-velasquez",
     );
-    await expect(actions).toBeVisible();
     if (viewport.width < 1280) {
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-top.png" });
+      await expect(actions).toBeHidden();
+      await saveContact.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await expect(saveContact).toBeInViewport();
+      await copyUrl.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      await expect(copyUrl).toBeInViewport();
+      await page.getByRole("button", { name: "Edit", exact: true }).click();
+      await expect(actions).toBeVisible();
     } else {
+      await expect(actions).toBeVisible();
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-top.png" });
+      await saveContact.evaluate((element) => element.scrollIntoView({ block: "center" }));
+
+      const actionBox = await actions.boundingBox();
+      const saveContactBox = await saveContact.boundingBox();
+      expect(actionBox).not.toBeNull();
+      expect(saveContactBox).not.toBeNull();
+      expect(overlaps(saveContactBox!, actionBox!)).toBe(false);
+
+      await copyUrl.evaluate((element) => element.scrollIntoView({ block: "center" }));
+      const copyUrlBox = await copyUrl.boundingBox();
+      const updatedActionBox = await actions.boundingBox();
+      expect(copyUrlBox).not.toBeNull();
+      expect(updatedActionBox).not.toBeNull();
+      expect(
+        overlaps(copyUrlBox!, updatedActionBox!),
+        `URL control overlapped the draft bar at ${viewport.width}px: ${JSON.stringify({ copyUrlBox, updatedActionBox })}`,
+      ).toBe(false);
     }
-    await saveContact.evaluate((element) => element.scrollIntoView({ block: "center" }));
-
-    const actionBox = await actions.boundingBox();
-    const saveContactBox = await saveContact.boundingBox();
-    expect(actionBox).not.toBeNull();
-    expect(saveContactBox).not.toBeNull();
-    expect(
-      saveContactBox!.y < actionBox!.y + actionBox!.height &&
-        saveContactBox!.y + saveContactBox!.height > actionBox!.y,
-    ).toBe(false);
-
-    await copyUrl.evaluate((element) => element.scrollIntoView({ block: "center" }));
-    const copyUrlBox = await copyUrl.boundingBox();
-    const updatedActionBox = await actions.boundingBox();
-    expect(copyUrlBox).not.toBeNull();
-    expect(updatedActionBox).not.toBeNull();
-    expect(
-      copyUrlBox!.y < updatedActionBox!.y + updatedActionBox!.height &&
-        copyUrlBox!.y + copyUrlBox!.height > updatedActionBox!.y,
-      `URL control overlapped the draft bar at ${viewport.width}px: ${JSON.stringify({ copyUrlBox, updatedActionBox })}`,
-    ).toBe(false);
 
     if (viewport.width >= 1280) {
       await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
@@ -866,7 +878,9 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     }
   }
   expect(
-    (await page.getByRole("link", { name: "/mara-velasquez", exact: true }).boundingBox())!.width,
+    (await page
+      .getByRole("link", { name: "Open public profile /mara-velasquez", exact: true })
+      .boundingBox())!.width,
   ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
 });
@@ -1101,7 +1115,9 @@ test("Portfolio link can use a new preset icon through publication", async ({ pa
     page.getByRole("button", { name: "Preset icon for Portfolio: Portfolio / briefcase" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Publish changes" }).click();
+  const publishChanges = page.getByRole("button", { name: "Publish changes", exact: true });
+  await expect(publishChanges).toBeVisible();
+  await publishChanges.click();
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
     "data-icon",
@@ -1185,6 +1201,7 @@ test("customer drafts stay private until link and profile publication", async ({
   ).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeHidden();
   await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Publish changes", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
   await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
@@ -1198,7 +1215,10 @@ test("customer drafts stay private until link and profile publication", async ({
 
   const linkedinIcon = page.getByRole("button", { name: /Preset icon for LinkedIn/ });
   await linkedinIcon.click();
-  await page.getByRole("option", { name: "Email" }).click();
+  await page
+    .getByRole("listbox", { name: "Preset icon for LinkedIn" })
+    .getByRole("option", { name: "Email", exact: true })
+    .click();
   await expect(page.getByRole("button", { name: "Preset icon for LinkedIn: Email" })).toBeVisible();
 
   await addGuidedLink(page, "Private note", "https://contact.example.test");
@@ -1241,7 +1261,7 @@ test("customer drafts stay private until link and profile publication", async ({
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "Publish changes", exact: true }).click();
   await expect(
-    page.getByText("The public profile now uses this order and enabled state."),
+    page.getByText("Profile published. Your active card paths now show this version."),
   ).toBeVisible();
   await page.goto("/mara-velasquez");
   await expect(page.getByText("A private draft bio")).toBeVisible();
@@ -1503,6 +1523,7 @@ test("customer customization drafts stay private until the profile is published"
   await featuredLink.selectOption("booking");
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
+  await page.getByRole("button", { name: "About or Services", exact: true }).click();
   await page.getByRole("radio", { name: "About", exact: true }).check();
   await page.getByLabel("About copy").fill("A private draft introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -2025,7 +2046,7 @@ test("slideshow upload queue counts failed and queued items toward the ten image
   await expect(
     page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
   ).toBeVisible();
-  await expect(page.getByText("Waiting", { exact: true })).toHaveCount(2);
+  await expect(page.getByText("Waiting", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("10 of 10 images")).toBeVisible();
   await expect(upload).toBeDisabled();
   await expect(

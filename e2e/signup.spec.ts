@@ -148,9 +148,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await expect(destinations.nth(1)).toHaveValue("https://www.tiktok.com/@new-customer");
   await addGuidedSignupLink(page, "Newsletter", "https://newsletter.example.test");
   await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(
-    page.getByText("Links saved to draft. Visitors still see the last published order."),
-  ).toBeVisible();
+  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
 
   await addGuidedSignupLink(page, "Unsafe", "https://unsafe.example.test");
   const lastLabel = labels.last();

@@ -403,6 +403,7 @@ function DemoLinksEditor() {
       message={message}
       pendingAction={pendingAction}
       isDirty={isDirty}
+      hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
       onFeaturedLinkChange={updateFeaturedLink}
@@ -715,6 +716,7 @@ export function LiveLinksEditorContent({
       message={message}
       pendingAction={pendingAction}
       isDirty={isDirty}
+      hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
       onFeaturedLinkChange={updateFeaturedLink}
