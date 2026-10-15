@@ -26,6 +26,10 @@ const customer = {
   updatedAt: 1,
 };
 
+function queryName(query: unknown): string {
+  return (query as { [key: symbol]: string | undefined })[Symbol.for("functionName")] ?? "";
+}
+
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
@@ -80,17 +84,22 @@ describe("paginated administrator account lists", () => {
   });
 
   it("lets card assignment search through customers beyond the first page", async () => {
-    const loadMore = vi.fn();
-    convexHooks.useQuery.mockReturnValue([]);
-    convexHooks.usePaginatedQuery.mockReturnValue({
-      results: [customer],
-      status: "CanLoadMore",
-      loadMore,
+    const loadMoreCustomers = vi.fn();
+    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) => {
+      switch (queryName(query)) {
+        case "cards:adminListPaginated":
+        case "profiles:adminListPaginated":
+          return { results: [], status: "Exhausted", loadMore: vi.fn() };
+        case "customers:list":
+          return { results: [customer], status: "CanLoadMore", loadMore: loadMoreCustomers };
+        default:
+          throw new Error(`Unexpected paginated query: ${queryName(query)}`);
+      }
     });
 
     render(<CardsManager />);
 
     fireEvent.click(screen.getByRole("button", { name: "Load more customers" }));
-    expect(loadMore).toHaveBeenCalledWith(50);
+    expect(loadMoreCustomers).toHaveBeenCalledWith(50);
   });
 });

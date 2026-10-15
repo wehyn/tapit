@@ -612,7 +612,7 @@ describe("profile image storage", () => {
     ).resolves.toMatchObject({ deleted: 0 });
   });
 
-  it("finds a crash-gap blob by hash but skips ambiguous identical content", async () => {
+  it("finds a crash-gap blob by hash and skips ambiguous identical content across pages", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
     const bytes = pngSignature();
@@ -645,23 +645,56 @@ describe("profile image storage", () => {
       largeSha256: sha256,
       expectedImageRevision: 0,
     });
+    const fillerBefore = await t.run((ctx) =>
+      Promise.all(
+        Array.from({ length: 64 }, (_, index) => ctx.storage.store(new Blob([`before-${index}`]))),
+      ),
+    );
     const duplicateA = await t.run((ctx) => ctx.storage.store(new Blob([bytes])));
     const duplicateB = await t.run((ctx) => ctx.storage.store(new Blob([bytes])));
-    const [duplicateMetadata, duplicateMetadataB] = await t.run(async (ctx) => [
-      (await ctx.db.system.get("_storage", duplicateA))!,
-      (await ctx.db.system.get("_storage", duplicateB))!,
+    const fillerAfter = await t.run((ctx) =>
+      Promise.all(
+        Array.from({ length: 64 }, (_, index) => ctx.storage.store(new Blob([`after-${index}`]))),
+      ),
+    );
+    const duplicateMetadata = await t.run(
+      async (ctx) => (await ctx.db.system.get("_storage", duplicateA))!,
+    );
+    const [fillerBeforeTimes, fillerAfterTimes] = await t.run(async (ctx) => [
+      await Promise.all(
+        fillerBefore.map(
+          async (storageId) => (await ctx.db.system.get("_storage", storageId))!._creationTime,
+        ),
+      ),
+      await Promise.all(
+        fillerAfter.map(
+          async (storageId) => (await ctx.db.system.get("_storage", storageId))!._creationTime,
+        ),
+      ),
     ]);
     const duplicateCreatedAt = duplicateMetadata._creationTime;
     await t.run((ctx) =>
       ctx.db.patch(secondJob, {
         largeSha256: duplicateMetadata.sha256,
-        createdAt: duplicateCreatedAt - 1,
-        uploadWindowEndsAt:
-          Math.max(duplicateMetadata._creationTime, duplicateMetadataB._creationTime) + 1,
+        createdAt: Math.min(...fillerBeforeTimes),
+        uploadWindowEndsAt: Math.max(...fillerAfterTimes) + 1,
       }),
     );
-    const skipped = await t.mutation(internal.profileImageCleanup.reconcileExpired, {
-      now: duplicateCreatedAt + 25 * 60 * 60 * 1000,
+    const now = duplicateCreatedAt + 25 * 60 * 60 * 1000;
+    await t.mutation(internal.profileImageCleanup.reconcileOneJob, {
+      jobId: secondJob,
+      now,
+      dryRun: false,
+    });
+    await t.mutation(internal.profileImageCleanup.reconcileOneJob, {
+      jobId: secondJob,
+      now,
+      dryRun: false,
+    });
+    const skipped = await t.mutation(internal.profileImageCleanup.reconcileOneJob, {
+      jobId: secondJob,
+      now,
+      dryRun: false,
     });
     expect(skipped.skipped).toBeGreaterThan(0);
     expect(await t.run((ctx) => ctx.storage.getUrl(duplicateA))).not.toBeNull();

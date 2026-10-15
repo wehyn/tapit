@@ -42,6 +42,29 @@ function analyticsPage(count: number) {
   };
 }
 
+function queryName(query: unknown): string {
+  return (query as { [key: symbol]: string | undefined })[Symbol.for("functionName")] ?? "";
+}
+
+function mockAdminPages(analyticsResultCounts: number[]) {
+  let analyticsPageIndex = 0;
+  convexHooks.usePaginatedQuery.mockImplementation((query: unknown) => {
+    switch (queryName(query)) {
+      case "analytics:allPage": {
+        const pageIndex = Math.min(analyticsPageIndex, analyticsResultCounts.length - 1);
+        analyticsPageIndex += 1;
+        return analyticsPage(analyticsResultCounts[pageIndex] ?? 0);
+      }
+      case "profiles:adminListPaginated":
+        return { results: [profile], status: "Exhausted", loadMore: vi.fn() };
+      case "cards:adminListPaginated":
+        return { results: [], status: "Exhausted", loadMore: vi.fn() };
+      default:
+        throw new Error(`Unexpected paginated query: ${queryName(query)}`);
+    }
+  });
+}
+
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   convexHooks.usePaginatedQuery.mockReturnValue({
@@ -71,7 +94,7 @@ describe("live analytics pagination", () => {
   });
 
   it("labels administrator figures partial until the complete range is loaded", () => {
-    convexHooks.useQuery.mockReturnValueOnce([profile]).mockReturnValueOnce([]);
+    mockAdminPages([50]);
 
     render(<AdminAnalytics />);
 
@@ -95,14 +118,7 @@ describe("live analytics pagination", () => {
   });
 
   it("uses the same fast-start pagination window in administrator analytics", () => {
-    convexHooks.useQuery
-      .mockReturnValueOnce([profile])
-      .mockReturnValueOnce([])
-      .mockReturnValueOnce([profile])
-      .mockReturnValueOnce([]);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce(analyticsPage(50))
-      .mockReturnValueOnce(analyticsPage(1_000));
+    mockAdminPages([50, 1_000]);
 
     const { rerender } = render(<AdminAnalytics />);
     expect(convexHooks.loadMore.mock.calls.map(([numItems]) => numItems)).toEqual([950]);

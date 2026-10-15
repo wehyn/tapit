@@ -123,6 +123,16 @@ async function isReferenced(
   return publishedProfiles.length > 0;
 }
 
+function rememberCandidate(
+  current: Id<"_storage"> | undefined,
+  ambiguous: boolean | undefined,
+  candidate: Id<"_storage">,
+) {
+  if (ambiguous || (current !== undefined && current !== candidate))
+    return { candidate: current, ambiguous: true };
+  return { candidate: current ?? candidate, ambiguous: false };
+}
+
 async function reconcileJob(
   ctx: MutationCtx,
   job: Doc<"profileImageUploadJobs">,
@@ -140,7 +150,9 @@ async function reconcileJob(
     return counts;
   }
 
-  const restartScan = job.scanLargeAmbiguous === true || job.scanSmallAmbiguous === true;
+  const restartScan =
+    job.scanCursor === undefined &&
+    (job.scanLargeAmbiguous === true || job.scanSmallAmbiguous === true);
   const page = await ctx.db.system
     .query("_storage")
     .withIndex("by_creation_time", (query) =>
@@ -152,19 +164,21 @@ async function reconcileJob(
     });
   counts.scanned += page.page.length;
 
+  let largeCandidate = restartScan ? undefined : job.scanLargeCandidateId;
+  let smallCandidate = restartScan ? undefined : job.scanSmallCandidateId;
+  let largeAmbiguous = restartScan ? undefined : job.scanLargeAmbiguous;
+  let smallAmbiguous = restartScan ? undefined : job.scanSmallAmbiguous;
   for (const metadata of page.page) {
     if (metadata._id === job.largeStorageId || metadata._id === job.smallStorageId) continue;
-    if (
-      metadata._creationTime < job.createdAt ||
-      metadata._creationTime > job.uploadWindowEndsAt ||
-      (metadata.sha256 !== job.largeSha256 && metadata.sha256 !== job.smallSha256)
-    )
-      continue;
-    if (await isReferenced(ctx, metadata._id, job._id)) counts.retained += 1;
-    else if (dryRun) counts.retained += 1;
-    else {
-      await ctx.storage.delete(metadata._id);
-      counts.deleted += 1;
+    if (metadata.sha256 === job.largeSha256) {
+      const remembered = rememberCandidate(largeCandidate, largeAmbiguous, metadata._id);
+      largeCandidate = remembered.candidate;
+      largeAmbiguous = remembered.ambiguous;
+    }
+    if (job.smallSha256 !== undefined && metadata.sha256 === job.smallSha256) {
+      const remembered = rememberCandidate(smallCandidate, smallAmbiguous, metadata._id);
+      smallCandidate = remembered.candidate;
+      smallAmbiguous = remembered.ambiguous;
     }
   }
 
@@ -172,10 +186,10 @@ async function reconcileJob(
     if (!dryRun) {
       await ctx.db.patch(job._id, {
         scanCursor: page.continueCursor,
-        scanLargeCandidateId: undefined,
-        scanSmallCandidateId: undefined,
-        scanLargeAmbiguous: undefined,
-        scanSmallAmbiguous: undefined,
+        scanLargeCandidateId: largeCandidate,
+        scanSmallCandidateId: smallCandidate,
+        scanLargeAmbiguous: largeAmbiguous,
+        scanSmallAmbiguous: smallAmbiguous,
       });
       await ctx.scheduler.runAfter(0, internal.profileImageCleanup.reconcileOneJob, {
         jobId: job._id,
@@ -191,15 +205,16 @@ async function reconcileJob(
   if (job.largeStorageId !== undefined) candidates.set(job.largeStorageId, job.largeSha256);
   if (job.smallStorageId !== undefined && job.smallSha256 !== undefined)
     candidates.set(job.smallStorageId, job.smallSha256);
-  if (!restartScan && job.scanLargeCandidateId !== undefined && !job.scanLargeAmbiguous)
-    candidates.set(job.scanLargeCandidateId, job.largeSha256);
-  if (
-    !restartScan &&
-    job.scanSmallCandidateId !== undefined &&
-    !job.scanSmallAmbiguous &&
-    job.smallSha256 !== undefined
-  )
-    candidates.set(job.scanSmallCandidateId, job.smallSha256);
+  if (largeAmbiguous) {
+    counts.skipped += 1;
+    unresolved = true;
+  } else if (largeCandidate !== undefined) candidates.set(largeCandidate, job.largeSha256);
+  if (smallAmbiguous) {
+    counts.skipped += 1;
+    unresolved = true;
+  } else if (smallCandidate !== undefined && job.smallSha256 !== undefined) {
+    candidates.set(smallCandidate, job.smallSha256);
+  }
 
   for (const [storageId, expectedSha256] of candidates) {
     const metadata = await ctx.db.system.get("_storage", storageId);
@@ -230,8 +245,8 @@ async function reconcileJob(
       scanCursor: undefined,
       scanLargeCandidateId: undefined,
       scanSmallCandidateId: undefined,
-      scanLargeAmbiguous: undefined,
-      scanSmallAmbiguous: undefined,
+      scanLargeAmbiguous: largeAmbiguous || undefined,
+      scanSmallAmbiguous: smallAmbiguous || undefined,
     });
   } else if (!dryRun) await ctx.db.delete(job._id);
   return counts;
@@ -274,6 +289,10 @@ export const reconcileExpired = internalMutation({
         )
         .take(batchSize);
       for (const job of jobs) {
+        if (status === "attached") {
+          if (!dryRun) await ctx.db.delete(job._id);
+          continue;
+        }
         if (job.uploadWindowEndsAt > now) continue;
         const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
           jobId: job._id,
