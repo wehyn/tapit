@@ -18,6 +18,7 @@ import { internal } from "./_generated/api";
 import {
   normalizeProfileSlug,
   profileThemeValidator,
+  validateDraftSafety,
   validateProfileSlugValue,
 } from "./validators";
 import { components } from "./components";
@@ -52,10 +53,19 @@ export const createCustomer = mutation({
     const { userId, account } = await requireAdministrator(ctx);
     const scope = account.scope;
     const email = args.email.trim().toLowerCase();
+    if (!authEmailPattern.test(email)) throw new Error("A valid customer email is required.");
     const slug = await allocateProfileSlug(ctx, email, args.slug);
-    if (!email || !email.includes("@")) throw new Error("A valid customer email is required.");
     const slugError = validateProfileSlugValue(slug);
     if (slugError !== null) throw new Error(slugError);
+    const draft = {
+      ...emptyProfile(slug),
+      email,
+      ...(args.name !== undefined ? { name: args.name.trim() } : {}),
+      ...(args.bio !== undefined ? { bio: args.bio } : {}),
+      theme: args.theme ?? "paper",
+    };
+    const safetyErrors = validateDraftSafety(draft);
+    if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
 
     const duplicateEmail = await ctx.db
       .query("customers")
@@ -89,13 +99,7 @@ export const createCustomer = mutation({
       ownerId: customerId,
       slug,
       status: "draft",
-      draft: {
-        ...emptyProfile(slug),
-        email,
-        ...(args.name !== undefined ? { name: args.name.trim() } : {}),
-        ...(args.bio !== undefined ? { bio: args.bio } : {}),
-        theme: args.theme ?? "paper",
-      },
+      draft,
       draftRevision: 0,
       createdAt: now,
       updatedAt: now,

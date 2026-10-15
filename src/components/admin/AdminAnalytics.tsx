@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { usePaginatedQuery, useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ActivityIcon, CardsIcon, ChartLineUpIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
@@ -15,6 +15,7 @@ import {
 } from "@/lib/demo/store";
 
 import { SelectField } from "@/components/ui/Field";
+import { Button } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
@@ -562,9 +563,10 @@ function LiveAdminAnalytics() {
       ),
     [pages.results],
   );
-  const profiles = useQuery(api.profiles.adminList);
-  const cards = useQuery(api.cards.adminList);
-  const selectedProfile = profiles?.find((profile) => profile._id === selectedProfileId) ?? null;
+  const profiles = usePaginatedQuery(api.profiles.adminListPaginated, {}, { initialNumItems: 50 });
+  const cards = usePaginatedQuery(api.cards.adminListPaginated, {}, { initialNumItems: 50 });
+  const selectedProfile =
+    profiles.results.find((profile) => profile._id === selectedProfileId) ?? null;
   const selectedProfileSummary = useMemo(
     () =>
       summarizeProfileAnalytics(
@@ -587,7 +589,11 @@ function LiveAdminAnalytics() {
       ),
     [pages.results, selectedProfileId],
   );
-  if (profiles === undefined || cards === undefined || pages.status === "LoadingFirstPage")
+  if (
+    profiles.status === "LoadingFirstPage" ||
+    cards.status === "LoadingFirstPage" ||
+    pages.status === "LoadingFirstPage"
+  )
     return (
       <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
         <AdminPageHeader
@@ -652,7 +658,7 @@ function LiveAdminAnalytics() {
       ) : null}
       <Panel title="Profile and card status">
         <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
-          {profiles.map((profile) => (
+          {profiles.results.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
               className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 text-left last:border-b-0 hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
@@ -669,7 +675,7 @@ function LiveAdminAnalytics() {
               <StatusBadge status={profile.status} />
             </button>
           ))}
-          {cards.map((card) => (
+          {cards.results.map((card) => (
             <div
               className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 last:border-b-0"
               key={card._id}
@@ -681,6 +687,28 @@ function LiveAdminAnalytics() {
               <StatusBadge status={card.status} />
             </div>
           ))}
+          {profiles.status === "CanLoadMore" || profiles.status === "LoadingMore" ? (
+            <Button
+              className="m-3"
+              disabled={profiles.status === "LoadingMore"}
+              onClick={() => profiles.loadMore(50)}
+              type="button"
+              variant="secondary"
+            >
+              {profiles.status === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
+            </Button>
+          ) : null}
+          {cards.status === "CanLoadMore" || cards.status === "LoadingMore" ? (
+            <Button
+              className="m-3"
+              disabled={cards.status === "LoadingMore"}
+              onClick={() => cards.loadMore(50)}
+              type="button"
+              variant="secondary"
+            >
+              {cards.status === "LoadingMore" ? "Loading cards…" : "Load more cards"}
+            </Button>
+          ) : null}
         </div>
       </Panel>
       <Panel

@@ -155,7 +155,9 @@ export default defineSchema({
     .index("by_status_and_uploadWindowEndsAt", ["status", "uploadWindowEndsAt"])
     .index("by_status_and_createdAt", ["status", "createdAt"])
     .index("by_largeStorageId", ["largeStorageId"])
-    .index("by_smallStorageId", ["smallStorageId"]),
+    .index("by_smallStorageId", ["smallStorageId"])
+    .index("by_scanLargeCandidateId", ["scanLargeCandidateId"])
+    .index("by_scanSmallCandidateId", ["scanSmallCandidateId"]),
   profileMediaAssets: defineTable({
     scope: v.optional(v.literal("demo")),
     storageId: v.id("_storage"),
@@ -194,6 +196,8 @@ export default defineSchema({
     .index("by_profileId", ["profileId"])
     .index("by_storageId", ["storageId"])
     .index("by_previewStorageId", ["previewStorageId"])
+    .index("by_scanSourceCandidateId", ["scanSourceCandidateId"])
+    .index("by_scanPreviewCandidateId", ["scanPreviewCandidateId"])
     .index("by_profileId_and_status_and_uploadWindowEndsAt", [
       "profileId",
       "status",

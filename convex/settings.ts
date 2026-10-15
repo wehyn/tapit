@@ -37,6 +37,12 @@ export const setSupport = mutation({
     }
     if (parsed.protocol !== "https:" && parsed.protocol !== "mailto:")
       throw new Error("Support destination must use HTTPS or mailto.");
+    if (
+      (parsed.protocol === "https:" &&
+        (!parsed.hostname || parsed.username.length > 0 || parsed.password.length > 0)) ||
+      (parsed.protocol === "mailto:" && (!parsed.pathname || /[\s<>]/.test(parsed.pathname)))
+    )
+      throw new Error("Support destination must not contain credentials or an invalid address.");
     const now = Date.now();
     const settings = await ctx.db
       .query("settings")
