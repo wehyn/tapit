@@ -146,10 +146,6 @@ export const createSelfServiceAccount = mutation({
     const email = user?.email?.trim().toLowerCase();
     if (email === undefined || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
       throw new Error("A valid authenticated email is required.");
-    const signupLimit = await signupLimiter.limit(ctx, "selfServiceSignup", {
-      key: email,
-    });
-    if (!signupLimit.ok) throw new Error("Too many account creation attempts. Try again later.");
     const linked = await ctx.db
       .query("customers")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -164,6 +160,10 @@ export const createSelfServiceAccount = mutation({
       if (profile === null) throw new Error("Customer profile not found.");
       return { customerId: linked._id, profileId: profile._id, slug: profile.slug };
     }
+    const signupLimit = await signupLimiter.limit(ctx, "selfServiceSignup", {
+      key: email,
+    });
+    if (!signupLimit.ok) throw new Error("Too many account creation attempts. Try again later.");
     const name = args.name.trim();
     if (name.length === 0) throw new Error("A nonblank profile name is required.");
     if (name.length > 120) throw new Error("The profile name is too long.");

@@ -722,7 +722,15 @@ describe("Convex authentication and ownership", () => {
         name: "Changed Name",
         slug: "changed-name",
       });
-      expect(second).toEqual(first);
+      const third = await user.mutation(api.customers.createSelfServiceAccount, {
+        name: "Changed Name",
+        slug: "changed-name",
+      });
+      const fourth = await user.mutation(api.customers.createSelfServiceAccount, {
+        name: "Changed Name",
+        slug: "changed-name",
+      });
+      expect([second, third, fourth]).toEqual([first, first, first]);
       await t.run(async (ctx) => {
         const customer = await ctx.db.get(first.customerId);
         const profile = await ctx.db.get(first.profileId);
