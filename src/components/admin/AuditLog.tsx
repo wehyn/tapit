@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
@@ -13,6 +13,7 @@ import { Field } from "@/components/ui/Field";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
 import { Panel } from "@/components/ui/Panel";
+import { Button } from "@/components/ui/Button";
 
 type AuditEntry = {
   id: string;
@@ -247,16 +248,37 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
   );
 }
 
-function AuditHistory({ entries }: { entries: AuditEntry[] }) {
+function AuditHistory({
+  entries,
+  emptyMessage = "No audit actions match this filter.",
+  loadMore,
+  loadMoreStatus,
+}: {
+  entries: AuditEntry[];
+  emptyMessage?: string;
+  loadMore?: () => void;
+  loadMoreStatus?: "CanLoadMore" | "LoadingMore" | "Exhausted";
+}) {
   return (
     <Panel title="History">
       <div className="mt-5 divide-y divide-tapit-line rounded-tapit border border-tapit-line bg-tapit-surface px-3 sm:px-4">
         {entries.length === 0 ? (
-          <Notice>No audit actions match this filter.</Notice>
+          <Notice>{emptyMessage}</Notice>
         ) : (
           entries.map((entry) => <AuditHistoryEntry entry={entry} key={entry.id} />)
         )}
       </div>
+      {loadMore && loadMoreStatus !== undefined && loadMoreStatus !== "Exhausted" ? (
+        <Button
+          className="mt-4"
+          disabled={loadMoreStatus === "LoadingMore"}
+          onClick={loadMore}
+          type="button"
+          variant="secondary"
+        >
+          {loadMoreStatus === "LoadingMore" ? "Loading older entries…" : "Load older entries"}
+        </Button>
+      ) : null}
     </Panel>
   );
 }
@@ -323,8 +345,12 @@ function DemoAuditLog() {
 
 function LiveAuditLog() {
   const [search, setSearch] = useState("");
-  const audits = useQuery(api.audit.list, { search: search.trim() || undefined });
-  if (audits === undefined)
+  const audits = usePaginatedQuery(
+    api.audit.listPaginated,
+    { search: search.trim() || undefined },
+    { initialNumItems: 50 },
+  );
+  if (audits.status === "LoadingFirstPage")
     return (
       <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
         <AdminPageHeader
@@ -335,7 +361,7 @@ function LiveAuditLog() {
       </div>
     );
 
-  const entries: AuditEntry[] = audits.map((audit) => ({
+  const entries: AuditEntry[] = audits.results.map((audit) => ({
     id: audit._id,
     action: audit.action,
     actor: audit.actorLabel,
@@ -366,7 +392,16 @@ function LiveAuditLog() {
           />
         </div>
       </Panel>
-      <AuditHistory entries={entries} />
+      <AuditHistory
+        emptyMessage={
+          audits.status === "CanLoadMore"
+            ? "No matching entries in the loaded pages. Load older entries to continue searching."
+            : "No audit actions match this filter."
+        }
+        entries={entries}
+        loadMore={() => audits.loadMore(50)}
+        loadMoreStatus={audits.status}
+      />
     </div>
   );
 }

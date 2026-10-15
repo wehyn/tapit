@@ -3,6 +3,8 @@ import { v } from "convex/values";
 import { digest } from "./cards";
 import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { deleteProfileImages } from "./profileImages";
+import { deleteProfileMedia } from "./profileMedia";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -421,6 +423,14 @@ export const reset = internalMutation({
     if (env.TAPIT_DEMO_AUTH_MODE !== "hosted-demo")
       throw new Error("Hosted demo reset requires TAPIT_DEMO_AUTH_MODE=hosted-demo.");
     const { adminCustomerId } = await operator(ctx, args.operatorUserId);
+    const demoProfiles = await ctx.db
+      .query("profiles")
+      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+      .take(10_000);
+    for (const profile of demoProfiles) {
+      await deleteProfileImages(ctx, profile._id);
+      await deleteProfileMedia(ctx, profile._id);
+    }
     const demoCards = await ctx.db
       .query("cards")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
@@ -449,14 +459,62 @@ export const reset = internalMutation({
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
       .take(10_000)) {
       await ctx.storage.delete(row.storageId);
+      if (row.smallStorageId !== undefined) await ctx.storage.delete(row.smallStorageId);
       await ctx.db.delete(row._id);
     }
     for (const row of demoCards) await ctx.db.delete(row._id);
     for (const row of await ctx.db
-      .query("profiles")
+      .query("profileMediaAssets")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000))
+      .take(10_000)) {
       await ctx.db.delete(row._id);
+      const [sourceReferences, previewReferences] = await Promise.all([
+        ctx.db
+          .query("profileMediaAssets")
+          .withIndex("by_storageId", (q) => q.eq("storageId", row.storageId))
+          .take(1),
+        ctx.db
+          .query("profileMediaAssets")
+          .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", row.storageId))
+          .take(1),
+      ]);
+      if (sourceReferences.length === 0 && previewReferences.length === 0)
+        await ctx.storage.delete(row.storageId);
+      const previewStorageId = row.previewStorageId;
+      if (previewStorageId !== undefined && previewStorageId !== row.storageId) {
+        const [sourcePreviewReferences, previewPreviewReferences] = await Promise.all([
+          ctx.db
+            .query("profileMediaAssets")
+            .withIndex("by_storageId", (q) => q.eq("storageId", previewStorageId))
+            .take(1),
+          ctx.db
+            .query("profileMediaAssets")
+            .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", previewStorageId))
+            .take(1),
+        ]);
+        if (sourcePreviewReferences.length === 0 && previewPreviewReferences.length === 0)
+          await ctx.storage.delete(previewStorageId);
+      }
+    }
+    for (const profile of demoProfiles) await ctx.db.delete(profile._id);
+    for (const profile of demoProfiles) {
+      const jobs = await ctx.db
+        .query("profileImageUploadJobs")
+        .withIndex("by_profileId", (q) => q.eq("profileId", profile._id))
+        .take(1001);
+      if (jobs.length > 1000)
+        throw new Error("Too many profile image upload jobs are assigned to this profile.");
+      for (const job of jobs) {
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          scanCursor: undefined,
+          scanLargeCandidateId: undefined,
+          scanSmallCandidateId: undefined,
+          scanLargeAmbiguous: undefined,
+          scanSmallAmbiguous: undefined,
+        });
+      }
+    }
     for (const row of await ctx.db
       .query("customers")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))

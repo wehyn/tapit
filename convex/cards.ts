@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 
 import { mutation, query } from "./_generated/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
@@ -6,6 +7,7 @@ import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
 import { cardStatusValidator, publicProfileValidator, validateProfileContent } from "./validators";
 import { projectPublicProfile, resolvePublishedRedirectDestination } from "./profileProjection";
 import { components } from "./components";
+import schema from "./schema";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
@@ -107,6 +109,27 @@ export const adminList = query({
       delete safeCard.claimCodeHash;
       return safeCard;
     });
+  },
+});
+
+export const adminListPaginated = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(schema.doc("cards").omit("claimCodeHash")),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    const cards = await ctx.db
+      .query("cards")
+      .withIndex("by_scope", (query) => query.eq("scope", account.scope))
+      .order("desc")
+      .paginate(args.paginationOpts);
+    return {
+      ...cards,
+      page: cards.page.map((card) => {
+        const safeCard = { ...card };
+        delete safeCard.claimCodeHash;
+        return safeCard;
+      }),
+    };
   },
 });
 

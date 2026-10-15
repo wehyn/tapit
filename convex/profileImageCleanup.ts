@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 
+import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { getProfileImageMapping } from "./profileImages";
@@ -9,6 +10,12 @@ const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
 
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
+const countsValidator = v.object({
+  scanned: v.number(),
+  deleted: v.number(),
+  retained: v.number(),
+  skipped: v.number(),
+});
 
 async function isReferenced(
   ctx: MutationCtx,
@@ -24,7 +31,84 @@ async function isReferenced(
     .query("profileImageUploadJobs")
     .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
     .take(2);
-  if ([...largeJobs, ...smallJobs].some((job) => job._id !== currentJobId)) return true;
+  const largeCandidates = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_scanLargeCandidateId", (query) => query.eq("scanLargeCandidateId", storageId))
+    .take(2);
+  const smallCandidates = await ctx.db
+    .query("profileImageUploadJobs")
+    .withIndex("by_scanSmallCandidateId", (query) => query.eq("scanSmallCandidateId", storageId))
+    .take(2);
+  if (
+    [...largeJobs, ...smallJobs, ...largeCandidates, ...smallCandidates].some(
+      (job) => job._id !== currentJobId,
+    )
+  )
+    return true;
+  const [
+    mediaAssets,
+    mediaPreviews,
+    mediaJobs,
+    mediaJobPreviews,
+    mediaCandidates,
+    previewCandidates,
+    uploadSources,
+    uploadQuarantines,
+    variants,
+  ] = await Promise.all([
+    ctx.db
+      .query("profileMediaAssets")
+      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
+      .take(1),
+    ctx.db
+      .query("profileMediaAssets")
+      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
+      .take(1),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
+      .take(1),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
+      .take(1),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_scanSourceCandidateId", (query) =>
+        query.eq("scanSourceCandidateId", storageId),
+      )
+      .take(1),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_scanPreviewCandidateId", (query) =>
+        query.eq("scanPreviewCandidateId", storageId),
+      )
+      .take(1),
+    ctx.db
+      .query("uploadAssets")
+      .withIndex("by_sourceStorageId", (query) => query.eq("sourceStorageId", storageId))
+      .take(1),
+    ctx.db
+      .query("uploadAssets")
+      .withIndex("by_quarantineStorageId", (query) => query.eq("quarantineStorageId", storageId))
+      .take(1),
+    ctx.db
+      .query("uploadAssetVariants")
+      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
+      .take(1),
+  ]);
+  if (
+    mediaAssets.length > 0 ||
+    mediaPreviews.length > 0 ||
+    mediaJobs.length > 0 ||
+    mediaJobPreviews.length > 0 ||
+    mediaCandidates.length > 0 ||
+    previewCandidates.length > 0 ||
+    uploadSources.length > 0 ||
+    uploadQuarantines.length > 0 ||
+    variants.length > 0
+  )
+    return true;
   const draftProfiles = await ctx.db
     .query("profiles")
     .withIndex("by_draft_imageStorageId", (query) => query.eq("draft.imageStorageId", storageId))
@@ -53,27 +137,37 @@ async function reconcileJob(
   ctx: MutationCtx,
   job: Doc<"profileImageUploadJobs">,
   dryRun: boolean,
+  now: number,
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
   const owner = await ctx.db.get(job.ownerId);
   const profile = await ctx.db.get(job.profileId);
-  if (owner === null || profile === null || profile.ownerId !== job.ownerId) {
+  if (
+    ((owner === null || profile === null) && job.status !== "failed") ||
+    (profile !== null && profile.ownerId !== job.ownerId)
+  ) {
     counts.skipped += 1;
     return counts;
   }
 
+  const restartScan =
+    job.scanCursor === undefined &&
+    (job.scanLargeAmbiguous === true || job.scanSmallAmbiguous === true);
   const page = await ctx.db.system
     .query("_storage")
     .withIndex("by_creation_time", (query) =>
       query.gte("_creationTime", job.createdAt).lte("_creationTime", job.uploadWindowEndsAt),
     )
-    .paginate({ cursor: job.scanCursor ?? null, numItems: STORAGE_PAGE_SIZE });
+    .paginate({
+      cursor: restartScan ? null : (job.scanCursor ?? null),
+      numItems: STORAGE_PAGE_SIZE,
+    });
   counts.scanned += page.page.length;
 
-  let largeCandidate = job.scanLargeCandidateId;
-  let smallCandidate = job.scanSmallCandidateId;
-  let largeAmbiguous = job.scanLargeAmbiguous;
-  let smallAmbiguous = job.scanSmallAmbiguous;
+  let largeCandidate = restartScan ? undefined : job.scanLargeCandidateId;
+  let smallCandidate = restartScan ? undefined : job.scanSmallCandidateId;
+  let largeAmbiguous = restartScan ? undefined : job.scanLargeAmbiguous;
+  let smallAmbiguous = restartScan ? undefined : job.scanSmallAmbiguous;
   for (const metadata of page.page) {
     if (metadata._id === job.largeStorageId || metadata._id === job.smallStorageId) continue;
     if (metadata.sha256 === job.largeSha256) {
@@ -89,13 +183,20 @@ async function reconcileJob(
   }
 
   if (!page.isDone) {
-    await ctx.db.patch(job._id, {
-      scanCursor: page.continueCursor,
-      scanLargeCandidateId: largeCandidate,
-      scanSmallCandidateId: smallCandidate,
-      scanLargeAmbiguous: largeAmbiguous,
-      scanSmallAmbiguous: smallAmbiguous,
-    });
+    if (!dryRun) {
+      await ctx.db.patch(job._id, {
+        scanCursor: page.continueCursor,
+        scanLargeCandidateId: largeCandidate,
+        scanSmallCandidateId: smallCandidate,
+        scanLargeAmbiguous: largeAmbiguous,
+        scanSmallAmbiguous: smallAmbiguous,
+      });
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.reconcileOneJob, {
+        jobId: job._id,
+        now,
+        dryRun,
+      });
+    }
     return counts;
   }
 
@@ -111,8 +212,9 @@ async function reconcileJob(
   if (smallAmbiguous) {
     counts.skipped += 1;
     unresolved = true;
-  } else if (smallCandidate !== undefined && job.smallSha256 !== undefined)
+  } else if (smallCandidate !== undefined && job.smallSha256 !== undefined) {
     candidates.set(smallCandidate, job.smallSha256);
+  }
 
   for (const [storageId, expectedSha256] of candidates) {
     const metadata = await ctx.db.system.get("_storage", storageId);
@@ -138,9 +240,32 @@ async function reconcileJob(
     }
   }
 
-  if (!dryRun && !unresolved) await ctx.db.delete(job._id);
+  if (!dryRun && unresolved) {
+    await ctx.db.patch(job._id, {
+      scanCursor: undefined,
+      scanLargeCandidateId: undefined,
+      scanSmallCandidateId: undefined,
+      scanLargeAmbiguous: largeAmbiguous || undefined,
+      scanSmallAmbiguous: smallAmbiguous || undefined,
+    });
+  } else if (!dryRun) await ctx.db.delete(job._id);
   return counts;
 }
+
+export const reconcileOneJob = internalMutation({
+  args: {
+    jobId: v.id("profileImageUploadJobs"),
+    now: v.number(),
+    dryRun: v.boolean(),
+  },
+  returns: countsValidator,
+  handler: async (ctx, args) => {
+    const job = await ctx.db.get(args.jobId);
+    if (job === null || job.uploadWindowEndsAt > args.now)
+      return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    return await reconcileJob(ctx, job, args.dryRun, args.now);
+  },
+});
 
 export const reconcileExpired = internalMutation({
   args: {
@@ -148,50 +273,37 @@ export const reconcileExpired = internalMutation({
     dryRun: v.optional(v.boolean()),
     jobBatchSize: v.optional(v.number()),
   },
-  returns: v.object({
-    scanned: v.number(),
-    deleted: v.number(),
-    retained: v.number(),
-    skipped: v.number(),
-  }),
+  returns: countsValidator,
   handler: async (ctx, args) => {
     const now = args.now ?? Date.now();
     const dryRun = args.dryRun ?? false;
     const requestedBatch = Math.floor(args.jobBatchSize ?? DEFAULT_JOB_BATCH);
     const batchSize = Math.max(1, Math.min(requestedBatch, 32));
     const cutoff = now - ORPHAN_GRACE_MS;
-    const pending = await ctx.db
-      .query("profileImageUploadJobs")
-      .withIndex("by_status_and_createdAt", (query) =>
-        query.eq("status", "pending").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const failed = await ctx.db
-      .query("profileImageUploadJobs")
-      .withIndex("by_status_and_createdAt", (query) =>
-        query.eq("status", "failed").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const attached = await ctx.db
-      .query("profileImageUploadJobs")
-      .withIndex("by_status_and_createdAt", (query) =>
-        query.eq("status", "attached").lte("createdAt", cutoff),
-      )
-      .take(batchSize);
-    const jobs = [...pending, ...failed]
-      .filter((job) => job.uploadWindowEndsAt <= now)
-      .sort((left, right) => left.createdAt - right.createdAt)
-      .slice(0, batchSize);
     const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-    for (const job of jobs) {
-      const result = await reconcileJob(ctx, job, dryRun);
-      totals.scanned += result.scanned;
-      totals.deleted += result.deleted;
-      totals.retained += result.retained;
-      totals.skipped += result.skipped;
-    }
-    if (!dryRun) {
-      for (const job of attached) await ctx.db.delete(job._id);
+    for (const status of ["pending", "failed", "attached"] as const) {
+      const jobs = await ctx.db
+        .query("profileImageUploadJobs")
+        .withIndex("by_status_and_createdAt", (query) =>
+          query.eq("status", status).lte("createdAt", cutoff),
+        )
+        .take(batchSize);
+      for (const job of jobs) {
+        if (status === "attached") {
+          if (!dryRun) await ctx.db.delete(job._id);
+          continue;
+        }
+        if (job.uploadWindowEndsAt > now) continue;
+        const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
+          jobId: job._id,
+          now,
+          dryRun,
+        });
+        totals.scanned += result.scanned;
+        totals.deleted += result.deleted;
+        totals.retained += result.retained;
+        totals.skipped += result.skipped;
+      }
     }
     console.info("profile image orphan reconciliation", totals);
     return totals;

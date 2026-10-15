@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState } from "react";
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import {
   ArrowRightIcon,
   ArrowsClockwiseIcon,
@@ -688,8 +688,16 @@ export function CardsManager() {
 }
 
 function LiveCardsManager() {
-  const cards = useQuery(api.cards.adminList);
-  const profiles = useQuery(api.profiles.adminList);
+  const {
+    results: cards,
+    status: cardsStatus,
+    loadMore: loadMoreCards,
+  } = usePaginatedQuery(api.cards.adminListPaginated, {}, { initialNumItems: 50 });
+  const {
+    results: profiles,
+    status: profilesStatus,
+    loadMore: loadMoreProfiles,
+  } = usePaginatedQuery(api.profiles.adminListPaginated, {}, { initialNumItems: 50 });
   const customerPages = usePaginatedQuery(api.customers.list, {}, { initialNumItems: 50 });
   const register = useMutation(api.cards.register);
   const generateCardToken = useMutation(api.cards.generateCardToken);
@@ -717,10 +725,10 @@ function LiveCardsManager() {
   );
 
   const orderedCards = useMemo(
-    () => [...(cards ?? [])].sort((first, second) => second.createdAt - first.createdAt),
+    () => [...cards].sort((first, second) => second.createdAt - first.createdAt),
     [cards],
   );
-  const assignableProfiles = profiles ?? [];
+  const assignableProfiles = profiles;
   const availableCustomers = customerPages.results;
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
   const selectedProfileCard =
@@ -733,7 +741,11 @@ function LiveCardsManager() {
     );
   }
 
-  if (cards === undefined || profiles === undefined || customerPages.status === "LoadingFirstPage")
+  if (
+    cardsStatus === "LoadingFirstPage" ||
+    profilesStatus === "LoadingFirstPage" ||
+    customerPages.status === "LoadingFirstPage"
+  )
     return (
       <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
         <AdminPageHeader
@@ -832,6 +844,17 @@ function LiveCardsManager() {
                 })(),
               )}
             </select>
+            {profilesStatus === "CanLoadMore" || profilesStatus === "LoadingMore" ? (
+              <Button
+                className="mt-2"
+                disabled={profilesStatus === "LoadingMore"}
+                onClick={() => loadMoreProfiles(50)}
+                type="button"
+                variant="quiet"
+              >
+                {profilesStatus === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
+              </Button>
+            ) : null}
             {customerPages.status === "CanLoadMore" || customerPages.status === "LoadingMore" ? (
               <Button
                 className="mt-2"
@@ -1097,6 +1120,17 @@ function LiveCardsManager() {
             })
           )}
         </div>
+        {cardsStatus === "CanLoadMore" || cardsStatus === "LoadingMore" ? (
+          <Button
+            className="mt-4"
+            disabled={cardsStatus === "LoadingMore"}
+            onClick={() => loadMoreCards(50)}
+            type="button"
+            variant="secondary"
+          >
+            {cardsStatus === "LoadingMore" ? "Loading cards…" : "Load more cards"}
+          </Button>
+        ) : null}
       </Panel>
       <ConfirmDialog
         confirmLabel="Confirm attachment"

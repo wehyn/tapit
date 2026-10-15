@@ -317,6 +317,7 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
   await ctx.db.delete(approvedRequest._id);
   await ctx.db.delete(customerId);
   await ctx.db.insert("auditLogs", {
+    scope: customer.scope,
     actorLabel: "System",
     action: "account.erased",
     occurredAt: Date.now(),
