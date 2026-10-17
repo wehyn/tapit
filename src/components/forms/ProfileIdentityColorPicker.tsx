@@ -100,12 +100,14 @@ export function ProfileIdentityColorPicker({
   value,
   error,
   allowWhite = false,
+  barePanels = false,
   onChange,
 }: {
   field: ProfileIdentityField;
   value?: ProfileIdentityColor;
   error?: string;
   allowWhite?: ProfileIdentityColorValidationOptions["allowWhite"];
+  barePanels?: boolean;
   onChange: (next: ProfileIdentityColor | undefined) => void;
 }) {
   const label = fieldLabels[field];
@@ -208,7 +210,7 @@ export function ProfileIdentityColorPicker({
                 <button
                   aria-label={`${presetLabel} ${label.toLowerCase()} color`}
                   aria-pressed={selected}
-                  className={`size-9 min-h-0 shrink-0 rounded-full border border-[#2c2420]/15 shadow-sm transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${selected ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
+                  className={`size-9 min-h-0 shrink-0 rounded-full border border-[#2c2420]/15 shadow-sm transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${barePanels ? "focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2" : ""} ${selected ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
                   onClick={() => {
                     setPickerError(undefined);
                     onChange(preset === "default" ? undefined : { kind: "preset", value: preset });
@@ -231,7 +233,7 @@ export function ProfileIdentityColorPicker({
               aria-label={`Choose custom ${label.toLowerCase()} color`}
               aria-expanded={open}
               aria-haspopup="dialog"
-              className={`grid size-9 min-h-0 shrink-0 place-items-center rounded-full border border-[#2c2420]/15 shadow-sm transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${value?.kind === "custom" ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
+              className={`grid size-9 min-h-0 shrink-0 place-items-center rounded-full border border-[#2c2420]/15 shadow-sm transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${barePanels ? "focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2" : ""} ${value?.kind === "custom" ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
               onClick={() => (open ? closePicker() : openPicker())}
               ref={triggerRef}
               style={{

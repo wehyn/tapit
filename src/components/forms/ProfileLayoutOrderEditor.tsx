@@ -37,10 +37,12 @@ function reorder(
 }
 
 export function ProfileLayoutOrderEditor({
+  barePanels = false,
   value,
   onChange,
   error,
 }: {
+  barePanels?: boolean;
   value: ProfileLayoutOrder;
   onChange: (next: ProfileLayoutOrder) => void;
   error?: string;
@@ -88,7 +90,10 @@ export function ProfileLayoutOrderEditor({
       <p className="text-sm text-tapit-muted">
         Drag rows to reorder them, or use the Move up and Move down buttons.
       </p>
-      <ol className="grid gap-2" aria-describedby={error ? errorId : undefined}>
+      <ol
+        className={barePanels ? "grid gap-3" : "grid gap-2"}
+        aria-describedby={error ? errorId : undefined}
+      >
         {value.map((block, index) => (
           <li
             key={block}
@@ -96,7 +101,7 @@ export function ProfileLayoutOrderEditor({
             aria-posinset={index + 1}
             aria-setsize={value.length}
             aria-roledescription="sortable row"
-            className={`flex min-h-16 items-center gap-3 rounded-xl border border-current/15 bg-tapit-surface px-3 py-2 shadow-sm transition-colors ${dragging === block ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+            className={`flex min-h-16 items-center gap-3 border px-3 py-2 transition-colors ${barePanels ? "rounded-tapit border-tapit-line bg-tapit-surface" : "rounded-xl border-current/15 bg-tapit-surface shadow-sm"} ${dragging === block ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
           >
             <span
               aria-hidden="true"
@@ -120,7 +125,11 @@ export function ProfileLayoutOrderEditor({
                 onClick={() => move(block, index - 1)}
                 className="grid size-10 place-items-center rounded-lg text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
               >
-                <ArrowUpIcon aria-hidden="true" size={18} />
+                <ArrowUpIcon
+                  aria-hidden="true"
+                  size={barePanels ? 16 : 18}
+                  weight={barePanels ? "bold" : "regular"}
+                />
               </button>
               <button
                 type="button"
@@ -129,7 +138,11 @@ export function ProfileLayoutOrderEditor({
                 onClick={() => move(block, index + 1)}
                 className="grid size-10 place-items-center rounded-lg text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
               >
-                <ArrowDownIcon aria-hidden="true" size={18} />
+                <ArrowDownIcon
+                  aria-hidden="true"
+                  size={barePanels ? 16 : 18}
+                  weight={barePanels ? "bold" : "regular"}
+                />
               </button>
             </div>
           </li>

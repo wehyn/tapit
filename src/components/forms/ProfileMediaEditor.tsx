@@ -20,6 +20,7 @@ import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { validateProfileImageFile } from "@/lib/profile-image";
 
 export type ProfileMediaEditorProps = {
+  barePanels?: boolean;
   media?: ProfileMediaPresentation;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
@@ -50,6 +51,7 @@ function imageSource(image: ProfileMediaImage): string | undefined {
 }
 
 export function ProfileMediaEditor({
+  barePanels = false,
   media,
   onChange,
   onUpload,
@@ -449,9 +451,13 @@ export function ProfileMediaEditor({
   }
 
   return (
-    <div className="grid gap-5">
+    <div className={barePanels ? "grid min-w-0 gap-4" : "grid gap-5"}>
       <section
-        className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
+        className={
+          barePanels
+            ? "grid min-w-0 gap-4"
+            : "grid gap-5 rounded-tapit border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
+        }
         aria-labelledby={`${baseId}-background-heading`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -469,7 +475,12 @@ export function ProfileMediaEditor({
           <div className="flex flex-wrap items-center gap-2">
             {value.background ? (
               <Button disabled={busy} onClick={removeBackground} type="button" variant="quiet">
-                <TrashIcon aria-hidden="true" className="mr-2" size={16} />
+                <TrashIcon
+                  aria-hidden="true"
+                  className="mr-2"
+                  size={16}
+                  weight={barePanels ? "bold" : "regular"}
+                />
                 Remove background
               </Button>
             ) : null}
@@ -500,7 +511,7 @@ export function ProfileMediaEditor({
           />
         </div>
         {value.background ? (
-          <div className="grid gap-5">
+          <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
             {imageSource(value.background) ? (
               <div
                 aria-label={value.background.altText}
@@ -576,7 +587,13 @@ export function ProfileMediaEditor({
         </div>
       </section>
 
-      <div className="grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5">
+      <div
+        className={
+          barePanels
+            ? "grid min-w-0 gap-3 border-t border-tapit-line pt-4"
+            : "grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5"
+        }
+      >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-tapit-ink">Slideshow</h3>
@@ -622,7 +639,11 @@ export function ProfileMediaEditor({
         </div>
         {slideshowQueue.map((entry, index) => (
           <div
-            className="grid gap-3 rounded-tapit border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
+            className={
+              barePanels
+                ? "grid min-w-0 gap-3 rounded-tapit border border-dashed border-tapit-line bg-tapit-surface p-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center"
+                : "grid gap-3 rounded-tapit border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
+            }
             key={entry.clientKey}
           >
             <div
@@ -631,8 +652,16 @@ export function ProfileMediaEditor({
               role="img"
               style={{ backgroundImage: `url(${JSON.stringify(entry.previewUrl)})` }}
             />
-            <div className="grid gap-1">
-              <p className="text-sm font-medium text-tapit-ink">{entry.file.name}</p>
+            <div className={barePanels ? "grid min-w-0 gap-1" : "grid gap-1"}>
+              <p
+                className={
+                  barePanels
+                    ? "break-all text-sm font-medium text-tapit-ink"
+                    : "text-sm font-medium text-tapit-ink"
+                }
+              >
+                {entry.file.name}
+              </p>
               <p className="text-xs text-tapit-muted">Upload position {index + 1}</p>
               <p aria-live="polite" className="text-sm text-tapit-muted" role="status">
                 {entry.status === "uploading"
@@ -670,12 +699,14 @@ export function ProfileMediaEditor({
             <li
               aria-posinset={index + 1}
               aria-setsize={value.slideshow.length}
-              className={`grid min-w-0 gap-3 rounded-tapit border border-tapit-line p-3 motion-safe:transition-colors ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+              className={`grid min-w-0 gap-3 rounded-tapit border p-3 motion-safe:transition-colors ${barePanels ? "border-tapit-line/70 bg-tapit-surface" : "border-tapit-line"} ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
               data-slideshow-order-index={index}
               key={image.assetId}
             >
               <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-tapit-line pb-3">
-                <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-semibold text-tapit-ink">
+                <span
+                  className={`min-w-0 flex-1 text-sm font-semibold text-tapit-ink ${barePanels ? "" : "whitespace-nowrap"}`}
+                >
                   Image {index + 1} of {value.slideshow.length}
                 </span>
                 <button
@@ -699,7 +730,11 @@ export function ProfileMediaEditor({
                     type="button"
                     variant="quiet"
                   >
-                    <CaretUpIcon aria-hidden="true" size={18} />
+                    <CaretUpIcon
+                      aria-hidden="true"
+                      size={barePanels ? 16 : 18}
+                      weight={barePanels ? "bold" : "regular"}
+                    />
                   </Button>
                   <Button
                     aria-label={`Move slideshow image ${index + 1} down`}
@@ -709,7 +744,11 @@ export function ProfileMediaEditor({
                     type="button"
                     variant="quiet"
                   >
-                    <CaretDownIcon aria-hidden="true" size={18} />
+                    <CaretDownIcon
+                      aria-hidden="true"
+                      size={barePanels ? 16 : 18}
+                      weight={barePanels ? "bold" : "regular"}
+                    />
                   </Button>
                 </div>
               </div>
@@ -752,7 +791,11 @@ export function ProfileMediaEditor({
                     type="button"
                     variant="quiet"
                   >
-                    <TrashIcon aria-hidden="true" size={16} />
+                    <TrashIcon
+                      aria-hidden="true"
+                      size={16}
+                      weight={barePanels ? "bold" : "regular"}
+                    />
                     Remove
                   </Button>
                 </div>
