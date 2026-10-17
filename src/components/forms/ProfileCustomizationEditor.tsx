@@ -322,11 +322,13 @@ function IdentityColorControls({
   customization,
   errorFor,
   allowWhite,
+  barePanels,
   onChange,
 }: {
   customization: ProfileCustomization;
   errorFor: (field: ProfileIdentityField) => string | undefined;
   allowWhite: boolean;
+  barePanels: boolean;
   onChange: (next: ProfileCustomization) => void;
 }) {
   function setColor(field: ProfileIdentityField, color: ProfileIdentityColor | undefined) {
@@ -345,10 +347,17 @@ function IdentityColorControls({
       <p className="text-sm leading-6 text-tapit-muted">
         Set the name and bio / role independently for this profile preset.
       </p>
-      <div className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-3.5 sm:p-4">
+      <div
+        className={
+          barePanels
+            ? "grid gap-4"
+            : "grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-3.5 sm:p-4"
+        }
+      >
         {(["name", "bio"] as const).map((field) => (
           <ProfileIdentityColorPicker
             allowWhite={allowWhite}
+            barePanels={barePanels}
             error={errorFor(field)}
             field={field}
             key={field}
@@ -372,14 +381,21 @@ function CustomPaletteColorField({
   field,
   label,
   value,
+  barePanels,
   onChange,
 }: {
   field: keyof ProfileThemeColors;
   label: string;
   value: string;
+  barePanels: boolean;
   onChange: (field: keyof ProfileThemeColors, value: string) => void;
 }) {
   const [draftHex, setDraftHex] = useState(value);
+  const color = barePanels
+    ? (isProfileIdentityHex(draftHex) ? draftHex : value).toLowerCase()
+    : isProfileIdentityHex(draftHex)
+      ? draftHex
+      : value;
 
   function commit(next: string) {
     setDraftHex(next);
@@ -387,16 +403,39 @@ function CustomPaletteColorField({
   }
 
   return (
-    <label className="grid gap-2 rounded-tapit border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+    <label
+      className={
+        barePanels
+          ? "grid min-w-0 gap-2 py-1"
+          : "grid gap-2 rounded-tapit border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+      }
+    >
       <span className="text-sm font-semibold text-tapit-ink">{label}</span>
       <span className="flex items-center gap-3">
-        <input
-          aria-label={`${label} color`}
-          className="size-11 shrink-0 cursor-pointer rounded-xl border border-tapit-line bg-tapit-surface p-1"
-          onChange={(event) => commit(event.target.value)}
-          type="color"
-          value={isProfileIdentityHex(draftHex) ? draftHex : value}
-        />
+        {barePanels ? (
+          <span className="relative size-11 shrink-0">
+            <input
+              aria-label={`${label} color`}
+              className="peer absolute inset-0 z-10 size-full cursor-pointer opacity-0 focus-visible:outline-none"
+              onChange={(event) => commit(event.target.value)}
+              type="color"
+              value={color}
+            />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 rounded-full border border-tapit-line shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus peer-focus-visible:ring-offset-2"
+              style={{ backgroundColor: color }}
+            />
+          </span>
+        ) : (
+          <input
+            aria-label={`${label} color`}
+            className="size-11 shrink-0 cursor-pointer rounded-xl border border-tapit-line bg-tapit-surface p-1"
+            onChange={(event) => commit(event.target.value)}
+            type="color"
+            value={color}
+          />
+        )}
         <input
           aria-label={`${label} hex`}
           autoCapitalize="characters"
@@ -419,10 +458,12 @@ function CustomPaletteColorField({
 function CustomPaletteControls({
   customization,
   error,
+  barePanels,
   onChange,
 }: {
   customization: ProfileCustomization;
   error?: string;
+  barePanels: boolean;
   onChange: (next: ProfileCustomization) => void;
 }) {
   const colors = customization.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS;
@@ -441,9 +482,10 @@ function CustomPaletteControls({
         Choose the page, profile card, text, and outlined link colors. Text and links must stay
         readable against their surfaces.
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={barePanels ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
         {customColorFields.map(([field, label]) => (
           <CustomPaletteColorField
+            barePanels={barePanels}
             field={field}
             key={field}
             label={label}
@@ -708,7 +750,7 @@ export function ProfileCustomizationEditor({
           tabIndex={-1}
         >
           {category === "overview" ? (
-            <div className="grid gap-5">
+            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
               <fieldset className="grid gap-3">
                 <legend className="text-sm font-semibold text-tapit-ink">Profile preset</legend>
                 {presetError ? (
@@ -746,12 +788,19 @@ export function ProfileCustomizationEditor({
                 </div>
               </fieldset>
               <details className="rounded-tapit border border-tapit-line bg-tapit-paper/60 px-4 py-3">
-                <summary className="min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent">
+                <summary
+                  className={
+                    barePanels
+                      ? "flex min-h-11 cursor-pointer items-center rounded-sm text-sm font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
+                      : "min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+                  }
+                >
                   Fine tune
                 </summary>
-                <div className="mt-4 grid gap-5">
+                <div className={barePanels ? "mt-4 grid gap-4" : "mt-4 grid gap-5"}>
                   {selectedPreset === "custom" ? (
                     <CustomPaletteControls
+                      barePanels={barePanels}
                       customization={activeCustomization}
                       error={customColorError}
                       onChange={onChange}
@@ -806,9 +855,10 @@ export function ProfileCustomizationEditor({
           ) : null}
 
           {category === "identity" ? (
-            <div className="grid gap-5">
+            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
               <IdentityColorControls
                 allowWhite={media?.background !== undefined || selectedPreset === "night"}
+                barePanels={barePanels}
                 customization={activeCustomization}
                 errorFor={identityColorError}
                 onChange={onChange}
@@ -817,10 +867,11 @@ export function ProfileCustomizationEditor({
           ) : null}
 
           {category === "media" ? (
-            <div className="grid gap-5">
+            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
               <CategoryErrorList errors={mediaCategoryErrors} />
               {onMediaChange && onMediaUpload ? (
                 <ProfileMediaEditor
+                  barePanels={barePanels}
                   busy={mediaBusy}
                   error={mediaError}
                   media={media}
@@ -843,8 +894,9 @@ export function ProfileCustomizationEditor({
           ) : null}
 
           {category === "layout" ? (
-            <div className="grid gap-5">
+            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
               <ProfileLayoutOrderEditor
+                barePanels={barePanels}
                 error={orderError}
                 onChange={(layoutOrder) =>
                   update({
