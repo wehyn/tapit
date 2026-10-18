@@ -378,6 +378,70 @@ describe("retention cleanup", () => {
     });
   });
 
+  it("removes profile media created after deletion approval during account erasure", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const ids = await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert("customers", {
+        email: "media-erasure@example.com",
+        role: "customer",
+        status: "deleted",
+        deletionStatus: "deleted",
+        deletionRequestedAt: now,
+        createdAt: 1,
+        updatedAt: now,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "media-erasure",
+        status: "unpublished",
+        draft: { name: "Media erasure", slug: "media-erasure", links: [] },
+        createdAt: 1,
+        updatedAt: now,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId,
+        requestedAt: now,
+        status: "approved",
+      });
+      const storageId = await ctx.storage.store(new Blob(["media source"]));
+      const previewStorageId = await ctx.storage.store(new Blob(["media preview"]));
+      const assetId = await ctx.db.insert("profileMediaAssets", {
+        storageId,
+        previewStorageId,
+        profileId,
+        ownerId: customerId,
+        contentType: "image/png",
+        size: 12,
+        width: 100,
+        height: 100,
+        createdAt: now,
+      });
+      const jobId = await ctx.db.insert("profileMediaUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        sha256: "a".repeat(64),
+        storageId,
+        previewStorageId,
+        expectedMediaRevision: 0,
+        status: "attached",
+        createdAt: now,
+        uploadWindowEndsAt: now + 10 * 60 * 1000,
+      });
+      return { customerId, profileId, assetId, jobId, storageId, previewStorageId };
+    });
+
+    await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.profileId)).toBeNull();
+      expect(await ctx.db.get(ids.assetId)).toBeNull();
+      expect(await ctx.db.get(ids.jobId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.storageId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.previewStorageId)).toBeNull();
+    });
+  });
+
   it("continues erasing another account when one due record is invalid", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();

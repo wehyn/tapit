@@ -321,6 +321,88 @@ describe("profile media hardening", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects administrator media uploads for customers entering deletion", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run((ctx) =>
+      ctx.db.patch(ids.ownerId, { status: "deleted", deletionStatus: "deleted" }),
+    );
+    const image = await sharp({
+      create: { width: 32, height: 32, channels: 4, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+
+    const response = await t
+      .withIdentity(identity(ids.adminUserId))
+      .fetch("/admin-profile-media-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "X-Profile-Id": ids.ownerProfileId,
+          "X-Media-Revision": "0",
+          "Content-Type": "image/png",
+        },
+        body: new Uint8Array(image),
+      });
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("Profile access denied");
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileMediaUploadJobs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", ids.ownerProfileId))
+          .collect(),
+      ),
+    ).toEqual([]);
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects an existing administrator media job after its customer owner is deleted", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.ownerProfileId,
+      ownerId: ids.ownerId,
+      actorUserId: ids.adminUserId,
+      accessMode: "admin",
+      sha256: "a".repeat(64),
+      expectedMediaRevision: 0,
+    });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
+    const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
+    await t.mutation(internal.profileMedia.markUploadJob, {
+      jobId,
+      storageId,
+      previewStorageId,
+    });
+    await t.run((ctx) =>
+      ctx.db.patch(ids.ownerId, { status: "deleted", deletionStatus: "deleted" }),
+    );
+
+    await expect(
+      t.mutation(internal.profileMedia.attach, {
+        jobId,
+        storageId,
+        previewStorageId,
+        contentType: "image/png",
+        size: 6,
+        width: 100,
+        height: 100,
+      }),
+    ).rejects.toThrow("Upload job does not match this media set");
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileMediaAssets")
+          .withIndex("by_profileId", (query) => query.eq("profileId", ids.ownerProfileId))
+          .collect(),
+      ),
+    ).toEqual([]);
+  });
+
   it("rejects administrator media jobs after the actor account is deleted", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -821,6 +903,76 @@ describe("profile media hardening", () => {
     expect(result.deleted).toBeGreaterThan(0);
     expect(await t.query(internal.profileMedia.getUploadJob, { jobId: failedJob })).toBeNull();
     expect(await t.run((ctx) => ctx.storage.getUrl(failedStorageId))).toBeNull();
+  });
+
+  it("retains profile image storage referenced by an image mapping or upload job", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const [mappedStorageId, jobStorageId] = await Promise.all([
+      t.run((ctx) => ctx.storage.store(new Blob(["mapped profile image"]))),
+      t.run((ctx) => ctx.storage.store(new Blob(["uploading profile image"]))),
+    ]);
+    const [mappedMetadata, jobMetadata] = await Promise.all([
+      t.run(async (ctx) => (await ctx.db.system.get("_storage", mappedStorageId))!),
+      t.run(async (ctx) => (await ctx.db.system.get("_storage", jobStorageId))!),
+    ]);
+    const jobId = await t.run(async (ctx) => {
+      await ctx.db.insert("profileImages", {
+        storageId: mappedStorageId,
+        profileId: ids.otherProfileId,
+        ownerId: ids.otherId,
+        contentType: "image/png",
+        size: 19,
+        createdAt: Date.now(),
+      });
+      await ctx.db.insert("profileImageUploadJobs", {
+        profileId: ids.otherProfileId,
+        ownerId: ids.otherId,
+        largeSha256: jobMetadata.sha256,
+        largeStorageId: jobStorageId,
+        status: "pending",
+        createdAt: Date.now(),
+        uploadWindowEndsAt: Date.now() + 10 * 60 * 1000,
+      });
+      return await ctx.db.insert("profileMediaUploadJobs", {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        sha256: mappedMetadata.sha256,
+        previewSha256: jobMetadata.sha256,
+        scanSourceCandidateId: mappedStorageId,
+        scanPreviewCandidateId: jobStorageId,
+        expectedMediaRevision: 0,
+        status: "failed",
+        createdAt: Math.min(mappedMetadata._creationTime, jobMetadata._creationTime) - 1,
+        uploadWindowEndsAt: Math.max(mappedMetadata._creationTime, jobMetadata._creationTime) + 1,
+      });
+    });
+
+    const result = await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId,
+      now: Date.now() + 2 * 24 * 60 * 60 * 1000,
+      dryRun: false,
+    });
+
+    expect(result).toMatchObject({ deleted: 0, retained: 2, skipped: 0 });
+    expect(await t.run((ctx) => ctx.storage.getUrl(mappedStorageId))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(jobStorageId))).not.toBeNull();
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileImages")
+          .withIndex("by_storageId", (query) => query.eq("storageId", mappedStorageId))
+          .collect(),
+      ),
+    ).toHaveLength(1);
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileImageUploadJobs")
+          .withIndex("by_largeStorageId", (query) => query.eq("largeStorageId", jobStorageId))
+          .collect(),
+      ),
+    ).toHaveLength(1);
   });
 
   it("reclaims orphan media beyond 1000 upload jobs while retaining live references", async () => {
