@@ -20,6 +20,7 @@ import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
+import { AnalyticsConsent } from "./AnalyticsConsent";
 import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
 
 export function PublicProfileScreen({
@@ -153,15 +154,18 @@ function LivePublicProfileScreen({
     })),
   };
   return (
-    <PublicProfile
-      mobileLayout
-      onLinkClick={onLinkClick}
-      onView={onView}
-      profile={projection}
-      profileId={profile.id}
-      profileUrl={`/${profile.slug}`}
-      theme={projection.theme}
-    />
+    <>
+      <PublicProfile
+        mobileLayout
+        onLinkClick={onLinkClick}
+        onView={onView}
+        profile={projection}
+        profileId={profile.id}
+        profileUrl={`/${profile.slug}`}
+        theme={projection.theme}
+      />
+      <AnalyticsConsent />
+    </>
   );
 }
 
