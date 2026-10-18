@@ -1,6 +1,7 @@
 /** Shared, persistence-agnostic domain rules for profiles, links, cards, and access. */
 
 import type { Id } from "../../../convex/_generated/dataModel";
+import { isReservedProfileSlug } from "./reserved-profile-slug";
 import {
   normalizeProfileCustomization,
   type ProfileCustomization,
@@ -142,7 +143,6 @@ export interface ProfileSlugValidationOptions {
 }
 
 export const MAX_PROFILE_SLUG_LENGTH = 64;
-export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);
 
 export type AccountStatus = "invited" | "active" | "deleted";
 
@@ -172,7 +172,7 @@ export function validateProfileSlug(
     !PROFILE_SLUG_PATTERN.test(slug)
   )
     return "The profile slug is invalid.";
-  if (RESERVED_PROFILE_SLUGS.has(slug)) return "That profile slug is reserved.";
+  if (isReservedProfileSlug(slug)) return "That profile slug is reserved.";
   if (options.immutableSlug !== undefined && slug !== options.immutableSlug) {
     return "The assigned profile slug cannot change except through an administrator.";
   }
