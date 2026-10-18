@@ -6,6 +6,7 @@ const push = vi.fn();
 const useConvexAuth = vi.fn();
 const useQuery = vi.fn();
 const useDemoSession = vi.fn();
+const useHydratedDemoState = vi.fn();
 const isDemoMode = vi.fn();
 const isLocalDemoMode = vi.fn();
 
@@ -49,6 +50,7 @@ vi.mock("@/lib/demo/mode", () => ({
 
 vi.mock("@/lib/demo/store", () => ({
   useDemoSession: () => useDemoSession(),
+  useHydratedDemoState: () => useHydratedDemoState(),
 }));
 
 import {
@@ -72,10 +74,12 @@ describe("BuildCardWorkspace", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    useHydratedDemoState.mockReset();
     isDemoMode.mockReset();
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
     useDemoSession.mockReturnValue(null);
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: null });
     isDemoMode.mockReturnValue(false);
     isLocalDemoMode.mockReturnValue(false);
     vi.stubGlobal("URL", {
@@ -267,11 +271,13 @@ describe("BuildCardExperience auth-aware order action", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    useHydratedDemoState.mockReset();
     isDemoMode.mockReset();
     isLocalDemoMode.mockReturnValue(false);
     isDemoMode.mockReturnValue(false);
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: null });
     vi.stubGlobal("URL", {
       ...URL,
       createObjectURL: vi.fn(() => "blob:card-design"),

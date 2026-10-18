@@ -52,7 +52,14 @@ export function LoginForm({
       />
     );
   }
-  return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} reason={reason} />;
+  return (
+    <GoogleLoginForm
+      nextPath={nextPath}
+      oauthError={oauthError}
+      reason={reason}
+      signupIntent={mode === "signup"}
+    />
+  );
 }
 
 function DemoLoginForm({
