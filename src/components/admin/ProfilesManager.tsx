@@ -35,6 +35,7 @@ import {
   useDemoState,
   updateDemoState,
 } from "@/lib/demo/store";
+import { prepareDemoMediaDataUrl } from "@/lib/demo/media";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
@@ -645,7 +646,7 @@ function DemoProfilesManager() {
   }
 
   async function uploadDemoMedia(file: File): Promise<ProfileMediaImage> {
-    const dataUrl = await readBlobAsDataUrl(file);
+    const dataUrl = await prepareDemoMediaDataUrl(file);
     return {
       assetId:
         `demo-media-${Date.now()}-${Math.random().toString(36).slice(2)}` as ProfileMediaImage["assetId"],
