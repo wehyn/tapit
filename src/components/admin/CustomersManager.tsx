@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery_experimental } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
@@ -466,7 +466,10 @@ function LiveCustomersManager() {
     status: requestsStatus,
     loadMore: loadMoreRequests,
   } = usePaginatedQuery(api.customers.listDeletionRequests, {}, { initialNumItems: 50 });
-  const hasOverdueDeletionRequests = useQuery(api.customers.hasOverdueDeletionRequests, { now });
+  const overdueDeletionRequests = useQuery_experimental({
+    query: api.customers.hasOverdueDeletionRequests,
+    args: { now },
+  });
   const {
     results: invitations,
     status: invitationsStatus,
@@ -830,7 +833,23 @@ function LiveCustomersManager() {
         ) : null}
       </Panel>
       <Panel title="Deletion requests">
-        {hasOverdueDeletionRequests ? (
+        {overdueDeletionRequests.status === "error" ? (
+          <div
+            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+            role="alert"
+          >
+            <p>
+              Overdue deletion status could not be loaded. Customer management is still available.
+            </p>
+            <Button
+              onClick={() => setNow((current) => Math.max(Date.now(), current + 1))}
+              type="button"
+              variant="secondary"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : overdueDeletionRequests.status === "success" && overdueDeletionRequests.data ? (
           <p
             className="mt-5 rounded-tapit border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
             role="alert"

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const convexHooks = vi.hoisted(() => ({
   useMutation: vi.fn(),
   usePaginatedQuery: vi.fn(),
+  useQuery_experimental: vi.fn(),
   useQuery: vi.fn(),
 }));
 
@@ -35,6 +36,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
   convexHooks.useMutation.mockReset().mockReturnValue(vi.fn());
   convexHooks.useQuery.mockReset();
+  convexHooks.useQuery_experimental.mockReset().mockReturnValue({ status: "success", data: false });
   convexHooks.usePaginatedQuery.mockReset();
 });
 
