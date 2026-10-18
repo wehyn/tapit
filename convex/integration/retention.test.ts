@@ -442,6 +442,195 @@ describe("retention cleanup", () => {
     });
   });
 
+  it("preserves an incomplete media scan until account erasure cleanup resumes it", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const ids = await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert("customers", {
+        email: "media-scan-erasure@example.com",
+        role: "customer",
+        status: "deleted",
+        deletionStatus: "deleted",
+        deletionRequestedAt: now,
+        createdAt: 1,
+        updatedAt: now,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "media-scan-erasure",
+        status: "unpublished",
+        draft: { name: "Media scan erasure", slug: "media-scan-erasure", links: [] },
+        createdAt: 1,
+        updatedAt: now,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId,
+        requestedAt: now,
+        status: "approved",
+      });
+      const jobId = await ctx.db.insert("profileMediaUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        sha256: "placeholder",
+        expectedMediaRevision: 0,
+        status: "failed",
+        createdAt: now,
+        uploadWindowEndsAt: now + 1,
+      });
+      for (let index = 0; index < 64; index++)
+        await ctx.storage.store(new Blob([`media-scan-filler-${index}`]));
+      const storageId = await ctx.storage.store(new Blob(["media-scan-candidate"]));
+      const metadata = (await ctx.db.system.get("_storage", storageId))!;
+      const page = await ctx.db.system
+        .query("_storage")
+        .withIndex("by_creation_time")
+        .paginate({ cursor: null, numItems: 64 });
+      await ctx.db.patch(jobId, {
+        sha256: metadata.sha256,
+        createdAt: metadata._creationTime - 1,
+        uploadWindowEndsAt: metadata._creationTime + 1,
+        scanCursor: page.continueCursor,
+      });
+      return {
+        customerId,
+        profileId,
+        jobId,
+        storageId,
+        cleanupAt: metadata._creationTime + 2,
+      };
+    });
+
+    await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.profileId)).toBeNull();
+      expect(await ctx.db.get(ids.jobId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.storageId)).not.toBeNull();
+    });
+
+    await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId: ids.jobId,
+      now: ids.cleanupAt,
+      dryRun: false,
+    });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.jobId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.storageId)).toBeNull();
+    });
+  });
+
+  it("retains ambiguous media recovery after account erasure", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const ids = await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert("customers", {
+        email: "media-ambiguous-erasure@example.com",
+        role: "customer",
+        status: "deleted",
+        deletionStatus: "deleted",
+        deletionRequestedAt: now,
+        createdAt: 1,
+        updatedAt: now,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "media-ambiguous-erasure",
+        status: "unpublished",
+        draft: { name: "Media ambiguous erasure", slug: "media-ambiguous-erasure", links: [] },
+        createdAt: 1,
+        updatedAt: now,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId,
+        requestedAt: now,
+        status: "approved",
+      });
+      const firstStorageId = await ctx.storage.store(new Blob(["ambiguous-media"]));
+      const secondStorageId = await ctx.storage.store(new Blob(["ambiguous-media"]));
+      const metadata = (await ctx.db.system.get("_storage", firstStorageId))!;
+      const jobId = await ctx.db.insert("profileMediaUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        sha256: metadata.sha256,
+        scanSourceCandidateId: firstStorageId,
+        scanSourceAmbiguous: true,
+        expectedMediaRevision: 0,
+        status: "failed",
+        createdAt: metadata._creationTime - 1,
+        uploadWindowEndsAt: metadata._creationTime + 1,
+      });
+      return { customerId, profileId, jobId, firstStorageId, secondStorageId };
+    });
+
+    await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.profileId)).toBeNull();
+      expect(await ctx.db.get(ids.jobId)).not.toBeNull();
+    });
+
+    await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId: ids.jobId,
+      now: now + 10_000,
+      dryRun: false,
+    });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.jobId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.firstStorageId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.secondStorageId)).not.toBeNull();
+    });
+  });
+
+  it("deletes recovered image upload candidates during account erasure", async () => {
+    const t = convexTest(schema, modules);
+    const now = Date.now();
+    const ids = await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert("customers", {
+        email: "image-candidate-erasure@example.com",
+        role: "customer",
+        status: "deleted",
+        deletionStatus: "deleted",
+        deletionRequestedAt: now,
+        createdAt: 1,
+        updatedAt: now,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "image-candidate-erasure",
+        status: "unpublished",
+        draft: { name: "Image candidate erasure", slug: "image-candidate-erasure", links: [] },
+        createdAt: 1,
+        updatedAt: now,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId,
+        requestedAt: now,
+        status: "approved",
+      });
+      const storageId = await ctx.storage.store(new Blob(["image-scan-candidate"]));
+      const metadata = (await ctx.db.system.get("_storage", storageId))!;
+      const jobId = await ctx.db.insert("profileImageUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        largeSha256: metadata.sha256,
+        scanLargeCandidateId: storageId,
+        status: "failed",
+        createdAt: metadata._creationTime - 1,
+        uploadWindowEndsAt: metadata._creationTime + 1,
+      });
+      return { customerId, jobId, storageId };
+    });
+
+    await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.jobId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.storageId)).toBeNull();
+    });
+  });
+
   it("continues erasing another account when one due record is invalid", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();

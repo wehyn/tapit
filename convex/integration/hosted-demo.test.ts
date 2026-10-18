@@ -450,6 +450,59 @@ describe("hosted-demo scope boundaries", () => {
     }
   });
 
+  it("continues reset after a bounded slice of scoped records", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const operatorUserId = await t.run(async (ctx) =>
+        ctx.db.insert("users", { email: "operator@example.test" }),
+      );
+      await t.mutation(internal.demo.initialize, { operatorUserId });
+      await t.run(async (ctx) => {
+        const profiles = await ctx.db
+          .query("profiles")
+          .withIndex("by_scope", (query) => query.eq("scope", "demo"))
+          .collect();
+        const cards = await ctx.db
+          .query("cards")
+          .withIndex("by_scope", (query) => query.eq("scope", "demo"))
+          .collect();
+        for (const profile of profiles) await ctx.db.delete(profile._id);
+        for (const card of cards) await ctx.db.delete(card._id);
+        for (let index = 0; index < 26; index++)
+          await ctx.db.insert("auditLogs", {
+            scope: "demo",
+            actorLabel: "Reset sentinel",
+            action: "demo.reset.sentinel",
+            occurredAt: index + 1,
+          });
+      });
+
+      const reset = await t.mutation(internal.demo.reset, { operatorUserId });
+
+      expect(reset.status).toBe("resetting");
+      vi.useFakeTimers();
+      try {
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+      } finally {
+        vi.useRealTimers();
+      }
+      await t.run(async (ctx) => {
+        const sentinels = await ctx.db
+          .query("auditLogs")
+          .withIndex("by_scope_and_occurredAt", (query) => query.eq("scope", "demo"))
+          .filter((query) => query.eq(query.field("action"), "demo.reset.sentinel"))
+          .collect();
+        expect(sentinels).toHaveLength(0);
+      });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
   it("does not promote Mara's draft-only customization during initialization", async () => {
     const previous = process.env.TAPIT_DEMO_AUTH_MODE;
     process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";

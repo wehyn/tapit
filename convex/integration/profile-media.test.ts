@@ -1159,6 +1159,38 @@ describe("profile media hardening", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(item.previewStorageId))).toBeNull();
   });
 
+  it("deletes a stale media asset's distinct preview during reconciliation", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const item = await asset(t, ids.ownerProfileId, ids.ownerId);
+    const metadata = await t.run(
+      async (ctx) => (await ctx.db.system.get("_storage", item.storageId))!,
+    );
+    const jobId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert("profileMediaUploadJobs", {
+          profileId: ids.ownerProfileId,
+          ownerId: ids.ownerId,
+          sha256: metadata.sha256,
+          storageId: item.storageId,
+          expectedMediaRevision: 0,
+          status: "failed",
+          createdAt: metadata._creationTime - 1,
+          uploadWindowEndsAt: metadata._creationTime + 1,
+        }),
+    );
+
+    await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId,
+      now: metadata._creationTime + 2,
+      dryRun: false,
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(item.assetId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(item.storageId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(item.previewStorageId))).toBeNull();
+  });
+
   it("reconciles storage blobs when upload IDs were never recorded and retains ambiguity", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
