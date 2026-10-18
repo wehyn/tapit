@@ -12,6 +12,11 @@ export type StorageExclusion =
 
 export type StorageInspectionIntent =
   | { kind: "profileImageCleanup"; currentJobId: Id<"profileImageUploadJobs"> }
+  | {
+      kind: "profileImageRelease";
+      mappingId: Id<"profileImages">;
+      ignoredProfileId?: Id<"profiles">;
+    }
   | { kind: "profileMediaCleanup"; currentJobId: Id<"profileMediaUploadJobs"> }
   | { kind: "profileMediaAssetRelease"; assetId: Id<"profileMediaAssets"> }
   | { kind: "accountErasure"; excluded: StorageExclusion }
@@ -35,13 +40,15 @@ export function profileMediaAssetIds(media: ProfileMedia): Id<"profileMediaAsset
 }
 
 function exclusionFor(intent: StorageInspectionIntent): StorageExclusion {
+  if (intent.kind === "profileImageRelease") return { kind: "profileImage", id: intent.mappingId };
   return intent.kind === "accountErasure" || intent.kind === "profileErasure"
     ? intent.excluded
     : { kind: "none" };
 }
 
 function ignoredProfileId(intent: StorageInspectionIntent) {
-  return intent.kind === "profileErasure" ? intent.profileId : undefined;
+  if (intent.kind === "profileErasure") return intent.profileId;
+  return intent.kind === "profileImageRelease" ? intent.ignoredProfileId : undefined;
 }
 
 function mediaAssetIsReferenced(

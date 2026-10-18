@@ -1,10 +1,11 @@
 import { v } from "convex/values";
 
+import { internal } from "./_generated/api";
 import { digest } from "./cards";
 import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { deleteProfileImages } from "./profileImages";
-import { deleteProfileMedia, MAX_PROFILE_MEDIA_DELETE_BATCH } from "./profileMedia";
+import { releaseProfileImageMapping } from "./profileImages";
+import { deleteProfileMedia } from "./profileMedia";
 import { inspectProfileStorage } from "./profileStorageReferences";
 
 const DEMO_SCOPE = "demo" as const;
@@ -15,8 +16,9 @@ const CLAIMABLE_TOKEN = "claimable-card-demo";
 const INACTIVE_TOKEN = "mara-card-retired";
 const CLAIM_CODE = "MARA2Q8K";
 const DAY = 24 * 60 * 60 * 1000;
+const DEMO_CLEANUP_BATCH = 25;
 
-const resultValidator = v.object({
+const initializedResultValidator = v.object({
   adminCustomerId: v.id("customers"),
   maraProfileId: v.id("profiles"),
   claimableProfileId: v.id("profiles"),
@@ -25,6 +27,10 @@ const resultValidator = v.object({
   inactiveCardId: v.id("cards"),
   status: v.literal("initialized"),
 });
+const resetResultValidator = v.union(
+  initializedResultValidator,
+  v.object({ status: v.literal("resetting") }),
+);
 
 const links = [
   {
@@ -413,25 +419,28 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
 
 export const initialize = internalMutation({
   args: { operatorUserId: v.id("users") },
-  returns: resultValidator,
+  returns: initializedResultValidator,
   handler: async (ctx, args) => seed(ctx, args.operatorUserId),
 });
 
 export const reset = internalMutation({
   args: { operatorUserId: v.id("users") },
-  returns: resultValidator,
+  returns: resetResultValidator,
   handler: async (ctx, args) => {
     if (env.TAPIT_DEMO_AUTH_MODE !== "hosted-demo")
       throw new Error("Hosted demo reset requires TAPIT_DEMO_AUTH_MODE=hosted-demo.");
     const { adminCustomerId } = await operator(ctx, args.operatorUserId);
+    const continueReset = async () => {
+      await ctx.scheduler.runAfter(0, internal.demo.reset, args);
+      return { status: "resetting" as const };
+    };
     const demoProfiles = await ctx.db
       .query("profiles")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
       .take(10_000);
-    for (const profile of demoProfiles) {
-      await deleteProfileImages(ctx, profile._id);
-      await deleteProfileMedia(ctx, profile._id, MAX_PROFILE_MEDIA_DELETE_BATCH);
-    }
+    for (const profile of demoProfiles)
+      if (await deleteProfileMedia(ctx, profile._id, DEMO_CLEANUP_BATCH))
+        return await continueReset();
     const demoCards = await ctx.db
       .query("cards")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
@@ -455,19 +464,25 @@ export const reset = internalMutation({
         .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
         .take(10_000))
         await ctx.db.delete(row._id);
-    for (const row of await ctx.db
+    const demoImages = await ctx.db
       .query("profileImages")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000)) {
-      await ctx.storage.delete(row.storageId);
-      if (row.smallStorageId !== undefined) await ctx.storage.delete(row.smallStorageId);
-      await ctx.db.delete(row._id);
+      .take(DEMO_CLEANUP_BATCH + 1);
+    for (const row of demoImages.slice(0, DEMO_CLEANUP_BATCH)) {
+      const profile = await ctx.db.get(row.profileId);
+      await releaseProfileImageMapping(
+        ctx,
+        row,
+        profile?.scope === DEMO_SCOPE ? profile._id : undefined,
+      );
     }
+    if (demoImages.length > DEMO_CLEANUP_BATCH) return await continueReset();
     for (const row of demoCards) await ctx.db.delete(row._id);
-    for (const row of await ctx.db
+    const demoMediaAssets = await ctx.db
       .query("profileMediaAssets")
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000)) {
+      .take(DEMO_CLEANUP_BATCH + 1);
+    for (const row of demoMediaAssets.slice(0, DEMO_CLEANUP_BATCH)) {
       await ctx.db.delete(row._id);
       const storageIds = new Set<Id<"_storage">>([row.storageId]);
       if (row.previewStorageId !== undefined) storageIds.add(row.previewStorageId);
@@ -479,6 +494,7 @@ export const reset = internalMutation({
         if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
       }
     }
+    if (demoMediaAssets.length > DEMO_CLEANUP_BATCH) return await continueReset();
     for (const profile of demoProfiles) await ctx.db.delete(profile._id);
     for (const profile of demoProfiles) {
       const jobs = await ctx.db

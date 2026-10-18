@@ -12,7 +12,6 @@ import {
   sameScope,
 } from "./admin";
 import schema from "./schema";
-import { deleteProfileImages } from "./profileImages";
 import { deleteProfileMedia } from "./profileMedia";
 import { internal } from "./_generated/api";
 import {
@@ -723,7 +722,6 @@ export const approveDeletion = mutation({
           ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
         ),
     );
-    await deleteProfileImages(ctx, profile._id);
     await deleteProfileMedia(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
