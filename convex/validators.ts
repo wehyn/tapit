@@ -3,6 +3,7 @@ import {
   validateProfileCustomization,
   type ProfileAppearanceTheme,
 } from "../src/lib/profile-customization";
+import { isReservedProfileSlug } from "../src/lib/domain/reserved-profile-slug";
 import { validateProfileMedia } from "../src/lib/profile-media";
 
 export const MAX_PROFILE_LINKS = 100;
@@ -22,7 +23,6 @@ export const analyticsSourceValidator = v.union(
 );
 const MAX_PROFILE_NAME_LENGTH = 120;
 export const MAX_PROFILE_SLUG_LENGTH = 64;
-export const RESERVED_PROFILE_SLUGS = new Set(["admin", "api", "app", "c", "login", "setup"]);
 const MAX_PROFILE_BIO_LENGTH = 140;
 const MAX_PROFILE_FIELD_LENGTH = 320;
 const MAX_LINK_ID_LENGTH = 160;
@@ -286,7 +286,7 @@ export function validateProfileSlugValue(
     !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)
   )
     return "The profile slug is invalid.";
-  if (RESERVED_PROFILE_SLUGS.has(slug)) return "That profile slug is reserved.";
+  if (isReservedProfileSlug(slug)) return "That profile slug is reserved.";
   if (options.immutableSlug !== undefined && slug !== options.immutableSlug)
     return "The assigned profile slug cannot change except through an administrator.";
   if (options.existingSlugs?.some((existingSlug) => existingSlug === slug))

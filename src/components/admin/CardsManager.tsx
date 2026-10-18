@@ -776,7 +776,10 @@ function LiveCardsManager() {
     if (!token)
       return setMessage({ tone: "error", text: "Enter a card URL with a /c/<unique-token> path." });
     void run(async () => {
-      const cardId = await register({ cardUrl: cardUrl.trim(), token });
+      const cardId = await register({
+        cardUrl: new URL(cardUrl.trim(), window.location.origin).toString(),
+        token,
+      });
       setCardUrl("");
       const profile = assignableProfiles.find((candidate) => candidate._id === selectedProfileId);
       if (profile === undefined || selectedProfileId === undefined) return;
@@ -1098,7 +1101,10 @@ function LiveCardsManager() {
                                   () =>
                                     replace({
                                       oldCardId: card._id,
-                                      newCardUrl: replacementUrl.trim(),
+                                      newCardUrl: new URL(
+                                        replacementUrl.trim(),
+                                        window.location.origin,
+                                      ).toString(),
                                       newToken: token,
                                     }).then(() => setReplacementUrl("")),
                                   `Card ${card.token} replaced.`,

@@ -899,6 +899,9 @@ test("profile workspace keeps Powered by Tapit at the bottom of the phone screen
 
   await expect(profileCard).toBeVisible();
   await expect(poweredBy).toBeVisible();
+  await profileScreen.locator(".tapit-profile-entry").evaluate(async (entry) => {
+    await Promise.all(entry.getAnimations().map((animation) => animation.finished));
+  });
   const [screenBox, cardBox, poweredByBox] = await Promise.all([
     profileScreen.boundingBox(),
     profileCard.boundingBox(),
