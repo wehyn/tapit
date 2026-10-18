@@ -504,6 +504,89 @@ describe("profile image storage", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(small))).not.toBeNull();
   });
 
+  it("reclaims an attached upload after its profile image is replaced", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const largeBytes = new Uint8Array([...pngSignature(), 1]);
+    const smallBytes = new Uint8Array([...pngSignature(), 2]);
+    const images = await t.run(async (ctx) => {
+      const largeStorageId = await ctx.storage.store(new Blob([largeBytes], { type: "image/png" }));
+      const smallStorageId = await ctx.storage.store(new Blob([smallBytes], { type: "image/png" }));
+      return {
+        largeStorageId,
+        smallStorageId,
+        largeMetadata: (await ctx.db.system.get("_storage", largeStorageId))!,
+        smallMetadata: (await ctx.db.system.get("_storage", smallStorageId))!,
+      };
+    });
+    const jobId = await t.mutation(internal.storage.createUploadJob, {
+      profileId: data.ownerProfileId,
+      ownerId: data.ownerCustomerId,
+      largeSha256: images.largeMetadata.sha256,
+      expectedImageRevision: 0,
+    });
+    await t.mutation(internal.storage.markUploadJob, {
+      jobId,
+      largeStorageId: images.largeStorageId,
+      smallStorageId: images.smallStorageId,
+      smallSha256: images.smallMetadata.sha256,
+    });
+    await t.mutation(internal.storage.attach, {
+      profileId: data.ownerProfileId,
+      ownerId: data.ownerCustomerId,
+      storageId: images.largeStorageId,
+      smallStorageId: images.smallStorageId,
+      contentType: "image/png",
+      size: largeBytes.length,
+      expectedImageRevision: 0,
+      expectedDraftRevision: 0,
+      uploadJobId: jobId,
+    });
+    const replacement = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob([new Uint8Array([...pngSignature(), 3])], { type: "image/png" })),
+    );
+    await owner.action(api.storage.attachImage, {
+      profileId: data.ownerProfileId,
+      storageId: replacement,
+      expectedDraftRevision: 1,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(jobId, {
+        createdAt:
+          Math.min(images.largeMetadata._creationTime, images.smallMetadata._creationTime) - 1,
+        uploadWindowEndsAt:
+          Math.max(images.largeMetadata._creationTime, images.smallMetadata._creationTime) + 1,
+      });
+    });
+
+    expect(
+      await t.query(internal.profileImages.getMapping, { storageId: images.largeStorageId }),
+    ).toBeNull();
+    expect(await t.query(internal.storage.getUploadJob, { jobId })).toMatchObject({
+      status: "attached",
+    });
+    expect(await t.run((ctx) => ctx.storage.getUrl(images.largeStorageId))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(images.smallStorageId))).not.toBeNull();
+
+    await t.mutation(internal.profileImageCleanup.reconcileExpired, {
+      now:
+        Math.max(images.largeMetadata._creationTime, images.smallMetadata._creationTime) +
+        25 * 60 * 60 * 1000,
+    });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await t.query(internal.storage.getUploadJob, { jobId })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(images.largeStorageId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(images.smallStorageId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(replacement))).not.toBeNull();
+  });
+
   it("deletes an unregistered derivative during handled compensation", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
