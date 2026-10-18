@@ -330,14 +330,14 @@ Options are Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first
 - Provide copy-to-clipboard feedback for the current profile URL with a usable fallback when clipboard access is unavailable. Admin slug changes warn that the former direct URL stops resolving and the former slug may later open another profile.
 - Open external destinations in a new tab where supported, preserve the profile in the original tab, and give external-link actions clear accessible names.
 - Provide an explicit keyboard-accessible Move up/Move down path for link ordering. No feature may depend on precise dragging, hover, color recognition, or pointer precision.
-- Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a cancelled, invalid, authorization, service, or failed upload; explain accepted JPG/PNG/WebP formats, the 5 MiB source limit, and the 5 MiB combined output limit.
+- Validate customer-selected theme colors for legibility and pair every status color with text or iconography. Preserve the existing image after a cancelled, invalid, authorization, service, or failed upload; explain accepted JPG/PNG/WebP avatar formats and the 20 MiB source limit. Gallery/background source files and processed avatar requests keep separate 5 MiB limits; the combined stored avatar output remains capped at 5 MiB.
 
 ### Visual system and asset plan
 
 - Establish a neutral application base, restrained accent, typography hierarchy, spacing scale, controlled theme tokens, status tokens, focus ring, reduced-motion utilities, and consistent border/radius/shadow rules. Exact logo, colors, typeface, radius, shadows, and theme catalog remain TBD until a design gate resolves them.
 - Create or select a small, approved Tapit brand asset set: logo/wordmark, state-page mark, favicon/app icon, and any metadata/preview image required by the final branding. Store repository-owned static assets under `public/brand/`; do not invent final brand decisions while those values are TBD.
 - Provide a small preset service/icon set for link rows and public buttons, plus external-link, Save contact, status, and feedback icons. Every icon must have an accessible name or be explicitly decorative; social destinations remain ordinary links with no social API integration.
-- Treat uploaded profile images/logos as private user data: validate actual JPG/PNG/WebP bytes and dimensions server-side, offer a 1:1 crop/preview, store references in Convex, and generate exactly 384×384 and 192×192 variants. Preserve alpha as PNG, enforce 5 MiB source and combined-output limits, expose only published URLs publicly, and never expose storage IDs or upload-job records. Clean only unreferenced abandoned blobs after 24 hours; account-deletion retention remains a separate TBD decision.
+- Treat uploaded profile images/logos as private user data: accept avatar source files up to 20 MiB, reject decoded images above 12,000 pixels per edge or 24 million pixels total, and offer a 1:1 crop/preview. Send only the 384×384 prepared avatar crop; enforce the existing 5 MiB processed-request and combined-output limits, store references in Convex, and generate exactly 384×384 and 192×192 variants. Preserve alpha as PNG. Keep the independent 5 MiB source limit for profile gallery/background media. Expose only published URLs publicly, and never expose storage IDs or upload-job records. Clean only unreferenced abandoned blobs after 24 hours; account-deletion retention remains a separate TBD decision.
 - Generate QR PNG/SVG outputs at runtime or through the selected QR module; do not commit user-specific QR files. Keep the configured generic support/contact destination in environment/application settings rather than hard-coded content.
 
 ### Responsive and accessibility implementation
@@ -599,7 +599,7 @@ Prove deterministic behavior without a browser:
 Prove user-visible behavior for:
 
 - required-field and URL validation;
-- image upload states and 5 MB/type errors;
+- avatar upload states and 20 MiB/type/pixel-limit errors, plus processed-output and gallery/background 5 MiB errors;
 - draft/publish controls;
 - responsive preview;
 - link reorder keyboard alternative;
@@ -880,9 +880,9 @@ The following deviations are intentional local-MVP boundaries rather than silent
    run without a live deployment or transactional email. The live Convex provider and generated bindings are
    now code-generated and checked against the selected non-production deployment; they remain a separate
    operational environment rather than a dependency of the demo suite.
-2. Demo-mode image uploads validate JPG/PNG/WebP and 5 MB, resize accepted images to a bounded JPEG data URL,
-   and show a centered crop preview. Live-mode uploads use an authenticated profile-scoped URL, server-side
-   signature/size validation, a `profileImages` ownership mapping, and signed URLs resolved at read time.
+2. Demo-mode avatar uploads validate JPG/PNG/WebP and a 20 MiB source limit, resize accepted images to a bounded JPEG data URL,
+   and show a centered crop preview. Gallery/background uploads retain a separate 5 MiB source limit. Live-mode avatar uploads use an authenticated profile-scoped URL, server-side
+   signature/size validation of the processed crop, a `profileImages` ownership mapping, and signed URLs resolved at read time.
    The current live path has one client-prepared display image; responsive variants, abandoned-upload cleanup,
    and the final retention policy are production gates.
 3. Because the verified local demo stores profile data in browser localStorage, server-rendered public-route

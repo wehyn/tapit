@@ -4,7 +4,7 @@
 
 **Goal:** Allow profile avatar source files up to 20 MB while preserving bounded browser processing and the existing 5 MB processed-upload limits.
 
-**Architecture:** Change the shared browser-side avatar input policy only. Decode through a temporary object URL where available, reject images over 12,000 pixels per edge or 24 million total pixels, then keep the existing 384 by 384 crop and image encoding. Do not change the Convex upload route, storage checks, or profile media upload policy.
+**Architecture:** `validateProfileAvatarFile` accepts avatar source files through 20 MiB and the crop helper uses that validator. Keep `validateProfileImageFile` at 5 MiB for profile gallery/background media, and retain the 5 MiB guards in both customer and administrator media callbacks. Decode through a temporary object URL where available, reject images over 12,000 pixels per edge or 24 million total pixels, then keep the existing 384 by 384 crop and image encoding. Do not change processed server upload/storage caps.
 
 **Tech Stack:** Next.js, React, TypeScript, browser image APIs, Convex HTTP Actions, Playwright demo E2E, Vitest.
 
@@ -16,10 +16,11 @@
 
 - Modify: `tests/profile-image.test.ts`
 - Modify: `e2e/customer.spec.ts`
+- Modify: `e2e/admin.spec.ts`
 
 - [ ] **Step 1: Update the existing validator boundary assertions before changing implementation**
 
-In `tests/profile-image.test.ts`, change the accepted boundary from `5 * 1024 * 1024` to `20 * 1024 * 1024`, and change the rejection case to `20 * 1024 * 1024 + 1`. Expect `Images must be 20 MB or smaller.`. Keep the unsupported-MIME assertions unchanged.
+In `tests/profile-image.test.ts`, retain the existing 5 MiB boundary and unsupported-MIME assertions for `validateProfileImageFile`. Add separate `validateProfileAvatarFile` assertions that accept files through `20 * 1024 * 1024`, reject `20 * 1024 * 1024 + 1`, and return `Images must be 20 MB or smaller.` for oversized avatar sources.
 
 - [ ] **Step 2: Cover the decoded-pixel guard in the existing helper test file**
 
@@ -56,6 +57,10 @@ npm run test:e2e:demo -- e2e/customer.spec.ts -g "customer can crop a profile ph
 
 Expected before implementation: the updated validation boundary fails because the helper still rejects sources above 5 MB, and the E2E does not reach the crop dialog.
 
+- [ ] **Step 5: Add the equivalent administrator upload E2E**
+
+In `e2e/admin.spec.ts`, use the same Sharp/randomBytes PNG pattern, assert the generated source is larger than 5 MiB and no larger than 20 MiB, then sign in as admin, open Mara's profile editor, upload the source through `Profile photo or logo`, and verify the existing crop dialog opens and applies the crop.
+
 ### Task 2: Raise the source limit and guard browser processing
 
 **Files:**
@@ -64,17 +69,16 @@ Expected before implementation: the updated validation boundary fails because th
 - Modify: `src/components/forms/ProfileEditor.tsx`
 - Modify: `src/components/admin/AdminProfileContentEditor.tsx`
 
-- [ ] **Step 1: Update the shared avatar source limits and error messages**
+- [ ] **Step 1: Keep separate avatar and gallery/background validators**
 
-In `src/lib/profile-image.ts`, replace the private 5 MB input constant with:
+In `src/lib/profile-image.ts`, retain the separate 5 MiB `validateProfileImageFile` policy and use a 20 MiB ceiling for `validateProfileAvatarFile`, with the corresponding `Images must be 20 MB or smaller.` error. The crop helper must use `validateProfileAvatarFile`. Keep the existing JPEG/PNG/WebP type check and `MAX_CROP_PIXELS` unchanged.
 
 ```ts
-const MAX_IMAGE_INPUT_BYTES = 20 * 1024 * 1024;
+const MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_PROFILE_AVATAR_BYTES = 20 * 1024 * 1024;
 const MAX_SOURCE_IMAGE_EDGE = 12_000;
 const MAX_SOURCE_IMAGE_PIXELS = 24_000_000;
 ```
-
-Update `validateProfileImageFile` to use `MAX_IMAGE_INPUT_BYTES` and return `Images must be 20 MB or smaller.` when the source exceeds it. Keep the existing JPEG/PNG/WebP type check and `MAX_CROP_PIXELS` unchanged.
 
 - [ ] **Step 2: Decode the source with a temporary object URL**
 
@@ -103,7 +107,7 @@ Run this before creating the 384 by 384 canvas. Keep the existing crop-coordinat
 
 - [ ] **Step 4: Update avatar-only help text**
 
-Change the three profile-photo helper strings to `JPG, PNG, or WebP. Max 20 MB.` in `src/components/forms/ProfileEditor.tsx` and `src/components/admin/AdminProfileContentEditor.tsx`. Do not change copy for profile gallery or background media.
+Change only avatar-photo helper strings to `JPG, PNG, or WebP. Max 20 MB.` in `src/components/forms/ProfileEditor.tsx` and `src/components/admin/AdminProfileContentEditor.tsx`. Keep customer and administrator media callback guards at 5 MiB and do not change profile gallery/background copy or behavior.
 
 ### Task 3: Update the product documentation
 
@@ -135,13 +139,14 @@ Update the profile-image references in `docs/plan.md` from a single 5 MB file li
 
 - [ ] **Step 1: Run the focused avatar E2E**
 
-Run:
+Run both customer and administrator paths:
 
 ```bash
 npm run test:e2e:demo -- e2e/customer.spec.ts -g "customer can crop a profile photo source larger than 5 MB"
+npm run test:e2e:demo -- e2e/admin.spec.ts -g "administrator can crop a profile photo source larger than 5 MB"
 ```
 
-Expected: a valid source over 5 MB opens the crop dialog, applies successfully, and results in the prepared avatar image.
+Expected: each valid source over 5 MiB and no larger than 20 MiB opens the crop dialog, applies successfully, and results in the prepared avatar image.
 
 - [ ] **Step 2: Run the required project verification command**
 

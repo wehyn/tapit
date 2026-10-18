@@ -1,6 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { prepareProfileImageCrop, validateProfileImageFile } from "@/lib/profile-image";
+import {
+  prepareProfileImageCrop,
+  validateProfileAvatarFile,
+  validateProfileImageFile,
+} from "@/lib/profile-image";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -8,8 +12,23 @@ afterEach(() => {
 });
 
 describe("prepareProfileImageCrop", () => {
+  const temporaryObjectUrl = "blob:profile-image";
+  const createObjectURL = vi.fn(() => temporaryObjectUrl);
+  const revokeObjectURL = vi.fn();
+
+  beforeEach(() => {
+    createObjectURL.mockClear();
+    revokeObjectURL.mockClear();
+    const TestURL = class extends URL {};
+    Object.defineProperties(TestURL, {
+      createObjectURL: { value: createObjectURL },
+      revokeObjectURL: { value: revokeObjectURL },
+    });
+    vi.stubGlobal("URL", TestURL);
+  });
+
   it("exports a landscape source crop at 384 square pixels", async () => {
-    const file = new File([new Uint8Array([1, 2, 3])], "landscape.jpg", {
+    const file = new File([new Uint8Array(5 * 1024 * 1024 + 1)], "landscape.jpg", {
       type: "image/jpeg",
     });
     class FakeImage {
@@ -63,6 +82,8 @@ describe("prepareProfileImageCrop", () => {
       384,
       384,
     );
+    expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(file);
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith(temporaryObjectUrl);
   });
 
   it("rejects a crop outside the decoded source bounds", async () => {
@@ -92,6 +113,90 @@ describe("prepareProfileImageCrop", () => {
     await expect(prepareProfileImageCrop(file, { x: 0, y: 0, size: 2 })).rejects.toThrow(
       "The selected crop is outside the image.",
     );
+    expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(file);
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith(temporaryObjectUrl);
+  });
+
+  it.each([
+    { width: 6000, height: 5000, description: "more than 24 million pixels" },
+    { width: 12_001, height: 1, description: "an edge over 12,000 pixels" },
+  ])("rejects decoded sources with $description before canvas work", async ({ width, height }) => {
+    const file = new File(["image"], "high-res.jpg", { type: "image/jpeg" });
+    class FakeImage {
+      naturalWidth = width;
+      naturalHeight = height;
+      onload: (() => void) | undefined;
+      onerror: (() => void) | undefined;
+      set src(_value: string) {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal("Image", FakeImage);
+    vi.stubGlobal(
+      "FileReader",
+      class {
+        result = "data:image/jpeg;base64,source";
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        readAsDataURL() {
+          this.onload?.();
+        }
+      },
+    );
+    const createElement = vi.spyOn(document, "createElement");
+
+    await expect(
+      prepareProfileImageCrop(file, { x: 100, y: 100, size: 384 }),
+    ).rejects.toMatchObject({
+      message: "This image has too many pixels to crop. Choose a lower-resolution image.",
+    });
+
+    expect(createElement).not.toHaveBeenCalled();
+    expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(file);
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith(temporaryObjectUrl);
+  });
+
+  it("uses FileReader when object URL creation is unavailable", async () => {
+    const file = new File(["image"], "profile.jpg", { type: "image/jpeg" });
+    let decodedSource = "";
+    class FakeImage {
+      naturalWidth = 600;
+      naturalHeight = 600;
+      onload: (() => void) | undefined;
+      onerror: (() => void) | undefined;
+      set src(value: string) {
+        decodedSource = value;
+        this.onload?.();
+      }
+    }
+    class FakeFileReader {
+      result: string | null = "data:image/jpeg;base64,source";
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      readAsDataURL() {
+        this.onload?.();
+      }
+    }
+    vi.stubGlobal("URL", class {});
+    vi.stubGlobal("Image", FakeImage);
+    vi.stubGlobal("FileReader", FakeFileReader);
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        drawImage: vi.fn(),
+        getImageData: () => ({ data: new Uint8ClampedArray([10, 20, 30, 255]) }),
+      }),
+      toBlob: (callback: BlobCallback, type?: string) => callback(new Blob(["cropped"], { type })),
+    };
+    vi.spyOn(document, "createElement").mockReturnValue(canvas as unknown as HTMLElement);
+
+    const result = await prepareProfileImageCrop(file, { x: 0, y: 0, size: 600 });
+
+    expect(decodedSource).toBe("data:image/jpeg;base64,source");
+    expect(result.contentType).toBe("image/jpeg");
+    expect(createObjectURL).not.toHaveBeenCalled();
+    expect(revokeObjectURL).not.toHaveBeenCalled();
   });
 
   it("rejects unsupported source MIME types before browser processing", async () => {
@@ -202,7 +307,7 @@ describe("prepareProfileImageCrop", () => {
     const file = new File(["image"], "profile.jpg", { type: "image/jpeg" });
     class FakeImage {
       naturalWidth = 6000;
-      naturalHeight = 6000;
+      naturalHeight = 4000;
       onload: (() => void) | undefined;
       onerror: (() => void) | undefined;
       set src(_value: string) {
@@ -251,5 +356,33 @@ describe("validateProfileImageFile", () => {
         new File([new Uint8Array(5 * 1024 * 1024 + 1)], "large.jpg", { type: "image/jpeg" }),
       ),
     ).toBe("Images must be 5 MB or smaller.");
+  });
+});
+
+describe("validateProfileAvatarFile", () => {
+  it.each(["image/jpeg", "image/png", "image/webp"])(
+    "accepts %s files up to and including 20 MB",
+    (type) => {
+      expect(
+        validateProfileAvatarFile(new File([new Uint8Array(20 * 1024 * 1024)], "avatar", { type })),
+      ).toBeNull();
+    },
+  );
+
+  it("rejects unsupported MIME types with a user-facing message", () => {
+    expect(
+      validateProfileAvatarFile(new File(["image"], "avatar.gif", { type: "image/gif" })),
+    ).toBe("Use a JPG, PNG, or WebP image.");
+    expect(validateProfileAvatarFile(new File(["text"], "notes.txt", { type: "text/plain" }))).toBe(
+      "Use a JPG, PNG, or WebP image.",
+    );
+  });
+
+  it("rejects files larger than 20 MB with a user-facing message", () => {
+    expect(
+      validateProfileAvatarFile(
+        new File([new Uint8Array(20 * 1024 * 1024 + 1)], "large.jpg", { type: "image/jpeg" }),
+      ),
+    ).toBe("Images must be 20 MB or smaller.");
   });
 });
