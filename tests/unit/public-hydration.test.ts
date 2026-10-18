@@ -71,7 +71,7 @@ const activeResult = {
   },
 };
 
-describe("live public profile analytics controls", () => {
+describe("live public profile analytics", () => {
   beforeEach(() => {
     resolverMocks.demoMode = false;
     resolverMocks.result = {
@@ -87,36 +87,73 @@ describe("live public profile analytics controls", () => {
   });
 
   it.each([
-    ["unset", undefined, undefined],
-    ["allow", "allow", "returning-session"],
-    ["decline", "decline", undefined],
+    ["direct", "direct"],
+    ["card", "qr"],
   ] as const)(
-    "hides analytics choices with a %s preference and keeps view tracking",
-    (preference, storedChoice, sessionKey) => {
-      if (storedChoice !== undefined) {
-        localStorage.setItem("tapit:analytics-consent", storedChoice);
-      }
-      if (sessionKey !== undefined) {
-        sessionStorage.setItem("tapit:analytics-session", sessionKey);
-      }
+    "records views with a session key on the %s path despite a legacy decline",
+    (path, source) => {
+      localStorage.setItem("tapit:analytics-consent", "decline");
+      resolverMocks.result =
+        path === "direct"
+          ? {
+              id: "profile-live",
+              slug: "live-profile",
+              name: "Live profile",
+              theme: "paper",
+              links: [],
+            }
+          : activeResult;
 
-      render(createElement(PublicProfileScreen, { slug: "live-profile" }));
+      render(
+        path === "direct"
+          ? createElement(PublicProfileScreen, { slug: "live-profile" })
+          : createElement(CardResolverClient, { cardToken: "card-live", source }),
+      );
 
       expect(screen.getByTestId("public-profile")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Analytics choices" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("heading", { name: "Choose how visits are counted" }),
+      ).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Allow unique views" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Count visits only" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Analytics choices" })).not.toBeInTheDocument();
 
       fireEvent.click(screen.getByTestId("public-profile"));
-      expect(resolverMocks.recordView).toHaveBeenCalledWith(
-        expect.objectContaining({
-          profileId: "profile-live",
-          sessionKey,
-          source: "direct",
-        }),
-      );
+      fireEvent.click(screen.getByTestId("public-profile"));
+
+      const sessionKey = sessionStorage.getItem("tapit:analytics-session");
+      expect(sessionKey).toEqual(expect.any(String));
+      expect(resolverMocks.recordView).toHaveBeenNthCalledWith(1, {
+        profileId: "profile-live",
+        sessionKey,
+        source,
+      });
+      expect(resolverMocks.recordView).toHaveBeenNthCalledWith(2, {
+        profileId: "profile-live",
+        sessionKey,
+        source,
+      });
     },
   );
+
+  it("records a view without a session key when browser storage is unavailable", () => {
+    const getItem = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage is unavailable", "SecurityError");
+    });
+
+    try {
+      render(createElement(PublicProfileScreen, { slug: "live-profile" }));
+      fireEvent.click(screen.getByTestId("public-profile"));
+
+      expect(resolverMocks.recordView).toHaveBeenCalledWith({
+        profileId: "profile-live",
+        sessionKey: undefined,
+        source: "direct",
+      });
+    } finally {
+      getItem.mockRestore();
+    }
+  });
 });
 
 describe("demo state persistence", () => {

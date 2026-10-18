@@ -19,7 +19,7 @@ export default function PrivacyPage() {
         <h1 className="tapit-display mt-5 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
           Tapit privacy notice
         </h1>
-        <p className="mt-5 text-sm text-tapit-muted">Effective 12 October 2026</p>
+        <p className="mt-5 text-sm text-tapit-muted">Effective 18 October 2026</p>
         <p className="mt-10 text-tapit-muted">
           Tapit lets people share a digital contact profile through a web link, QR code, or NFC
           card. This notice explains what happens to information when you sign in, manage a profile,
@@ -58,15 +58,18 @@ export default function PrivacyPage() {
             </li>
             <li>
               <strong className="text-tapit-ink">Usage:</strong> daily profile-view and link-click
-              counts and the source of a visit when known. With your permission, Tapit stores a
-              random key in browser session storage and associates it with the profile to estimate
-              unique views. The key is not your name or email. Your analytics choice is saved in
-              browser local storage so you can change it later. Public events are recorded only when
-              a strong deployment key is configured. For abuse prevention, the backend uses a
-              short-lived keyed HMAC of the network address to limit repeated requests. It does not
-              store the raw address; this pseudonymous value is not anonymous or included in owner
-              analytics. If address metadata is unavailable, requests share a fallback limit.
-              Inactive keys become eligible for removal after 24 hours, and cleanup runs hourly.
+              counts and the source of a visit when known. Tapit automatically creates a random key
+              in browser session storage when available and sends it with each public profile view.
+              Tapit associates the key with the viewed profile to estimate unique views. The key is
+              not your name or email. If session storage is unavailable, Tapit still records profile
+              views and link clicks. Views without a key do not contribute to unique-view estimates.
+              Public events are recorded only when a strong deployment key is configured. For abuse
+              prevention, the backend uses a keyed HMAC of the network address to limit repeated
+              requests. It does not store the raw address; this pseudonymous value is not anonymous
+              or included in owner analytics. If address metadata is unavailable, requests share a
+              fallback limit. The current Production deployment does not automatically remove these
+              hashes. The proposed 24-hour cleanup is not active until retention controls are
+              deployed and verified.
             </li>
             <li>
               <strong className="text-tapit-ink">Operations:</strong> invitations, deletion
@@ -111,19 +114,24 @@ export default function PrivacyPage() {
           <ul className="mt-4 list-disc space-y-3 pl-6 text-tapit-muted">
             <li>Active account and profile information is kept while needed to provide Tapit.</li>
             <li>
-              Analytics session keys are removed after 90 days, and daily aggregate analytics after
-              13 months.
+              Analytics session keys and daily aggregate analytics currently have no automatic
+              expiry. The proposed 90-day and 13-month retention periods are not active until the
+              cleanup controls are deployed and verified.
             </li>
             <li>
-              Inactive network hashes used for abuse prevention become eligible for removal after 24
-              hours; cleanup runs hourly.
+              Network hashes used for abuse prevention currently have no automatic expiry. The
+              proposed 24-hour cleanup is not active until retention controls are deployed and
+              verified.
             </li>
             <li>
-              Expired or used invitations and card-claim challenges are removed after 30 days.
+              Expired or used invitations and card-claim challenges currently have no automatic
+              expiry. The proposed 30-day cleanup is not active until retention controls are
+              deployed and verified.
             </li>
             <li>
-              Minimal service and administrator audit records are removed after one year, unless a
-              legal duty or active investigation requires a longer period.
+              Minimal service and administrator audit records currently have no automatic expiry.
+              The proposed one-year cleanup is not active until retention controls are deployed and
+              verified.
             </li>
             <li>
               Provider-managed backups and technical logs may follow separate lifecycles.
@@ -141,16 +149,12 @@ export default function PrivacyPage() {
             You choose which optional details and links to publish and can unpublish your profile.
             Customers can request account deletion in the account page or by emailing us. A request
             hides the public profile and deactivates its cards while an administrator reviews it.
-            Administrator approval is required before erasure. We aim to review and complete
-            approved erasure within 30 days of a request; requests still pending at day 30 are
-            flagged for administrator action. A legal duty or active investigation may require us to
-            retain limited information longer, and we will explain that when applicable.
-          </p>
-          <p className="mt-4 text-tapit-muted">
-            On a public profile, choose whether to allow a browser session key for unique-view
-            analytics. Choosing “Count visits only” leaves the key unset. You can reopen Analytics
-            choices on the profile to change your decision. Page-view and link-click counts continue
-            without the key.
+            Administrator approval is required before erasure. The current Production service does
+            not automatically erase all related personal and Google Auth records after approval.
+            Approved requests unpublish the profile and remove its images, but other records remain.
+            The prepared erasure and retention workflow has not been deployed, so we cannot promise
+            a fixed completion time. A legal duty or active investigation may require us to retain
+            limited information, and we will explain that when applicable.
           </p>
           <p className="mt-4 text-tapit-muted">
             To request access, correction, objection, erasure or blocking, or portability where

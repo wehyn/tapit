@@ -15,7 +15,7 @@ import {
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
-import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
+import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
@@ -106,7 +106,7 @@ function LivePublicProfileScreen({
       if (profileId === undefined) return;
       void recordView({
         profileId: profileId as Id<"profiles">,
-        sessionKey: getAnalyticsSessionKey(),
+        sessionKey: getVisitorSessionKey(),
         source,
       });
     },
@@ -138,7 +138,7 @@ function LivePublicProfileScreen({
         recordView={async () => {
           await recordView({
             profileId: profile.id as Id<"profiles">,
-            sessionKey: getAnalyticsSessionKey(),
+            sessionKey: getVisitorSessionKey(),
             source,
           });
         }}
