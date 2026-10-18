@@ -87,12 +87,12 @@ describe("live public profile analytics controls", () => {
   });
 
   it.each([
-    ["unset", undefined, undefined],
-    ["allow", "allow", "returning-session"],
-    ["decline", "decline", undefined],
+    ["unset", undefined, undefined, "prompt"],
+    ["allow", "allow", "returning-session", "manage"],
+    ["decline", "decline", undefined, "manage"],
   ] as const)(
-    "hides analytics choices with a %s preference and keeps view tracking",
-    (preference, storedChoice, sessionKey) => {
+    "shows %s consent controls on direct profiles and keeps view tracking",
+    (preference, storedChoice, sessionKey, control) => {
       if (storedChoice !== undefined) {
         localStorage.setItem("tapit:analytics-consent", storedChoice);
       }
@@ -103,9 +103,15 @@ describe("live public profile analytics controls", () => {
       render(createElement(PublicProfileScreen, { slug: "live-profile" }));
 
       expect(screen.getByTestId("public-profile")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Analytics choices" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Allow unique views" })).not.toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: "Count visits only" })).not.toBeInTheDocument();
+      if (control === "prompt") {
+        expect(
+          screen.getByRole("heading", { name: "Choose how visits are counted" }),
+        ).toBeVisible();
+        expect(screen.getByRole("button", { name: "Allow unique views" })).toBeVisible();
+        expect(screen.getByRole("button", { name: "Count visits only" })).toBeVisible();
+      } else {
+        expect(screen.getByRole("button", { name: "Analytics choices" })).toBeVisible();
+      }
 
       fireEvent.click(screen.getByTestId("public-profile"));
       expect(resolverMocks.recordView).toHaveBeenCalledWith(
