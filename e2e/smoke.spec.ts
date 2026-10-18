@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
-test("homepage presents a Tapit profile on an iPhone and profile action at mobile and desktop sizes", async ({
+test("homepage presents a Tapit profile and profile creation action at mobile and desktop sizes", async ({
   page,
 }) => {
-  const profileActions = page.getByRole("link", { name: "Go to your profile", exact: true });
+  const profileActions = page.getByRole("link", { name: "Create your profile", exact: true });
   const phone = page.getByRole("group", { name: "Tapit profile on an iPhone" });
   const screen = phone.getByTestId("tapit-hero-phone-screen");
 
@@ -23,7 +23,7 @@ test("homepage presents a Tapit profile on an iPhone and profile action at mobil
     await expect(heroHeading).toHaveCSS("text-align", viewport.width >= 1024 ? "left" : "center");
     await expect(profileActions).toHaveCount(3);
     for (let index = 0; index < 3; index += 1) {
-      await expect(profileActions.nth(index)).toHaveAttribute("href", "/app/profile");
+      await expect(profileActions.nth(index)).toHaveAttribute("href", "/login?mode=signup");
     }
     if (viewport.width >= 1280) {
       await expect(page.getByText("Illustrative example", { exact: true })).toBeVisible();
@@ -97,7 +97,21 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   await expect(page.locator("main > footer")).toContainText("Terms");
 });
 
-test("homepage profile CTAs open the customer profile", async ({ page }) => {
+test("homepage profile CTAs preserve customer and admin destinations and start guest profile creation", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.goto("/");
+
+  const adminActions = page.getByRole("link", { name: "Dashboard", exact: true });
+  await expect(adminActions).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(adminActions.nth(index)).toHaveAttribute("href", "/admin/customers");
+  }
+  await adminActions.nth(1).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+
+  await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/");
 
@@ -118,8 +132,16 @@ test("homepage profile CTAs open the customer profile", async ({ page }) => {
 
   await resetDemoHarness(page);
   await page.goto("/");
-  await page.getByRole("link", { name: "Go to your profile", exact: true }).nth(1).click();
-  await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fprofile$/);
+  const createProfileActions = page.getByRole("link", { name: "Create your profile", exact: true });
+  await expect(createProfileActions).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(createProfileActions.nth(index)).toHaveAttribute("href", "/login?mode=signup");
+  }
+  await expect(createProfileActions.nth(1)).toHaveAttribute("aria-busy", "false");
+  await createProfileActions.nth(1).click();
+  await expect(page).toHaveURL(/\/login\?mode=signup$/);
+  await expect(page.getByRole("heading", { name: "Create your Tapit profile" })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toBeVisible();
 });
 
 test("premium landing stays within supported viewport widths", async ({ page }) => {
@@ -129,7 +151,7 @@ test("premium landing stays within supported viewport widths", async ({ page }) 
     await expect(
       page.getByRole("heading", { name: "A better introduction, in one tap." }),
     ).toBeVisible();
-    const cta = page.getByRole("link", { name: "Go to your profile", exact: true }).first();
+    const cta = page.getByRole("link", { name: "Create your profile", exact: true }).first();
     await expect(cta).toBeVisible();
     const ctaBox = await cta.boundingBox();
     expect(ctaBox?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -207,8 +229,8 @@ test("landing content remains visible when JavaScript is disabled", async ({
       page.getByRole("heading", { name: "A better introduction, in one tap." }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Go to your profile", exact: true }).first(),
-    ).toHaveAttribute("href", "/app/profile");
+      page.getByRole("link", { name: "Create your profile", exact: true }).first(),
+    ).toHaveAttribute("href", "/login?mode=signup");
     await expect(page.locator("#product-proof")).toBeVisible();
   } finally {
     await context.close();
@@ -222,7 +244,7 @@ test("reduced motion keeps reveal content visible", async ({ page }) => {
     page.getByRole("heading", { name: "A better introduction, in one tap." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Go to your profile", exact: true }).first(),
+    page.getByRole("link", { name: "Create your profile", exact: true }).first(),
   ).toBeVisible();
 
   const benefitStyles = await page.locator("#benefits").evaluate((section) => {
