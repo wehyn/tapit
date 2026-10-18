@@ -193,6 +193,13 @@ async function readProfilePresentation(profile: Locator) {
   });
 }
 
+test("public profiles resolve lowercase and mixed-case direct URLs", async ({ page }) => {
+  for (const slug of ["mara-velasquez", "Mara-Velasquez"]) {
+    await page.goto(`/${slug}`);
+    await expect(page.getByRole("heading", { name: "Mara Velasquez", exact: true })).toBeVisible();
+  }
+});
+
 test("public profile identity stays centered across screen widths", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/mara-velasquez");

@@ -47,7 +47,10 @@ function DemoPublicProfileScreen({
   if (!hydrated) {
     return <PublicProfileLoading />;
   }
-  const profile = getDemoProfiles(state).find((candidate) => candidate.published?.slug === slug);
+  const normalizedSlug = slug.trim().toLowerCase();
+  const profile = getDemoProfiles(state).find(
+    (candidate) => candidate.published?.slug === normalizedSlug,
+  );
   if (profile === undefined) return <MissingProfilePage />;
   const owner = state.customers.find((customer) => customer.id === profile.ownerId);
   if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
