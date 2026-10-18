@@ -702,6 +702,82 @@ describe("profile image storage", () => {
     expect(await t.query(internal.storage.getUploadJob, { jobId: secondJob })).not.toBeNull();
   });
 
+  it("continues past unresolved failed image jobs to reclaim later jobs", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const ambiguousBytes = pngSignature();
+    const [ambiguousA, ambiguousB] = await t.run(async (ctx) => [
+      await ctx.storage.store(new Blob([ambiguousBytes])),
+      await ctx.storage.store(new Blob([ambiguousBytes])),
+    ]);
+    const [ambiguousMetadataA, ambiguousMetadataB] = await t.run(async (ctx) =>
+      Promise.all([
+        ctx.db.system.get("_storage", ambiguousA),
+        ctx.db.system.get("_storage", ambiguousB),
+      ]),
+    );
+    const ambiguousSha256 = ambiguousMetadataA!.sha256;
+    const ambiguousCreatedAt = Math.min(
+      ambiguousMetadataA!._creationTime,
+      ambiguousMetadataB!._creationTime,
+    );
+    const ambiguousUploadWindowEndsAt =
+      Math.max(ambiguousMetadataA!._creationTime, ambiguousMetadataB!._creationTime) + 1;
+    const unresolvedJobIds = await t.run(async (ctx) =>
+      Promise.all(
+        Array.from({ length: 8 }, () =>
+          ctx.db.insert("profileImageUploadJobs", {
+            profileId: data.ownerProfileId,
+            ownerId: data.ownerCustomerId,
+            largeSha256: ambiguousSha256,
+            status: "failed",
+            createdAt: ambiguousCreatedAt - 1,
+            uploadWindowEndsAt: ambiguousUploadWindowEndsAt,
+          }),
+        ),
+      ),
+    );
+
+    const reclaimableBytes = new Uint8Array([...pngSignature(), 7]);
+    const reclaimableStorageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob([reclaimableBytes])),
+    );
+    const reclaimableMetadata = await t.run(
+      async (ctx) => (await ctx.db.system.get("_storage", reclaimableStorageId))!,
+    );
+    const reclaimableJobId = await t.run((ctx) =>
+      ctx.db.insert("profileImageUploadJobs", {
+        profileId: data.ownerProfileId,
+        ownerId: data.ownerCustomerId,
+        largeStorageId: reclaimableStorageId,
+        largeSha256: reclaimableMetadata.sha256,
+        status: "failed",
+        createdAt: ambiguousCreatedAt - 1,
+        uploadWindowEndsAt: reclaimableMetadata._creationTime + 1,
+      }),
+    );
+
+    await t.mutation(internal.profileImageCleanup.reconcileExpired, {
+      now: reclaimableMetadata._creationTime + 25 * 60 * 60 * 1000,
+      jobBatchSize: 8,
+    });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(await t.query(internal.storage.getUploadJob, { jobId: reclaimableJobId })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(reclaimableStorageId))).toBeNull();
+    const unresolvedJobs = await t.run(async (ctx) =>
+      Promise.all(unresolvedJobIds.map((jobId) => ctx.db.get(jobId))),
+    );
+    expect(unresolvedJobs.every((job) => job !== null)).toBe(true);
+    expect(await t.run((ctx) => ctx.storage.getUrl(ambiguousA))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(ambiguousB))).not.toBeNull();
+  });
+
   it("does not claim a hash match registered to another upload job", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
