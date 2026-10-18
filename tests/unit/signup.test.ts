@@ -1,3 +1,7 @@
+import { readdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -16,6 +20,36 @@ const values = (overrides: Partial<SignupFormValues> = {}): SignupFormValues => 
   slug: " Ada-Lovelace ",
   ...overrides,
 });
+
+function staticRootRouteSegments(
+  directory: string,
+  routeSegments: readonly string[] = [],
+): string[] {
+  const entries = readdirSync(directory, { withFileTypes: true });
+  const rootSegment = routeSegments.find((segment) => !segment.startsWith("("));
+  const hasRouteFile = entries.some(
+    (entry) => entry.isFile() && /^(page|route)\.(js|jsx|ts|tsx)$/.test(entry.name),
+  );
+  const currentRoute =
+    hasRouteFile && rootSegment !== undefined && !rootSegment.startsWith("[") ? [rootSegment] : [];
+
+  return [
+    ...currentRoute,
+    ...entries.flatMap((entry) => {
+      if (!entry.isDirectory() || entry.name.startsWith("_") || entry.name.startsWith("@"))
+        return [];
+      const nextSegments = entry.name.startsWith("(")
+        ? routeSegments
+        : [...routeSegments, entry.name];
+      return staticRootRouteSegments(join(directory, entry.name), nextSegments);
+    }),
+  ];
+}
+
+const appDirectory = join(dirname(fileURLToPath(import.meta.url)), "../../src/app");
+const signupRouteSlugs = [...new Set(staticRootRouteSegments(appDirectory))]
+  .filter((segment) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(segment))
+  .sort();
 
 describe("signup contracts", () => {
   it("normalizes email, name, and slug while excluding confirmation", () => {
@@ -66,6 +100,12 @@ describe("signup contracts", () => {
           slug: "ada-lovelace",
         },
       },
+    );
+  });
+
+  it.each(signupRouteSlugs)("reserves the static /%s route from signup slugs", (slug) => {
+    expect(validateSignupInput(values({ slug })).errors.slug).toBe(
+      "That profile slug is reserved.",
     );
   });
 });
