@@ -372,7 +372,7 @@ describe("hosted-demo scope boundaries", () => {
       const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["demo-media-source"])));
       const ownerId = await t.run(async (ctx) => (await ctx.db.get(seeded.maraProfileId))!.ownerId);
       await t.run(async (ctx) => {
-        for (let index = 0; index < 1001; index++)
+        for (let index = 0; index < 26; index++)
           await ctx.db.insert("profileMediaUploadJobs", {
             profileId: seeded.maraProfileId,
             ownerId,
@@ -410,7 +410,7 @@ describe("hosted-demo scope boundaries", () => {
         ctx.storage.store(new Blob(["orphan-demo-media"])),
       );
       await t.run(async (ctx) => {
-        for (let index = 0; index < 1001; index++)
+        for (let index = 0; index < 26; index++)
           await ctx.db.insert("profileMediaAssets", {
             scope: "demo",
             storageId: orphanStorageId,

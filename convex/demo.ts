@@ -434,91 +434,119 @@ export const reset = internalMutation({
       await ctx.scheduler.runAfter(0, internal.demo.reset, args);
       return { status: "resetting" as const };
     };
-    const demoProfiles = await ctx.db
-      .query("profiles")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000);
-    for (const profile of demoProfiles)
-      if (await deleteProfileMedia(ctx, profile._id, DEMO_CLEANUP_BATCH))
-        return await continueReset();
-    const demoCards = await ctx.db
-      .query("cards")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000);
-    for (const row of await ctx.db
-      .query("cardClaimChallenges")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000))
-      await ctx.db.delete(row._id);
-    for (const table of [
-      "analyticsSessions",
-      "analytics",
-      "auditLogs",
-      "invitations",
-      "deletionRequests",
-      "settings",
-      "links",
-    ] as const)
-      for (const row of await ctx.db
-        .query(table)
+    let cleaned = 0;
+    while (cleaned < DEMO_CLEANUP_BATCH) {
+      const profile = await ctx.db
+        .query("profiles")
         .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-        .take(10_000))
-        await ctx.db.delete(row._id);
-    const demoImages = await ctx.db
-      .query("profileImages")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(DEMO_CLEANUP_BATCH + 1);
-    for (const row of demoImages.slice(0, DEMO_CLEANUP_BATCH)) {
-      const profile = await ctx.db.get(row.profileId);
-      await releaseProfileImageMapping(
-        ctx,
-        row,
-        profile?.scope === DEMO_SCOPE ? profile._id : undefined,
-      );
-    }
-    if (demoImages.length > DEMO_CLEANUP_BATCH) return await continueReset();
-    for (const row of demoCards) await ctx.db.delete(row._id);
-    const demoMediaAssets = await ctx.db
-      .query("profileMediaAssets")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(DEMO_CLEANUP_BATCH + 1);
-    for (const row of demoMediaAssets.slice(0, DEMO_CLEANUP_BATCH)) {
-      await ctx.db.delete(row._id);
-      const storageIds = new Set<Id<"_storage">>([row.storageId]);
-      if (row.previewStorageId !== undefined) storageIds.add(row.previewStorageId);
-      for (const storageId of storageIds) {
-        const inspection = await inspectProfileStorage(ctx, storageId, {
-          kind: "profileMediaAssetRelease",
-          assetId: row._id,
-        });
-        if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
+        .first();
+      if (profile !== null) {
+        if (await deleteProfileMedia(ctx, profile._id, DEMO_CLEANUP_BATCH))
+          return await continueReset();
+        const imageJob = await ctx.db
+          .query("profileImageUploadJobs")
+          .withIndex("by_profileId", (q) => q.eq("profileId", profile._id))
+          .first();
+        if (imageJob !== null)
+          await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
+            profileId: profile._id,
+            cursor: null,
+          });
+        await ctx.db.delete(profile._id);
+        cleaned += 1;
+        continue;
       }
-    }
-    if (demoMediaAssets.length > DEMO_CLEANUP_BATCH) return await continueReset();
-    for (const profile of demoProfiles) await ctx.db.delete(profile._id);
-    for (const profile of demoProfiles) {
-      const jobs = await ctx.db
-        .query("profileImageUploadJobs")
-        .withIndex("by_profileId", (q) => q.eq("profileId", profile._id))
-        .take(1001);
-      if (jobs.length > 1000)
-        throw new Error("Too many profile image upload jobs are assigned to this profile.");
-      for (const job of jobs) {
-        await ctx.db.patch(job._id, {
-          status: "failed",
-          scanCursor: undefined,
-          scanLargeCandidateId: undefined,
-          scanSmallCandidateId: undefined,
-          scanLargeAmbiguous: undefined,
-          scanSmallAmbiguous: undefined,
-        });
+
+      const remaining = DEMO_CLEANUP_BATCH - cleaned;
+      const challenges = await ctx.db
+        .query("cardClaimChallenges")
+        .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+        .take(remaining);
+      if (challenges.length > 0) {
+        for (const row of challenges) await ctx.db.delete(row._id);
+        cleaned += challenges.length;
+        continue;
       }
+
+      let removedScopedRows = false;
+      for (const table of [
+        "analyticsSessions",
+        "analytics",
+        "auditLogs",
+        "invitations",
+        "deletionRequests",
+        "settings",
+        "links",
+      ] as const) {
+        const rows = await ctx.db
+          .query(table)
+          .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+          .take(remaining);
+        if (rows.length === 0) continue;
+        for (const row of rows) await ctx.db.delete(row._id);
+        cleaned += rows.length;
+        removedScopedRows = true;
+        break;
+      }
+      if (removedScopedRows) continue;
+
+      const image = await ctx.db
+        .query("profileImages")
+        .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+        .first();
+      if (image !== null) {
+        const imageProfile = await ctx.db.get(image.profileId);
+        await releaseProfileImageMapping(
+          ctx,
+          image,
+          imageProfile?.scope === DEMO_SCOPE ? imageProfile._id : undefined,
+        );
+        cleaned += 1;
+        continue;
+      }
+
+      const card = await ctx.db
+        .query("cards")
+        .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+        .first();
+      if (card !== null) {
+        await ctx.db.delete(card._id);
+        cleaned += 1;
+        continue;
+      }
+
+      const mediaAsset = await ctx.db
+        .query("profileMediaAssets")
+        .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+        .first();
+      if (mediaAsset !== null) {
+        await ctx.db.delete(mediaAsset._id);
+        const storageIds = new Set<Id<"_storage">>([mediaAsset.storageId]);
+        if (mediaAsset.previewStorageId !== undefined) storageIds.add(mediaAsset.previewStorageId);
+        for (const storageId of storageIds) {
+          const inspection = await inspectProfileStorage(ctx, storageId, {
+            kind: "profileMediaAssetRelease",
+            assetId: mediaAsset._id,
+          });
+          if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
+        }
+        cleaned += 1;
+        continue;
+      }
+
+      const customers = await ctx.db
+        .query("customers")
+        .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
+        .take(remaining + 1);
+      const toDelete = customers.filter((row) => row._id !== adminCustomerId).slice(0, remaining);
+      for (const customer of toDelete) await ctx.db.delete(customer._id);
+      if (toDelete.length > 0) {
+        cleaned += toDelete.length;
+        continue;
+      }
+
+      return await seed(ctx, args.operatorUserId);
     }
-    for (const row of await ctx.db
-      .query("customers")
-      .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
-      .take(10_000))
-      if (row._id !== adminCustomerId) await ctx.db.delete(row._id);
-    return await seed(ctx, args.operatorUserId);
+    return await continueReset();
   },
 });

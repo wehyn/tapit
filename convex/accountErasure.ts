@@ -111,25 +111,16 @@ async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Pr
     await ctx.db.delete(image._id);
     return true;
   }
-  const job = await ctx.db
+  if (await deleteProfileMedia(ctx, profileId)) return true;
+  const hasImageJobs = await ctx.db
     .query("profileImageUploadJobs")
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
     .first();
-  if (job !== null) {
-    await deleteStoredFile(ctx, job.largeStorageId, {
-      kind: "profileErasure",
+  if (hasImageJobs !== null)
+    await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
       profileId,
-      excluded: { kind: "profileImageJob", id: job._id },
+      cursor: null,
     });
-    await deleteStoredFile(ctx, job.smallStorageId, {
-      kind: "profileErasure",
-      profileId,
-      excluded: { kind: "profileImageJob", id: job._id },
-    });
-    await ctx.db.delete(job._id);
-    return true;
-  }
-  if (await deleteProfileMedia(ctx, profileId)) return true;
   await ctx.db.delete(profileId);
   return true;
 }

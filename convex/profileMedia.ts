@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import {
   internalMutation,
   internalQuery,
@@ -256,7 +257,9 @@ export async function deleteProfileMedia(
   const [foundJobs, foundAssets] = await Promise.all([
     ctx.db
       .query("profileMediaUploadJobs")
-      .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (q) =>
+        q.eq("profileId", profileId).eq("status", "attached"),
+      )
       .take(limit + 1),
     ctx.db
       .query("profileMediaAssets")
@@ -270,75 +273,35 @@ export async function deleteProfileMedia(
   const hasMore = foundJobs.length > limit || foundAssets.length > limit;
   const jobs = foundJobs.slice(0, limit);
   const assets = foundAssets.slice(0, limit);
-  type StorageCandidate =
-    | { kind: "direct" }
-    | {
-        kind: "recovered";
-        sha256: string;
-        createdAt: number;
-        uploadWindowEndsAt: number;
-      }
-    | { kind: "uncertain" };
-  const storageCandidates = new Map<Id<"_storage">, StorageCandidate>();
-  const addDirectStorageId = (storageId: Id<"_storage"> | undefined) => {
-    if (storageId !== undefined) storageCandidates.set(storageId, { kind: "direct" });
-  };
-  const addRecoveredCandidate = (
-    storageId: Id<"_storage">,
-    candidate: Omit<Extract<StorageCandidate, { kind: "recovered" }>, "kind">,
-  ) => {
-    const existing = storageCandidates.get(storageId);
-    if (existing?.kind === "direct" || existing?.kind === "uncertain") return;
-    if (existing?.kind === "recovered") {
-      if (
-        existing.sha256 !== candidate.sha256 ||
-        existing.createdAt !== candidate.createdAt ||
-        existing.uploadWindowEndsAt !== candidate.uploadWindowEndsAt
-      )
-        storageCandidates.set(storageId, { kind: "uncertain" });
-      return;
-    }
-    storageCandidates.set(storageId, { kind: "recovered", ...candidate });
-  };
+  const storageIds = new Set<Id<"_storage">>();
   for (const job of jobs) {
-    addDirectStorageId(job.storageId);
-    addDirectStorageId(job.previewStorageId);
-    if (job.scanCursor !== undefined) continue;
-    if (job.scanSourceAmbiguous !== true && job.scanSourceCandidateId !== undefined)
-      addRecoveredCandidate(job.scanSourceCandidateId, {
-        sha256: job.sha256,
-        createdAt: job.createdAt,
-        uploadWindowEndsAt: job.uploadWindowEndsAt,
+    const hasRecoveryState =
+      job.scanCursor !== undefined ||
+      job.scanSourceCandidateId !== undefined ||
+      job.scanPreviewCandidateId !== undefined ||
+      job.scanSourceAmbiguous === true ||
+      job.scanPreviewAmbiguous === true;
+    if (hasRecoveryState) {
+      await ctx.db.patch(job._id, {
+        status: "failed",
+        actorUserId: undefined,
+        accessMode: undefined,
       });
-    if (
-      job.scanPreviewAmbiguous !== true &&
-      job.scanPreviewCandidateId !== undefined &&
-      job.previewSha256 !== undefined
-    )
-      addRecoveredCandidate(job.scanPreviewCandidateId, {
-        sha256: job.previewSha256,
-        createdAt: job.createdAt,
-        uploadWindowEndsAt: job.uploadWindowEndsAt,
-      });
+      continue;
+    }
+    if (job.storageId !== undefined) storageIds.add(job.storageId);
+    if (job.previewStorageId !== undefined) storageIds.add(job.previewStorageId);
+    await ctx.db.delete(job._id);
   }
   for (const asset of assets) {
-    addDirectStorageId(asset.storageId);
-    addDirectStorageId(asset.previewStorageId);
+    storageIds.add(asset.storageId);
+    if (asset.previewStorageId !== undefined) storageIds.add(asset.previewStorageId);
   }
-  for (const job of jobs) await ctx.db.delete(job._id);
   for (const asset of assets) await ctx.db.delete(asset._id);
 
-  for (const [storageId, candidate] of storageCandidates) {
-    if (candidate.kind === "uncertain") continue;
+  for (const storageId of storageIds) {
     const metadata = await ctx.db.system.get("_storage", storageId);
-    if (
-      metadata === null ||
-      (candidate.kind === "recovered" &&
-        (metadata.sha256 !== candidate.sha256 ||
-          metadata._creationTime < candidate.createdAt ||
-          metadata._creationTime > candidate.uploadWindowEndsAt))
-    )
-      continue;
+    if (metadata === null) continue;
     const inspection = await inspectProfileStorage(ctx, storageId, {
       kind: "profileErasure",
       profileId,
@@ -346,6 +309,11 @@ export async function deleteProfileMedia(
     });
     if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
   }
+  if (!hasMore)
+    await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.prepareProfileForErasure, {
+      profileId,
+      cursor: null,
+    });
   return hasMore;
 }
 

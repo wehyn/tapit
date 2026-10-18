@@ -27,9 +27,8 @@ async function reconcileJob(
   now: number,
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-  const owner = await ctx.db.get(job.ownerId);
   const profile = await ctx.db.get(job.profileId);
-  if (owner === null || profile === null || profile.ownerId !== job.ownerId) {
+  if (profile !== null && profile.ownerId !== job.ownerId) {
     counts.skipped += 1;
     return counts;
   }
@@ -78,7 +77,6 @@ async function reconcileJob(
 
   const candidates = new Map<Id<"_storage">, string | null>();
   let unresolved = false;
-  const uncertainStorageIds = new Set<Id<"_storage">>();
   if (job.storageId !== undefined) candidates.set(job.storageId, null);
   if (job.previewStorageId !== undefined) candidates.set(job.previewStorageId, null);
   if (job.status !== "attached" && sourceAmbiguous) {
@@ -113,7 +111,16 @@ async function reconcileJob(
       kind: "profileMediaCleanup",
       currentJobId: job._id,
     });
-    if (!dryRun) for (const assetId of inspection.staleMediaAssetIds) await ctx.db.delete(assetId);
+    if (!dryRun) {
+      for (const assetId of new Set(inspection.staleMediaAssetIds)) {
+        const asset = await ctx.db.get(assetId);
+        if (asset === null) continue;
+        if (!candidates.has(asset.storageId)) candidates.set(asset.storageId, null);
+        if (asset.previewStorageId !== undefined && !candidates.has(asset.previewStorageId))
+          candidates.set(asset.previewStorageId, null);
+        await ctx.db.delete(assetId);
+      }
+    }
     if (inspection.kind === "referenced") {
       counts.retained += 1;
       continue;
@@ -121,38 +128,23 @@ async function reconcileJob(
     if (inspection.kind === "uncertain") {
       counts.skipped += 1;
       unresolved = true;
-      uncertainStorageIds.add(storageId);
       continue;
     }
     if (dryRun) counts.retained += 1;
     else {
-      const sourceAsset = await ctx.db
-        .query("profileMediaAssets")
-        .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
-        .unique();
-      const previewAsset = await ctx.db
-        .query("profileMediaAssets")
-        .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", storageId))
-        .unique();
-      const asset = sourceAsset ?? previewAsset;
-      if (asset !== null) await ctx.db.delete(asset._id);
       await ctx.storage.delete(storageId);
       counts.deleted += 1;
     }
   }
-  if (!dryRun && uncertainStorageIds.size > 0) {
+  if (!dryRun && unresolved) {
     await ctx.db.patch(job._id, {
       scanCursor: undefined,
-      scanSourceCandidateId:
-        sourceCandidate !== undefined && uncertainStorageIds.has(sourceCandidate)
-          ? sourceCandidate
-          : job.scanSourceCandidateId,
-      scanPreviewCandidateId:
-        previewCandidate !== undefined && uncertainStorageIds.has(previewCandidate)
-          ? previewCandidate
-          : job.scanPreviewCandidateId,
+      scanSourceCandidateId: sourceCandidate,
+      scanPreviewCandidateId: previewCandidate,
+      scanSourceAmbiguous: sourceAmbiguous,
+      scanPreviewAmbiguous: previewAmbiguous,
     });
-  } else if (!dryRun && !unresolved) await ctx.db.delete(job._id);
+  } else if (!dryRun) await ctx.db.delete(job._id);
   return counts;
 }
 
@@ -190,6 +182,39 @@ export const reconcileOneJob = internalMutation({
     if (job === null || job.uploadWindowEndsAt > args.now)
       return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     return await reconcileJob(ctx, job, args.dryRun, args.now);
+  },
+});
+
+export const prepareProfileForErasure = internalMutation({
+  args: { profileId: v.id("profiles"), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId", (q) => q.eq("profileId", args.profileId))
+      .paginate({ cursor: args.cursor, numItems: 25 });
+    const now = Date.now();
+    for (const job of page.page) {
+      if (job.status !== "failed" || job.actorUserId !== undefined || job.accessMode !== undefined)
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          actorUserId: undefined,
+          accessMode: undefined,
+        });
+      await ctx.scheduler.runAfter(
+        Math.max(0, job.uploadWindowEndsAt - now),
+        internal.profileMediaCleanup.reconcileOneJob,
+        {
+          jobId: job._id,
+          now: Math.max(now, job.uploadWindowEndsAt),
+          dryRun: false,
+        },
+      );
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.prepareProfileForErasure, {
+        profileId: args.profileId,
+        cursor: page.continueCursor,
+      });
   },
 });
 

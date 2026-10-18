@@ -173,6 +173,39 @@ export const reconcileOneJob = internalMutation({
   },
 });
 
+export const prepareProfileForErasure = internalMutation({
+  args: { profileId: v.id("profiles"), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_profileId", (query) => query.eq("profileId", args.profileId))
+      .paginate({ cursor: args.cursor, numItems: 25 });
+    const now = Date.now();
+    for (const job of page.page) {
+      if (job.status !== "failed" || job.actorUserId !== undefined || job.accessMode !== undefined)
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          actorUserId: undefined,
+          accessMode: undefined,
+        });
+      await ctx.scheduler.runAfter(
+        Math.max(0, job.uploadWindowEndsAt - now),
+        internal.profileImageCleanup.reconcileOneJob,
+        {
+          jobId: job._id,
+          now: Math.max(now, job.uploadWindowEndsAt),
+          dryRun: false,
+        },
+      );
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
+        profileId: args.profileId,
+        cursor: page.continueCursor,
+      });
+  },
+});
+
 export const reconcileExpired = internalMutation({
   args: {
     now: v.optional(v.number()),

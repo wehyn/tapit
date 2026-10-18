@@ -583,7 +583,7 @@ describe("retention cleanup", () => {
     });
   });
 
-  it("deletes recovered image upload candidates during account erasure", async () => {
+  it("keeps image candidates recoverable after account erasure", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
@@ -620,10 +620,22 @@ describe("retention cleanup", () => {
         createdAt: metadata._creationTime - 1,
         uploadWindowEndsAt: metadata._creationTime + 1,
       });
-      return { customerId, jobId, storageId };
+      return { customerId, profileId, jobId, storageId, cleanupAt: metadata._creationTime + 2 };
     });
 
     await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.profileId)).toBeNull();
+      expect(await ctx.db.get(ids.jobId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.storageId)).not.toBeNull();
+    });
+
+    await t.mutation(internal.profileImageCleanup.reconcileOneJob, {
+      jobId: ids.jobId,
+      now: ids.cleanupAt,
+      dryRun: false,
+    });
 
     await t.run(async (ctx) => {
       expect(await ctx.db.get(ids.jobId)).toBeNull();
