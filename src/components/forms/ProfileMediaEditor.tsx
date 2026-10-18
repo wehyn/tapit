@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {
   DEFAULT_PROFILE_MEDIA,
+  MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH,
   MAX_PROFILE_SLIDESHOW_IMAGES,
   MAX_PROFILE_HERO_HEIGHT,
   MIN_PROFILE_HERO_HEIGHT,
@@ -172,9 +173,15 @@ export function ProfileMediaEditor({
       if (!isCurrentUpload(pending, requestId)) return;
       const current = latestMedia.current ?? copyMedia(media);
       if (pending.target === "background") {
+        const currentAltText = current.background?.altText;
         const next = {
           ...current,
-          background: { ...image, positionX: 50, positionY: 50 },
+          background: {
+            ...image,
+            altText: currentAltText?.trim() ? currentAltText : pending.altText,
+            positionX: 50,
+            positionY: 50,
+          },
           slideshow: current.slideshow.map((item) => ({ ...item })),
         };
         latestMedia.current = next;
@@ -215,7 +222,8 @@ export function ProfileMediaEditor({
       target: "background",
       file,
       previewUrl,
-      altText: file.name || "Selected background image",
+      altText:
+        file.name.trim().slice(0, MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH) || "Selected background image",
       positionX: 50,
       positionY: 50,
       status: "uploading",

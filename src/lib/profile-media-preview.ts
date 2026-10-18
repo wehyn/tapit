@@ -24,9 +24,16 @@ export function mergePendingProfileMediaPreview(
     autoplay: true,
   };
   let background = currentMedia.background;
+  const existingBackgroundAlt = currentMedia.background?.alt;
   const slideshow = [...currentMedia.slideshow];
   for (const entry of pending) {
-    const localImage = { src: entry.previewUrl, alt: entry.altText };
+    const localImage = {
+      src: entry.previewUrl,
+      alt:
+        entry.target === "background" && existingBackgroundAlt?.trim()
+          ? existingBackgroundAlt
+          : entry.altText,
+    };
     if (entry.target === "background") {
       background = {
         ...localImage,

@@ -313,7 +313,7 @@ describe("ProfileCustomizationEditor", () => {
         expect.objectContaining({
           background: expect.objectContaining({
             assetId: "uploaded",
-            altText: "Uploaded background",
+            altText: "Backdrop",
             positionX: 50,
             positionY: 50,
           }),

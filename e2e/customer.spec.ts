@@ -2346,7 +2346,7 @@ test("high-entropy demo media is reduced below the storage limit", async ({ page
   expect((storedMedia?.url as string).length).toBeLessThan(100_000);
 });
 
-test("incomplete background media stays in preview but blocks saving and publishing", async ({
+test("background descriptions default to the filename and remain required for saving", async ({
   page,
 }) => {
   await resetDemoHarness(page);
@@ -2360,6 +2360,14 @@ test("incomplete background media stays in preview but blocks saving and publish
 
   await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
   await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  const backgroundDescription = page.getByLabel("Background image description");
+  await expect(backgroundDescription).toHaveValue("opaque-landscape.png");
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+
+  await backgroundDescription.fill("");
   await expect(
     page.getByText("A background image needs an accessible description.", { exact: true }),
   ).toBeVisible();
@@ -2368,7 +2376,7 @@ test("incomplete background media stays in preview but blocks saving and publish
     page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
   ).toBeDisabled();
 
-  await page.getByLabel("Background image description").fill("Warm studio backdrop");
+  await backgroundDescription.fill("Warm studio backdrop");
   await expect(
     page.getByText("A background image needs an accessible description.", { exact: true }),
   ).toHaveCount(0);
