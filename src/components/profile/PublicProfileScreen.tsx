@@ -15,12 +15,11 @@ import {
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
-import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
+import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
-import { AnalyticsConsent } from "./AnalyticsConsent";
 import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
 
 export function PublicProfileScreen({
@@ -107,7 +106,7 @@ function LivePublicProfileScreen({
       if (profileId === undefined) return;
       void recordView({
         profileId: profileId as Id<"profiles">,
-        sessionKey: getAnalyticsSessionKey(),
+        sessionKey: getVisitorSessionKey(),
         source,
       });
     },
@@ -139,7 +138,7 @@ function LivePublicProfileScreen({
         recordView={async () => {
           await recordView({
             profileId: profile.id as Id<"profiles">,
-            sessionKey: getAnalyticsSessionKey(),
+            sessionKey: getVisitorSessionKey(),
             source,
           });
         }}
@@ -154,18 +153,15 @@ function LivePublicProfileScreen({
     })),
   };
   return (
-    <>
-      <PublicProfile
-        mobileLayout
-        onLinkClick={onLinkClick}
-        onView={onView}
-        profile={projection}
-        profileId={profile.id}
-        profileUrl={`/${profile.slug}`}
-        theme={projection.theme}
-      />
-      <AnalyticsConsent />
-    </>
+    <PublicProfile
+      mobileLayout
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={projection}
+      profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
+      theme={projection.theme}
+    />
   );
 }
 

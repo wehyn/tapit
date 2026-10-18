@@ -2,7 +2,7 @@
 
 **Status:** The operator approved the draft direction. The public `/privacy` page is prepared locally but has not been published; this working document preserves the review history and remaining deployment checks.
 
-**Proposed publication date:** 25 September 2026, subject to approval.
+**Proposed publication date:** 18 October 2026, subject to approval.
 
 Tapit helps people share a digital contact profile through a web link, QR code, or NFC card. This notice explains what information Tapit handles when you sign in, manage a profile, or visit a published profile.
 
@@ -14,7 +14,7 @@ Wayne Garcia operates Tapit from the Philippines. For privacy questions or reque
 
 - **Account and sign-in information.** When you sign in with Google, Tapit receives the basic account information needed to identify your Google account, including your Google account identifier, email address, name, and profile image when Google provides it. Tapit uses this information to authenticate you and connect you to a Tapit account. Tapit does not ask for access to your Gmail, Google Drive, or contacts.
 - **Profile and card information.** You can enter a name, bio, photo or logo, website, email address, phone number, and links. Tapit also stores the profile URL and the status and assignment of NFC or QR cards. A profile's published fields and enabled links are available to anyone with its public URL; drafts and unpublished fields are not intended to be public.
-- **Usage information.** When a visitor opens a published profile or follows a profile link, Tapit records aggregate daily view and link-click counts, the profile or link involved, and whether the visit came from NFC, QR, or a direct link when known. The prepared visitor choice allows a random `sessionStorage` key for unique-view estimates only after opt-in; the choice is remembered in browser `localStorage`. The backend stores an allowed key with the profile identifier and removes it after 90 days once deployed. Page-view and link-click counts continue without a key.
+- **Usage information.** When a visitor opens a published profile or follows a profile link, Tapit records aggregate daily view and link-click counts, the profile or link involved, and whether the visit came from NFC, QR, or a direct link when known. Tapit automatically creates a random key in browser `sessionStorage` when available and sends it with each profile view. Tapit associates the key with the viewed profile to estimate unique views. The key is not the visitor's name or email. If session storage is unavailable, the browser still sends the profile-view event without a key. Views without a key do not contribute to unique-view estimates. The proposed 90-day server retention period is not active until the retention controls are deployed and verified.
 - **Operational records.** Tapit keeps account, invitation, deletion-request, upload, and administrator audit records needed to run and protect the service. Hosting and authentication providers may also process technical request and security logs under their own terms.
 
 ## Why we use this information
@@ -27,7 +27,7 @@ Anyone with a published profile URL can view that profile's published fields and
 
 ## Your choices and requests
 
-Profile owners choose which optional details and links to add and publish, and can unpublish a profile. Customers can request account deletion through their account page or by emailing [wayneegarcia@gmail.com](mailto:wayneegarcia@gmail.com). A request hides the public profile and deactivates its cards while an administrator reviews it. Administrator approval is required before account data is erased. The prepared cleanup erases approved requests promptly; unapproved requests older than 30 days are flagged for administrator review and remain pending until a decision. This cleanup is not deployed yet. To request access, correction, objection, erasure or blocking, or portability where applicable, email the same address. You may also [file a complaint with the Philippine National Privacy Commission](https://privacy.gov.ph/file-a-complaint-2/). [Confirm request handling and timing before publication.] A visitor can avoid sharing optional information by not using a profile's links or Save contact action; [add a precise choice or consent mechanism for analytics session storage if required].
+Profile owners choose which optional details and links to add and publish, and can unpublish a profile. Customers can request account deletion through their account page or by emailing [wayneegarcia@gmail.com](mailto:wayneegarcia@gmail.com). A request hides the public profile and deactivates its cards while an administrator reviews it. Administrator approval is required before account data is erased. The prepared cleanup erases approved requests promptly; unapproved requests older than 30 days are flagged for administrator review and remain pending until a decision. This cleanup is not deployed yet. Public profile analytics run automatically without an on-page choice control. To request access, correction, objection, erasure or blocking, or portability where applicable, email the same address. You may also [file a complaint with the Philippine National Privacy Commission](https://privacy.gov.ph/file-a-complaint-2/). [Confirm request handling and timing before publication.]
 
 ## Retention and security
 
@@ -56,7 +56,7 @@ These periods are **proposals, not current behavior or publication-ready promise
 1. Confirm whether Wayne Garcia's postal or business address must appear. The operator, Philippine launch jurisdiction, and privacy email are supplied by the operator.
 2. Verify Google profile fields actually retained by Convex Auth. Implement an expiry for the analytics key generated with `crypto.randomUUID()` and stored in browser `sessionStorage`.
 3. The operator approved the proposed periods and administrator approval before erasure. Verify the prepared deletion and retention controls for Auth identities, backups, analytics sessions, images, and audit records; deploy before claiming these periods as current behavior.
-4. The prepared visitor flow requires opt-in for the unique-view session key; confirm its final wording and lawful basis for the remaining aggregate counts under Philippine law.
+4. Public profile analytics generate and send a visitor session key automatically when browser session storage is available. Confirm the final wording and lawful basis for the session key and aggregate visitor counts under Philippine law before publication.
 5. Confirm subprocessors, processing locations, transfers, and hosting log practices.
 6. Review the final text, add a public `/privacy` page and homepage link, and make the Google OAuth privacy-policy URL match it.
 

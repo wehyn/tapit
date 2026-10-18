@@ -9,7 +9,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
-import { getAnalyticsSessionKey } from "@/lib/analytics/consent";
+import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
 
 import {
   InactiveCardPage,
@@ -18,7 +18,6 @@ import {
 } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
-import { AnalyticsConsent } from "./AnalyticsConsent";
 import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
 import { UnpublishedCardClaim } from "./UnpublishedCardClaim";
 import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
@@ -98,7 +97,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
     async (profileId: string) => {
       await recordView({
         profileId: profileId as Id<"profiles">,
-        sessionKey: getAnalyticsSessionKey(),
+        sessionKey: getVisitorSessionKey(),
         source: sourceValue(source),
       });
     },
@@ -149,18 +148,15 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
     })),
   };
   return (
-    <>
-      <PublicProfile
-        mobileLayout
-        onLinkClick={onLinkClick}
-        onView={onView}
-        profile={profile}
-        profileId={profile.id}
-        profileUrl={`/${profile.slug}`}
-        theme={profile.theme}
-      />
-      <AnalyticsConsent />
-    </>
+    <PublicProfile
+      mobileLayout
+      onLinkClick={onLinkClick}
+      onView={onView}
+      profile={profile}
+      profileId={profile.id}
+      profileUrl={`/${profile.slug}`}
+      theme={profile.theme}
+    />
   );
 }
 
