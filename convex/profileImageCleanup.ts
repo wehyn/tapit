@@ -245,10 +245,6 @@ export const reconcileStatusPage = internalMutation({
     });
     const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     for (const job of page.page) {
-      if (args.status === "attached") {
-        if (!args.dryRun) await ctx.db.delete(job._id);
-        continue;
-      }
       if (job.uploadWindowEndsAt > args.now) continue;
       const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
         jobId: job._id,

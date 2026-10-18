@@ -471,14 +471,20 @@ describe("profile image storage", () => {
     const data = await seed(t);
     const large = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
     const small = await t.run((ctx) => ctx.storage.store(new Blob([pngSignature()])));
+    const [largeMetadata, smallMetadata] = await t.run((ctx) =>
+      Promise.all([ctx.db.system.get("_storage", large), ctx.db.system.get("_storage", small)]),
+    );
     const jobId = await t.mutation(internal.storage.createUploadJob, {
       profileId: data.ownerProfileId,
       ownerId: data.ownerCustomerId,
-      largeSha256: "c".repeat(64),
+      largeSha256: largeMetadata!.sha256,
       expectedImageRevision: 0,
     });
     await t.mutation(internal.storage.markUploadJob, { jobId, largeStorageId: large });
-    await t.mutation(internal.storage.markUploadJob, { jobId, smallSha256: "d".repeat(64) });
+    await t.mutation(internal.storage.markUploadJob, {
+      jobId,
+      smallSha256: smallMetadata!.sha256,
+    });
     await t.mutation(internal.storage.markUploadJob, { jobId, smallStorageId: small });
     await t.mutation(internal.storage.attach, {
       profileId: data.ownerProfileId,
@@ -495,9 +501,16 @@ describe("profile image storage", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(large))).not.toBeNull();
     expect(await t.run((ctx) => ctx.storage.getUrl(small))).not.toBeNull();
 
-    await t.run((ctx) => ctx.db.patch(jobId, { createdAt: 1 }));
+    const uploadWindowEndsAt =
+      Math.max(largeMetadata!._creationTime, smallMetadata!._creationTime) + 1;
+    await t.run((ctx) =>
+      ctx.db.patch(jobId, {
+        createdAt: Math.min(largeMetadata!._creationTime, smallMetadata!._creationTime) - 1,
+        uploadWindowEndsAt,
+      }),
+    );
     await t.mutation(internal.profileImageCleanup.reconcileExpired, {
-      now: 25 * 60 * 60 * 1000,
+      now: uploadWindowEndsAt + 25 * 60 * 60 * 1000,
     });
     expect(await t.query(internal.storage.getUploadJob, { jobId })).toBeNull();
     expect(await t.run((ctx) => ctx.storage.getUrl(large))).not.toBeNull();
