@@ -29,7 +29,12 @@ import {
 } from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { prepareDemoMediaDataUrl } from "@/lib/demo/media";
-import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
+import {
+  prepareProfileImageCrop,
+  validateProfileAvatarFile,
+  validateProfileImageFile,
+  type Crop,
+} from "@/lib/profile-image";
 import {
   stripProfileMediaUrls,
   validateProfileMedia,
@@ -89,6 +94,7 @@ function profileForPreview(
 }
 
 const MAX_DRAFT_SAVE_ATTEMPTS = 3;
+const MAX_PROFILE_MEDIA_INPUT_BYTES = 5 * 1024 * 1024;
 const PENDING_MEDIA_MESSAGE =
   "Your image is still uploading. Save and publish will be available when it finishes.";
 const FAILED_MEDIA_MESSAGE =
@@ -398,7 +404,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const validationError = validateProfileImageFile(file);
+    const validationError = validateProfileAvatarFile(file);
     if (validationError) return setImageError(validationError);
     setImageError("");
     setImageApplied(false);
@@ -433,6 +439,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     setMediaBusy(true);
     setMediaError("");
     try {
+      if (file.size > MAX_PROFILE_MEDIA_INPUT_BYTES)
+        throw new Error("Media must be 5 MB or smaller.");
       const validationError = validateProfileImageFile(file);
       if (validationError) throw new Error(validationError);
       const { delayMs, fail } = demoMediaUploadControls();
@@ -485,7 +493,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
             onChange={chooseImage}
             type="file"
           />
-          <p className="mt-2 text-xs leading-5 text-tapit-muted">JPG, PNG, or WebP. Max 5 MB.</p>
+          <p className="mt-2 text-xs leading-5 text-tapit-muted">JPG, PNG, or WebP. Max 20 MB.</p>
         </div>
       </div>
       {imageError ? (
@@ -784,7 +792,7 @@ function LiveProfileEditorContent({
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const validationError = validateProfileImageFile(file);
+    const validationError = validateProfileAvatarFile(file);
     if (validationError) {
       setImageError(validationError);
       return;
@@ -886,6 +894,8 @@ function LiveProfileEditorContent({
     setMediaBusy(true);
     setMediaError("");
     try {
+      if (file.size > MAX_PROFILE_MEDIA_INPUT_BYTES)
+        throw new Error("Media must be 5 MB or smaller.");
       if (authToken === null) throw new Error("Authentication is required to upload media.");
       const siteUrl = requirePairedConvexSiteUrl(
         process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
@@ -1086,7 +1096,7 @@ function LiveProfileEditorContent({
             type="file"
           />
           <p className="basis-full text-xs leading-5 text-tapit-muted">
-            JPG, PNG, or WebP. Max 5 MB.
+            JPG, PNG, or WebP. Max 20 MB.
           </p>
         </div>
       </div>

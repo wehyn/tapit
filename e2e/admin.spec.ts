@@ -1,3 +1,7 @@
+import { randomBytes } from "node:crypto";
+
+import sharp from "sharp";
+
 import { expect, test, type Page } from "@playwright/test";
 import { signInAsAdmin } from "./support/demo-harness";
 
@@ -43,6 +47,36 @@ test("administrator edits and publishes the selected customer profile details", 
   await expect(page.getByRole("heading", { name: "Mara Velasquez Updated" })).toBeVisible();
   await expect(page.getByText("Updated by the administrator.", { exact: true })).toBeVisible();
   await expect(page.locator('a[href="mailto:mara-updated@example.test"]')).toBeVisible();
+});
+
+test("administrator can crop a profile photo source larger than 5 MB", async ({ page }) => {
+  const source = await sharp(randomBytes(1600 * 1600 * 3), {
+    raw: { width: 1600, height: 1600, channels: 3 },
+  })
+    .png({ compressionLevel: 0 })
+    .toBuffer();
+  expect(source.byteLength).toBeGreaterThan(5 * 1024 * 1024);
+  expect(source.byteLength).toBeLessThanOrEqual(20 * 1024 * 1024);
+
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Profiles" }).click();
+  await openMaraProfileDetails(page);
+
+  const dialog = page.getByRole("dialog", { name: "Mara Velasquez profile" });
+  await dialog.getByRole("tab", { name: "Edit profile" }).click();
+  const photo = dialog.getByRole("img", { name: "Mara Velasquez profile" });
+  const imageInput = dialog.getByLabel("Profile photo or logo");
+  await imageInput.setInputFiles({
+    name: "large-admin-profile-source.png",
+    mimeType: "image/png",
+    buffer: source,
+  });
+
+  const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(dialog.getByText("Photo applied", { exact: true })).toBeVisible();
+  await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,.+/);
 });
 
 test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {

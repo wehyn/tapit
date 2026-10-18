@@ -1,3 +1,7 @@
+import { randomBytes } from "node:crypto";
+
+import sharp from "sharp";
+
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
@@ -2539,6 +2543,33 @@ test("customer can cancel or apply a square profile photo crop", async ({ page }
   await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
   await expect(cropDialog).toHaveCount(0);
   await expect(photo).toHaveAttribute("src", /^data:image\/png;base64,/);
+});
+
+test("customer can crop a profile photo source larger than 5 MB", async ({ page }) => {
+  const source = await sharp(randomBytes(1600 * 1600 * 3), {
+    raw: { width: 1600, height: 1600, channels: 3 },
+  })
+    .png({ compressionLevel: 0 })
+    .toBuffer();
+  expect(source.byteLength).toBeGreaterThan(5 * 1024 * 1024);
+  expect(source.byteLength).toBeLessThanOrEqual(20 * 1024 * 1024);
+
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  const photo = page.getByRole("img", { name: "Mara Velasquez profile" }).first();
+  const imageInput = page.getByLabel("Profile photo or logo");
+  await imageInput.setInputFiles({
+    name: "large-profile-source.png",
+    mimeType: "image/png",
+    buffer: source,
+  });
+
+  const cropDialog = page.getByRole("dialog", { name: "Adjust profile photo" });
+  await expect(cropDialog).toBeVisible();
+  await cropDialog.getByRole("button", { name: "Apply", exact: true }).click();
+  await expect(page.getByRole("status", { name: "Photo applied" })).toBeVisible();
+  await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,.+/);
 });
 
 test("customer analytics and account controls stay scoped to the customer", async ({ page }) => {

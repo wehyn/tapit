@@ -6,7 +6,7 @@ import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { ProfileContent, ProfileLink, ProfileRedirect, ProfileTheme } from "@/lib/domain";
 import { validateLinkDestination, validateProfileRedirect } from "@/lib/domain";
-import { prepareProfileImageCrop, validateProfileImageFile, type Crop } from "@/lib/profile-image";
+import { prepareProfileImageCrop, validateProfileAvatarFile, type Crop } from "@/lib/profile-image";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
@@ -99,7 +99,7 @@ function PhotoEditor({
 
   function choosePhoto(file: File | undefined) {
     if (!file) return;
-    const validationError = validateProfileImageFile(file);
+    const validationError = validateProfileAvatarFile(file);
     if (validationError) {
       setError(validationError);
       return;
@@ -201,7 +201,7 @@ function PhotoEditor({
             type="file"
           />
           <p className="basis-full text-xs leading-5 text-tapit-muted">
-            JPG, PNG, or WebP. Max 5 MB.
+            JPG, PNG, or WebP. Max 20 MB.
           </p>
         </div>
       </div>
@@ -447,6 +447,7 @@ export function AdminProfileContentEditor({
     setMediaBusy(true);
     setMediaError("");
     try {
+      if (file.size > 5 * 1024 * 1024) throw new Error("Media must be 5 MB or smaller.");
       return await onUploadMedia(file, target);
     } catch (uploadError) {
       setMediaError(uploadError instanceof Error ? uploadError.message : "Media upload failed.");
