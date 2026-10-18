@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import {
   internalMutation,
   internalQuery,
@@ -8,9 +9,14 @@ import {
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
+import { inspectProfileStorage, profileMediaAssetIds } from "./profileStorageReferences";
 import { profileMediaValidator } from "./validators";
 
+export { profileMediaAssetIds } from "./profileStorageReferences";
+
 export const MAX_PROFILE_MEDIA_SIZE = 5 * 1024 * 1024;
+export const MAX_PROFILE_MEDIA_DELETE_BATCH = 1000;
+const DEFAULT_PROFILE_MEDIA_DELETE_BATCH = 25;
 export const MEDIA_REVISION_CONFLICT = "Media changed elsewhere. Reload and try again.";
 export const MEDIA_UPLOAD_PENDING =
   "Media upload in progress. Wait for it to finish and try again.";
@@ -35,7 +41,12 @@ function canUploadMediaForProfile(
   if (accessMode === "owner")
     return actor._id === owner._id && isActiveCustomer(owner) && sameScope(actor, profile);
   if (accessMode === "admin")
-    return actor.role === "admin" && sameScope(actor, profile) && sameScope(actor, owner);
+    return (
+      actor.role === "admin" &&
+      isActiveCustomer(owner) &&
+      sameScope(actor, profile) &&
+      sameScope(actor, owner)
+    );
   return false;
 }
 
@@ -89,7 +100,8 @@ export const getAdminAccess = internalQuery({
       profile === null ||
       profile.scope !== account.scope ||
       owner === null ||
-      owner.scope !== account.scope
+      owner.scope !== account.scope ||
+      !isActiveCustomer(owner)
     ) {
       throw new Error("Profile access denied.");
     }
@@ -120,14 +132,6 @@ export async function assertOwnedProfileMedia(
     throw new Error("This media asset does not belong to this profile.");
   }
   return asset;
-}
-
-export function profileMediaAssetIds(media: Media): Id<"profileMediaAssets">[] {
-  if (media === undefined) return [];
-  const ids = [media.background?.assetId, ...media.slideshow.map((item) => item.assetId)].filter(
-    (id): id is Id<"profileMediaAssets"> => id !== undefined,
-  );
-  return ids.filter((id, index) => ids.indexOf(id) === index);
 }
 
 export async function assertOwnedProfileMediaSet(
@@ -233,122 +237,149 @@ export async function removeIfMediaUnreferenced(
   const asset = await ctx.db.get(assetId);
   if (profile === null || asset === null || referenced(profile, assetId)) return;
   await ctx.db.delete(assetId);
-  await ctx.storage.delete(asset.storageId);
-  if (asset.previewStorageId !== undefined) await ctx.storage.delete(asset.previewStorageId);
+  const storageIds = new Set<Id<"_storage">>([asset.storageId]);
+  if (asset.previewStorageId !== undefined) storageIds.add(asset.previewStorageId);
+  for (const storageId of storageIds) {
+    const inspection = await inspectProfileStorage(ctx, storageId, {
+      kind: "profileMediaAssetRelease",
+      assetId,
+    });
+    if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
+  }
 }
 
-export async function deleteProfileMedia(ctx: MutationCtx, profileId: Id<"profiles">) {
-  const jobs = await ctx.db
-    .query("profileMediaUploadJobs")
-    .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
-    .take(1001);
-  if (jobs.length > 1000)
+export async function deleteProfileMedia(
+  ctx: MutationCtx,
+  profileId: Id<"profiles">,
+  batchSize = DEFAULT_PROFILE_MEDIA_DELETE_BATCH,
+): Promise<boolean> {
+  const limit = Math.max(1, Math.min(Math.floor(batchSize), MAX_PROFILE_MEDIA_DELETE_BATCH));
+  const [foundPendingJobs, foundAttachedJobs, foundAssets] = await Promise.all([
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (q) =>
+        q.eq("profileId", profileId).eq("status", "pending"),
+      )
+      .take(limit + 1),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (q) =>
+        q.eq("profileId", profileId).eq("status", "attached"),
+      )
+      .take(limit + 1),
+    ctx.db
+      .query("profileMediaAssets")
+      .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
+      .take(limit + 1),
+  ]);
+  if (
+    limit === MAX_PROFILE_MEDIA_DELETE_BATCH &&
+    (foundPendingJobs.length > limit || foundAttachedJobs.length > limit)
+  )
     throw new Error("Too many profile media upload jobs are assigned to this profile.");
-  const jobStorageIds = jobs
-    .flatMap((job) => [job.storageId, job.previewStorageId])
-    .filter((id): id is Id<"_storage"> => id !== undefined);
-  const scanCandidates = jobs.flatMap((job) =>
-    [
+  if (limit === MAX_PROFILE_MEDIA_DELETE_BATCH && foundAssets.length > limit)
+    throw new Error("Too many profile media assets are assigned to this profile.");
+  const pendingJobs = foundPendingJobs.slice(0, limit);
+  const attachedJobs = foundAttachedJobs.slice(0, limit - pendingJobs.length);
+  const hasMore =
+    foundPendingJobs.length > pendingJobs.length ||
+    foundAttachedJobs.length > attachedJobs.length ||
+    foundAssets.length > limit;
+  const jobs = [...pendingJobs, ...attachedJobs];
+  const assets = foundAssets.slice(0, limit);
+  const storageIds = new Set<Id<"_storage">>();
+  for (const job of jobs) {
+    const directStorageIds = [job.storageId, job.previewStorageId].filter(
+      (id): id is Id<"_storage"> => id !== undefined,
+    );
+    const recoveredCandidates = [
       job.scanSourceCandidateId === undefined
         ? undefined
         : {
             id: job.scanSourceCandidateId,
             sha256: job.sha256,
-            createdAt: job.createdAt,
-            uploadWindowEndsAt: job.uploadWindowEndsAt,
           },
       job.scanPreviewCandidateId === undefined || job.previewSha256 === undefined
         ? undefined
         : {
             id: job.scanPreviewCandidateId,
             sha256: job.previewSha256,
-            createdAt: job.createdAt,
-            uploadWindowEndsAt: job.uploadWindowEndsAt,
           },
     ].filter(
-      (
-        candidate,
-      ): candidate is {
-        id: Id<"_storage">;
-        sha256: string;
-        createdAt: number;
-        uploadWindowEndsAt: number;
-      } => candidate !== undefined,
-    ),
-  );
-  for (const job of jobs) await ctx.db.delete(job._id);
-  const assets = await ctx.db
-    .query("profileMediaAssets")
-    .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
-    .take(1001);
-  if (assets.length > 1000)
-    throw new Error("Too many profile media assets are assigned to this profile.");
-  for (const asset of assets) {
-    await ctx.db.delete(asset._id);
-    await ctx.storage.delete(asset.storageId);
-    if (asset.previewStorageId !== undefined) await ctx.storage.delete(asset.previewStorageId);
-  }
-  for (const storageId of new Set(jobStorageIds)) await ctx.storage.delete(storageId);
-  const remainingJobs = await ctx.db.query("profileMediaUploadJobs").take(1001);
-  const profileImageMappings = await ctx.db.query("profileImages").take(1001);
-  const profileImageJobs = await ctx.db.query("profileImageUploadJobs").take(1001);
-  const profiles = await ctx.db.query("profiles").take(1001);
-  if (remainingJobs.length <= 1000) {
-    for (const candidate of scanCandidates) {
-      const metadata = await ctx.db.system.get("_storage", candidate.id);
-      if (
-        metadata === null ||
-        metadata.sha256 !== candidate.sha256 ||
-        metadata._creationTime < candidate.createdAt ||
-        metadata._creationTime > candidate.uploadWindowEndsAt
-      )
-        continue;
-      const sourceAsset = await ctx.db
-        .query("profileMediaAssets")
-        .withIndex("by_storageId", (q) => q.eq("storageId", candidate.id))
-        .unique();
-      const previewAsset = await ctx.db
-        .query("profileMediaAssets")
-        .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", candidate.id))
-        .unique();
-      if (sourceAsset !== null || previewAsset !== null) continue;
-      if (
-        profileImageMappings.length > 1000 ||
-        profileImageMappings.some(
-          (mapping) =>
-            mapping.storageId === candidate.id || mapping.smallStorageId === candidate.id,
-        )
-      )
-        continue;
-      if (
-        profileImageJobs.length > 1000 ||
-        profileImageJobs.some(
-          (job) => job.largeStorageId === candidate.id || job.smallStorageId === candidate.id,
-        )
-      )
-        continue;
-      if (
-        profiles.length > 1000 ||
-        profiles.some(
-          (profile) =>
-            profile.draft.imageStorageId === candidate.id ||
-            profile.published?.imageStorageId === candidate.id,
-        )
-      )
-        continue;
-      if (
-        remainingJobs.some(
-          (job) =>
-            job.storageId === candidate.id ||
-            job.previewStorageId === candidate.id ||
-            job.scanSourceCandidateId === candidate.id ||
-            job.scanPreviewCandidateId === candidate.id,
-        )
-      )
-        continue;
-      await ctx.storage.delete(candidate.id);
+      (candidate): candidate is { id: Id<"_storage">; sha256: string } => candidate !== undefined,
+    );
+    const hasRecoveryState =
+      job.scanCursor !== undefined ||
+      job.scanSourceAmbiguous === true ||
+      job.scanPreviewAmbiguous === true ||
+      (directStorageIds.length === 0 && recoveredCandidates.length === 0);
+    if (hasRecoveryState) {
+      await ctx.db.patch(job._id, {
+        status: "failed",
+        actorUserId: undefined,
+        accessMode: undefined,
+      });
+      continue;
     }
+
+    let recoveryIsSafe = true;
+    const candidatesToDelete = new Set(directStorageIds);
+    for (const candidate of [
+      ...directStorageIds.map((id) => ({ id, sha256: null })),
+      ...recoveredCandidates,
+    ]) {
+      const metadata = await ctx.db.system.get("_storage", candidate.id);
+      if (metadata === null) continue;
+      if (
+        candidate.sha256 !== null &&
+        (metadata.sha256 !== candidate.sha256 ||
+          metadata._creationTime < job.createdAt ||
+          metadata._creationTime > job.uploadWindowEndsAt)
+      )
+        continue;
+      const inspection = await inspectProfileStorage(ctx, candidate.id, {
+        kind: "profileMediaCleanup",
+        currentJobId: job._id,
+      });
+      if (inspection.kind === "uncertain") {
+        recoveryIsSafe = false;
+        break;
+      }
+      candidatesToDelete.add(candidate.id);
+    }
+    if (!recoveryIsSafe) {
+      await ctx.db.patch(job._id, {
+        status: "failed",
+        actorUserId: undefined,
+        accessMode: undefined,
+      });
+      continue;
+    }
+    for (const storageId of candidatesToDelete) storageIds.add(storageId);
+    await ctx.db.delete(job._id);
   }
+  for (const asset of assets) {
+    storageIds.add(asset.storageId);
+    if (asset.previewStorageId !== undefined) storageIds.add(asset.previewStorageId);
+  }
+  for (const asset of assets) await ctx.db.delete(asset._id);
+
+  for (const storageId of storageIds) {
+    const metadata = await ctx.db.system.get("_storage", storageId);
+    if (metadata === null) continue;
+    const inspection = await inspectProfileStorage(ctx, storageId, {
+      kind: "profileErasure",
+      profileId,
+      excluded: { kind: "none" },
+    });
+    if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
+  }
+  if (!hasMore)
+    await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.prepareProfileForErasure, {
+      profileId,
+      cursor: null,
+    });
+  return hasMore;
 }
 
 export const createUploadJob = internalMutation({

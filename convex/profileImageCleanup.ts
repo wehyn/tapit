@@ -1,15 +1,21 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
-import { getProfileImageMapping } from "./profileImages";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
+import { inspectProfileStorage } from "./profileStorageReferences";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
 
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
+const jobStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("failed"),
+  v.literal("attached"),
+);
 const countsValidator = v.object({
   scanned: v.number(),
   deleted: v.number(),
@@ -22,105 +28,11 @@ async function isReferenced(
   storageId: Id<"_storage">,
   currentJobId: Id<"profileImageUploadJobs">,
 ) {
-  if ((await getProfileImageMapping(ctx, storageId)) !== null) return true;
-  const largeJobs = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_largeStorageId", (query) => query.eq("largeStorageId", storageId))
-    .take(2);
-  const smallJobs = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
-    .take(2);
-  const largeCandidates = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_scanLargeCandidateId", (query) => query.eq("scanLargeCandidateId", storageId))
-    .take(2);
-  const smallCandidates = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_scanSmallCandidateId", (query) => query.eq("scanSmallCandidateId", storageId))
-    .take(2);
-  if (
-    [...largeJobs, ...smallJobs, ...largeCandidates, ...smallCandidates].some(
-      (job) => job._id !== currentJobId,
-    )
-  )
-    return true;
-  const [
-    mediaAssets,
-    mediaPreviews,
-    mediaJobs,
-    mediaJobPreviews,
-    mediaCandidates,
-    previewCandidates,
-    uploadSources,
-    uploadQuarantines,
-    variants,
-  ] = await Promise.all([
-    ctx.db
-      .query("profileMediaAssets")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaAssets")
-      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_scanSourceCandidateId", (query) =>
-        query.eq("scanSourceCandidateId", storageId),
-      )
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_scanPreviewCandidateId", (query) =>
-        query.eq("scanPreviewCandidateId", storageId),
-      )
-      .take(1),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_sourceStorageId", (query) => query.eq("sourceStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_quarantineStorageId", (query) => query.eq("quarantineStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("uploadAssetVariants")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-  ]);
-  if (
-    mediaAssets.length > 0 ||
-    mediaPreviews.length > 0 ||
-    mediaJobs.length > 0 ||
-    mediaJobPreviews.length > 0 ||
-    mediaCandidates.length > 0 ||
-    previewCandidates.length > 0 ||
-    uploadSources.length > 0 ||
-    uploadQuarantines.length > 0 ||
-    variants.length > 0
-  )
-    return true;
-  const draftProfiles = await ctx.db
-    .query("profiles")
-    .withIndex("by_draft_imageStorageId", (query) => query.eq("draft.imageStorageId", storageId))
-    .take(1);
-  if (draftProfiles.length > 0) return true;
-  const publishedProfiles = await ctx.db
-    .query("profiles")
-    .withIndex("by_published_imageStorageId", (query) =>
-      query.eq("published.imageStorageId", storageId),
-    )
-    .take(1);
-  return publishedProfiles.length > 0;
+  const inspection = await inspectProfileStorage(ctx, storageId, {
+    kind: "profileImageCleanup",
+    currentJobId,
+  });
+  return inspection.kind !== "unreferenced";
 }
 
 function rememberCandidate(
@@ -267,6 +179,95 @@ export const reconcileOneJob = internalMutation({
   },
 });
 
+export const prepareProfileForErasure = internalMutation({
+  args: { profileId: v.id("profiles"), cursor: v.union(v.string(), v.null()) },
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_profileId", (query) => query.eq("profileId", args.profileId))
+      .paginate({ cursor: args.cursor, numItems: 25 });
+    const now = Date.now();
+    for (const job of page.page) {
+      if (job.status !== "failed" || job.actorUserId !== undefined || job.accessMode !== undefined)
+        await ctx.db.patch(job._id, {
+          status: "failed",
+          actorUserId: undefined,
+          accessMode: undefined,
+        });
+      await ctx.scheduler.runAfter(
+        Math.max(0, job.uploadWindowEndsAt - now),
+        internal.profileImageCleanup.reconcileOneJob,
+        {
+          jobId: job._id,
+          now: Math.max(now, job.uploadWindowEndsAt),
+          dryRun: false,
+        },
+      );
+    }
+    if (!page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
+        profileId: args.profileId,
+        cursor: page.continueCursor,
+      });
+  },
+});
+
+export const pageExpiredJobs = internalQuery({
+  args: {
+    status: jobStatusValidator,
+    now: v.number(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_status_and_createdAt", (query) =>
+        query.eq("status", args.status).lte("createdAt", args.now - ORPHAN_GRACE_MS),
+      )
+      .paginate(args.paginationOpts),
+});
+
+export const reconcileStatusPage = internalMutation({
+  args: {
+    status: jobStatusValidator,
+    cursor: v.union(v.string(), v.null()),
+    now: v.number(),
+    dryRun: v.boolean(),
+    batchSize: v.number(),
+  },
+  returns: countsValidator,
+  handler: async (ctx, args) => {
+    const batchSize = Math.max(1, Math.min(Math.floor(args.batchSize), 32));
+    const page = await ctx.runQuery(internal.profileImageCleanup.pageExpiredJobs, {
+      status: args.status,
+      now: args.now,
+      paginationOpts: { cursor: args.cursor, numItems: batchSize },
+    });
+    const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    for (const job of page.page) {
+      if (job.uploadWindowEndsAt > args.now) continue;
+      const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
+        jobId: job._id,
+        now: args.now,
+        dryRun: args.dryRun,
+      });
+      totals.scanned += result.scanned;
+      totals.deleted += result.deleted;
+      totals.retained += result.retained;
+      totals.skipped += result.skipped;
+    }
+    if (!args.dryRun && !page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.reconcileStatusPage, {
+        status: args.status,
+        cursor: page.continueCursor,
+        now: args.now,
+        dryRun: args.dryRun,
+        batchSize,
+      });
+    return totals;
+  },
+});
+
 export const reconcileExpired = internalMutation({
   args: {
     now: v.optional(v.number()),
@@ -279,31 +280,16 @@ export const reconcileExpired = internalMutation({
     const dryRun = args.dryRun ?? false;
     const requestedBatch = Math.floor(args.jobBatchSize ?? DEFAULT_JOB_BATCH);
     const batchSize = Math.max(1, Math.min(requestedBatch, 32));
-    const cutoff = now - ORPHAN_GRACE_MS;
     const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     for (const status of ["pending", "failed", "attached"] as const) {
-      const jobs = await ctx.db
-        .query("profileImageUploadJobs")
-        .withIndex("by_status_and_createdAt", (query) =>
-          query.eq("status", status).lte("createdAt", cutoff),
-        )
-        .take(batchSize);
-      for (const job of jobs) {
-        if (status === "attached") {
-          if (!dryRun) await ctx.db.delete(job._id);
-          continue;
-        }
-        if (job.uploadWindowEndsAt > now) continue;
-        const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
-          jobId: job._id,
-          now,
-          dryRun,
-        });
-        totals.scanned += result.scanned;
-        totals.deleted += result.deleted;
-        totals.retained += result.retained;
-        totals.skipped += result.skipped;
-      }
+      const result: Counts = await ctx.runMutation(
+        internal.profileImageCleanup.reconcileStatusPage,
+        { status, cursor: null, now, dryRun, batchSize },
+      );
+      totals.scanned += result.scanned;
+      totals.deleted += result.deleted;
+      totals.retained += result.retained;
+      totals.skipped += result.skipped;
     }
     console.info("profile image orphan reconciliation", totals);
     return totals;

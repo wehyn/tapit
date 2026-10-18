@@ -3,66 +3,21 @@ import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { analyticsRateLimiter, analyticsRateLimitNames } from "./analytics";
+import { deleteProfileMedia } from "./profileMedia";
+import { inspectProfileStorage, type StorageExclusion } from "./profileStorageReferences";
 
 const BATCH = 25;
 
 async function deleteStoredFile(
   ctx: MutationCtx,
   id: Id<"_storage"> | undefined,
-  excluded?: {
-    mappingId?: Id<"profileImages">;
-    jobId?: Id<"profileImageUploadJobs">;
-    assetId?: Id<"uploadAssets">;
-    variantId?: Id<"uploadAssetVariants">;
-  },
+  intent:
+    | { kind: "accountErasure"; excluded: StorageExclusion }
+    | { kind: "profileErasure"; profileId: Id<"profiles">; excluded: StorageExclusion },
 ) {
   if (id === undefined || (await ctx.db.system.get("_storage", id)) === null) return;
-  const [
-    largeMappings,
-    smallMappings,
-    largeJobs,
-    smallJobs,
-    sourceAssets,
-    quarantineAssets,
-    variants,
-  ] = await Promise.all([
-    ctx.db
-      .query("profileImages")
-      .withIndex("by_storageId", (q) => q.eq("storageId", id))
-      .take(2),
-    ctx.db
-      .query("profileImages")
-      .withIndex("by_smallStorageId", (q) => q.eq("smallStorageId", id))
-      .take(2),
-    ctx.db
-      .query("profileImageUploadJobs")
-      .withIndex("by_largeStorageId", (q) => q.eq("largeStorageId", id))
-      .take(2),
-    ctx.db
-      .query("profileImageUploadJobs")
-      .withIndex("by_smallStorageId", (q) => q.eq("smallStorageId", id))
-      .take(2),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_sourceStorageId", (q) => q.eq("sourceStorageId", id))
-      .take(2),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_quarantineStorageId", (q) => q.eq("quarantineStorageId", id))
-      .take(2),
-    ctx.db
-      .query("uploadAssetVariants")
-      .withIndex("by_storageId", (q) => q.eq("storageId", id))
-      .take(2),
-  ]);
-  if (
-    [...largeMappings, ...smallMappings].some((row) => row._id !== excluded?.mappingId) ||
-    [...largeJobs, ...smallJobs].some((row) => row._id !== excluded?.jobId) ||
-    [...sourceAssets, ...quarantineAssets].some((row) => row._id !== excluded?.assetId) ||
-    variants.some((row) => row._id !== excluded?.variantId)
-  )
-    return;
-  await ctx.storage.delete(id);
+  const inspection = await inspectProfileStorage(ctx, id, intent);
+  if (inspection.kind === "unreferenced") await ctx.storage.delete(id);
 }
 
 async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Promise<boolean> {
@@ -143,21 +98,29 @@ async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Pr
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
     .first();
   if (image !== null) {
-    await deleteStoredFile(ctx, image.storageId, { mappingId: image._id });
-    await deleteStoredFile(ctx, image.smallStorageId, { mappingId: image._id });
+    await deleteStoredFile(ctx, image.storageId, {
+      kind: "profileErasure",
+      profileId,
+      excluded: { kind: "profileImage", id: image._id },
+    });
+    await deleteStoredFile(ctx, image.smallStorageId, {
+      kind: "profileErasure",
+      profileId,
+      excluded: { kind: "profileImage", id: image._id },
+    });
     await ctx.db.delete(image._id);
     return true;
   }
-  const job = await ctx.db
+  if (await deleteProfileMedia(ctx, profileId)) return true;
+  const hasImageJobs = await ctx.db
     .query("profileImageUploadJobs")
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
     .first();
-  if (job !== null) {
-    await deleteStoredFile(ctx, job.largeStorageId, { jobId: job._id });
-    await deleteStoredFile(ctx, job.smallStorageId, { jobId: job._id });
-    await ctx.db.delete(job._id);
-    return true;
-  }
+  if (hasImageJobs !== null)
+    await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
+      profileId,
+      cursor: null,
+    });
   await ctx.db.delete(profileId);
   return true;
 }
@@ -177,14 +140,23 @@ async function eraseAssetPass(ctx: MutationCtx, customerId: Id<"customers">): Pr
     .withIndex("by_assetId", (q) => q.eq("assetId", asset._id))
     .take(BATCH);
   for (const row of variants) {
-    await deleteStoredFile(ctx, row.storageId, { variantId: row._id });
+    await deleteStoredFile(ctx, row.storageId, {
+      kind: "accountErasure",
+      excluded: { kind: "uploadAssetVariant", id: row._id },
+    });
     await ctx.db.delete(row._id);
   }
   for (const row of references) await ctx.db.delete(row._id);
   if (variants.length === 0 && references.length === 0) {
-    await deleteStoredFile(ctx, asset.quarantineStorageId, { assetId: asset._id });
+    await deleteStoredFile(ctx, asset.quarantineStorageId, {
+      kind: "accountErasure",
+      excluded: { kind: "uploadAsset", id: asset._id },
+    });
     if (asset.sourceStorageId !== asset.quarantineStorageId)
-      await deleteStoredFile(ctx, asset.sourceStorageId, { assetId: asset._id });
+      await deleteStoredFile(ctx, asset.sourceStorageId, {
+        kind: "accountErasure",
+        excluded: { kind: "uploadAsset", id: asset._id },
+      });
     await ctx.db.delete(asset._id);
   }
   return true;

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { inspectProfileStorage } from "./profileStorageReferences";
 
 export const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -104,38 +105,29 @@ export async function removeIfUnreferenced(
   }
   const mapping = await getProfileImageMapping(ctx, storageId);
   if (mapping === null || mapping.profileId !== profileId) return;
-  await ctx.db.delete(mapping._id);
-  await ctx.storage.delete(storageId);
-  if (mapping.smallStorageId !== undefined && mapping.smallStorageId !== storageId)
-    await ctx.storage.delete(mapping.smallStorageId);
+  await releaseProfileImageMapping(ctx, mapping, profileId);
 }
 
-/** Deletes all mapped files for an approved profile deletion. */
-export async function deleteProfileImages(ctx: MutationCtx, profileId: Id<"profiles">) {
-  const mappings = await ctx.db
-    .query("profileImages")
-    .withIndex("by_profileId", (query) => query.eq("profileId", profileId))
-    .take(1001);
-  if (mappings.length > 1000) {
-    throw new Error("Too many profile images are assigned to this profile.");
-  }
-  for (const mapping of mappings) {
-    await ctx.db.delete(mapping._id);
-    const largeReferences = await ctx.db
-      .query("profileImages")
-      .withIndex("by_storageId", (query) => query.eq("storageId", mapping.storageId))
-      .take(2);
-    if (largeReferences.length === 0) await ctx.storage.delete(mapping.storageId);
-    if (mapping.smallStorageId !== undefined) {
-      const smallReferences = await ctx.db
-        .query("profileImages")
-        .withIndex("by_smallStorageId", (query) =>
-          query.eq("smallStorageId", mapping.smallStorageId),
-        )
-        .take(2);
-      if (smallReferences.length === 0) await ctx.storage.delete(mapping.smallStorageId);
-    }
-  }
+export async function releaseProfileImageMapping(
+  ctx: MutationCtx,
+  mapping: Doc<"profileImages">,
+  ignoredProfileId?: Id<"profiles">,
+) {
+  const storageIds = new Set<Id<"_storage">>([mapping.storageId]);
+  if (mapping.smallStorageId !== undefined) storageIds.add(mapping.smallStorageId);
+  const inspections = new Map<Id<"_storage">, Awaited<ReturnType<typeof inspectProfileStorage>>>();
+  for (const storageId of storageIds)
+    inspections.set(
+      storageId,
+      await inspectProfileStorage(ctx, storageId, {
+        kind: "profileImageRelease",
+        mappingId: mapping._id,
+        ignoredProfileId,
+      }),
+    );
+  await ctx.db.delete(mapping._id);
+  for (const [storageId, inspection] of inspections)
+    if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
 }
 
 export const getMapping = internalQuery({
