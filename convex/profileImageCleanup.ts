@@ -1,8 +1,9 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { inspectProfileStorage } from "./profileStorageReferences";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -10,6 +11,11 @@ const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
 
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
+const jobStatusValidator = v.union(
+  v.literal("pending"),
+  v.literal("failed"),
+  v.literal("attached"),
+);
 const countsValidator = v.object({
   scanned: v.number(),
   deleted: v.number(),
@@ -206,6 +212,66 @@ export const prepareProfileForErasure = internalMutation({
   },
 });
 
+export const pageExpiredJobs = internalQuery({
+  args: {
+    status: jobStatusValidator,
+    now: v.number(),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) =>
+    await ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_status_and_createdAt", (query) =>
+        query.eq("status", args.status).lte("createdAt", args.now - ORPHAN_GRACE_MS),
+      )
+      .paginate(args.paginationOpts),
+});
+
+export const reconcileStatusPage = internalMutation({
+  args: {
+    status: jobStatusValidator,
+    cursor: v.union(v.string(), v.null()),
+    now: v.number(),
+    dryRun: v.boolean(),
+    batchSize: v.number(),
+  },
+  returns: countsValidator,
+  handler: async (ctx, args) => {
+    const batchSize = Math.max(1, Math.min(Math.floor(args.batchSize), 32));
+    const page = await ctx.runQuery(internal.profileImageCleanup.pageExpiredJobs, {
+      status: args.status,
+      now: args.now,
+      paginationOpts: { cursor: args.cursor, numItems: batchSize },
+    });
+    const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    for (const job of page.page) {
+      if (args.status === "attached") {
+        if (!args.dryRun) await ctx.db.delete(job._id);
+        continue;
+      }
+      if (job.uploadWindowEndsAt > args.now) continue;
+      const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
+        jobId: job._id,
+        now: args.now,
+        dryRun: args.dryRun,
+      });
+      totals.scanned += result.scanned;
+      totals.deleted += result.deleted;
+      totals.retained += result.retained;
+      totals.skipped += result.skipped;
+    }
+    if (!args.dryRun && !page.isDone)
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.reconcileStatusPage, {
+        status: args.status,
+        cursor: page.continueCursor,
+        now: args.now,
+        dryRun: args.dryRun,
+        batchSize,
+      });
+    return totals;
+  },
+});
+
 export const reconcileExpired = internalMutation({
   args: {
     now: v.optional(v.number()),
@@ -218,31 +284,16 @@ export const reconcileExpired = internalMutation({
     const dryRun = args.dryRun ?? false;
     const requestedBatch = Math.floor(args.jobBatchSize ?? DEFAULT_JOB_BATCH);
     const batchSize = Math.max(1, Math.min(requestedBatch, 32));
-    const cutoff = now - ORPHAN_GRACE_MS;
     const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     for (const status of ["pending", "failed", "attached"] as const) {
-      const jobs = await ctx.db
-        .query("profileImageUploadJobs")
-        .withIndex("by_status_and_createdAt", (query) =>
-          query.eq("status", status).lte("createdAt", cutoff),
-        )
-        .take(batchSize);
-      for (const job of jobs) {
-        if (status === "attached") {
-          if (!dryRun) await ctx.db.delete(job._id);
-          continue;
-        }
-        if (job.uploadWindowEndsAt > now) continue;
-        const result: Counts = await ctx.runMutation(internal.profileImageCleanup.reconcileOneJob, {
-          jobId: job._id,
-          now,
-          dryRun,
-        });
-        totals.scanned += result.scanned;
-        totals.deleted += result.deleted;
-        totals.retained += result.retained;
-        totals.skipped += result.skipped;
-      }
+      const result: Counts = await ctx.runMutation(
+        internal.profileImageCleanup.reconcileStatusPage,
+        { status, cursor: null, now, dryRun, batchSize },
+      );
+      totals.scanned += result.scanned;
+      totals.deleted += result.deleted;
+      totals.retained += result.retained;
+      totals.skipped += result.skipped;
     }
     console.info("profile image orphan reconciliation", totals);
     return totals;

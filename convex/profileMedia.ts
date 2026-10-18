@@ -254,7 +254,13 @@ export async function deleteProfileMedia(
   batchSize = DEFAULT_PROFILE_MEDIA_DELETE_BATCH,
 ): Promise<boolean> {
   const limit = Math.max(1, Math.min(Math.floor(batchSize), MAX_PROFILE_MEDIA_DELETE_BATCH));
-  const [foundJobs, foundAssets] = await Promise.all([
+  const [foundPendingJobs, foundAttachedJobs, foundAssets] = await Promise.all([
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (q) =>
+        q.eq("profileId", profileId).eq("status", "pending"),
+      )
+      .take(limit + 1),
     ctx.db
       .query("profileMediaUploadJobs")
       .withIndex("by_profileId_and_status_and_uploadWindowEndsAt", (q) =>
@@ -266,21 +272,47 @@ export async function deleteProfileMedia(
       .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
       .take(limit + 1),
   ]);
-  if (limit === MAX_PROFILE_MEDIA_DELETE_BATCH && foundJobs.length > limit)
+  if (
+    limit === MAX_PROFILE_MEDIA_DELETE_BATCH &&
+    (foundPendingJobs.length > limit || foundAttachedJobs.length > limit)
+  )
     throw new Error("Too many profile media upload jobs are assigned to this profile.");
   if (limit === MAX_PROFILE_MEDIA_DELETE_BATCH && foundAssets.length > limit)
     throw new Error("Too many profile media assets are assigned to this profile.");
-  const hasMore = foundJobs.length > limit || foundAssets.length > limit;
-  const jobs = foundJobs.slice(0, limit);
+  const pendingJobs = foundPendingJobs.slice(0, limit);
+  const attachedJobs = foundAttachedJobs.slice(0, limit - pendingJobs.length);
+  const hasMore =
+    foundPendingJobs.length > pendingJobs.length ||
+    foundAttachedJobs.length > attachedJobs.length ||
+    foundAssets.length > limit;
+  const jobs = [...pendingJobs, ...attachedJobs];
   const assets = foundAssets.slice(0, limit);
   const storageIds = new Set<Id<"_storage">>();
   for (const job of jobs) {
+    const directStorageIds = [job.storageId, job.previewStorageId].filter(
+      (id): id is Id<"_storage"> => id !== undefined,
+    );
+    const recoveredCandidates = [
+      job.scanSourceCandidateId === undefined
+        ? undefined
+        : {
+            id: job.scanSourceCandidateId,
+            sha256: job.sha256,
+          },
+      job.scanPreviewCandidateId === undefined || job.previewSha256 === undefined
+        ? undefined
+        : {
+            id: job.scanPreviewCandidateId,
+            sha256: job.previewSha256,
+          },
+    ].filter(
+      (candidate): candidate is { id: Id<"_storage">; sha256: string } => candidate !== undefined,
+    );
     const hasRecoveryState =
       job.scanCursor !== undefined ||
-      job.scanSourceCandidateId !== undefined ||
-      job.scanPreviewCandidateId !== undefined ||
       job.scanSourceAmbiguous === true ||
-      job.scanPreviewAmbiguous === true;
+      job.scanPreviewAmbiguous === true ||
+      (directStorageIds.length === 0 && recoveredCandidates.length === 0);
     if (hasRecoveryState) {
       await ctx.db.patch(job._id, {
         status: "failed",
@@ -289,8 +321,41 @@ export async function deleteProfileMedia(
       });
       continue;
     }
-    if (job.storageId !== undefined) storageIds.add(job.storageId);
-    if (job.previewStorageId !== undefined) storageIds.add(job.previewStorageId);
+
+    let recoveryIsSafe = true;
+    const candidatesToDelete = new Set(directStorageIds);
+    for (const candidate of [
+      ...directStorageIds.map((id) => ({ id, sha256: null })),
+      ...recoveredCandidates,
+    ]) {
+      const metadata = await ctx.db.system.get("_storage", candidate.id);
+      if (metadata === null) continue;
+      if (
+        candidate.sha256 !== null &&
+        (metadata.sha256 !== candidate.sha256 ||
+          metadata._creationTime < job.createdAt ||
+          metadata._creationTime > job.uploadWindowEndsAt)
+      )
+        continue;
+      const inspection = await inspectProfileStorage(ctx, candidate.id, {
+        kind: "profileMediaCleanup",
+        currentJobId: job._id,
+      });
+      if (inspection.kind === "uncertain") {
+        recoveryIsSafe = false;
+        break;
+      }
+      candidatesToDelete.add(candidate.id);
+    }
+    if (!recoveryIsSafe) {
+      await ctx.db.patch(job._id, {
+        status: "failed",
+        actorUserId: undefined,
+        accessMode: undefined,
+      });
+      continue;
+    }
+    for (const storageId of candidatesToDelete) storageIds.add(storageId);
     await ctx.db.delete(job._id);
   }
   for (const asset of assets) {
