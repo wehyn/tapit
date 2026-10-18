@@ -16,6 +16,14 @@ function readBlobAsDataUrl(blob: Blob): Promise<string> {
 }
 
 export async function prepareDemoMediaDataUrl(file: File): Promise<string> {
+  const outputMimeType =
+    file.type === "image/jpeg"
+      ? "image/jpeg"
+      : file.type === "image/png" || file.type === "image/webp"
+        ? "image/png"
+        : null;
+  if (outputMimeType === null) throw new Error("Use a JPG, PNG, or WebP image.");
+
   if (
     typeof document === "undefined" ||
     typeof FileReader === "undefined" ||
@@ -43,14 +51,15 @@ export async function prepareDemoMediaDataUrl(file: File): Promise<string> {
         throw new Error("This browser cannot prepare demo media.");
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-      for (const quality of DEMO_MEDIA_JPEG_QUALITIES) {
+      const qualities = outputMimeType === "image/jpeg" ? DEMO_MEDIA_JPEG_QUALITIES : [undefined];
+      for (const quality of qualities) {
         const blob = await new Promise<Blob>((resolve, reject) => {
           canvas.toBlob(
             (nextBlob) =>
               nextBlob
                 ? resolve(nextBlob)
                 : reject(new Error("That image could not be converted. Try again.")),
-            "image/jpeg",
+            outputMimeType,
             quality,
           );
         });
