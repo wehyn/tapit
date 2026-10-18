@@ -1057,6 +1057,48 @@ describe("profile image storage", () => {
     await expect(t.run((ctx) => ctx.storage.getUrl(second))).resolves.toBeNull();
   });
 
+  it("retains image storage while a media asset row still references it", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const storageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob([pngSignature()], { type: "image/png" })),
+    );
+    await owner.action(api.storage.attachImage, {
+      profileId: data.ownerProfileId,
+      storageId,
+      expectedDraftRevision: 0,
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("profileMediaAssets", {
+        storageId,
+        profileId: data.ownerProfileId,
+        ownerId: data.ownerCustomerId,
+        contentType: "image/png",
+        size: 8,
+        width: 1,
+        height: 1,
+        createdAt: 1,
+      }),
+    );
+
+    await owner.mutation(api.storage.removeImage, {
+      profileId: data.ownerProfileId,
+      expectedImageRevision: 1,
+      expectedDraftRevision: 1,
+    });
+
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileImages")
+          .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
+          .take(1),
+      ),
+    ).toEqual([]);
+    await expect(t.run((ctx) => ctx.storage.getUrl(storageId))).resolves.not.toBeNull();
+  });
+
   it("cleans mapped files during approved account deletion", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

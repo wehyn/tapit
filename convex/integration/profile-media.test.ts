@@ -360,6 +360,33 @@ describe("profile media hardening", () => {
     vi.unstubAllEnvs();
   });
 
+  it("rejects administrator upload-job creation after the profile owner is deleted", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run((ctx) =>
+      ctx.db.patch(ids.ownerId, { status: "deleted", deletionStatus: "deleted" }),
+    );
+
+    await expect(
+      t.mutation(internal.profileMedia.createUploadJob, {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        actorUserId: ids.adminUserId,
+        accessMode: "admin",
+        sha256: "a".repeat(64),
+        expectedMediaRevision: 0,
+      }),
+    ).rejects.toThrow("Profile access denied.");
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query("profileMediaUploadJobs")
+          .withIndex("by_profileId", (query) => query.eq("profileId", ids.ownerProfileId))
+          .take(1),
+      ),
+    ).toEqual([]);
+  });
+
   it("rejects an existing administrator media job after its customer owner is deleted", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

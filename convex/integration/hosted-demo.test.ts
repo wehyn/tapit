@@ -2,7 +2,7 @@ import { generateKeyPairSync } from "node:crypto";
 
 import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
@@ -353,6 +353,97 @@ describe("hosted-demo scope boundaries", () => {
         expect(await ctx.db.get(ids.cardId)).not.toBeNull();
         expect(await ctx.db.get(first.claimableCardId)).toBeNull();
       });
+    } finally {
+      if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
+      else process.env.TAPIT_DEMO_AUTH_MODE = previous;
+    }
+  });
+
+  it("continues demo reset across bounded media cleanup passes", async () => {
+    const previous = process.env.TAPIT_DEMO_AUTH_MODE;
+    process.env.TAPIT_DEMO_AUTH_MODE = "hosted-demo";
+    try {
+      const t = convexTest(schema, modules);
+      rateLimiter.register(t);
+      const operatorUserId = await t.run(async (ctx) =>
+        ctx.db.insert("users", { email: "operator@example.test" }),
+      );
+      const seeded = await t.mutation(internal.demo.initialize, { operatorUserId });
+      const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["demo-media-source"])));
+      const ownerId = await t.run(async (ctx) => (await ctx.db.get(seeded.maraProfileId))!.ownerId);
+      await t.run(async (ctx) => {
+        for (let index = 0; index < 1001; index++)
+          await ctx.db.insert("profileMediaUploadJobs", {
+            profileId: seeded.maraProfileId,
+            ownerId,
+            sha256: "a".repeat(64),
+            ...(index === 0 ? { storageId } : {}),
+            expectedMediaRevision: 0,
+            status: "failed",
+            createdAt: index + 1,
+            uploadWindowEndsAt: index + 2,
+          });
+      });
+      const orphan = await t.run(async (ctx) => {
+        const ownerId = await ctx.db.insert("customers", {
+          scope: "demo",
+          email: "orphan@example.test",
+          role: "customer",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        const profileId = await ctx.db.insert("profiles", {
+          scope: "demo",
+          ownerId,
+          slug: "orphan-media",
+          status: "draft",
+          draft: { name: "Orphan", slug: "orphan-media", links: [] },
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        await ctx.db.delete(profileId);
+        return { ownerId, profileId };
+      });
+      const orphanStorageId = await t.run((ctx) =>
+        ctx.storage.store(new Blob(["orphan-demo-media"])),
+      );
+      await t.run(async (ctx) => {
+        for (let index = 0; index < 1001; index++)
+          await ctx.db.insert("profileMediaAssets", {
+            scope: "demo",
+            storageId: orphanStorageId,
+            profileId: orphan.profileId,
+            ownerId: orphan.ownerId,
+            contentType: "image/png",
+            size: 18,
+            width: 1,
+            height: 1,
+            createdAt: index + 1,
+          });
+      });
+
+      const reset = await t.mutation(internal.demo.reset, { operatorUserId });
+      expect(reset.status).toBe("resetting");
+      vi.useFakeTimers();
+      try {
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(
+        await t.run((ctx) =>
+          ctx.db
+            .query("profileMediaUploadJobs")
+            .withIndex("by_profileId", (query) => query.eq("profileId", seeded.maraProfileId))
+            .take(1),
+        ),
+      ).toEqual([]);
+      await expect(t.run((ctx) => ctx.storage.getUrl(storageId))).resolves.toBeNull();
+      await expect(t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).resolves.toBeNull();
+      expect(await t.query(api.profiles.publicBySlug, { slug: "mara-velasquez" })).not.toBeNull();
     } finally {
       if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;
       else process.env.TAPIT_DEMO_AUTH_MODE = previous;
