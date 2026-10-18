@@ -975,6 +975,63 @@ describe("profile media hardening", () => {
     ).toHaveLength(1);
   });
 
+  it("keeps the cleanup job and candidate when duplicate asset references are uncertain", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["uncertain candidate"])));
+    const metadata = await t.run(async (ctx) => (await ctx.db.system.get("_storage", storageId))!);
+    const jobId = await t.run(async (ctx) => {
+      for (const [profileId, ownerId] of [
+        [ids.ownerProfileId, ids.ownerId],
+        [ids.otherProfileId, ids.otherId],
+      ] as const) {
+        await ctx.db.insert("profileMediaAssets", {
+          storageId,
+          profileId,
+          ownerId,
+          contentType: "image/png",
+          size: 20,
+          width: 100,
+          height: 100,
+          createdAt: metadata._creationTime,
+        });
+      }
+      return await ctx.db.insert("profileMediaUploadJobs", {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        sha256: metadata.sha256,
+        scanSourceCandidateId: storageId,
+        expectedMediaRevision: 0,
+        status: "failed",
+        createdAt: metadata._creationTime - 1,
+        uploadWindowEndsAt: metadata._creationTime + 1,
+      });
+    });
+
+    const firstPass = await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId,
+      now: metadata._creationTime + 2 * 24 * 60 * 60 * 1000,
+      dryRun: false,
+    });
+
+    expect(firstPass).toMatchObject({ deleted: 0, retained: 0, skipped: 1 });
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId })).toMatchObject({
+      scanSourceCandidateId: storageId,
+      status: "failed",
+    });
+    expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).not.toBeNull();
+
+    const secondPass = await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId,
+      now: metadata._creationTime + 2 * 24 * 60 * 60 * 1000,
+      dryRun: false,
+    });
+
+    expect(secondPass.deleted).toBe(1);
+    expect(await t.query(internal.profileMedia.getUploadJob, { jobId })).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).toBeNull();
+  });
+
   it("reclaims orphan media beyond 1000 upload jobs while retaining live references", async () => {
     const t = convexTest({ schema, modules, transactionLimits: { documentsRead: 100 } });
     const ids = await seed(t);

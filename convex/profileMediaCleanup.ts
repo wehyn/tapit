@@ -3,47 +3,12 @@ import { paginationOptsValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
-import { profileMediaAssetIds } from "./profileMedia";
+import { inspectProfileStorage } from "./profileStorageReferences";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
 const STORAGE_PAGE_SIZE = 64;
 type Counts = { scanned: number; deleted: number; retained: number; skipped: number };
-
-async function isReferenced(
-  ctx: MutationCtx,
-  storageId: Id<"_storage">,
-  currentJobId: Id<"profileMediaUploadJobs">,
-) {
-  const source = await ctx.db
-    .query("profileMediaAssets")
-    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
-    .unique();
-  const preview = await ctx.db
-    .query("profileMediaAssets")
-    .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", storageId))
-    .unique();
-  const asset = source ?? preview;
-  if (asset !== null) {
-    const profile = await ctx.db.get(asset.profileId);
-    if (
-      profile !== null &&
-      (profileMediaAssetIds(profile.draft.media).includes(asset._id) ||
-        profileMediaAssetIds(profile.published?.media).includes(asset._id))
-    )
-      return true;
-  }
-  const jobs = await ctx.db
-    .query("profileMediaUploadJobs")
-    .withIndex("by_storageId", (q) => q.eq("storageId", storageId))
-    .take(2);
-  if (jobs.some((job) => job._id !== currentJobId)) return true;
-  const previewJobs = await ctx.db
-    .query("profileMediaUploadJobs")
-    .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", storageId))
-    .take(2);
-  return previewJobs.some((job) => job._id !== currentJobId);
-}
 
 function rememberCandidate(
   current: Id<"_storage"> | undefined,
@@ -113,6 +78,7 @@ async function reconcileJob(
 
   const candidates = new Map<Id<"_storage">, string | null>();
   let unresolved = false;
+  const uncertainStorageIds = new Set<Id<"_storage">>();
   if (job.storageId !== undefined) candidates.set(job.storageId, null);
   if (job.previewStorageId !== undefined) candidates.set(job.previewStorageId, null);
   if (job.status !== "attached" && sourceAmbiguous) {
@@ -143,9 +109,19 @@ async function reconcileJob(
       unresolved = true;
       continue;
     }
-    const referenced = await isReferenced(ctx, storageId, job._id);
-    if (referenced) {
+    const inspection = await inspectProfileStorage(ctx, storageId, {
+      kind: "profileMediaCleanup",
+      currentJobId: job._id,
+    });
+    if (!dryRun) for (const assetId of inspection.staleMediaAssetIds) await ctx.db.delete(assetId);
+    if (inspection.kind === "referenced") {
       counts.retained += 1;
+      continue;
+    }
+    if (inspection.kind === "uncertain") {
+      counts.skipped += 1;
+      unresolved = true;
+      uncertainStorageIds.add(storageId);
       continue;
     }
     if (dryRun) counts.retained += 1;
@@ -164,7 +140,19 @@ async function reconcileJob(
       counts.deleted += 1;
     }
   }
-  if (!dryRun && !unresolved) await ctx.db.delete(job._id);
+  if (!dryRun && uncertainStorageIds.size > 0) {
+    await ctx.db.patch(job._id, {
+      scanCursor: undefined,
+      scanSourceCandidateId:
+        sourceCandidate !== undefined && uncertainStorageIds.has(sourceCandidate)
+          ? sourceCandidate
+          : job.scanSourceCandidateId,
+      scanPreviewCandidateId:
+        previewCandidate !== undefined && uncertainStorageIds.has(previewCandidate)
+          ? previewCandidate
+          : job.scanPreviewCandidateId,
+    });
+  } else if (!dryRun && !unresolved) await ctx.db.delete(job._id);
   return counts;
 }
 

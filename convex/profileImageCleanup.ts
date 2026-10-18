@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
-import { getProfileImageMapping } from "./profileImages";
+import { inspectProfileStorage } from "./profileStorageReferences";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
@@ -22,105 +22,11 @@ async function isReferenced(
   storageId: Id<"_storage">,
   currentJobId: Id<"profileImageUploadJobs">,
 ) {
-  if ((await getProfileImageMapping(ctx, storageId)) !== null) return true;
-  const largeJobs = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_largeStorageId", (query) => query.eq("largeStorageId", storageId))
-    .take(2);
-  const smallJobs = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_smallStorageId", (query) => query.eq("smallStorageId", storageId))
-    .take(2);
-  const largeCandidates = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_scanLargeCandidateId", (query) => query.eq("scanLargeCandidateId", storageId))
-    .take(2);
-  const smallCandidates = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_scanSmallCandidateId", (query) => query.eq("scanSmallCandidateId", storageId))
-    .take(2);
-  if (
-    [...largeJobs, ...smallJobs, ...largeCandidates, ...smallCandidates].some(
-      (job) => job._id !== currentJobId,
-    )
-  )
-    return true;
-  const [
-    mediaAssets,
-    mediaPreviews,
-    mediaJobs,
-    mediaJobPreviews,
-    mediaCandidates,
-    previewCandidates,
-    uploadSources,
-    uploadQuarantines,
-    variants,
-  ] = await Promise.all([
-    ctx.db
-      .query("profileMediaAssets")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaAssets")
-      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_previewStorageId", (query) => query.eq("previewStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_scanSourceCandidateId", (query) =>
-        query.eq("scanSourceCandidateId", storageId),
-      )
-      .take(1),
-    ctx.db
-      .query("profileMediaUploadJobs")
-      .withIndex("by_scanPreviewCandidateId", (query) =>
-        query.eq("scanPreviewCandidateId", storageId),
-      )
-      .take(1),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_sourceStorageId", (query) => query.eq("sourceStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("uploadAssets")
-      .withIndex("by_quarantineStorageId", (query) => query.eq("quarantineStorageId", storageId))
-      .take(1),
-    ctx.db
-      .query("uploadAssetVariants")
-      .withIndex("by_storageId", (query) => query.eq("storageId", storageId))
-      .take(1),
-  ]);
-  if (
-    mediaAssets.length > 0 ||
-    mediaPreviews.length > 0 ||
-    mediaJobs.length > 0 ||
-    mediaJobPreviews.length > 0 ||
-    mediaCandidates.length > 0 ||
-    previewCandidates.length > 0 ||
-    uploadSources.length > 0 ||
-    uploadQuarantines.length > 0 ||
-    variants.length > 0
-  )
-    return true;
-  const draftProfiles = await ctx.db
-    .query("profiles")
-    .withIndex("by_draft_imageStorageId", (query) => query.eq("draft.imageStorageId", storageId))
-    .take(1);
-  if (draftProfiles.length > 0) return true;
-  const publishedProfiles = await ctx.db
-    .query("profiles")
-    .withIndex("by_published_imageStorageId", (query) =>
-      query.eq("published.imageStorageId", storageId),
-    )
-    .take(1);
-  return publishedProfiles.length > 0;
+  const inspection = await inspectProfileStorage(ctx, storageId, {
+    kind: "profileImageCleanup",
+    currentJobId,
+  });
+  return inspection.kind !== "unreferenced";
 }
 
 function rememberCandidate(

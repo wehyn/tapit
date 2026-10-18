@@ -4,7 +4,8 @@ import { digest } from "./cards";
 import { env, internalMutation, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { deleteProfileImages } from "./profileImages";
-import { deleteProfileMedia } from "./profileMedia";
+import { deleteProfileMedia, MAX_PROFILE_MEDIA_DELETE_BATCH } from "./profileMedia";
+import { inspectProfileStorage } from "./profileStorageReferences";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -429,7 +430,7 @@ export const reset = internalMutation({
       .take(10_000);
     for (const profile of demoProfiles) {
       await deleteProfileImages(ctx, profile._id);
-      await deleteProfileMedia(ctx, profile._id);
+      await deleteProfileMedia(ctx, profile._id, MAX_PROFILE_MEDIA_DELETE_BATCH);
     }
     const demoCards = await ctx.db
       .query("cards")
@@ -468,32 +469,14 @@ export const reset = internalMutation({
       .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))
       .take(10_000)) {
       await ctx.db.delete(row._id);
-      const [sourceReferences, previewReferences] = await Promise.all([
-        ctx.db
-          .query("profileMediaAssets")
-          .withIndex("by_storageId", (q) => q.eq("storageId", row.storageId))
-          .take(1),
-        ctx.db
-          .query("profileMediaAssets")
-          .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", row.storageId))
-          .take(1),
-      ]);
-      if (sourceReferences.length === 0 && previewReferences.length === 0)
-        await ctx.storage.delete(row.storageId);
-      const previewStorageId = row.previewStorageId;
-      if (previewStorageId !== undefined && previewStorageId !== row.storageId) {
-        const [sourcePreviewReferences, previewPreviewReferences] = await Promise.all([
-          ctx.db
-            .query("profileMediaAssets")
-            .withIndex("by_storageId", (q) => q.eq("storageId", previewStorageId))
-            .take(1),
-          ctx.db
-            .query("profileMediaAssets")
-            .withIndex("by_previewStorageId", (q) => q.eq("previewStorageId", previewStorageId))
-            .take(1),
-        ]);
-        if (sourcePreviewReferences.length === 0 && previewPreviewReferences.length === 0)
-          await ctx.storage.delete(previewStorageId);
+      const storageIds = new Set<Id<"_storage">>([row.storageId]);
+      if (row.previewStorageId !== undefined) storageIds.add(row.previewStorageId);
+      for (const storageId of storageIds) {
+        const inspection = await inspectProfileStorage(ctx, storageId, {
+          kind: "profileMediaAssetRelease",
+          assetId: row._id,
+        });
+        if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
       }
     }
     for (const profile of demoProfiles) await ctx.db.delete(profile._id);
