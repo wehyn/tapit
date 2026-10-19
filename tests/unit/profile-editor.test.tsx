@@ -189,6 +189,7 @@ describe("ProfileEditor workspace boundaries", () => {
         "Overview",
         "Identity",
         "Media",
+        "Slideshow",
         "Layout",
       ]);
       expect(screen.getByRole("tab", { name: "Overview" })).toBeVisible();

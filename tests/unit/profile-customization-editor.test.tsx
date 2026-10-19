@@ -12,7 +12,7 @@ import {
 import type { ProfileMediaPresentation } from "../../src/lib/profile-media";
 
 // Failure modes covered by this isolated component test:
-// - the old mixed accordion can reappear instead of the four visual categories;
+// - the old mixed accordion can reappear instead of the five visual categories;
 // - tab relationships, selected state, focus, ordering, or disabled legacy behavior can drift;
 // - controls can update the wrong customization field or lose values between category switches;
 // - identity colors can share state, mutate nested draft data, or weaken the white exception;
@@ -67,7 +67,7 @@ describe("ProfileCustomizationEditor", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the four tabs in order, starts on Overview, and switches panels", async () => {
+  it("renders the five tabs in order, starts on Overview, and switches panels", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<ControlledEditor onChange={onChange} />);
@@ -76,6 +76,7 @@ describe("ProfileCustomizationEditor", () => {
       "Overview",
       "Identity",
       "Media",
+      "Slideshow",
       "Layout",
     ]);
     expect(screen.getByRole("tablist", { name: "Customization categories" })).toHaveAttribute(

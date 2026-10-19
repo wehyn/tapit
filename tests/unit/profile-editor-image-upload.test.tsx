@@ -232,7 +232,7 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   );
   render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Slideshow" }));
   const slideshowInput = screen.getByLabelText("Upload slideshow images");
   fireEvent.change(slideshowInput, {
     target: { files: [new File(["first"], "first.png", { type: "image/png" })] },
@@ -247,7 +247,7 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
   fireEvent.click(screen.getByLabelText("Moss"));
   expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Slideshow" }));
   expect(screen.getByText("Uploading", { exact: true })).toBeVisible();
   expect(screen.getByText("Waiting", { exact: true })).toBeVisible();
   expect(fetchMock).toHaveBeenCalledOnce();
