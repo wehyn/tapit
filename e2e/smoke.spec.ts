@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { createDefaultDemoState } from "../src/lib/demo/fixtures";
+import { serializeDemoState } from "../src/lib/demo/storage-codec";
 import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
 test("homepage presents a Tapit profile and profile creation action at mobile and desktop sizes", async ({
@@ -165,11 +167,54 @@ test("homepage routes a stale inactive demo session to account recovery", async 
   await recoveryActions.nth(1).click();
 
   await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
-  await expect(page.getByRole("alert")).toContainText(/account is inactive/i);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
   await page.getByLabel("Email").fill("admin@tapit.local");
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
+});
+
+test("customer workspace routes a restricted demo session to account recovery", async ({
+  page,
+}) => {
+  await signInAsCustomer(page);
+  await page.getByRole("link", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Request deletion" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
+  await expect(page).toHaveURL(/\/login\?next=/);
+
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "tapit:demo-session:v1",
+      JSON.stringify({ email: "mara@example.test", role: "customer" }),
+    );
+  });
+  await page.goto("/app/profile");
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+});
+
+test("local sign-in routes a customer without an owned profile to account recovery", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  const state = createDefaultDemoState();
+  const customer = state.customers.find((candidate) => candidate.email === "mara@example.test");
+  if (!customer?.profileId)
+    throw new Error("The demo customer must own a profile before the fixture changes.");
+  state.profiles = state.profiles.filter((profile) => profile.id !== customer.profileId);
+  await page.evaluate((serializedState) => {
+    window.localStorage.setItem("tapit:demo-state:v1", serializedState);
+  }, serializeDemoState(state));
+  await page.reload();
+
+  await page.getByLabel("Email").fill("mara@example.test");
+  await page.getByLabel("Password").fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
 });
 
 test("premium landing stays within supported viewport widths", async ({ page }) => {
