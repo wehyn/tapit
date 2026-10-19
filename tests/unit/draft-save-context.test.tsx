@@ -9,6 +9,7 @@ import {
   useDraftSave,
   useDraftSaveRegistration,
   type DraftSaveHandler,
+  type DraftSaveOutcome,
 } from "@/components/layout/DraftSaveContext";
 
 const push = vi.fn();
@@ -69,8 +70,8 @@ const testNavGroups: ShellNavGroup[] = [
 
 describe("DraftSaveProvider", () => {
   it("does not let a stale unregister clear the latest handler", async () => {
-    const first = vi.fn<DraftSaveHandler>(async () => true);
-    const second = vi.fn<DraftSaveHandler>(async () => true);
+    const first = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
+    const second = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
 
     function Harness() {
       const [showFirst, setShowFirst] = useState(true);
@@ -115,10 +116,10 @@ describe("AppShell draft navigation", () => {
   });
 
   it("waits for a successful save before routing", async () => {
-    let resolveSave!: (value: boolean) => void;
+    let resolveSave!: (value: DraftSaveOutcome) => void;
     const save = vi.fn(
       () =>
-        new Promise<boolean>((resolve) => {
+        new Promise<DraftSaveOutcome>((resolve) => {
           resolveSave = resolve;
         }),
     );
@@ -127,7 +128,7 @@ describe("AppShell draft navigation", () => {
       <DraftSaveProvider>
         <SaveButton handler={save} />
         <AppShell
-          beforeNavigate={async () => useSave(save)}
+          beforeNavigate={async () => saveAndAllowNavigation(save)}
           eyebrow="Customer workspace"
           navGroups={testNavGroups}
           title="Workspace"
@@ -139,15 +140,15 @@ describe("AppShell draft navigation", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "Links" }));
     expect(push).not.toHaveBeenCalled();
-    resolveSave(true);
+    resolveSave({ kind: "saved" });
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/links"));
   });
 
   it("waits for a successful save before routing from Profile to Customize", async () => {
-    let resolveSave!: (value: boolean) => void;
+    let resolveSave!: (value: DraftSaveOutcome) => void;
     const save = vi.fn(
       () =>
-        new Promise<boolean>((resolve) => {
+        new Promise<DraftSaveOutcome>((resolve) => {
           resolveSave = resolve;
         }),
     );
@@ -156,7 +157,7 @@ describe("AppShell draft navigation", () => {
       const saveDraft = useDraftSave();
       return (
         <AppShell
-          beforeNavigate={saveDraft}
+          beforeNavigate={async (href) => (await saveDraft(href)).kind === "saved"}
           eyebrow="Customer workspace"
           navGroups={testNavGroups}
           title="Workspace"
@@ -176,17 +177,20 @@ describe("AppShell draft navigation", () => {
     fireEvent.click(screen.getByRole("link", { name: "Customize" }));
     expect(save).toHaveBeenCalledOnce();
     expect(push).not.toHaveBeenCalled();
-    resolveSave(true);
+    resolveSave({ kind: "saved" });
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/customize"));
   });
 
   it("cancels routing when saving fails", async () => {
-    const save = vi.fn<DraftSaveHandler>(async () => false);
+    const save = vi.fn<DraftSaveHandler>(async () => ({
+      kind: "blocked",
+      blocker: { kind: "links-validation", messages: ["Fix the highlighted link."] },
+    }));
 
     render(
       <DraftSaveProvider>
         <AppShell
-          beforeNavigate={async () => save()}
+          beforeNavigate={async () => saveAndAllowNavigation(save)}
           eyebrow="Customer workspace"
           navGroups={testNavGroups}
           title="Workspace"
@@ -205,11 +209,11 @@ describe("AppShell draft navigation", () => {
     ["modified click", { metaKey: true }],
     ["middle click", { button: 1 }],
   ])("does not flush drafts for a %s", async (_label, eventInit) => {
-    const save = vi.fn<DraftSaveHandler>(async () => true);
+    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
 
     render(
       <AppShell
-        beforeNavigate={async () => save()}
+        beforeNavigate={async () => saveAndAllowNavigation(save)}
         eyebrow="Customer workspace"
         navGroups={testNavGroups}
         title="Workspace"
@@ -224,11 +228,11 @@ describe("AppShell draft navigation", () => {
   });
 
   it("does not flush drafts for external destinations", () => {
-    const save = vi.fn<DraftSaveHandler>(async () => true);
+    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
 
     render(
       <AppShell
-        beforeNavigate={async () => save()}
+        beforeNavigate={async () => saveAndAllowNavigation(save)}
         eyebrow="Customer workspace"
         navGroups={[
           {
@@ -248,12 +252,12 @@ describe("AppShell draft navigation", () => {
   });
 
   it("does not flush drafts when another handler already prevented the click", () => {
-    const save = vi.fn<DraftSaveHandler>(async () => true);
+    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
 
     render(
       <div onClick={(event) => event.preventDefault()}>
         <AppShell
-          beforeNavigate={async () => save()}
+          beforeNavigate={async () => saveAndAllowNavigation(save)}
           eyebrow="Customer workspace"
           navGroups={testNavGroups}
           title="Workspace"
@@ -272,6 +276,6 @@ describe("AppShell draft navigation", () => {
   });
 });
 
-function useSave(save: DraftSaveHandler): Promise<boolean> {
-  return save();
+function saveAndAllowNavigation(save: DraftSaveHandler): Promise<boolean> {
+  return save().then((outcome) => outcome.kind === "saved");
 }

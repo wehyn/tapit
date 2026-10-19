@@ -79,7 +79,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
   const [sessionError, setSessionError] = useState("");
-  const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
+  const beforeNavigate = useCallback(async () => (await draftSave()).kind === "saved", [draftSave]);
   const clearInvalidSession = useCallback(() => {
     signingOut.current = recoveryPath !== null;
     if (!clearDemoSession()) {
@@ -163,7 +163,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const activeAccess = isActiveAccess(access);
   const draftSave = useDraftSave();
-  const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
+  const beforeNavigate = useCallback(async () => (await draftSave()).kind === "saved", [draftSave]);
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;

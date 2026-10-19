@@ -37,6 +37,7 @@ export type ProfileCustomizationEditorProps = {
   barePanels?: boolean;
   customization?: ProfileCustomization;
   errors?: readonly string[];
+  mediaFocusRequest?: number;
   media?: ProfileMediaPresentation;
   mediaBusy?: boolean;
   mediaError?: string;
@@ -542,6 +543,7 @@ export function ProfileCustomizationEditor({
   barePanels = false,
   customization,
   errors = [],
+  mediaFocusRequest = 0,
   media,
   mediaBusy,
   mediaError,
@@ -554,7 +556,7 @@ export function ProfileCustomizationEditor({
   onThemeChange,
   theme,
 }: ProfileCustomizationEditorProps) {
-  type CategoryFocusTarget = "panel" | "tab";
+  type CategoryFocusTarget = "panel" | "tab" | "recovery-panel";
 
   const baseId = useId();
   const panelRefs = useRef<Partial<Record<ProfileCustomizationCategory, HTMLElement | null>>>({});
@@ -562,6 +564,7 @@ export function ProfileCustomizationEditor({
     {},
   );
   const focusTargetRef = useRef<CategoryFocusTarget | null>(null);
+  const handledMediaFocusRequestRef = useRef(0);
   const focusOverviewAfterTransitionRef = useRef(false);
   const [selectedCategory, setSelectedCategory] =
     useState<ProfileCustomizationCategory>("overview");
@@ -588,7 +591,29 @@ export function ProfileCustomizationEditor({
     const focusTarget = focusTargetRef.current;
     focusTargetRef.current = null;
     if (focusTarget === "panel") panelRefs.current[activeCategory]?.focus();
+    if (focusTarget === "recovery-panel") {
+      let focusFrame = window.requestAnimationFrame(() => {
+        focusFrame = window.requestAnimationFrame(() => panelRefs.current.media?.focus());
+      });
+      return () => window.cancelAnimationFrame(focusFrame);
+    }
+    return;
   }, [activeCategory]);
+
+  useEffect(() => {
+    if (mediaFocusRequest <= handledMediaFocusRequestRef.current) return;
+    handledMediaFocusRequestRef.current = mediaFocusRequest;
+    focusTargetRef.current = "recovery-panel";
+    if (activeCategory === "media") {
+      focusTargetRef.current = null;
+      let focusFrame = window.requestAnimationFrame(() => {
+        focusFrame = window.requestAnimationFrame(() => panelRefs.current.media?.focus());
+      });
+      return () => window.cancelAnimationFrame(focusFrame);
+    }
+    setCategory("media");
+    return;
+  }, [activeCategory, mediaFocusRequest]);
 
   useEffect(() => {
     if (!focusOverviewAfterTransitionRef.current) return;

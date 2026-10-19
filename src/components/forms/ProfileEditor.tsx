@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
+import { useRouter } from "next/navigation";
 import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
@@ -57,7 +58,12 @@ import {
 } from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
-import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
+import {
+  useDraftSaveLink,
+  useDraftSaveRegistration,
+  type DraftDepartureState,
+  type DraftSaveOutcome,
+} from "@/components/layout/DraftSaveContext";
 import {
   classifyProfileWorkspaceError,
   splitProfileWorkspaceErrors,
@@ -197,6 +203,7 @@ function getPublishRequirements(errors: readonly string[]): PublishRequirement[]
 }
 
 function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
+  const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -207,6 +214,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   }));
   const theme = draft.theme ?? legacyTheme;
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
+  const [mediaFocusRequest, setMediaFocusRequest] = useState(0);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
@@ -292,17 +301,21 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     updateField("theme", themeOption);
   }
 
-  async function saveDraft() {
+  async function saveDraft(): Promise<DraftSaveOutcome> {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
-      return false;
+      return { kind: "deferred", reason: "pending-media" };
     }
+    if (cropFile !== null) return { kind: "deferred", reason: "crop-open" };
+    if (imagePending) return { kind: "deferred", reason: "pending-media" };
     if (mediaErrors.length > 0) {
       setMessage({ tone: "error", text: mediaErrors.join(" ") });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "media-validation", messages: mediaErrors },
+      };
     }
-    if (cropFile !== null || imagePending) return false;
-    if (!isDirty) return true;
+    if (!isDirty) return { kind: "saved" };
     try {
       let assignedSlug = profile.draft.slug;
       updateDemoState((current) =>
@@ -322,17 +335,48 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           ? "Draft saved. The assigned profile slug was refreshed and is managed by an administrator."
           : "Draft saved. Visitors still see the last published version.",
       });
-      return true;
+      return { kind: "saved" };
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Draft could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Draft could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     }
   }
 
-  useDraftSaveRegistration(saveDraft);
+  async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
+    if (href !== undefined) setDepartureState({ kind: "saving", href });
+    let outcome: DraftSaveOutcome;
+    try {
+      outcome = await saveDraft();
+    } catch (error) {
+      outcome = {
+        kind: "failed",
+        message: error instanceof Error ? error.message : "Draft could not be saved.",
+      };
+    }
+    if (href === undefined) return outcome;
+    if (outcome.kind === "saved") {
+      setDepartureState({ kind: "idle" });
+    } else {
+      setDepartureState({ kind: "repair", href, outcome });
+      if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
+        setMediaFocusRequest((current) => current + 1);
+      }
+    }
+    return outcome;
+  }
+
+  useDraftSaveRegistration(saveForNavigation);
+
+  async function saveAndContinue() {
+    if (departureState.kind !== "repair") return;
+    const { href } = departureState;
+    const outcome = await saveForNavigation(href);
+    if (outcome.kind === "saved") router.push(href);
+  }
 
   function publish() {
     if (hasUnresolvedMedia) {
@@ -608,6 +652,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
                 barePanels={view === "customize"}
                 customization={draft.customization}
                 errors={customizationErrors}
+                mediaFocusRequest={mediaFocusRequest}
                 media={draft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
@@ -625,7 +670,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
         )
       }
       message={
-        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+        view === "customize" && message && departureState.kind === "idle" ? (
+          <Notice tone={message.tone}>{message.text}</Notice>
+        ) : null
       }
       cropDialog={
         cropFile !== null ? (
@@ -640,6 +687,9 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           />
         ) : null
       }
+      departureState={departureState}
+      onSaveAndContinue={() => void saveAndContinue()}
+      onStayHere={() => setDepartureState({ kind: "idle" })}
       onPublish={publish}
       publishRequirements={publishRequirements}
       firstVisitRequirementKey={
@@ -690,12 +740,15 @@ function LiveProfileEditorContent({
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
   view: ProfileEditorView;
 }) {
+  const router = useRouter();
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const removeImage = useMutation(api.storage.removeImage);
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
+  const [mediaFocusRequest, setMediaFocusRequest] = useState(0);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
@@ -705,8 +758,10 @@ function LiveProfileEditorContent({
   const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
   const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
-  const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
-  const registeredSave = useCallback(() => navigationSaveRef.current(), []);
+  const navigationSaveRef = useRef<(href?: string) => Promise<DraftSaveOutcome>>(async () => ({
+    kind: "saved",
+  }));
+  const registeredSave = useCallback((href?: string) => navigationSaveRef.current(href), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
   const imageRequestRef = useRef(0);
@@ -993,17 +1048,23 @@ function LiveProfileEditorContent({
     return persistedDraft;
   }
 
-  async function saveDraft(keepPublishPending = false): Promise<boolean> {
+  async function saveDraft(keepPublishPending = false): Promise<DraftSaveOutcome> {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
-      return false;
+      return { kind: "deferred", reason: "pending-media" };
     }
+    if (cropFile !== null) return { kind: "deferred", reason: "crop-open" };
+    if (pending === "image") return { kind: "deferred", reason: "pending-media" };
+    if (!keepPublishPending && pending !== null)
+      return { kind: "deferred", reason: "pending-save" };
     if (mediaErrors.length > 0) {
       setMessage({ tone: "error", text: mediaErrors.join(" ") });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "media-validation", messages: mediaErrors },
+      };
     }
-    if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
-    if (!isDirty) return true;
+    if (!isDirty) return { kind: "saved" };
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
     try {
@@ -1029,25 +1090,56 @@ function LiveProfileEditorContent({
             tone: "success",
             text: "Draft saved. Visitors still see the last published version.",
           });
-          return true;
+          return { kind: "saved" };
         }
         draftToSave = latestDraft;
       }
       throw new Error("Your draft changed while it was saving. Try again.");
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Draft could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Draft could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     } finally {
       if (!keepPublishPending) setPending(null);
     }
   }
 
+  async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
+    if (href !== undefined) setDepartureState({ kind: "saving", href });
+    let outcome: DraftSaveOutcome;
+    try {
+      outcome = await saveDraft();
+    } catch (error) {
+      outcome = {
+        kind: "failed",
+        message: error instanceof Error ? error.message : "Draft could not be saved.",
+      };
+    }
+    if (href === undefined) return outcome;
+    if (outcome.kind === "saved") {
+      setDepartureState({ kind: "idle" });
+    } else {
+      setDepartureState({ kind: "repair", href, outcome });
+      if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
+        setMediaFocusRequest((current) => current + 1);
+      }
+    }
+    return outcome;
+  }
+
   useEffect(() => {
-    navigationSaveRef.current = saveDraft;
+    navigationSaveRef.current = saveForNavigation;
   });
+
+  async function saveAndContinue() {
+    if (departureState.kind !== "repair") return;
+    const { href } = departureState;
+    const outcome = await saveForNavigation(href);
+    if (outcome.kind === "saved") router.push(href);
+  }
 
   async function publish() {
     if (hasUnresolvedMedia) {
@@ -1061,7 +1153,7 @@ function LiveProfileEditorContent({
     setPending("publish");
     setMessage(null);
     try {
-      if (isDirty && !(await saveDraft(true))) return;
+      if (isDirty && (await saveDraft(true)).kind !== "saved") return;
       await publishMutation({
         profileId: liveProfile._id,
         expectedImageRevision: imageRevisionRef.current,
@@ -1218,6 +1310,7 @@ function LiveProfileEditorContent({
                 barePanels={view === "customize"}
                 customization={currentDraft.customization}
                 errors={customizationErrors}
+                mediaFocusRequest={mediaFocusRequest}
                 media={currentDraft.media}
                 mediaBusy={mediaBusy}
                 mediaError={mediaError}
@@ -1235,7 +1328,9 @@ function LiveProfileEditorContent({
         )
       }
       message={
-        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+        view === "customize" && message && departureState.kind === "idle" ? (
+          <Notice tone={message.tone}>{message.text}</Notice>
+        ) : null
       }
       cropDialog={
         cropFile !== null ? (
@@ -1250,6 +1345,9 @@ function LiveProfileEditorContent({
           />
         ) : null
       }
+      departureState={departureState}
+      onSaveAndContinue={() => void saveAndContinue()}
+      onStayHere={() => setDepartureState({ kind: "idle" })}
       onPublish={publish}
       publishRequirements={publishRequirements}
       firstVisitRequirementKey={

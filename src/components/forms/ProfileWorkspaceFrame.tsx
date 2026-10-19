@@ -5,7 +5,7 @@ import type { PublicProfileProjection } from "@/lib/domain";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
-import { useDraftSaveLink } from "@/components/layout/DraftSaveContext";
+import { useDraftSaveLink, type DraftDepartureState } from "@/components/layout/DraftSaveContext";
 
 export type PublishRequirement = {
   id: string;
@@ -49,6 +49,9 @@ export type ProfileWorkspaceFrameProps = {
   firstVisitRequirementKey?: string;
   draftStatus?: ReactNode;
   cropDialog?: ReactNode;
+  departureState?: DraftDepartureState;
+  onSaveAndContinue?: () => void;
+  onStayHere?: () => void;
 };
 
 export function ProfileWorkspaceFrame({
@@ -70,6 +73,9 @@ export function ProfileWorkspaceFrame({
   firstVisitRequirementKey,
   draftStatus,
   cropDialog,
+  departureState,
+  onSaveAndContinue,
+  onStayHere,
 }: ProfileWorkspaceFrameProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
@@ -175,6 +181,19 @@ export function ProfileWorkspaceFrame({
         ref={editorRef}
         tabIndex={-1}
       >
+        {departureState?.kind === "saving" ? (
+          <Notice>
+            <p aria-live="polite" role="status">
+              Saving your draft before opening {destinationLabel(departureState.href)}.
+            </p>
+          </Notice>
+        ) : departureState?.kind === "repair" ? (
+          <DepartureRecovery
+            departure={departureState}
+            onSaveAndContinue={onSaveAndContinue}
+            onStayHere={onStayHere}
+          />
+        ) : null}
         {message}
         {controls}
       </section>
@@ -242,6 +261,58 @@ export function ProfileWorkspaceFrame({
         />
       ) : null}
     </div>
+  );
+}
+
+function destinationLabel(href: string): string {
+  if (href === "/app/customize") return "Customize";
+  if (href === "/app/links") return "Links";
+  if (href === "/app/profile") return "Profile";
+  return "the requested page";
+}
+
+function DepartureRecovery({
+  departure,
+  onSaveAndContinue,
+  onStayHere,
+}: {
+  departure: Extract<DraftDepartureState, { kind: "repair" }>;
+  onSaveAndContinue?: () => void;
+  onStayHere?: () => void;
+}) {
+  const { outcome, href } = departure;
+  const isError = outcome.kind === "blocked" || outcome.kind === "failed";
+
+  return (
+    <Notice tone={isError ? "error" : "neutral"}>
+      <div className="grid gap-3">
+        {outcome.kind === "blocked" ? (
+          <ul className="grid gap-1">
+            {outcome.blocker.messages.map((message) => (
+              <li key={message}>{message}</li>
+            ))}
+          </ul>
+        ) : outcome.kind === "deferred" ? (
+          <p>
+            {outcome.reason === "crop-open"
+              ? "Finish or cancel the open crop before continuing."
+              : outcome.reason === "pending-media"
+                ? "Media work is still in progress. Retry after it finishes."
+                : "A draft save is still in progress. Retry after it finishes."}
+          </p>
+        ) : outcome.kind === "failed" ? (
+          <p>{outcome.message}</p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onSaveAndContinue} type="button">
+            Save and continue to {destinationLabel(href)}
+          </Button>
+          <Button onClick={onStayHere} type="button" variant="quiet">
+            Stay here
+          </Button>
+        </div>
+      </div>
+    </Notice>
   );
 }
 
