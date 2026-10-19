@@ -137,7 +137,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
         <CustomerAccountMenu
           email={access.account.email}
           onSignOut={async () => {
-            if (!(await draftSave())) {
+            if ((await draftSave()).kind !== "saved") {
               throw new Error("Your draft could not be saved. You are still signed in.");
             }
             if (!clearDemoSession()) {
@@ -201,7 +201,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
         <CustomerAccountMenu
           email={access.email ?? "Account"}
           onSignOut={async () => {
-            if (!(await draftSave())) {
+            if ((await draftSave()).kind !== "saved") {
               throw new Error("Your draft could not be saved. You are still signed in.");
             }
             await signOut();
