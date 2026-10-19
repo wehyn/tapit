@@ -303,6 +303,25 @@ describe("homepage actions for live access", () => {
       "/app/profile",
     );
   });
+
+  it("sends an active customer without a profile to account recovery", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      profileId: null,
+    });
+    const PublicAccountAction = await loadPublicAccountAction();
+
+    render(<PublicAccountAction placement="hero" />);
+
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login?reason=account-inactive",
+    );
+  });
 });
 
 describe("non-active workspace shells", () => {
