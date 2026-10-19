@@ -497,7 +497,7 @@ describe("pending Google onboarding", () => {
 
     render(<OnboardingForm />);
 
-    const name = screen.getByLabelText("Display name");
+    const name = screen.getByLabelText(/^Display name/);
     expect(name).toHaveValue("Google Display Name");
     expect(screen.getByText(/private draft/i)).toBeInTheDocument();
     await user.clear(name);
