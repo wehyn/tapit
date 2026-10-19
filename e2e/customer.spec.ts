@@ -2656,6 +2656,30 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   ).toBeVisible();
 });
 
+test("a stale sign-in tab routes an account deletion request to recovery", async ({
+  page,
+  context,
+}) => {
+  await resetDemoHarness(page);
+
+  const secondTab = await context.newPage();
+  await signInAsCustomer(secondTab);
+  await secondTab.goto("/app/account");
+  await secondTab.getByRole("button", { name: "Request deletion" }).click();
+  await secondTab.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
+  await expect(secondTab).toHaveURL(/\/login\?reason=account-inactive$/);
+
+  await expect(page).toHaveURL(/\/login(?:\?reason=account-inactive)?$/);
+  if (new URL(page.url()).searchParams.get("reason") !== "account-inactive") {
+    await page.getByLabel("Email").fill("mara@example.test");
+    await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  }
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+});
+
 test("Account support and deletion copy explain the current outcomes", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);

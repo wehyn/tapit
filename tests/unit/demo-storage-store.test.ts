@@ -49,6 +49,15 @@ describe("demo storage store", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe(futureVersionState);
   });
 
+  it("does not reset over future-version data written after hydration", async () => {
+    const { getDemoState, resetDemoState } = await import("../../src/lib/demo/store");
+    getDemoState();
+    localStorage.setItem(STORAGE_KEY, futureVersionState);
+
+    expect(() => resetDemoState()).toThrow(/unsupported format/i);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(futureVersionState);
+  });
+
   it("does not overwrite storage changed by another tab", async () => {
     const initialState = JSON.stringify({
       profile: { id: "current-profile", draft: {} },
