@@ -14,6 +14,7 @@ import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
+  refreshDemoAccessSnapshot,
   resolveDemoSessionAccess,
   setDemoSession,
   useDemoSession,
@@ -96,15 +97,17 @@ function DemoLoginForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
-  const sessionAccess = resolveDemoSessionAccess(state, session);
-  const signedInPath =
-    sessionAccess.kind === "active"
-      ? safeNextPath ||
-        (sessionAccess.account.role === "admin" ? "/admin/customers" : "/app/profile")
-      : null;
   useEffect(() => {
-    if (mode === "signin" && signedInPath !== null) router.replace(signedInPath);
-  }, [mode, router, signedInPath]);
+    if (mode !== "signin") return;
+    const current = refreshDemoAccessSnapshot();
+    if (current.kind !== "ready") return;
+    const access = resolveDemoSessionAccess(current.snapshot.state, current.snapshot.session);
+    if (access.kind === "active") {
+      router.replace(
+        safeNextPath || (access.account.role === "admin" ? "/admin/customers" : "/app/profile"),
+      );
+    }
+  }, [mode, router, safeNextPath, session, state]);
   const availability = useMemo(() => {
     if (!slug.trim()) return null;
     const normalized = normalizeProfileSlug(slug);
@@ -122,28 +125,71 @@ function DemoLoginForm({
       return setError("Enter a valid email address.");
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     setSubmitting(true);
-    const account = state.customers.find(
-      (candidate) =>
-        candidate.email === normalizedEmail &&
-        candidate.status === "active" &&
-        candidate.deletionStatus === "active",
-    );
     void (async () => {
       try {
-        if (!account || !(await verifyDemoPassword(password, account.passwordHash)))
-          throw new Error();
-        const candidateSession = { email: account.email, role: account.role };
-        if (resolveDemoSessionAccess(state, candidateSession).kind === "restricted") {
+        const before = refreshDemoAccessSnapshot();
+        if (before.kind !== "ready") {
+          setError(
+            "The local demo account could not be checked. Check browser storage and try again.",
+          );
           setSubmitting(false);
-          router.replace("/login?reason=account-inactive");
           return;
         }
-        setDemoSession(candidateSession);
-        router.replace(
-          safeNextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
+
+        const account = before.snapshot.state.customers.find(
+          (candidate) => candidate.email === normalizedEmail,
         );
-      } catch {
-        setError("The email or password is not correct.");
+        if (account === undefined || !(await verifyDemoPassword(password, account.passwordHash))) {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        const after = refreshDemoAccessSnapshot();
+        if (after.kind !== "ready") {
+          setError(
+            "The local demo account could not be checked. Check browser storage and try again.",
+          );
+          setSubmitting(false);
+          return;
+        }
+        const currentAccount = after.snapshot.state.customers.find(
+          (candidate) =>
+            candidate.id === account.id &&
+            candidate.email === account.email &&
+            candidate.passwordHash === account.passwordHash,
+        );
+        if (currentAccount === undefined) {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        const candidateSession = { email: currentAccount.email, role: currentAccount.role };
+        const access = resolveDemoSessionAccess(after.snapshot.state, candidateSession);
+        if (access.kind === "restricted") {
+          setSubmitting(false);
+          router.replace(
+            access.reason === "invitation"
+              ? "/login?reason=invitation-required"
+              : "/login?reason=account-inactive",
+          );
+          return;
+        }
+        if (access.kind !== "active") {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        setDemoSession({ email: access.account.email, role: access.account.role });
+        router.replace(
+          safeNextPath || (access.account.role === "admin" ? "/admin/customers" : "/app/profile"),
+        );
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Local demo sign-in could not be completed.",
+        );
         setSubmitting(false);
       }
     })();

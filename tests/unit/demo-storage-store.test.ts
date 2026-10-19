@@ -75,6 +75,46 @@ describe("demo storage store", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe(futureVersionState);
   });
 
+  it("adopts supported changes from another tab before allowing a save", async () => {
+    const { getDemoState, subscribeDemoState, updateDemoState } =
+      await import("../../src/lib/demo/store");
+    const unsubscribe = subscribeDemoState(() => {});
+    const externalState = { ...getDemoState(), supportUrl: "https://other-tab.example" };
+    const raw = JSON.stringify(externalState);
+    localStorage.setItem(STORAGE_KEY, raw);
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: STORAGE_KEY, newValue: raw, storageArea: localStorage }),
+    );
+
+    expect(getDemoState().supportUrl).toBe("https://other-tab.example");
+    expect(() =>
+      updateDemoState((current) => ({ ...current, supportUrl: "https://this-tab.example" })),
+    ).not.toThrow();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").supportUrl).toBe(
+      "https://this-tab.example",
+    );
+
+    unsubscribe();
+  });
+
+  it("clears a malformed session from the snapshot without deleting its bytes", async () => {
+    const { getDemoSession, subscribeDemoState } = await import("../../src/lib/demo/store");
+    const unsubscribe = subscribeDemoState(() => {});
+    localStorage.setItem(SESSION_KEY, "not-json");
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: SESSION_KEY,
+        newValue: "not-json",
+        storageArea: localStorage,
+      }),
+    );
+
+    expect(getDemoSession()).toBeNull();
+    expect(localStorage.getItem(SESSION_KEY)).toBe("not-json");
+
+    unsubscribe();
+  });
+
   it("keeps the in-memory session unchanged when session storage writes fail", async () => {
     const { clearDemoSession, getDemoSession, setDemoSession } =
       await import("../../src/lib/demo/store");

@@ -25,6 +25,21 @@ export type DemoSession = {
   role: "customer" | "admin";
 };
 
+export type DemoAccessSnapshot = Readonly<{
+  state: DemoState;
+  session: DemoSession | null;
+}>;
+
+export type DemoAccessUnavailableReason =
+  | "storage-unavailable"
+  | "saved-demo-data-unreadable"
+  | "saved-demo-data-unsupported"
+  | "changed-during-refresh";
+
+export type DemoAccessRefresh =
+  | { kind: "ready"; snapshot: DemoAccessSnapshot }
+  | { kind: "unavailable"; reason: DemoAccessUnavailableReason };
+
 export type DemoSelfServiceAccountInput = {
   email: string;
   name: string;
@@ -38,111 +53,305 @@ let session: DemoSession | null = null;
 let loaded = false;
 let sessionLoaded = false;
 let persistedRaw: string | null = null;
-let unsupportedStorageVersion: UnsupportedDemoStorageVersionError | null = null;
+let storageWriteBlock: StateWriteBlock | null = null;
+let storageListenerAttached = false;
 const listeners = new Set<() => void>();
+
+type StateStorageRead =
+  | { kind: "supported"; raw: string; state: DemoState }
+  | { kind: "missing" }
+  | { kind: "malformed"; raw: string }
+  | { kind: "unsupported"; raw: string; error: UnsupportedDemoStorageVersionError }
+  | { kind: "unavailable"; error: unknown };
+
+type StateWriteBlock = Extract<
+  StateStorageRead,
+  { kind: "malformed" | "unsupported" | "unavailable" }
+>;
+
+type SessionStorageRead =
+  | { kind: "supported"; raw: string | null; session: DemoSession | null }
+  | { kind: "malformed"; raw: string }
+  | { kind: "unavailable"; error: unknown };
+
+type StorageValueRead =
+  { kind: "read"; raw: string | null } | { kind: "unavailable"; error: unknown };
 
 function notify() {
   for (const listener of listeners) listener();
 }
 
+function readStorageValue(key: string): StorageValueRead {
+  if (typeof window === "undefined") return { kind: "unavailable", error: new Error() };
+  try {
+    return { kind: "read", raw: window.localStorage.getItem(key) };
+  } catch (error) {
+    return { kind: "unavailable", error };
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeStoredState(raw: string): StateStorageRead {
+  let decoded: unknown;
+  try {
+    decoded = deserializeDemoState(raw);
+  } catch (error) {
+    return error instanceof UnsupportedDemoStorageVersionError
+      ? { kind: "unsupported", raw, error }
+      : { kind: "malformed", raw };
+  }
+
+  if (
+    !isRecord(decoded) ||
+    !isRecord(decoded.profile) ||
+    typeof decoded.profile.id !== "string" ||
+    !Array.isArray(decoded.cards) ||
+    !Array.isArray(decoded.customers)
+  ) {
+    return { kind: "malformed", raw };
+  }
+
+  const parsed = decoded as Partial<DemoState> & {
+    profile: DemoProfile;
+    cards: DemoState["cards"];
+    customers: DemoState["customers"];
+  };
+  const fallback = createDefaultDemoState();
+  const profiles =
+    Array.isArray(parsed.profiles) && parsed.profiles.length > 0
+      ? parsed.profiles
+      : [{ ...parsed.profile, theme: parsed.theme ?? fallback.theme }];
+  const adminProfile = fallback.profiles.find((profile) => profile.ownerId === "admin-demo");
+  if (adminProfile && !profiles.some((profile) => profile.ownerId === "admin-demo")) {
+    profiles.push(adminProfile);
+  }
+  const customers = parsed.customers.map((customer) =>
+    customer.id === "admin-demo" && !customer.profileId
+      ? { ...customer, profileId: adminProfile?.id }
+      : customer,
+  );
+  const cards = parsed.cards.map((card, index) => ({
+    ...card,
+    // Older demo records were appended in creation order and had no timestamp.
+    createdAt: card.createdAt ?? index,
+  }));
+  const themes =
+    parsed.themes ??
+    Object.fromEntries(profiles.map((profile) => [profile.id, profile.theme ?? fallback.theme]));
+  const nextState = {
+    ...fallback,
+    ...parsed,
+    cards,
+    customers,
+    profiles,
+    themes: { ...fallback.themes, ...themes },
+    profile: parsed.profile,
+    analytics: (parsed.analytics ?? fallback.analytics).map((bucket) => ({
+      ...bucket,
+      profileId: bucket.profileId ?? parsed.profile?.id,
+    })),
+  } as DemoState;
+
+  return { kind: "supported", raw, state: nextState };
+}
+
+function readStoredState(): StateStorageRead {
+  const stored = readStorageValue(STORAGE_KEY);
+  if (stored.kind === "unavailable") return stored;
+  if (stored.raw === null) return { kind: "missing" };
+  if (stored.raw === persistedRaw && storageWriteBlock === null) {
+    return { kind: "supported", raw: stored.raw, state };
+  }
+  return normalizeStoredState(stored.raw);
+}
+
+function isDemoSession(value: unknown): value is DemoSession {
+  return (
+    isRecord(value) &&
+    typeof value.email === "string" &&
+    value.email === value.email.trim().toLowerCase() &&
+    value.email.includes("@") &&
+    (value.role === "customer" || value.role === "admin")
+  );
+}
+
+function readStoredSession(): SessionStorageRead {
+  const stored = readStorageValue(SESSION_KEY);
+  if (stored.kind === "unavailable") return stored;
+  if (stored.raw === null) return { kind: "supported", raw: null, session: null };
+  try {
+    const parsed: unknown = JSON.parse(stored.raw);
+    return isDemoSession(parsed)
+      ? { kind: "supported", raw: stored.raw, session: parsed }
+      : { kind: "malformed", raw: stored.raw };
+  } catch {
+    return { kind: "malformed", raw: stored.raw };
+  }
+}
+
+function safeDemoState(): DemoState {
+  return { ...createDefaultDemoState(), customers: [] };
+}
+
+function isSameStorageBlock(previous: StateWriteBlock | null, next: StateWriteBlock): boolean {
+  if (previous === null || previous.kind !== next.kind) return false;
+  if ("raw" in previous && "raw" in next) return previous.raw === next.raw;
+  return true;
+}
+
+function installStoredState(read: StateStorageRead): boolean {
+  if (read.kind === "supported") {
+    const changed = read.raw !== persistedRaw || storageWriteBlock !== null;
+    state = read.state;
+    persistedRaw = read.raw;
+    storageWriteBlock = null;
+    return changed;
+  }
+  if (read.kind === "missing") {
+    const changed = persistedRaw !== null || storageWriteBlock !== null || state !== serverSnapshot;
+    state = serverSnapshot;
+    persistedRaw = null;
+    storageWriteBlock = null;
+    return changed;
+  }
+
+  const changed = !isSameStorageBlock(storageWriteBlock, read);
+  const safeStateChanged = changed || state.customers.length > 0;
+  storageWriteBlock = read;
+  if (safeStateChanged) state = safeDemoState();
+  return safeStateChanged;
+}
+
+function sameSession(left: DemoSession | null, right: DemoSession | null): boolean {
+  return (
+    left === right ||
+    (left !== null && right !== null && left.email === right.email && left.role === right.role)
+  );
+}
+
+function installStoredSession(read: SessionStorageRead): boolean {
+  const nextSession = read.kind === "supported" ? read.session : null;
+  const changed = !sameSession(session, nextSession);
+  session = nextSession;
+  sessionLoaded = true;
+  return changed;
+}
+
 function loadFromStorage() {
   if (typeof window === "undefined" || loaded) return;
   loaded = true;
-  let storage: Storage;
-  let raw: string | null;
-  try {
-    storage = window.localStorage;
-    raw = storage.getItem(STORAGE_KEY);
-  } catch {
-    return;
-  }
-  persistedRaw = raw;
-  if (raw !== null) {
-    try {
-      const parsed = deserializeDemoState(raw) as Partial<DemoState> & { profile?: DemoProfile };
-      if (parsed.profile?.id && Array.isArray(parsed.cards) && Array.isArray(parsed.customers)) {
-        const fallback = createDefaultDemoState();
-        const profiles =
-          Array.isArray(parsed.profiles) && parsed.profiles.length > 0
-            ? parsed.profiles
-            : [{ ...parsed.profile, theme: parsed.theme ?? fallback.theme }];
-        const adminProfile = fallback.profiles.find((profile) => profile.ownerId === "admin-demo");
-        if (adminProfile && !profiles.some((profile) => profile.ownerId === "admin-demo")) {
-          profiles.push(adminProfile);
-        }
-        const customers = parsed.customers.map((customer) =>
-          customer.id === "admin-demo" && !customer.profileId
-            ? { ...customer, profileId: adminProfile?.id }
-            : customer,
-        );
-        const cards = parsed.cards.map((card, index) => ({
-          ...card,
-          // Older demo records were appended in creation order and had no timestamp.
-          createdAt: card.createdAt ?? index,
-        }));
-        const themes =
-          parsed.themes ??
-          Object.fromEntries(
-            profiles.map((profile) => [profile.id, profile.theme ?? fallback.theme]),
-          );
-        state = {
-          ...fallback,
-          ...parsed,
-          cards,
-          customers,
-          profiles,
-          themes: { ...fallback.themes, ...themes },
-          profile: parsed.profile,
-          analytics: (parsed.analytics ?? fallback.analytics).map((bucket) => ({
-            ...bucket,
-            profileId: bucket.profileId ?? parsed.profile?.id,
-          })),
-        } as DemoState;
-      }
-    } catch (error) {
-      if (error instanceof UnsupportedDemoStorageVersionError) {
-        unsupportedStorageVersion = error;
-      } else {
-        try {
-          storage.removeItem(STORAGE_KEY);
-          persistedRaw = null;
-        } catch {
-          persistedRaw = raw;
-        }
-      }
-    }
-  }
+  installStoredState(readStoredState());
 }
 
 function loadSession() {
   if (typeof window === "undefined" || sessionLoaded) return;
   sessionLoaded = true;
+  installStoredSession(readStoredSession());
+}
+
+function reconcileStoredState(): boolean {
+  return installStoredState(readStoredState());
+}
+
+function reconcileStoredSession(): boolean {
+  return installStoredSession(readStoredSession());
+}
+
+function onDemoStorage(event: StorageEvent) {
+  if (typeof window === "undefined") return;
   let storage: Storage;
-  let raw: string | null;
   try {
     storage = window.localStorage;
-    raw = storage.getItem(SESSION_KEY);
   } catch {
     return;
   }
-  if (raw !== null) {
-    try {
-      session = JSON.parse(raw) as DemoSession;
-    } catch {
-      try {
-        storage.removeItem(SESSION_KEY);
-      } catch {
-        // Keep the session empty when invalid local data cannot be removed.
-      }
-    }
+  if (event.storageArea !== storage) return;
+
+  let changed = false;
+  if (event.key === null || event.key === STORAGE_KEY) {
+    changed = reconcileStoredState() || changed;
   }
+  if (event.key === null || event.key === SESSION_KEY) {
+    changed = reconcileStoredSession() || changed;
+  }
+  if (changed) notify();
+}
+
+function blockError(block: StateWriteBlock): Error {
+  switch (block.kind) {
+    case "malformed":
+      return new Error("Saved demo data is malformed.");
+    case "unsupported":
+      return block.error;
+    case "unavailable":
+      return block.error instanceof Error
+        ? block.error
+        : new Error("Saved demo data is unavailable.");
+  }
+}
+
+function refreshFailureReason(
+  stateRead: StateStorageRead,
+  sessionRead: SessionStorageRead,
+): DemoAccessUnavailableReason | null {
+  if (stateRead.kind === "unsupported") return "saved-demo-data-unsupported";
+  if (stateRead.kind === "malformed" || sessionRead.kind === "malformed") {
+    return "saved-demo-data-unreadable";
+  }
+  if (stateRead.kind === "unavailable" || sessionRead.kind === "unavailable") {
+    return "storage-unavailable";
+  }
+  return null;
+}
+
+export function refreshDemoAccessSnapshot(): DemoAccessRefresh {
+  loadFromStorage();
+  loadSession();
+  const stateRead = readStoredState();
+  const sessionRead = readStoredSession();
+  const failureReason = refreshFailureReason(stateRead, sessionRead);
+  if (failureReason !== null) {
+    let changed = false;
+    if (stateRead.kind !== "supported" && stateRead.kind !== "missing") {
+      changed = installStoredState(stateRead) || changed;
+    }
+    if (sessionRead.kind !== "supported") {
+      changed = installStoredSession(sessionRead) || changed;
+    }
+    if (changed) notify();
+    return { kind: "unavailable", reason: failureReason };
+  }
+  if (stateRead.kind !== "supported" && stateRead.kind !== "missing") {
+    return { kind: "unavailable", reason: "storage-unavailable" };
+  }
+  if (sessionRead.kind !== "supported") {
+    return { kind: "unavailable", reason: "storage-unavailable" };
+  }
+
+  const expectedStateRaw = stateRead.kind === "supported" ? stateRead.raw : null;
+  const currentState = readStorageValue(STORAGE_KEY);
+  const currentSession = readStorageValue(SESSION_KEY);
+  if (currentState.kind === "unavailable" || currentSession.kind === "unavailable") {
+    return { kind: "unavailable", reason: "storage-unavailable" };
+  }
+  if (currentState.raw !== expectedStateRaw || currentSession.raw !== sessionRead.raw) {
+    return { kind: "unavailable", reason: "changed-during-refresh" };
+  }
+
+  const stateChanged = installStoredState(stateRead);
+  const sessionChanged = installStoredSession(sessionRead);
+  if (stateChanged || sessionChanged) notify();
+  return { kind: "ready", snapshot: { state, session } };
 }
 
 function persist(nextState: DemoState, allowChangedStorage = false) {
   if (typeof window === "undefined") return;
   if (!loaded) loadFromStorage();
-  if (unsupportedStorageVersion !== null) {
-    throw persistenceError(unsupportedStorageVersion);
+  if (!allowChangedStorage && storageWriteBlock !== null) {
+    throw persistenceError(blockError(storageWriteBlock));
   }
   let storage: Storage;
   let previousRaw: string | null;
@@ -151,6 +360,19 @@ function persist(nextState: DemoState, allowChangedStorage = false) {
     previousRaw = storage.getItem(STORAGE_KEY);
   } catch (error) {
     throw persistenceError(error);
+  }
+  if (allowChangedStorage) {
+    const currentRead: StateStorageRead =
+      previousRaw === null ? { kind: "missing" } : normalizeStoredState(previousRaw);
+    if (
+      currentRead.kind === "malformed" ||
+      currentRead.kind === "unsupported" ||
+      currentRead.kind === "unavailable"
+    ) {
+      if (installStoredState(currentRead)) notify();
+      throw persistenceError(blockError(currentRead));
+    }
+    storageWriteBlock = null;
   }
   if (!allowChangedStorage && previousRaw !== persistedRaw) {
     throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
@@ -201,8 +423,22 @@ function isPersistenceError(error: unknown): boolean {
 export function subscribeDemoState(listener: () => void): () => void {
   loadFromStorage();
   loadSession();
+  const isFirstSubscriber = listeners.size === 0;
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  if (isFirstSubscriber && typeof window !== "undefined") {
+    window.addEventListener("storage", onDemoStorage);
+    storageListenerAttached = true;
+    const stateChanged = reconcileStoredState();
+    const sessionChanged = reconcileStoredSession();
+    if (stateChanged || sessionChanged) notify();
+  }
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && storageListenerAttached && typeof window !== "undefined") {
+      window.removeEventListener("storage", onDemoStorage);
+      storageListenerAttached = false;
+    }
+  };
 }
 
 function getStateSnapshot(): DemoState {
