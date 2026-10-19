@@ -60,6 +60,19 @@
   }
 }
 
+@media (max-width: 639px), (hover: none) and (pointer: coarse) {
+  /* iOS Safari zooms text controls smaller than 16px when they receive focus. */
+  input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]):not(
+      [type="checkbox"]
+    ):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not(
+      [type="hidden"]
+    ),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 html {
   background: var(--tapit-paper);
   scroll-behavior: smooth;
