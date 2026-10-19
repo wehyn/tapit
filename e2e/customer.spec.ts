@@ -1649,6 +1649,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await page.getByLabel("Crop horizontal position: 50%").fill("30");
   await page.getByLabel("Crop vertical position: 50%").fill("65");
 
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   const slideshowInput = page.getByLabel("Upload slideshow images");
   await slideshowInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
@@ -1816,7 +1817,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await expect(page.getByText("1 of 10 images")).toBeVisible();
@@ -1848,7 +1849,7 @@ async function openSlideshowEditor(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
 }
 
 test("slideshow upload queue waits for the active upload and preserves selection order", async ({
@@ -2065,7 +2066,7 @@ test("ten distinct demo slideshow images fit local storage and reload", async ({
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async (slideIndex) => {
