@@ -23,6 +23,7 @@ import { validateProfileImageFile } from "@/lib/profile-image";
 export type ProfileMediaEditorProps = {
   barePanels?: boolean;
   media?: ProfileMediaPresentation;
+  section?: "background" | "slideshow";
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   onPendingPreviewChange?: (pending: PendingProfileMediaUpload[]) => void;
@@ -54,6 +55,7 @@ function imageSource(image: ProfileMediaImage): string | undefined {
 export function ProfileMediaEditor({
   barePanels = false,
   media,
+  section,
   onChange,
   onUpload,
   onPendingPreviewChange,
@@ -86,6 +88,10 @@ export function ProfileMediaEditor({
   const onUploadRef = useRef(onUpload);
   const latestPendingPreviewChange = useRef(onPendingPreviewChange);
   const latestMediaUploadCancel = useRef(onMediaUploadCancel);
+  const activeUploadFailure =
+    section === undefined || uploadFailure?.target === section ? uploadFailure : undefined;
+  const showBackground = section !== "slideshow";
+  const showSlideshow = section !== "background";
   const activeRequest = useRef<
     | {
         target: "background" | "slideshow";
@@ -461,6 +467,8 @@ export function ProfileMediaEditor({
   return (
     <div className={barePanels ? "grid min-w-0 gap-4" : "grid gap-5"}>
       <section
+        hidden={!showBackground}
+        style={!showBackground ? { display: "none" } : undefined}
         className={
           barePanels
             ? "grid min-w-0 gap-4"
@@ -596,6 +604,8 @@ export function ProfileMediaEditor({
       </section>
 
       <div
+        hidden={!showSlideshow}
+        style={!showSlideshow ? { display: "none" } : undefined}
         className={
           barePanels
             ? "grid min-w-0 gap-3 border-t border-tapit-line pt-4"
@@ -816,7 +826,11 @@ export function ProfileMediaEditor({
         </p>
       </div>
 
-      <label className="flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-ink">
+      <label
+        className="flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-ink"
+        hidden={!showSlideshow}
+        style={!showSlideshow ? { display: "none" } : undefined}
+      >
         <input
           checked={value.autoplay}
           className="size-4 accent-tapit-accent"
@@ -826,30 +840,30 @@ export function ProfileMediaEditor({
         Autoplay slideshow while visible
       </label>
 
-      {uploadFailure?.target === "background" ? (
+      {activeUploadFailure?.target === "background" ? (
         <span className="sr-only" id={`${baseId}-background-upload-error`}>
-          {uploadFailure.message}
+          {activeUploadFailure.message}
         </span>
       ) : null}
-      {uploadFailure?.target === "slideshow" ? (
+      {activeUploadFailure?.target === "slideshow" ? (
         <span className="sr-only" id={`${baseId}-slideshow-upload-error`}>
-          {uploadFailure.message}
+          {activeUploadFailure.message}
         </span>
       ) : null}
-      {error || uploadFailure ? (
+      {error || activeUploadFailure ? (
         <div
           className={
-            uploadFailure
+            activeUploadFailure
               ? "grid gap-3 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] p-3 sm:flex sm:items-center sm:justify-between"
               : undefined
           }
         >
           <p className="text-sm font-medium text-tapit-danger" role="alert">
-            {error && uploadFailure && error !== uploadFailure.message
-              ? `${error} ${uploadFailure.message}`
-              : error || uploadFailure?.message}
+            {error && activeUploadFailure && error !== activeUploadFailure.message
+              ? `${error} ${activeUploadFailure.message}`
+              : error || activeUploadFailure?.message}
           </p>
-          {uploadFailure?.target === "background" ? (
+          {activeUploadFailure?.target === "background" ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 disabled={busy}
