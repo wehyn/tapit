@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+import { createDefaultDemoState } from "../src/lib/demo/fixtures";
+import { serializeDemoState } from "../src/lib/demo/storage-codec";
+import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
-test("homepage presents a Tapit profile on an iPhone and profile action at mobile and desktop sizes", async ({
+test("homepage presents a Tapit profile and profile creation action at mobile and desktop sizes", async ({
   page,
 }) => {
-  const profileActions = page.getByRole("link", { name: "Go to your profile", exact: true });
+  const profileActions = page.getByRole("link", { name: "Create your profile", exact: true });
   const phone = page.getByRole("group", { name: "Tapit profile on an iPhone" });
   const screen = phone.getByTestId("tapit-hero-phone-screen");
 
@@ -23,7 +25,7 @@ test("homepage presents a Tapit profile on an iPhone and profile action at mobil
     await expect(heroHeading).toHaveCSS("text-align", viewport.width >= 1024 ? "left" : "center");
     await expect(profileActions).toHaveCount(3);
     for (let index = 0; index < 3; index += 1) {
-      await expect(profileActions.nth(index)).toHaveAttribute("href", "/app/profile");
+      await expect(profileActions.nth(index)).toHaveAttribute("href", "/login?mode=signup");
     }
     if (viewport.width >= 1280) {
       await expect(page.getByText("Illustrative example", { exact: true })).toBeVisible();
@@ -97,7 +99,21 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   await expect(page.locator("main > footer")).toContainText("Terms");
 });
 
-test("homepage profile CTAs open the customer profile", async ({ page }) => {
+test("homepage profile CTAs preserve customer and admin destinations and start guest profile creation", async ({
+  page,
+}) => {
+  await signInAsAdmin(page);
+  await page.goto("/");
+
+  const adminActions = page.getByRole("link", { name: "Dashboard", exact: true });
+  await expect(adminActions).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(adminActions.nth(index)).toHaveAttribute("href", "/admin/customers");
+  }
+  await adminActions.nth(1).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+
+  await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/");
 
@@ -118,8 +134,88 @@ test("homepage profile CTAs open the customer profile", async ({ page }) => {
 
   await resetDemoHarness(page);
   await page.goto("/");
-  await page.getByRole("link", { name: "Go to your profile", exact: true }).nth(1).click();
-  await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Fprofile$/);
+  const createProfileActions = page.getByRole("link", { name: "Create your profile", exact: true });
+  await expect(createProfileActions).toHaveCount(3);
+  for (let index = 0; index < 3; index += 1) {
+    await expect(createProfileActions.nth(index)).toHaveAttribute("href", "/login?mode=signup");
+  }
+  await expect(createProfileActions.nth(1)).toHaveAttribute("aria-busy", "false");
+  await createProfileActions.nth(1).click();
+  await expect(page).toHaveURL(/\/login\?mode=signup$/);
+  await expect(page.getByRole("heading", { name: "Create your Tapit profile" })).toBeVisible();
+  await expect(page.getByLabel("Display name")).toBeVisible();
+});
+
+test("homepage routes a stale inactive demo session to account recovery", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.getByRole("link", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Request deletion" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "tapit:demo-session:v1",
+      JSON.stringify({ email: "mara@example.test", role: "customer" }),
+    );
+  });
+  await page.reload();
+
+  const recoveryActions = page.locator('a[href="/login?reason=account-inactive"]');
+  await expect(recoveryActions).toHaveCount(3);
+  await recoveryActions.nth(1).click();
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+});
+
+test("customer workspace routes a restricted demo session to account recovery", async ({
+  page,
+}) => {
+  await signInAsCustomer(page);
+  await page.getByRole("link", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Request deletion" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "tapit:demo-session:v1",
+      JSON.stringify({ email: "mara@example.test", role: "customer" }),
+    );
+  });
+  await page.goto("/app/profile");
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+});
+
+test("local sign-in routes a customer without an owned profile to account recovery", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  const state = createDefaultDemoState();
+  const customer = state.customers.find((candidate) => candidate.email === "mara@example.test");
+  if (!customer?.profileId)
+    throw new Error("The demo customer must own a profile before the fixture changes.");
+  state.profiles = state.profiles.filter((profile) => profile.id !== customer.profileId);
+  await page.evaluate((serializedState) => {
+    window.localStorage.setItem("tapit:demo-state:v1", serializedState);
+  }, serializeDemoState(state));
+  await page.reload();
+
+  await page.getByLabel("Email").fill("mara@example.test");
+  await page.getByLabel("Password").fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
 });
 
 test("premium landing stays within supported viewport widths", async ({ page }) => {
@@ -129,7 +225,7 @@ test("premium landing stays within supported viewport widths", async ({ page }) 
     await expect(
       page.getByRole("heading", { name: "A better introduction, in one tap." }),
     ).toBeVisible();
-    const cta = page.getByRole("link", { name: "Go to your profile", exact: true }).first();
+    const cta = page.getByRole("link", { name: "Create your profile", exact: true }).first();
     await expect(cta).toBeVisible();
     const ctaBox = await cta.boundingBox();
     expect(ctaBox?.height ?? 0).toBeGreaterThanOrEqual(44);
@@ -207,8 +303,8 @@ test("landing content remains visible when JavaScript is disabled", async ({
       page.getByRole("heading", { name: "A better introduction, in one tap." }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Go to your profile", exact: true }).first(),
-    ).toHaveAttribute("href", "/app/profile");
+      page.getByRole("link", { name: "Create your profile", exact: true }).first(),
+    ).toHaveAttribute("href", "/login?mode=signup");
     await expect(page.locator("#product-proof")).toBeVisible();
   } finally {
     await context.close();
@@ -222,7 +318,7 @@ test("reduced motion keeps reveal content visible", async ({ page }) => {
     page.getByRole("heading", { name: "A better introduction, in one tap." }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Go to your profile", exact: true }).first(),
+    page.getByRole("link", { name: "Create your profile", exact: true }).first(),
   ).toBeVisible();
 
   const benefitStyles = await page.locator("#benefits").evaluate((section) => {

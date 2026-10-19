@@ -12,10 +12,12 @@ export function GoogleLoginForm({
   nextPath,
   oauthError,
   reason,
+  signupIntent,
 }: {
   nextPath?: string;
   oauthError?: string;
   reason?: "invitation-required" | "account-inactive";
+  signupIntent: boolean;
 }) {
   const { signIn } = useAuthActions();
   const [pending, setPending] = useState(false);
@@ -36,7 +38,11 @@ export function GoogleLoginForm({
   }
 
   return (
-    <AuthShell mode="signin" variant="google" onModeChange={() => undefined}>
+    <AuthShell
+      mode={signupIntent ? "signup" : "signin"}
+      variant="google"
+      onModeChange={() => undefined}
+    >
       <div className="grid gap-6">
         {reason === "invitation-required" ? (
           <Notice tone="error">Use your invitation link to continue with Google.</Notice>
@@ -51,7 +57,11 @@ export function GoogleLoginForm({
           onClick={() => void continueWithGoogle()}
           type="button"
         >
-          {pending ? "Connecting to Google" : "Continue with Google"}
+          {pending
+            ? "Connecting to Google"
+            : signupIntent
+              ? "Create your profile with Google"
+              : "Continue with Google"}
         </Button>
         <Button
           onClick={() => {

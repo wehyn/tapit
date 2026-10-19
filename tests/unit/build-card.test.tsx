@@ -6,6 +6,7 @@ const push = vi.fn();
 const useConvexAuth = vi.fn();
 const useQuery = vi.fn();
 const useDemoSession = vi.fn();
+const useHydratedDemoState = vi.fn();
 const isDemoMode = vi.fn();
 const isLocalDemoMode = vi.fn();
 
@@ -47,9 +48,14 @@ vi.mock("@/lib/demo/mode", () => ({
   isLocalDemoMode: () => isLocalDemoMode(),
 }));
 
-vi.mock("@/lib/demo/store", () => ({
-  useDemoSession: () => useDemoSession(),
-}));
+vi.mock("@/lib/demo/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/demo/store")>();
+  return {
+    ...actual,
+    useDemoSession: () => useDemoSession(),
+    useHydratedDemoState: () => useHydratedDemoState(),
+  };
+});
 
 import {
   BuildCardExperience,
@@ -57,6 +63,7 @@ import {
   BUILD_CARD_CANVA_URL,
 } from "@/components/card-builder/BuildCardExperience";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { createDefaultDemoState } from "@/lib/demo/fixtures";
 
 function renderWorkspace(props: Partial<React.ComponentProps<typeof BuildCardWorkspace>> = {}) {
   return render(<BuildCardWorkspace authLoading={false} isAuthenticated={false} {...props} />);
@@ -72,10 +79,12 @@ describe("BuildCardWorkspace", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    useHydratedDemoState.mockReset();
     isDemoMode.mockReset();
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
     useDemoSession.mockReturnValue(null);
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: null });
     isDemoMode.mockReturnValue(false);
     isLocalDemoMode.mockReturnValue(false);
     vi.stubGlobal("URL", {
@@ -267,11 +276,13 @@ describe("BuildCardExperience auth-aware order action", () => {
     useConvexAuth.mockReset();
     useQuery.mockReset();
     useDemoSession.mockReset();
+    useHydratedDemoState.mockReset();
     isDemoMode.mockReset();
     isLocalDemoMode.mockReturnValue(false);
     isDemoMode.mockReturnValue(false);
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: false });
     useQuery.mockReturnValue(undefined);
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: null });
     vi.stubGlobal("URL", {
       ...URL,
       createObjectURL: vi.fn(() => "blob:card-design"),
@@ -322,6 +333,7 @@ describe("BuildCardExperience auth-aware order action", () => {
   it("shows the coming-soon status for a demo admin without pushing", async () => {
     isLocalDemoMode.mockReturnValue(true);
     useDemoSession.mockReturnValue({ email: "admin@tapit.local", role: "admin" });
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: createDefaultDemoState() });
     const user = await openPreview();
 
     await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));

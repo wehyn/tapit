@@ -14,6 +14,7 @@ import {
   UserPlusIcon,
 } from "@phosphor-icons/react/dist/ssr";
 
+import { PublicAccountAction } from "@/components/layout/PublicAccountAction";
 import { PublicBrand, PublicHeader } from "@/components/layout/PublicHeader";
 import { ScrollReveal } from "@/components/marketing/ScrollReveal";
 
@@ -333,19 +334,7 @@ export default function HomePage() {
               details. Update what you share whenever life or work changes.
             </p>
             <div className="tapit-page-entry tapit-page-entry--third mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:items-center sm:justify-center lg:justify-start">
-              <Link
-                aria-label="Go to your profile"
-                className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,95,228,0.18)] transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6"
-                href="/app/profile"
-              >
-                Go to your profile
-                <ArrowRightIcon
-                  aria-hidden="true"
-                  className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
-                  size={18}
-                  weight="bold"
-                />
-              </Link>
+              <PublicAccountAction placement="hero" />
               <a
                 className="inline-flex min-h-12 items-center justify-center rounded-full px-5 text-sm font-semibold text-tapit-ink transition-colors hover:bg-white/65 hover:text-tapit-accent sm:justify-start"
                 href="#how-it-works"
@@ -690,18 +679,7 @@ export default function HomePage() {
             </div>
           </ScrollReveal>
           <ScrollReveal className="shrink-0" delayMs={100}>
-            <Link
-              className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-tapit-accent transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#e5f3eb] motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6"
-              href="/app/profile"
-            >
-              Go to your profile
-              <ArrowRightIcon
-                aria-hidden="true"
-                className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
-                size={18}
-                weight="bold"
-              />
-            </Link>
+            <PublicAccountAction placement="closing" />
           </ScrollReveal>
         </div>
       </section>

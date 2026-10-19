@@ -6,7 +6,12 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 import { SignOutIcon } from "@phosphor-icons/react";
 
-import { clearDemoSession, useDemoSession } from "@/lib/demo/store";
+import {
+  clearDemoSession,
+  resolveDemoSessionAccess,
+  useDemoSession,
+  useDemoState,
+} from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { isActiveAccess } from "@/lib/auth/access";
 import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
@@ -57,6 +62,16 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const session = useDemoSession();
+  const state = useDemoState();
+  const access = resolveDemoSessionAccess(state, session);
+  let redirectPath: string | null = null;
+  if (access.kind === "guest") redirectPath = `/login?next=${encodeURIComponent(pathname)}`;
+  else if (access.kind === "restricted")
+    redirectPath =
+      access.reason === "invitation"
+        ? "/login?reason=invitation-required"
+        : "/login?reason=account-inactive";
+  else if (access.account.role !== "admin") redirectPath = "/app/profile";
   const [signOutError, setSignOutError] = useState("");
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
@@ -65,12 +80,10 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
   );
 
   useEffect(() => {
-    if (!hydrated) return;
-    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (session.role !== "admin") router.replace("/app/profile");
-  }, [hydrated, pathname, router, session]);
+    if (hydrated && redirectPath !== null) router.replace(redirectPath);
+  }, [hydrated, redirectPath, router]);
 
-  if (!hydrated || session === null || session.role !== "admin") {
+  if (!hydrated || access.kind !== "active" || access.account.role !== "admin") {
     return <AuthLoadingState />;
   }
 
@@ -88,7 +101,7 @@ function DemoAdminShell({ children }: { children: React.ReactNode }) {
             </p>
           )}
           <p className="px-1 text-sm text-tapit-muted lg:sr-only xl:not-sr-only">
-            Signed in as <strong className="text-tapit-ink">{session.email}</strong>
+            Signed in as <strong className="text-tapit-ink">{access.account.email}</strong>
           </p>
           <Button
             aria-label="Sign out"

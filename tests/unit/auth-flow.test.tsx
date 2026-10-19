@@ -46,6 +46,11 @@ async function loadProviders() {
   return (await import("../../src/components/providers/LiveProviders")).LiveProviders;
 }
 
+async function loadPublicAccountAction() {
+  vi.resetModules();
+  return (await import("../../src/components/layout/PublicAccountAction")).PublicAccountAction;
+}
+
 async function loadShells() {
   vi.resetModules();
   const [{ AdminShell }, { CustomerShell }] = await Promise.all([
@@ -179,6 +184,33 @@ describe("demo auth isolation", () => {
     clearDemoSession();
   });
 
+  it("uses the current account role to guard the local admin shell", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    currentPath = "/admin/customers";
+    localStorage.clear();
+    const { AdminShell } = await loadShells();
+    const { clearDemoSession, resetDemoState, setDemoSession } =
+      await import("../../src/lib/demo/store");
+    resetDemoState();
+    setDemoSession({ email: "mara@example.test", role: "admin" });
+
+    try {
+      render(
+        <AdminShell>
+          <div>admin content</div>
+        </AdminShell>,
+      );
+
+      expect(screen.queryByText("admin content")).not.toBeInTheDocument();
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
+    } finally {
+      clearDemoSession();
+      resetDemoState();
+      localStorage.clear();
+    }
+  });
+
   it("keeps an invalid demo session on the error screen when storage cannot clear it", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
@@ -211,7 +243,7 @@ describe("demo auth isolation", () => {
       expect(replace).not.toHaveBeenCalled();
       blockedRemoveItem.mockRestore();
       await user.click(screen.getByRole("button", { name: "Return to sign in" }));
-      expect(replace).toHaveBeenCalledWith("/login?next=%2Fapp%2Fprofile");
+      expect(replace).toHaveBeenCalledWith("/login?reason=account-inactive");
     } finally {
       blockedRemoveItem.mockRestore();
       clearDemoSession();
@@ -246,6 +278,24 @@ describe("demo auth isolation", () => {
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
   });
+
+  it("keeps an active hosted-demo customer without a profile on account recovery", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      profileId: null,
+    });
+    const LoginForm = await loadLogin();
+
+    render(<LoginForm reason="account-inactive" />);
+
+    expect.soft(screen.queryByRole("alert")).toHaveTextContent(/account is inactive/i);
+    expect.soft(replace).not.toHaveBeenCalledWith("/app/profile");
+  });
 });
 
 describe("state-aware live redirects", () => {
@@ -277,6 +327,45 @@ describe("state-aware live redirects", () => {
     );
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
+});
+
+describe("homepage actions for live access", () => {
+  it("keeps an authenticated legacy customer on the profile destination", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "customer",
+      profileId: "profile_1",
+    });
+    const PublicAccountAction = await loadPublicAccountAction();
+
+    render(<PublicAccountAction placement="hero" />);
+
+    expect(screen.getByRole("link", { name: "Go to your profile" })).toHaveAttribute(
+      "href",
+      "/app/profile",
+    );
+  });
+
+  it("sends an active customer without a profile to account recovery", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      profileId: null,
+    });
+    const PublicAccountAction = await loadPublicAccountAction();
+
+    render(<PublicAccountAction placement="hero" />);
+
+    expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute(
+      "href",
+      "/login?reason=account-inactive",
+    );
   });
 });
 

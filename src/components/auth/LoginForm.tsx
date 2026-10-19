@@ -14,10 +14,13 @@ import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
+  refreshDemoAccessSnapshot,
+  resolveDemoSessionAccess,
   setDemoSession,
   useDemoSession,
   useDemoState,
 } from "@/lib/demo/store";
+import { isActiveAccess } from "@/lib/auth/access";
 import { normalizeProfileSlug, validateProfileSlug } from "@/lib/domain";
 import { validateSignupInput, type SignupFormValues } from "@/lib/auth/signup";
 import { api } from "../../../convex/_generated/api";
@@ -40,7 +43,7 @@ export function LoginForm({
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   if (isLocalDemoMode()) {
-    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />;
+    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} reason={reason} />;
   }
   if (isHostedDemoMode()) {
     return (
@@ -49,20 +52,38 @@ export function LoginForm({
         onModeChange={setMode}
         nextPath={nextPath}
         resetEmail={resetEmail}
+        reason={reason}
       />
     );
   }
-  return <GoogleLoginForm nextPath={nextPath} oauthError={oauthError} reason={reason} />;
+  return (
+    <GoogleLoginForm
+      nextPath={nextPath}
+      oauthError={oauthError}
+      reason={reason}
+      signupIntent={mode === "signup"}
+    />
+  );
+}
+
+function LoginReasonNotice({ reason }: { reason?: "invitation-required" | "account-inactive" }) {
+  if (reason === "invitation-required")
+    return <Notice tone="error">Use your invitation link to continue.</Notice>;
+  if (reason === "account-inactive")
+    return <Notice tone="error">Your account is inactive. Contact support for access.</Notice>;
+  return null;
 }
 
 function DemoLoginForm({
   mode,
   onModeChange,
   nextPath,
+  reason,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   nextPath?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const router = useRouter();
   const state = useDemoState();
@@ -77,11 +98,16 @@ function DemoLoginForm({
   const [submitting, setSubmitting] = useState(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
   useEffect(() => {
-    if (mode === "signin" && session)
+    if (mode !== "signin") return;
+    const current = refreshDemoAccessSnapshot();
+    if (current.kind !== "ready") return;
+    const access = resolveDemoSessionAccess(current.snapshot.state, current.snapshot.session);
+    if (access.kind === "active") {
       router.replace(
-        safeNextPath || (session.role === "admin" ? "/admin/customers" : "/app/profile"),
+        safeNextPath || (access.account.role === "admin" ? "/admin/customers" : "/app/profile"),
       );
-  }, [mode, router, safeNextPath, session]);
+    }
+  }, [mode, router, safeNextPath, session, state]);
   const availability = useMemo(() => {
     if (!slug.trim()) return null;
     const normalized = normalizeProfileSlug(slug);
@@ -99,22 +125,71 @@ function DemoLoginForm({
       return setError("Enter a valid email address.");
     if (password.length < 8) return setError("Password must be at least 8 characters.");
     setSubmitting(true);
-    const account = state.customers.find(
-      (candidate) =>
-        candidate.email === normalizedEmail &&
-        candidate.status === "active" &&
-        candidate.deletionStatus === "active",
-    );
     void (async () => {
       try {
-        if (!account || !(await verifyDemoPassword(password, account.passwordHash)))
-          throw new Error();
-        setDemoSession({ email: account.email, role: account.role });
-        router.replace(
-          safeNextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
+        const before = refreshDemoAccessSnapshot();
+        if (before.kind !== "ready") {
+          setError(
+            "The local demo account could not be checked. Check browser storage and try again.",
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        const account = before.snapshot.state.customers.find(
+          (candidate) => candidate.email === normalizedEmail,
         );
-      } catch {
-        setError("The email or password is not correct.");
+        if (account === undefined || !(await verifyDemoPassword(password, account.passwordHash))) {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        const after = refreshDemoAccessSnapshot();
+        if (after.kind !== "ready") {
+          setError(
+            "The local demo account could not be checked. Check browser storage and try again.",
+          );
+          setSubmitting(false);
+          return;
+        }
+        const currentAccount = after.snapshot.state.customers.find(
+          (candidate) =>
+            candidate.id === account.id &&
+            candidate.email === account.email &&
+            candidate.passwordHash === account.passwordHash,
+        );
+        if (currentAccount === undefined) {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        const candidateSession = { email: currentAccount.email, role: currentAccount.role };
+        const access = resolveDemoSessionAccess(after.snapshot.state, candidateSession);
+        if (access.kind === "restricted") {
+          setSubmitting(false);
+          router.replace(
+            access.reason === "invitation"
+              ? "/login?reason=invitation-required"
+              : "/login?reason=account-inactive",
+          );
+          return;
+        }
+        if (access.kind !== "active") {
+          setError("The email or password is not correct.");
+          setSubmitting(false);
+          return;
+        }
+
+        setDemoSession({ email: access.account.email, role: access.account.role });
+        router.replace(
+          safeNextPath || (access.account.role === "admin" ? "/admin/customers" : "/app/profile"),
+        );
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Local demo sign-in could not be completed.",
+        );
         setSubmitting(false);
       }
     })();
@@ -155,6 +230,7 @@ function DemoLoginForm({
     >
       {mode === "signup" ? (
         <form className="grid gap-6" onSubmit={signUp}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             id="signup-name"
@@ -209,6 +285,7 @@ function DemoLoginForm({
         </form>
       ) : (
         <form className="grid gap-6" onSubmit={signIn}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             autoComplete="email"
@@ -241,11 +318,13 @@ function LiveLoginForm({
   onModeChange,
   nextPath,
   resetEmail,
+  reason,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   nextPath?: string;
   resetEmail?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const router = useRouter();
   const hostedDemo = isHostedDemoMode();
@@ -277,18 +356,23 @@ function LiveLoginForm({
   const [creationFailed, setCreationFailed] = useState(false);
   const createStarted = useRef(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
+  let signedInPath: string | null = null;
+  if (access?.accountStatus === "pending") signedInPath = "/onboarding";
+  else if (isActiveAccess(access)) {
+    if (access.role === "admin") signedInPath = safeNextPath || "/admin/customers";
+    else if (access.role === "customer" && access.profileId !== null)
+      signedInPath = safeNextPath || "/app/profile";
+  }
   useEffect(() => {
     if (
       mode === "signin" &&
       authStep === "form" &&
       !resetEmail &&
       !authLoading &&
-      access?.authenticated
+      signedInPath !== null
     )
-      router.replace(
-        safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"),
-      );
-  }, [access, authLoading, authStep, mode, resetEmail, router, safeNextPath]);
+      router.replace(signedInPath);
+  }, [authLoading, authStep, mode, resetEmail, router, signedInPath]);
   useEffect(() => {
     if (!awaitingAuth || !isAuthenticated) return;
     const pending = pendingAuth?.kind === "signup" ? pendingAuth : undefined;
@@ -519,7 +603,10 @@ function LiveLoginForm({
       variant="hosted-demo"
     >
       {loading && mode === "signin" && authStep === "form" ? (
-        <p className="text-sm text-tapit-muted">Checking your session…</p>
+        <div className="grid gap-6">
+          <LoginReasonNotice reason={reason} />
+          <p className="text-sm text-tapit-muted">Checking your session…</p>
+        </div>
       ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (
         <div className="grid gap-6">
           <Notice>
@@ -640,6 +727,7 @@ function LiveLoginForm({
         </form>
       ) : (
         <form className="grid gap-6" onSubmit={submit}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           {mode === "signup" ? (
             <>

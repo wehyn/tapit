@@ -1,6 +1,5 @@
 import { LoginForm } from "@/components/auth/LoginForm";
 import type { AuthMode } from "@/components/auth/AuthShell";
-import { isLocalDemoMode } from "@/lib/demo/mode";
 
 export default async function LoginPage({
   searchParams,
@@ -13,7 +12,7 @@ export default async function LoginPage({
   }>;
 }) {
   const { next, mode, error, reason } = await searchParams;
-  const initialMode: AuthMode = isLocalDemoMode() && mode === "signup" ? "signup" : "signin";
+  const initialMode: AuthMode = mode === "signup" ? "signup" : "signin";
   const loginReason =
     reason === "invitation-required" || reason === "account-inactive" ? reason : undefined;
   return (

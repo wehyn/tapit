@@ -38,22 +38,16 @@ export function AuthShell({
                 weight="light"
               />
               <p className="tapit-eyebrow mt-6">
-                {variant === "google"
-                  ? "Welcome back"
-                  : mode === "signup"
-                    ? "Make it yours"
-                    : "Welcome back"}
+                {mode === "signup" ? "Make it yours" : "Welcome back"}
               </p>
               <h1 className="tapit-display mt-3 text-3xl font-semibold leading-[1.08] tracking-[-0.045em] text-tapit-ink sm:text-5xl">
-                {variant === "google"
-                  ? "Sign in to Tapit"
-                  : mode === "signup"
-                    ? "Create your Tapit profile"
-                    : "Sign in to Tapit"}
+                {mode === "signup" ? "Create your Tapit profile" : "Sign in to Tapit"}
               </h1>
               <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
                 {variant === "google"
-                  ? "Use your Google account to manage your profile, links, and publication state."
+                  ? mode === "signup"
+                    ? "Use your Google account to create a shareable profile for your bio, portfolio, socials, and contact links."
+                    : "Use your Google account to manage your profile, links, and publication state."
                   : mode === "signup"
                     ? "Create a shareable profile for your bio, portfolio, socials, and contact links."
                     : "Manage your profile, links, and publication state from one calm workspace."}
