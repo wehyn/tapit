@@ -583,7 +583,39 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       ) : null}
     </div>
   );
-
+  const customizationEditor = (
+    <div
+      className={
+        draft.customization === undefined && view !== "customize"
+          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          : "contents"
+      }
+    >
+      <h2
+        className="text-lg font-semibold tracking-tight text-tapit-ink"
+        hidden={draft.customization !== undefined}
+      >
+        Profile presets
+      </h2>
+      <ProfileCustomizationEditor
+        barePanels={view === "customize"}
+        customization={draft.customization}
+        errors={customizationErrors}
+        mediaFocusRequest={mediaFocusRequest}
+        media={draft.media}
+        mediaBusy={mediaBusy}
+        mediaError={mediaError}
+        onChange={(customization) => updateField("customization", customization)}
+        onMediaErrorClear={() => setMediaError("")}
+        onMediaUploadCancel={cancelMediaUpload}
+        onMediaPendingPreviewChange={setPendingMediaPreview}
+        onMediaChange={(media) => updateField("media", media)}
+        onMediaUpload={uploadDemoMedia}
+        onThemeChange={chooseTheme}
+        theme={theme}
+      />
+    </div>
+  );
   return (
     <ProfileWorkspaceFrame
       controls={
@@ -597,7 +629,11 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={draft.links}
-              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              message={
+                message && departureState.kind === "idle" ? (
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                ) : null
+              }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
@@ -619,6 +655,12 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               }
               slugLocked={slugLocked}
             />
+            {mediaFocusRequest > 0 ? (
+              <>
+                <PendingMediaUploadStatus pending={pendingMediaPreview} />
+                {customizationEditor}
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -635,37 +677,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            <div
-              className={
-                draft.customization === undefined && view !== "customize"
-                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
-                  : "contents"
-              }
-            >
-              <h2
-                className="text-lg font-semibold tracking-tight text-tapit-ink"
-                hidden={draft.customization !== undefined}
-              >
-                Profile presets
-              </h2>
-              <ProfileCustomizationEditor
-                barePanels={view === "customize"}
-                customization={draft.customization}
-                errors={customizationErrors}
-                mediaFocusRequest={mediaFocusRequest}
-                media={draft.media}
-                mediaBusy={mediaBusy}
-                mediaError={mediaError}
-                onChange={(customization) => updateField("customization", customization)}
-                onMediaErrorClear={() => setMediaError("")}
-                onMediaUploadCancel={cancelMediaUpload}
-                onMediaPendingPreviewChange={setPendingMediaPreview}
-                onMediaChange={(media) => updateField("media", media)}
-                onMediaUpload={uploadDemoMedia}
-                onThemeChange={chooseTheme}
-                theme={theme}
-              />
-            </div>
+            {customizationEditor}
           </>
         )
       }
@@ -1242,6 +1254,40 @@ function LiveProfileEditorContent({
     </div>
   );
 
+  const customizationEditor = (
+    <div
+      className={
+        currentDraft.customization === undefined && view !== "customize"
+          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          : "contents"
+      }
+    >
+      <h2
+        className="text-lg font-semibold tracking-tight text-tapit-ink"
+        hidden={currentDraft.customization !== undefined}
+      >
+        Profile presets
+      </h2>
+      <ProfileCustomizationEditor
+        barePanels={view === "customize"}
+        customization={currentDraft.customization}
+        errors={customizationErrors}
+        mediaFocusRequest={mediaFocusRequest}
+        media={currentDraft.media}
+        mediaBusy={mediaBusy}
+        mediaError={mediaError}
+        onChange={(customization) => updateField("customization", customization)}
+        onMediaErrorClear={() => setMediaError("")}
+        onMediaUploadCancel={cancelMediaUpload}
+        onMediaPendingPreviewChange={setPendingMediaPreview}
+        onMediaChange={(media) => updateField("media", media)}
+        onMediaUpload={uploadLiveMedia}
+        onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
+        theme={theme}
+      />
+    </div>
+  );
+
   return (
     <ProfileWorkspaceFrame
       controls={
@@ -1255,7 +1301,11 @@ function LiveProfileEditorContent({
               customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={currentDraft.links}
-              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              message={
+                message && departureState.kind === "idle" ? (
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                ) : null
+              }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
@@ -1277,6 +1327,12 @@ function LiveProfileEditorContent({
               }
               slugLocked={slugLocked}
             />
+            {mediaFocusRequest > 0 ? (
+              <>
+                <PendingMediaUploadStatus pending={pendingMediaPreview} />
+                {customizationEditor}
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -1293,37 +1349,7 @@ function LiveProfileEditorContent({
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            <div
-              className={
-                currentDraft.customization === undefined && view !== "customize"
-                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
-                  : "contents"
-              }
-            >
-              <h2
-                className="text-lg font-semibold tracking-tight text-tapit-ink"
-                hidden={currentDraft.customization !== undefined}
-              >
-                Profile presets
-              </h2>
-              <ProfileCustomizationEditor
-                barePanels={view === "customize"}
-                customization={currentDraft.customization}
-                errors={customizationErrors}
-                mediaFocusRequest={mediaFocusRequest}
-                media={currentDraft.media}
-                mediaBusy={mediaBusy}
-                mediaError={mediaError}
-                onChange={(customization) => updateField("customization", customization)}
-                onMediaErrorClear={() => setMediaError("")}
-                onMediaUploadCancel={cancelMediaUpload}
-                onMediaPendingPreviewChange={setPendingMediaPreview}
-                onMediaChange={(media) => updateField("media", media)}
-                onMediaUpload={uploadLiveMedia}
-                onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
-                theme={theme}
-              />
-            </div>
+            {customizationEditor}
           </>
         )
       }
