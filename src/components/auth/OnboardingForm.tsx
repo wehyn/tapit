@@ -8,8 +8,14 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Field } from "@/components/ui/Field";
+import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+
+type OnboardingProfileDetails = {
+  name: string;
+  bio: string;
+  website: string;
+};
 
 export function OnboardingForm() {
   const router = useRouter();
@@ -18,7 +24,11 @@ export function OnboardingForm() {
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const completeOnboarding = useMutation(api.customers.completeSelfServiceOnboarding);
   const deletePendingAccount = useMutation(api.customers.deletePendingAccount);
-  const [name, setName] = useState("");
+  const [details, setDetails] = useState<OnboardingProfileDetails>({
+    name: "",
+    bio: "",
+    website: "",
+  });
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -37,7 +47,7 @@ export function OnboardingForm() {
   useEffect(() => {
     if (access !== undefined && !initializedName.current) {
       initializedName.current = true;
-      setName(access.onboardingName ?? "");
+      setDetails((current) => ({ ...current, name: access.onboardingName ?? "" }));
     }
   }, [access]);
 
@@ -48,16 +58,22 @@ export function OnboardingForm() {
 
   async function complete(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const trimmedName = name.trim();
-    if (!trimmedName) {
+    const name = details.name.trim();
+    if (!name) {
       setError("Enter a display name to continue.");
       return;
     }
+    const bio = details.bio.trim();
+    const website = details.website.trim();
     setSubmitting(true);
     setError("");
     completingOnboarding.current = true;
     try {
-      const result = await completeOnboarding({ name: trimmedName });
+      const result = await completeOnboarding({
+        name,
+        ...(bio ? { bio } : {}),
+        ...(website ? { website } : {}),
+      });
       setSlug(result.slug);
       setProfileCreatedDialogOpen(true);
       setSubmitting(false);
@@ -117,7 +133,8 @@ export function OnboardingForm() {
             Choose your display name
           </h1>
           <p className="mt-4 text-sm leading-6 text-tapit-muted">
-            Your profile starts as a private draft. You can publish it when you are ready.
+            Display name is required. Bio and website are optional. Your profile starts as a private
+            draft that you can publish when you are ready.
           </p>
         </div>
         <form className="grid gap-5" onSubmit={complete}>
@@ -129,9 +146,35 @@ export function OnboardingForm() {
           ) : null}
           <Field
             id="onboarding-name"
-            label="Display name"
-            onChange={(event) => setName(event.target.value)}
-            value={name}
+            label="Display name (required)"
+            maxLength={120}
+            onChange={(event) =>
+              setDetails((current) => ({ ...current, name: event.target.value }))
+            }
+            required
+            value={details.name}
+          />
+          <TextareaField
+            compact
+            id="onboarding-bio"
+            label="Bio or role (optional)"
+            help="A short introduction people can scan quickly."
+            maxLength={140}
+            onChange={(event) => setDetails((current) => ({ ...current, bio: event.target.value }))}
+            placeholder="e.g. Designer helping small teams"
+            value={details.bio}
+          />
+          <Field
+            id="onboarding-website"
+            label="Website (optional)"
+            help="Use an HTTPS address, such as https://yourwebsite.com."
+            maxLength={320}
+            onChange={(event) =>
+              setDetails((current) => ({ ...current, website: event.target.value }))
+            }
+            placeholder="https://yourwebsite.com"
+            type="url"
+            value={details.website}
           />
           <Button disabled={submitting || slug !== undefined} type="submit">
             {submitting
