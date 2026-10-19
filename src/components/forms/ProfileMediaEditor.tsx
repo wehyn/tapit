@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { CaretDownIcon, CaretUpIcon, DotsSixVerticalIcon, TrashIcon } from "@phosphor-icons/react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
+import { SlideshowPreviewDialog } from "@/components/forms/SlideshowPreviewDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import {
@@ -74,9 +75,16 @@ export function ProfileMediaEditor({
   const [slideshowQueue, setSlideshowQueue] = useState<PendingProfileMediaUpload[]>([]);
   const [draggingSlide, setDraggingSlide] = useState<number | null>(null);
   const [slideshowAnnouncement, setSlideshowAnnouncement] = useState("");
+  const [slideshowPreviewOpen, setSlideshowPreviewOpen] = useState(false);
   const dragStartIndex = useRef(-1);
   const draggingSlideIndex = useRef(-1);
   const value = copyMedia(media);
+  const slideshowPreviewImages = value.slideshow.flatMap((image) => {
+    const src = imageSource(image);
+    return src ? [{ src, alt: image.altText }] : [];
+  });
+  const canPreviewSlideshow =
+    slideshowPreviewImages.length > 0 && slideshowPreviewImages.length === value.slideshow.length;
   const latestMedia = useRef<ProfileMediaPresentation | undefined>(value);
   const uploadRequests = useRef({ background: 0, slideshow: 0 });
   const clientKeyCounter = useRef(0);
@@ -625,18 +633,28 @@ export function ProfileMediaEditor({
               </p>
             ) : null}
           </div>
-          <Button
-            aria-describedby={uploadDescription("slideshow")}
-            aria-invalid={uploadError("slideshow") ? true : undefined}
-            disabled={
-              value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
-            }
-            onClick={() => slideshowInput.current?.click()}
-            type="button"
-            variant="secondary"
-          >
-            Upload slideshow image
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              disabled={!canPreviewSlideshow}
+              onClick={() => setSlideshowPreviewOpen(true)}
+              type="button"
+              variant="secondary"
+            >
+              Preview slideshow
+            </Button>
+            <Button
+              aria-describedby={uploadDescription("slideshow")}
+              aria-invalid={uploadError("slideshow") ? true : undefined}
+              disabled={
+                value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
+              }
+              onClick={() => slideshowInput.current?.click()}
+              type="button"
+              variant="secondary"
+            >
+              Upload slideshow image
+            </Button>
+          </div>
           <input
             accept={imageAccept}
             aria-label="Upload slideshow images"
@@ -849,6 +867,13 @@ export function ProfileMediaEditor({
         <span className="sr-only" id={`${baseId}-slideshow-upload-error`}>
           {activeUploadFailure.message}
         </span>
+      ) : null}
+      {slideshowPreviewOpen && canPreviewSlideshow ? (
+        <SlideshowPreviewDialog
+          autoplay={value.autoplay}
+          images={slideshowPreviewImages}
+          onClose={() => setSlideshowPreviewOpen(false)}
+        />
       ) : null}
       {error || activeUploadFailure ? (
         <div
