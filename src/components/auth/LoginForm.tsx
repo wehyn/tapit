@@ -14,10 +14,12 @@ import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
+  resolveDemoSessionAccess,
   setDemoSession,
   useDemoSession,
   useDemoState,
 } from "@/lib/demo/store";
+import { isActiveAccess } from "@/lib/auth/access";
 import { normalizeProfileSlug, validateProfileSlug } from "@/lib/domain";
 import { validateSignupInput, type SignupFormValues } from "@/lib/auth/signup";
 import { api } from "../../../convex/_generated/api";
@@ -40,7 +42,7 @@ export function LoginForm({
 }) {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   if (isLocalDemoMode()) {
-    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} />;
+    return <DemoLoginForm mode={mode} onModeChange={setMode} nextPath={nextPath} reason={reason} />;
   }
   if (isHostedDemoMode()) {
     return (
@@ -49,6 +51,7 @@ export function LoginForm({
         onModeChange={setMode}
         nextPath={nextPath}
         resetEmail={resetEmail}
+        reason={reason}
       />
     );
   }
@@ -62,14 +65,24 @@ export function LoginForm({
   );
 }
 
+function LoginReasonNotice({ reason }: { reason?: "invitation-required" | "account-inactive" }) {
+  if (reason === "invitation-required")
+    return <Notice tone="error">Use your invitation link to continue.</Notice>;
+  if (reason === "account-inactive")
+    return <Notice tone="error">Your account is inactive. Contact support for access.</Notice>;
+  return null;
+}
+
 function DemoLoginForm({
   mode,
   onModeChange,
   nextPath,
+  reason,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   nextPath?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const router = useRouter();
   const state = useDemoState();
@@ -83,12 +96,15 @@ function DemoLoginForm({
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
+  const sessionAccess = resolveDemoSessionAccess(state, session);
+  const signedInPath =
+    sessionAccess.kind === "active"
+      ? safeNextPath ||
+        (sessionAccess.account.role === "admin" ? "/admin/customers" : "/app/profile")
+      : null;
   useEffect(() => {
-    if (mode === "signin" && session)
-      router.replace(
-        safeNextPath || (session.role === "admin" ? "/admin/customers" : "/app/profile"),
-      );
-  }, [mode, router, safeNextPath, session]);
+    if (mode === "signin" && signedInPath !== null) router.replace(signedInPath);
+  }, [mode, router, signedInPath]);
   const availability = useMemo(() => {
     if (!slug.trim()) return null;
     const normalized = normalizeProfileSlug(slug);
@@ -162,6 +178,7 @@ function DemoLoginForm({
     >
       {mode === "signup" ? (
         <form className="grid gap-6" onSubmit={signUp}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             id="signup-name"
@@ -216,6 +233,7 @@ function DemoLoginForm({
         </form>
       ) : (
         <form className="grid gap-6" onSubmit={signIn}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           <Field
             autoComplete="email"
@@ -248,11 +266,13 @@ function LiveLoginForm({
   onModeChange,
   nextPath,
   resetEmail,
+  reason,
 }: {
   mode: AuthMode;
   onModeChange: (mode: AuthMode) => void;
   nextPath?: string;
   resetEmail?: string;
+  reason?: "invitation-required" | "account-inactive";
 }) {
   const router = useRouter();
   const hostedDemo = isHostedDemoMode();
@@ -284,18 +304,23 @@ function LiveLoginForm({
   const [creationFailed, setCreationFailed] = useState(false);
   const createStarted = useRef(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
+  let signedInPath: string | null = null;
+  if (access?.accountStatus === "pending") signedInPath = "/onboarding";
+  else if (isActiveAccess(access)) {
+    if (access.role === "admin") signedInPath = safeNextPath || "/admin/customers";
+    else if (access.role === "customer" && access.profileId !== null)
+      signedInPath = safeNextPath || "/app/profile";
+  }
   useEffect(() => {
     if (
       mode === "signin" &&
       authStep === "form" &&
       !resetEmail &&
       !authLoading &&
-      access?.authenticated
+      signedInPath !== null
     )
-      router.replace(
-        safeNextPath || (access.role === "admin" ? "/admin/customers" : "/app/profile"),
-      );
-  }, [access, authLoading, authStep, mode, resetEmail, router, safeNextPath]);
+      router.replace(signedInPath);
+  }, [authLoading, authStep, mode, resetEmail, router, signedInPath]);
   useEffect(() => {
     if (!awaitingAuth || !isAuthenticated) return;
     const pending = pendingAuth?.kind === "signup" ? pendingAuth : undefined;
@@ -526,7 +551,10 @@ function LiveLoginForm({
       variant="hosted-demo"
     >
       {loading && mode === "signin" && authStep === "form" ? (
-        <p className="text-sm text-tapit-muted">Checking your session…</p>
+        <div className="grid gap-6">
+          <LoginReasonNotice reason={reason} />
+          <p className="text-sm text-tapit-muted">Checking your session…</p>
+        </div>
       ) : hostedDemo && (authStep === "reset-request" || authStep === "reset-verification") ? (
         <div className="grid gap-6">
           <Notice>
@@ -647,6 +675,7 @@ function LiveLoginForm({
         </form>
       ) : (
         <form className="grid gap-6" onSubmit={submit}>
+          <LoginReasonNotice reason={reason} />
           {error ? <Notice tone="error">{error}</Notice> : null}
           {mode === "signup" ? (
             <>

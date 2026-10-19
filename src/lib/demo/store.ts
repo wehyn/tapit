@@ -7,6 +7,7 @@ import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from 
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
+  type DemoCustomer,
   type DemoProfile,
   type DemoState,
   type ProfileTheme,
@@ -227,22 +228,60 @@ export function getDemoProfileById(
   return getDemoProfiles(current).find((profile) => profile.id === profileId);
 }
 
+export type DemoSessionResolution =
+  | { kind: "guest" }
+  | {
+      kind: "active";
+      account: DemoCustomer & { role: "customer" };
+      profile: DemoProfile;
+    }
+  | {
+      kind: "active";
+      account: DemoCustomer & { role: "admin" };
+      profile: DemoProfile | null;
+    }
+  | { kind: "restricted"; reason: "invitation" | "inactive" };
+
+export function resolveDemoSessionAccess(
+  current: DemoState,
+  currentSession: DemoSession | null,
+): DemoSessionResolution {
+  if (currentSession === null) return { kind: "guest" };
+
+  const account = current.customers.find((candidate) => candidate.email === currentSession.email);
+  if (account === undefined) return { kind: "restricted", reason: "inactive" };
+  if (account.deletionStatus !== "active" || account.status === "deleted") {
+    return { kind: "restricted", reason: "inactive" };
+  }
+  if (account.status === "invited") return { kind: "restricted", reason: "invitation" };
+  if (account.status !== "active") return { kind: "restricted", reason: "inactive" };
+
+  const profile = getDemoProfileById(current, account.profileId);
+  if (account.profileId !== undefined && profile?.ownerId !== account.id) {
+    return { kind: "restricted", reason: "inactive" };
+  }
+  if (account.role === "customer") {
+    if (profile === undefined || profile.ownerId !== account.id) {
+      return { kind: "restricted", reason: "inactive" };
+    }
+    const customer = { ...account, role: "customer" } satisfies DemoCustomer & {
+      role: "customer";
+    };
+    return { kind: "active", account: customer, profile };
+  }
+  if (account.role === "admin") {
+    const admin = { ...account, role: "admin" } satisfies DemoCustomer & { role: "admin" };
+    return { kind: "active", account: admin, profile: profile ?? null };
+  }
+  return { kind: "restricted", reason: "inactive" };
+}
+
 export function getDemoProfileForSession(
   current: DemoState,
   currentSession: DemoSession | null,
 ): DemoProfile {
-  if (currentSession !== null) {
-    const customer = current.customers.find(
-      (candidate) => candidate.email === currentSession.email,
-    );
-    const profile = getDemoProfileById(current, customer?.profileId);
-    if (
-      customer?.status === "active" &&
-      customer.deletionStatus === "active" &&
-      profile?.ownerId === customer.id
-    )
-      return profile;
-  }
+  const access = resolveDemoSessionAccess(current, currentSession);
+  if (access.kind === "active" && access.profile !== null) return access.profile;
   throw new Error("Personal profile access denied.");
 }
 

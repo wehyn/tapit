@@ -165,7 +165,7 @@ test("homepage routes a stale inactive demo session to account recovery", async 
   await recoveryActions.nth(1).click();
 
   await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
-  await expect(page.getByRole("alert")).toHaveTextContent(/account is inactive/i);
+  await expect(page.getByRole("alert")).toContainText(/account is inactive/i);
   await page.getByLabel("Email").fill("admin@tapit.local");
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();

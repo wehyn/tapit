@@ -8,8 +8,15 @@ import Link from "next/link";
 import type { MouseEvent } from "react";
 
 import { api } from "../../../convex/_generated/api";
+import { isActiveAccess } from "@/lib/auth/access";
 import { isLocalDemoMode } from "@/lib/demo/mode";
-import { useDemoSession, useHydratedDemoState, type DemoSession } from "@/lib/demo/store";
+import type { DemoState } from "@/lib/demo/fixtures";
+import {
+  resolveDemoSessionAccess,
+  useDemoSession,
+  useHydratedDemoState,
+  type DemoSession,
+} from "@/lib/demo/store";
 
 type PublicIdentity =
   | { kind: "loading" }
@@ -57,12 +64,16 @@ const primaryActions = {
   pending: { kind: "link", href: "/onboarding", label: "Finish your profile" },
 } as const satisfies Record<"guest" | "customer" | "admin" | "pending", PublicAction>;
 
-function identityFromDemo(hydrated: boolean, session: DemoSession | null): PublicIdentity {
+function identityFromDemo(
+  hydrated: boolean,
+  state: DemoState,
+  session: DemoSession | null,
+): PublicIdentity {
   if (!hydrated) return { kind: "loading" };
-  if (session === null) return { kind: "guest" };
-  if (session.role === "customer") return { kind: "customer" };
-  if (session.role === "admin") return { kind: "admin" };
-  return { kind: "restricted", reason: "inactive" };
+  const access = resolveDemoSessionAccess(state, session);
+  if (access.kind === "guest") return { kind: "guest" };
+  if (access.kind === "restricted") return access;
+  return access.account.role === "customer" ? { kind: "customer" } : { kind: "admin" };
 }
 
 function identityFromLive(
@@ -74,8 +85,12 @@ function identityFromLive(
   if (!isAuthenticated) return { kind: "guest" };
   if (access === undefined) return { kind: "loading" };
   if (access.accountStatus === "pending") return { kind: "pending" };
-  if (access.authenticated && access.accountStatus === "active") {
-    if (access.role === "customer") return { kind: "customer" };
+  if (isActiveAccess(access)) {
+    if (access.role === "customer") {
+      return access.profileId === null
+        ? { kind: "restricted", reason: "inactive" }
+        : { kind: "customer" };
+    }
     if (access.role === "admin") return { kind: "admin" };
   }
   return {
@@ -227,12 +242,12 @@ function PublicAccountActionForIdentity({
 }
 
 function DemoPublicAccountAction(props: PublicAccountActionProps) {
-  const { hydrated } = useHydratedDemoState();
+  const { hydrated, state } = useHydratedDemoState();
   const session = useDemoSession();
   return (
     <PublicAccountActionForIdentity
       hideWhenPrimaryVisible={props.placement === "account" && props.hideWhenPrimaryVisible}
-      identity={identityFromDemo(hydrated, session)}
+      identity={identityFromDemo(hydrated, state, session)}
       placement={props.placement}
     />
   );

@@ -9,7 +9,12 @@ import { AppShell } from "./AppShell";
 import { DraftSaveProvider, useDraftSave } from "./DraftSaveContext";
 import type { ShellNavGroup } from "./navigation";
 import { Button } from "../ui/Button";
-import { clearDemoSession, useDemoSession, useDemoState } from "@/lib/demo/store";
+import {
+  clearDemoSession,
+  resolveDemoSessionAccess,
+  useDemoSession,
+  useDemoState,
+} from "@/lib/demo/store";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { isActiveAccess } from "@/lib/auth/access";
 import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
@@ -64,6 +69,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const session = useDemoSession();
   const state = useDemoState();
+  const access = resolveDemoSessionAccess(state, session);
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
   const [sessionError, setSessionError] = useState("");
@@ -80,28 +86,18 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     clientHydratedSnapshot,
     serverHydratedSnapshot,
   );
-  const customer =
-    session !== null
-      ? state.customers.find((candidate) => candidate.email === session.email)
-      : undefined;
-  const profile = state.profiles.find((candidate) => candidate.id === customer?.profileId);
-  const invalidSession =
-    !hydrated ||
-    session === null ||
-    customer === undefined ||
-    profile?.ownerId !== customer.id ||
-    customer.status !== "active" ||
-    customer.deletionStatus !== "active";
+  const accessKind = access.kind;
+  const hasProfileAccess = access.kind === "active" && access.profile !== null;
 
   useEffect(() => {
     if (!hydrated || signingOut.current) return;
-    if (session === null) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (invalidSession && !sessionError && !clearDemoSession()) {
+    if (accessKind === "guest") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    else if (!hasProfileAccess && !sessionError && !clearDemoSession()) {
       queueMicrotask(() => setSessionError("Could not clear the saved demo session. Try again."));
     }
-  }, [hydrated, invalidSession, pathname, router, session, sessionError]);
+  }, [accessKind, hasProfileAccess, hydrated, pathname, router, sessionError]);
 
-  if (invalidSession) {
+  if (!hydrated || access.kind !== "active" || access.profile === null) {
     if (sessionError) {
       return (
         <div className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5">
@@ -123,11 +119,11 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
-      navGroups={session.role === "admin" ? adminNavGroupsForCustomer : customerNavGroups}
+      navGroups={access.account.role === "admin" ? adminNavGroupsForCustomer : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
         <CustomerAccountMenu
-          email={customer.email}
+          email={access.account.email}
           onSignOut={async () => {
             if (!(await draftSave())) {
               throw new Error("Your draft could not be saved. You are still signed in.");
