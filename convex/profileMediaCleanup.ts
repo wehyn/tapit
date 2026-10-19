@@ -240,24 +240,30 @@ export const reconcileStatusPage = internalMutation({
       now: args.now,
       paginationOpts: { cursor: args.cursor, numItems: args.batchSize },
     });
-    const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    const pageCounts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     for (const job of page.page) {
       const result: Counts = await ctx.runMutation(internal.profileMediaCleanup.reconcileOneJob, {
         jobId: job._id,
         now: args.now,
         dryRun: args.dryRun,
       });
-      totals.scanned += result.scanned;
-      totals.deleted += result.deleted;
-      totals.retained += result.retained;
-      totals.skipped += result.skipped;
+      pageCounts.scanned += result.scanned;
+      pageCounts.deleted += result.deleted;
+      pageCounts.retained += result.retained;
+      pageCounts.skipped += result.skipped;
     }
     if (!args.dryRun && !page.isDone)
       await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileStatusPage, {
         ...args,
         cursor: page.continueCursor,
       });
-    return totals;
+    console.info("profile media orphan reconciliation page", {
+      status: args.status,
+      jobCount: page.page.length,
+      hasMore: !page.isDone,
+      ...pageCounts,
+    });
+    return pageCounts;
   },
 });
 
@@ -294,7 +300,6 @@ export const reconcileExpired = internalMutation({
       totals.retained += result.retained;
       totals.skipped += result.skipped;
     }
-    console.info("profile media orphan reconciliation", totals);
     return totals;
   },
 });
