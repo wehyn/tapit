@@ -243,7 +243,7 @@ describe("demo auth isolation", () => {
       expect(replace).not.toHaveBeenCalled();
       blockedRemoveItem.mockRestore();
       await user.click(screen.getByRole("button", { name: "Return to sign in" }));
-      expect(replace).toHaveBeenCalledWith("/login?next=%2Fapp%2Fprofile");
+      expect(replace).toHaveBeenCalledWith("/login?reason=account-inactive");
     } finally {
       blockedRemoveItem.mockRestore();
       clearDemoSession();

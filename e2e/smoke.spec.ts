@@ -151,7 +151,7 @@ test("homepage routes a stale inactive demo session to account recovery", async 
   await page.getByRole("link", { name: "Account" }).click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
-  await expect(page).toHaveURL(/\/login\?next=/);
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
 
   await page.goto("/");
   await page.evaluate(() => {
@@ -181,7 +181,7 @@ test("customer workspace routes a restricted demo session to account recovery", 
   await page.getByRole("link", { name: "Account" }).click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
-  await expect(page).toHaveURL(/\/login\?next=/);
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
 
   await page.evaluate(() => {
     window.localStorage.setItem(
@@ -215,6 +215,7 @@ test("local sign-in routes a customer without an owned profile to account recove
 
   await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
   await expect(page.getByText(/Your account is inactive\./)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
 });
 
 test("premium landing stays within supported viewport widths", async ({ page }) => {

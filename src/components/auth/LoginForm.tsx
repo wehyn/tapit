@@ -132,7 +132,13 @@ function DemoLoginForm({
       try {
         if (!account || !(await verifyDemoPassword(password, account.passwordHash)))
           throw new Error();
-        setDemoSession({ email: account.email, role: account.role });
+        const candidateSession = { email: account.email, role: account.role };
+        if (resolveDemoSessionAccess(state, candidateSession).kind === "restricted") {
+          setSubmitting(false);
+          router.replace("/login?reason=account-inactive");
+          return;
+        }
+        setDemoSession(candidateSession);
         router.replace(
           safeNextPath || (account.role === "admin" ? "/admin/customers" : "/app/profile"),
         );

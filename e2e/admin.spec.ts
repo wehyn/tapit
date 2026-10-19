@@ -792,7 +792,7 @@ test("administrator approves a customer deletion request", async ({ page }) => {
   await page.getByRole("link", { name: "Account" }).click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
-  await expect(page).toHaveURL(/\/login\?next=%2Fapp%2Faccount$/);
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
 
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Profiles" }).click();

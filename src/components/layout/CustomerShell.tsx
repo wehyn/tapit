@@ -70,17 +70,25 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const session = useDemoSession();
   const state = useDemoState();
   const access = resolveDemoSessionAccess(state, session);
+  const recoveryPath =
+    access.kind === "restricted"
+      ? access.reason === "invitation"
+        ? "/login?reason=invitation-required"
+        : "/login?reason=account-inactive"
+      : null;
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
   const [sessionError, setSessionError] = useState("");
   const beforeNavigate = useCallback(() => draftSave(), [draftSave]);
   const clearInvalidSession = useCallback(() => {
+    signingOut.current = recoveryPath !== null;
     if (!clearDemoSession()) {
+      signingOut.current = false;
       setSessionError("Could not clear the saved demo session. Try again.");
       return;
     }
-    router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-  }, [pathname, router]);
+    router.replace(recoveryPath ?? `/login?next=${encodeURIComponent(pathname)}`);
+  }, [pathname, recoveryPath, router]);
   const hydrated = useSyncExternalStore(
     noHydrationSubscription,
     clientHydratedSnapshot,
@@ -92,10 +100,14 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!hydrated || signingOut.current) return;
     if (accessKind === "guest") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (!hasProfileAccess && !sessionError && !clearDemoSession()) {
-      queueMicrotask(() => setSessionError("Could not clear the saved demo session. Try again."));
+    else if (!hasProfileAccess && !sessionError) {
+      signingOut.current = recoveryPath !== null;
+      if (!clearDemoSession()) {
+        signingOut.current = false;
+        queueMicrotask(() => setSessionError("Could not clear the saved demo session. Try again."));
+      } else if (recoveryPath !== null) router.replace(recoveryPath);
     }
-  }, [accessKind, hasProfileAccess, hydrated, pathname, router, sessionError]);
+  }, [accessKind, hasProfileAccess, hydrated, pathname, recoveryPath, router, sessionError]);
 
   if (!hydrated || access.kind !== "active" || access.profile === null) {
     if (sessionError) {
