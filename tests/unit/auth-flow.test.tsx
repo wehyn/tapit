@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -505,8 +505,10 @@ describe("pending Google onboarding", () => {
     await user.click(screen.getByRole("button", { name: /complete onboarding/i }));
 
     expect(mutation).toHaveBeenCalledWith({ name: "Updated Name" });
-    expect(screen.getByText(/google-display-name/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Continue to your profile" }));
+    const successDialog = screen.getByRole("dialog");
+    expect(successDialog).toHaveTextContent("Profile created");
+    expect(successDialog).toHaveTextContent("/google-display-name");
+    await user.click(within(successDialog).getByRole("button", { name: "Customize your profile" }));
     expect(replace).toHaveBeenCalledWith("/app/profile");
   });
 

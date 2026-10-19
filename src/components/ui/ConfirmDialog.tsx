@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { Button } from "./Button";
 
 export function ConfirmDialog({
+  cancelLabel = "Cancel",
   confirmLabel = "Confirm",
   description,
   onCancel,
@@ -12,6 +13,7 @@ export function ConfirmDialog({
   open,
   title,
 }: {
+  cancelLabel?: string;
   confirmLabel?: string;
   description: string;
   onCancel: () => void;
@@ -75,7 +77,7 @@ export function ConfirmDialog({
         </p>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <Button onClick={onCancel} variant="secondary" type="button">
-            Cancel
+            {cancelLabel}
           </Button>
           <Button onClick={onConfirm} type="button">
             {confirmLabel}

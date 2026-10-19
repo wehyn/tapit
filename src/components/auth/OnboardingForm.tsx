@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import { Button } from "@/components/ui/Button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 
@@ -22,8 +23,16 @@ export function OnboardingForm() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [slug, setSlug] = useState<string>();
+  const [profileCreatedDialogOpen, setProfileCreatedDialogOpen] = useState(false);
   const initializedName = useRef(false);
   const completingOnboarding = useRef(false);
+
+  const closeProfileCreatedDialog = useCallback(() => {
+    setProfileCreatedDialogOpen(false);
+  }, []);
+  const continueToCustomization = useCallback(() => {
+    router.replace("/app/profile");
+  }, [router]);
 
   useEffect(() => {
     if (access !== undefined && !initializedName.current) {
@@ -50,6 +59,7 @@ export function OnboardingForm() {
     try {
       const result = await completeOnboarding({ name: trimmedName });
       setSlug(result.slug);
+      setProfileCreatedDialogOpen(true);
       setSubmitting(false);
     } catch (cause) {
       completingOnboarding.current = false;
@@ -112,7 +122,11 @@ export function OnboardingForm() {
         </div>
         <form className="grid gap-5" onSubmit={complete}>
           {error ? <Notice tone="error">{error}</Notice> : null}
-          {slug ? <Notice tone="success">Your private profile is ready at /{slug}.</Notice> : null}
+          {slug && !profileCreatedDialogOpen ? (
+            <Notice tone="success">
+              Profile created. Your private profile is ready at /{slug}.
+            </Notice>
+          ) : null}
           <Field
             id="onboarding-name"
             label="Display name"
@@ -127,8 +141,8 @@ export function OnboardingForm() {
                 : "Complete onboarding"}
           </Button>
           {slug ? (
-            <Button onClick={() => router.replace("/app/profile")} type="button">
-              Continue to your profile
+            <Button onClick={continueToCustomization} type="button">
+              Customize your profile
             </Button>
           ) : null}
         </form>
@@ -163,6 +177,19 @@ export function OnboardingForm() {
           </Button>
         )}
       </section>
+      <ConfirmDialog
+        cancelLabel="Continue later"
+        confirmLabel="Customize your profile"
+        description={
+          slug
+            ? `Your profile was created successfully. Your private profile is ready at /${slug}.`
+            : "Your profile was created successfully."
+        }
+        onCancel={closeProfileCreatedDialog}
+        onConfirm={continueToCustomization}
+        open={profileCreatedDialogOpen}
+        title="Profile created"
+      />
     </main>
   );
 }
