@@ -11,17 +11,6 @@ import {
 } from "../../src/lib/profile-customization";
 import type { ProfileMediaPresentation } from "../../src/lib/profile-media";
 
-// Failure modes covered by this isolated component test:
-// - the old mixed accordion can reappear instead of the five visual categories;
-// - tab relationships, selected state, focus, ordering, or disabled legacy behavior can drift;
-// - controls can update the wrong customization field or lose values between category switches;
-// - identity colors can share state, mutate nested draft data, or weaken the white exception;
-// - media upload handlers and busy/error plumbing can be dropped while re-composing the panel;
-// - an optional media handler can silently leave the Media tabpanel blank;
-// - a legacy-to-Warm-Studio transition can restore a stale category instead of Overview or break focus;
-// - validation errors can lose their exact visible association or become color-only indicators;
-// - profile content/publication controls can leak back into this visual-only editor.
-
 const backgroundMedia = {
   heroHeight: 320,
   autoplay: true,
