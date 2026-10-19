@@ -73,6 +73,8 @@ export function ProfileWorkspaceFrame({
 }: ProfileWorkspaceFrameProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
+  const editorRef = useRef<HTMLElement>(null);
+  const focusEditorOnDialogCloseRef = useRef(false);
   const isBusy = saveLoading || publishLoading;
   const shouldShowActions = hasDraftChanges || isBusy;
   const actionBarVisibility = mobileView === "preview" ? "hidden min-[1280px]:block" : "";
@@ -86,6 +88,18 @@ export function ProfileWorkspaceFrame({
   const closeRequirementsDialog = useCallback(() => {
     setRequirementsDialogOpen(false);
   }, []);
+  const handleRequirementAction = useCallback(() => {
+    focusEditorOnDialogCloseRef.current = true;
+    setRequirementsDialogOpen(false);
+    setMobileView("edit");
+  }, []);
+
+  useEffect(() => {
+    if (requirementsDialogOpen || !focusEditorOnDialogCloseRef.current) return;
+    focusEditorOnDialogCloseRef.current = false;
+    const focusFrame = window.requestAnimationFrame(() => editorRef.current?.focus());
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [requirementsDialogOpen]);
 
   useEffect(() => {
     if (firstVisitRequirementKey === undefined || publishRequirements.length === 0) return;
@@ -155,12 +169,15 @@ export function ProfileWorkspaceFrame({
           </div>
         </div>
       </div>
-      <div
+      <section
+        aria-label={`${title} editor`}
         className={`grid min-w-0 self-start gap-6 ${mobileView === "edit" ? selectedViewClass : hiddenViewClass}`}
+        ref={editorRef}
+        tabIndex={-1}
       >
         {message}
         {controls}
-      </div>
+      </section>
       <div
         className={`h-fit min-w-0 scroll-mt-24 min-[1280px]:sticky min-[1280px]:top-6 ${mobileView === "preview" ? selectedViewClass : hiddenViewClass}`}
         id="workspace-preview"
@@ -220,6 +237,7 @@ export function ProfileWorkspaceFrame({
       {requirementsDialogOpen ? (
         <PublishRequirementsDialog
           onClose={closeRequirementsDialog}
+          onRequirementAction={handleRequirementAction}
           requirements={publishRequirements}
         />
       ) : null}
@@ -230,11 +248,13 @@ export function ProfileWorkspaceFrame({
 function PublishRequirementAction({
   href,
   label,
+  onInterceptedClick,
 }: {
   href: PublishRequirement["href"];
   label: string;
+  onInterceptedClick: () => void;
 }) {
-  const onClick = useDraftSaveLink(href);
+  const onClick = useDraftSaveLink(href, onInterceptedClick);
 
   return (
     <ButtonLink href={href} onClick={onClick} variant="secondary">
@@ -245,9 +265,11 @@ function PublishRequirementAction({
 
 function PublishRequirementsDialog({
   onClose,
+  onRequirementAction,
   requirements,
 }: {
   onClose: () => void;
+  onRequirementAction: () => void;
   requirements: readonly PublishRequirement[];
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -256,26 +278,54 @@ function PublishRequirementsDialog({
     const dialog = dialogRef.current;
     if (dialog === null) return;
     const trigger = document.activeElement;
-    dialog.focus();
+    const getTabbableElements = (container: HTMLElement) =>
+      Array.from(
+        container.querySelectorAll<HTMLElement>(
+          "a[href], button, input, select, textarea, [tabindex]",
+        ),
+      ).filter((element) => {
+        const style = window.getComputedStyle(element);
+        return (
+          element.tabIndex >= 0 &&
+          !element.matches(":disabled") &&
+          element.getAttribute("aria-disabled") !== "true" &&
+          element.closest('[aria-hidden="true"]') === null &&
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          element.getClientRects().length > 0
+        );
+      });
+    const initialFocusTarget = getTabbableElements(dialog)[0] ?? dialog;
+    initialFocusTarget.focus();
 
     function trapFocus(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
         return;
       }
-      if (event.key !== "Tab" || dialogRef.current === null) return;
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => !element.hasAttribute("disabled"));
+      if (event.key !== "Tab") return;
+      const currentDialog = dialogRef.current;
+      if (currentDialog === null) return;
+      const focusable = getTabbableElements(currentDialog);
       const first = focusable[0];
       const last = focusable.at(-1);
-      if (first === undefined || last === undefined) return;
-      if (event.shiftKey && document.activeElement === first) {
+      if (first === undefined || last === undefined) {
+        event.preventDefault();
+        currentDialog.focus();
+        return;
+      }
+      const activeElement = document.activeElement;
+      const isOutsideDialog = activeElement === null || !currentDialog.contains(activeElement);
+      if (
+        event.shiftKey &&
+        (activeElement === first || activeElement === currentDialog || isOutsideDialog)
+      ) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (
+        !event.shiftKey &&
+        (activeElement === last || activeElement === currentDialog || isOutsideDialog)
+      ) {
         event.preventDefault();
         first.focus();
       }
@@ -284,7 +334,7 @@ function PublishRequirementsDialog({
     document.addEventListener("keydown", trapFocus);
     return () => {
       document.removeEventListener("keydown", trapFocus);
-      if (trigger instanceof HTMLElement) trigger.focus();
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
   }, [onClose]);
 
@@ -294,7 +344,7 @@ function PublishRequirementsDialog({
         aria-describedby="publish-requirements-description"
         aria-labelledby="publish-requirements-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
+        className="max-h-[calc(100dvh-4rem)] w-full max-w-lg overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -321,7 +371,11 @@ function PublishRequirementsDialog({
               <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-tapit-ink">
                 {requirement.message}
               </span>
-              <PublishRequirementAction href={requirement.href} label={requirement.actionLabel} />
+              <PublishRequirementAction
+                href={requirement.href}
+                label={requirement.actionLabel}
+                onInterceptedClick={onRequirementAction}
+              />
             </li>
           ))}
         </ul>

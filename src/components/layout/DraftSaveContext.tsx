@@ -10,6 +10,10 @@ const DraftSaveContext = createContext<DraftSaveHandler | null>(null);
 type Registration = (handler: DraftSaveHandler) => () => void;
 const DraftSaveRegistrationContext = createContext<Registration | null>(null);
 
+function keepDraftAfterSaveFailure(): undefined {
+  return undefined;
+}
+
 export function DraftSaveProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const handlerRef = useRef<DraftSaveHandler | null>(null);
   const register = useCallback<Registration>((handler) => {
@@ -47,7 +51,10 @@ export function useDraftSave(): DraftSaveHandler {
   return handler;
 }
 
-export function useDraftSaveLink(href: string): (event: MouseEvent<HTMLAnchorElement>) => void {
+export function useDraftSaveLink(
+  href: string,
+  onInterceptedClick?: () => void,
+): (event: MouseEvent<HTMLAnchorElement>) => void {
   const saveDraft = useDraftSave();
   const router = useRouter();
 
@@ -64,15 +71,11 @@ export function useDraftSaveLink(href: string): (event: MouseEvent<HTMLAnchorEle
         return;
       }
       event.preventDefault();
-      void saveDraft().then(
-        (shouldNavigate) => {
-          if (shouldNavigate) router.push(href);
-        },
-        () => {
-          // A failed draft save keeps the user on the current page.
-        },
-      );
+      onInterceptedClick?.();
+      void saveDraft().then((shouldNavigate) => {
+        if (shouldNavigate) router.push(href);
+      }, keepDraftAfterSaveFailure);
     },
-    [href, router, saveDraft],
+    [href, onInterceptedClick, router, saveDraft],
   );
 }
