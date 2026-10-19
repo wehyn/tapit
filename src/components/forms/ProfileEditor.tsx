@@ -51,11 +51,17 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
-import { ProfileWorkspaceFrame } from "@/components/forms/ProfileWorkspaceFrame";
+import {
+  ProfileWorkspaceFrame,
+  type PublishRequirement,
+} from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
-import { splitProfileWorkspaceErrors } from "@/lib/profile-workspace";
+import {
+  classifyProfileWorkspaceError,
+  splitProfileWorkspaceErrors,
+} from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -156,13 +162,38 @@ function unresolvedMediaMessage(pending: PendingProfileMediaUpload[]) {
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
-  return (
-    published == null &&
-    !draft.links.some(
-      (link) =>
-        link.enabled && link.label.trim().length > 0 && !validateLinkDestination(link.destination),
-    )
+  return published == null && !hasValidEnabledLink(draft);
+}
+
+function hasValidEnabledLink(draft: ProfileContent) {
+  return draft.links.some(
+    (link) =>
+      link.enabled && link.label.trim().length > 0 && !validateLinkDestination(link.destination),
   );
+}
+
+function getPublishRequirements(errors: readonly string[]): PublishRequirement[] {
+  return errors.map((message, index) => {
+    const customizationCategory = classifyProfileWorkspaceError(message);
+    const href: PublishRequirement["href"] =
+      customizationCategory !== undefined
+        ? "/app/customize"
+        : message.toLowerCase().includes("link")
+          ? "/app/links"
+          : "/app/profile";
+
+    return {
+      id: `${index}-${message}`,
+      message,
+      href,
+      actionLabel:
+        href === "/app/links"
+          ? "Open Links"
+          : href === "/app/customize"
+            ? "Open Customize"
+            : "Open Profile",
+    };
+  });
 }
 
 function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
@@ -208,36 +239,31 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     },
     [],
   );
-  const errors = (() => {
-    const customer =
-      session?.role === "customer"
-        ? state.customers.find((candidate) => candidate.email === session.email)
-        : undefined;
-    const lifecycleErrors = customer
-      ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
-      : [];
-    return [
-      ...validatePublication(draft, profile.published, {
-        immutableSlug: profile.draft.slug,
-        activeTheme: theme,
-        existingSlugs: getDemoProfiles(state)
-          .filter((candidate) => candidate.id !== profile.id)
-          .flatMap((candidate) => [
-            candidate.draft.slug,
-            ...(candidate.published === null ? [] : [candidate.published.slug]),
-          ]),
-      }),
-      ...lifecycleErrors,
-      ...(state.cards.some(
-        (card) =>
-          card.profileId === profile.id &&
-          card.status === "claimable" &&
-          card.claimedAt === undefined,
-      )
-        ? ["Claim the attached card before publishing this profile."]
-        : []),
-    ];
-  })();
+  const publicationErrors = validatePublication(draft, profile.published, {
+    immutableSlug: profile.draft.slug,
+    activeTheme: theme,
+    existingSlugs: getDemoProfiles(state)
+      .filter((candidate) => candidate.id !== profile.id)
+      .flatMap((candidate) => [
+        candidate.draft.slug,
+        ...(candidate.published === null ? [] : [candidate.published.slug]),
+      ]),
+  });
+  const customer =
+    session?.role === "customer"
+      ? state.customers.find((candidate) => candidate.email === session.email)
+      : undefined;
+  const lifecycleErrors = customer
+    ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
+    : [];
+  const cardErrors = state.cards.some(
+    (card) =>
+      card.profileId === profile.id && card.status === "claimable" && card.claimedAt === undefined,
+  )
+    ? ["Claim the attached card before publishing this profile."]
+    : [];
+  const errors = [...publicationErrors, ...lifecycleErrors, ...cardErrors];
+  const publishRequirements = getPublishRequirements(publicationErrors);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
   const mediaErrors = validateProfileMedia(draft.media);
@@ -615,13 +641,18 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
         ) : null
       }
       onPublish={publish}
+      publishRequirements={publishRequirements}
+      firstVisitRequirementKey={
+        view === "profile" && needsLinkOnboarding(draft, profile.published) ? profile.id : undefined
+      }
       onSave={() => void saveDraft()}
       preview={preview}
       profileUrl={`/${draft.slug}`}
       hasPublishedProfile={profile.published !== null && profile.status === "published"}
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
-        errors.length > 0 ||
+        lifecycleErrors.length > 0 ||
+        cardErrors.length > 0 ||
         publicationLabel === "Published" ||
         cropFile !== null ||
         imagePending ||
@@ -739,6 +770,7 @@ function LiveProfileEditorContent({
   const errors = validatePublication(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
+  const publishRequirements = getPublishRequirements(errors);
   const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
@@ -1219,6 +1251,12 @@ function LiveProfileEditorContent({
         ) : null
       }
       onPublish={publish}
+      publishRequirements={publishRequirements}
+      firstVisitRequirementKey={
+        view === "profile" && needsLinkOnboarding(currentDraft, publishedForValidation)
+          ? liveProfile._id
+          : undefined
+      }
       onSave={() => void saveDraft()}
       preview={preview}
       profileUrl={`/${currentDraft.slug}`}
@@ -1229,7 +1267,6 @@ function LiveProfileEditorContent({
       }
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
-        errors.length > 0 ||
         publicationLabel === "Published" ||
         pending !== null ||
         cropFile !== null ||

@@ -1,10 +1,34 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { CheckCircleIcon, EyeIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
+import { useDraftSaveLink } from "@/components/layout/DraftSaveContext";
+
+export type PublishRequirement = {
+  id: string;
+  message: string;
+  href: "/app/profile" | "/app/links" | "/app/customize";
+  actionLabel: string;
+};
+
+function hasSeenPublishRequirements(storageKey: string) {
+  try {
+    return window.localStorage.getItem(storageKey) === "shown";
+  } catch {
+    return false;
+  }
+}
+
+function rememberPublishRequirements(storageKey: string) {
+  try {
+    window.localStorage.setItem(storageKey, "shown");
+  } catch {
+    return;
+  }
+}
 
 export type ProfileWorkspaceFrameProps = {
   title: string;
@@ -21,6 +45,8 @@ export type ProfileWorkspaceFrameProps = {
   publishLoading?: boolean;
   onPublish: () => void;
   publishLabel: string;
+  publishRequirements?: readonly PublishRequirement[];
+  firstVisitRequirementKey?: string;
   draftStatus?: ReactNode;
   cropDialog?: ReactNode;
 };
@@ -40,10 +66,13 @@ export function ProfileWorkspaceFrame({
   publishLoading = false,
   onPublish,
   publishLabel,
+  publishRequirements = [],
+  firstVisitRequirementKey,
   draftStatus,
   cropDialog,
 }: ProfileWorkspaceFrameProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
+  const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
   const isBusy = saveLoading || publishLoading;
   const shouldShowActions = hasDraftChanges || isBusy;
   const actionBarVisibility = mobileView === "preview" ? "hidden min-[1280px]:block" : "";
@@ -54,6 +83,28 @@ export function ProfileWorkspaceFrame({
     : "pb-8";
   const selectedViewClass = "block min-[1280px]:block";
   const hiddenViewClass = "hidden min-[1280px]:block";
+  const closeRequirementsDialog = useCallback(() => {
+    setRequirementsDialogOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (firstVisitRequirementKey === undefined || publishRequirements.length === 0) return;
+    const storageKey = `tapit:publish-requirements:${firstVisitRequirementKey}`;
+    if (hasSeenPublishRequirements(storageKey)) return;
+    const openFrame = window.requestAnimationFrame(() => {
+      rememberPublishRequirements(storageKey);
+      setRequirementsDialogOpen(true);
+    });
+    return () => window.cancelAnimationFrame(openFrame);
+  }, [firstVisitRequirementKey, publishRequirements.length]);
+
+  function handlePublish() {
+    if (publishRequirements.length > 0) {
+      setRequirementsDialogOpen(true);
+      return;
+    }
+    onPublish();
+  }
 
   return (
     <div
@@ -151,9 +202,10 @@ export function ProfileWorkspaceFrame({
                   Save draft
                 </Button>
                 <Button
+                  aria-haspopup="dialog"
                   disabled={publishDisabled}
                   loading={publishLoading}
-                  onClick={onPublish}
+                  onClick={handlePublish}
                   type="button"
                 >
                   <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
@@ -165,6 +217,120 @@ export function ProfileWorkspaceFrame({
         </div>
       ) : null}
       {cropDialog}
+      {requirementsDialogOpen ? (
+        <PublishRequirementsDialog
+          onClose={closeRequirementsDialog}
+          requirements={publishRequirements}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PublishRequirementAction({
+  href,
+  label,
+}: {
+  href: PublishRequirement["href"];
+  label: string;
+}) {
+  const onClick = useDraftSaveLink(href);
+
+  return (
+    <ButtonLink href={href} onClick={onClick} variant="secondary">
+      {label}
+    </ButtonLink>
+  );
+}
+
+function PublishRequirementsDialog({
+  onClose,
+  requirements,
+}: {
+  onClose: () => void;
+  requirements: readonly PublishRequirement[];
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog === null) return;
+    const trigger = document.activeElement;
+    dialog.focus();
+
+    function trapFocus(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab" || dialogRef.current === null) return;
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("disabled"));
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (first === undefined || last === undefined) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", trapFocus);
+    return () => {
+      document.removeEventListener("keydown", trapFocus);
+      if (trigger instanceof HTMLElement) trigger.focus();
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-tapit-ink/45 px-5 py-8 backdrop-blur-[2px]">
+      <div
+        aria-describedby="publish-requirements-description"
+        aria-labelledby="publish-requirements-title"
+        aria-modal="true"
+        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
+        ref={dialogRef}
+        role="dialog"
+        tabIndex={-1}
+      >
+        <h2
+          className="text-xl font-semibold tracking-tight text-tapit-ink"
+          id="publish-requirements-title"
+        >
+          Before you publish
+        </h2>
+        <p
+          className="mt-3 text-sm leading-6 text-tapit-muted"
+          id="publish-requirements-description"
+        >
+          Your profile needs attention before it can be published. Choose an action to go straight
+          to the right editor.
+        </p>
+        <ul className="mt-5 grid gap-4">
+          {requirements.map((requirement) => (
+            <li
+              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              key={requirement.id}
+            >
+              <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-tapit-ink">
+                {requirement.message}
+              </span>
+              <PublishRequirementAction href={requirement.href} label={requirement.actionLabel} />
+            </li>
+          ))}
+        </ul>
+        <div className="mt-6 flex justify-end">
+          <Button onClick={onClose} type="button" variant="quiet">
+            Maybe later
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
