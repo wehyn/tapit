@@ -59,18 +59,20 @@ async function reconcileJob(
       }
     }
     if (!page.isDone) {
-      await ctx.db.patch(job._id, {
-        scanCursor: page.continueCursor,
-        scanSourceCandidateId: sourceCandidate,
-        scanPreviewCandidateId: previewCandidate,
-        scanSourceAmbiguous: sourceAmbiguous,
-        scanPreviewAmbiguous: previewAmbiguous,
-      });
-      await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileOneJob, {
-        jobId: job._id,
-        now,
-        dryRun,
-      });
+      if (!dryRun) {
+        await ctx.db.patch(job._id, {
+          scanCursor: page.continueCursor,
+          scanSourceCandidateId: sourceCandidate,
+          scanPreviewCandidateId: previewCandidate,
+          scanSourceAmbiguous: sourceAmbiguous,
+          scanPreviewAmbiguous: previewAmbiguous,
+        });
+        await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileOneJob, {
+          jobId: job._id,
+          now,
+          dryRun,
+        });
+      }
       return counts;
     }
   }
@@ -250,7 +252,7 @@ export const reconcileStatusPage = internalMutation({
       totals.retained += result.retained;
       totals.skipped += result.skipped;
     }
-    if (!page.isDone)
+    if (!args.dryRun && !page.isDone)
       await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileStatusPage, {
         ...args,
         cursor: page.continueCursor,
