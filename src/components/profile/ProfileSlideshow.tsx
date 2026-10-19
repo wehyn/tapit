@@ -52,6 +52,8 @@ export function ProfileSlideshow({
   const pointerId = useRef<number | null>(null);
   const controlsTimeout = useRef<number | null>(null);
   const total = images.length;
+  const showPlaybackControl = autoplay && !reducedMotion && total > 1;
+  const showReducedMotionNotice = autoplay && reducedMotion && total > 1;
 
   useEffect(() => {
     const root = rootRef.current;
@@ -193,7 +195,7 @@ export function ProfileSlideshow({
           {total > 1 ? (
             <div
               aria-label="Choose slideshow image"
-              className={`absolute bottom-3 left-3 flex overflow-x-auto rounded-full bg-[#2c2420]/45 p-1 ${autoplay ? "right-36" : "right-3"}`}
+              className={`absolute bottom-3 left-3 flex overflow-x-auto rounded-full bg-[#2c2420]/45 p-1 ${showPlaybackControl ? "right-36" : "right-3"}`}
               role="group"
             >
               {images.map((image, index) => (
@@ -213,7 +215,7 @@ export function ProfileSlideshow({
               ))}
             </div>
           ) : null}
-          {autoplay && total > 1 ? (
+          {showPlaybackControl ? (
             <button
               aria-pressed={playbackState === "paused"}
               className="absolute bottom-3 right-3 rounded-full bg-[#fffdf9]/90 px-4 py-2.5 text-sm font-semibold text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
@@ -229,6 +231,12 @@ export function ProfileSlideshow({
           ) : null}
         </div>
       </div>
+      {showReducedMotionNotice ? (
+        <p className="border-t border-[#e5d6c5] px-4 py-3 text-sm text-[#594c43]" role="status">
+          Your reduced-motion preference disables autoplay. Use Previous image, Next image, or the
+          image picker to browse manually.
+        </p>
+      ) : null}
     </div>
   );
 }
