@@ -46,6 +46,11 @@ async function loadProviders() {
   return (await import("../../src/components/providers/LiveProviders")).LiveProviders;
 }
 
+async function loadPublicAccountAction() {
+  vi.resetModules();
+  return (await import("../../src/components/layout/PublicAccountAction")).PublicAccountAction;
+}
+
 async function loadShells() {
   vi.resetModules();
   const [{ AdminShell }, { CustomerShell }] = await Promise.all([
@@ -277,6 +282,26 @@ describe("state-aware live redirects", () => {
     );
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
+});
+
+describe("homepage actions for live access", () => {
+  it("keeps an authenticated legacy customer on the profile destination", async () => {
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      role: "customer",
+      profileId: "profile_1",
+    });
+    const PublicAccountAction = await loadPublicAccountAction();
+
+    render(<PublicAccountAction placement="hero" />);
+
+    expect(screen.getByRole("link", { name: "Go to your profile" })).toHaveAttribute(
+      "href",
+      "/app/profile",
+    );
   });
 });
 

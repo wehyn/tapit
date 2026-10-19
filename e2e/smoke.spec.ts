@@ -144,6 +144,34 @@ test("homepage profile CTAs preserve customer and admin destinations and start g
   await expect(page.getByLabel("Display name")).toBeVisible();
 });
 
+test("homepage routes a stale inactive demo session to account recovery", async ({ page }) => {
+  await signInAsCustomer(page);
+  await page.getByRole("link", { name: "Account" }).click();
+  await page.getByRole("button", { name: "Request deletion" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
+  await expect(page).toHaveURL(/\/login\?next=/);
+
+  await page.goto("/");
+  await page.evaluate(() => {
+    window.localStorage.setItem(
+      "tapit:demo-session:v1",
+      JSON.stringify({ email: "mara@example.test", role: "customer" }),
+    );
+  });
+  await page.reload();
+
+  const recoveryActions = page.locator('a[href="/login?reason=account-inactive"]');
+  await expect(recoveryActions).toHaveCount(3);
+  await recoveryActions.nth(1).click();
+
+  await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
+  await expect(page.getByRole("alert")).toHaveTextContent(/account is inactive/i);
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+});
+
 test("premium landing stays within supported viewport widths", async ({ page }) => {
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 844 });
