@@ -48,10 +48,14 @@ vi.mock("@/lib/demo/mode", () => ({
   isLocalDemoMode: () => isLocalDemoMode(),
 }));
 
-vi.mock("@/lib/demo/store", () => ({
-  useDemoSession: () => useDemoSession(),
-  useHydratedDemoState: () => useHydratedDemoState(),
-}));
+vi.mock("@/lib/demo/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/demo/store")>();
+  return {
+    ...actual,
+    useDemoSession: () => useDemoSession(),
+    useHydratedDemoState: () => useHydratedDemoState(),
+  };
+});
 
 import {
   BuildCardExperience,
@@ -59,6 +63,7 @@ import {
   BUILD_CARD_CANVA_URL,
 } from "@/components/card-builder/BuildCardExperience";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { createDefaultDemoState } from "@/lib/demo/fixtures";
 
 function renderWorkspace(props: Partial<React.ComponentProps<typeof BuildCardWorkspace>> = {}) {
   return render(<BuildCardWorkspace authLoading={false} isAuthenticated={false} {...props} />);
@@ -328,6 +333,7 @@ describe("BuildCardExperience auth-aware order action", () => {
   it("shows the coming-soon status for a demo admin without pushing", async () => {
     isLocalDemoMode.mockReturnValue(true);
     useDemoSession.mockReturnValue({ email: "admin@tapit.local", role: "admin" });
+    useHydratedDemoState.mockReturnValue({ hydrated: true, state: createDefaultDemoState() });
     const user = await openPreview();
 
     await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
