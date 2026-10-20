@@ -65,6 +65,24 @@ export function OnboardingForm() {
     }
     const bio = details.bio.trim();
     const website = details.website.trim();
+    if (website) {
+      let parsedWebsite: URL;
+      try {
+        parsedWebsite = new URL(website);
+      } catch {
+        setError("Enter a valid HTTPS website address.");
+        return;
+      }
+      if (
+        parsedWebsite.protocol !== "https:" ||
+        !parsedWebsite.hostname ||
+        parsedWebsite.username ||
+        parsedWebsite.password
+      ) {
+        setError("Enter a valid HTTPS website address.");
+        return;
+      }
+    }
     setSubmitting(true);
     setError("");
     completingOnboarding.current = true;
