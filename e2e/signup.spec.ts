@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { resetDemoHarness } from "./support/demo-harness";
+
 async function addGuidedSignupLink(
   page: import("@playwright/test").Page,
   label: string,
@@ -68,6 +70,7 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 });
 
 test("customer signup starts from the public login page", async ({ page }) => {
+  await resetDemoHarness(page);
   await page.goto("/login?mode=signup");
 
   await expect(page.getByRole("heading", { name: /create your tapit profile/i })).toBeVisible();
@@ -99,10 +102,18 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.getByLabel("Profile link").fill("new-tapit-customer");
   await page.getByRole("button", { name: "Create your profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await page
-    .getByRole("dialog", { name: "Before you publish" })
-    .getByRole("button", { name: "Maybe later" })
-    .click();
+  const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  await expect(requirementsDialog).toBeVisible();
+  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
+  await expect(requirementsDialog).toBeHidden();
+
+  await page.reload();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(requirementsDialog).toHaveCount(0);
+  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
+  await expect(requirementsDialog).toBeVisible();
+  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
+
   await expect(
     page.getByText(
       "Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish it.",
