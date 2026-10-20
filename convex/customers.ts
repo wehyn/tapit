@@ -219,7 +219,11 @@ export const createSelfServiceAccount = mutation({
 });
 
 export const completeSelfServiceOnboarding = mutation({
-  args: { name: v.string() },
+  args: {
+    name: v.string(),
+    bio: v.optional(v.string()),
+    website: v.optional(v.string()),
+  },
   returns: v.object({
     customerId: v.id("customers"),
     profileId: v.id("profiles"),
@@ -252,14 +256,25 @@ export const completeSelfServiceOnboarding = mutation({
       throw new Error("Pending customer account required.");
     const name = args.name.trim();
     if (name.length === 0) throw new Error("A nonblank profile name is required.");
-    if (name.length > 120) throw new Error("The profile name is too long.");
+    const bio = args.bio?.trim();
+    const website = args.website?.trim();
     const slug = await allocateProfileSlug(ctx, name);
+    const draft = {
+      name,
+      slug,
+      email,
+      ...(bio ? { bio } : {}),
+      ...(website ? { website } : {}),
+      links: [],
+    };
+    const [draftError] = validateDraftSafety(draft);
+    if (draftError !== undefined) throw new Error(draftError);
     const now = Date.now();
     const profileId = await ctx.db.insert("profiles", {
       ownerId: customer._id,
       slug,
       status: "draft",
-      draft: { name, slug, email, links: [] },
+      draft,
       draftRevision: 0,
       createdAt: now,
       updatedAt: now,

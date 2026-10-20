@@ -123,7 +123,73 @@ async function draftRevision(t: ReturnType<typeof convexTest>, profileId: Id<"pr
   return await t.run(async (ctx) => (await ctx.db.get(profileId))?.draftRevision ?? 0);
 }
 
+async function createPendingOnboardingUser(t: ReturnType<typeof convexTest>, email: string) {
+  const userId = await t.run(async (ctx) =>
+    ctx.db.insert("users", { email, emailVerificationTime: 1 }),
+  );
+  await t.run(async (ctx) => {
+    await ctx.db.insert("customers", {
+      userId,
+      email,
+      role: "customer",
+      status: "pending",
+      deletionStatus: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+  });
+  return { userId, user: t.withIdentity(identity(userId)) };
+}
+
 describe("Convex authentication and ownership", () => {
+  it("persists onboarding bio and website in the private profile draft", async () => {
+    const t = testConvex();
+    const { user } = await createPendingOnboardingUser(t, "details@example.com");
+
+    const completed = await user.mutation(api.customers.completeSelfServiceOnboarding, {
+      name: "Details Person",
+      bio: "  A short introduction  ",
+      website: "  https://details.example.com  ",
+    });
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(completed.profileId)).toMatchObject({
+        status: "draft",
+        draft: {
+          name: "Details Person",
+          bio: "A short introduction",
+          website: "https://details.example.com",
+          links: [],
+        },
+      });
+    });
+  });
+
+  it.each([
+    "http://insecure.example.com",
+    "javascript:alert(1)",
+    "https://user:password@example.com",
+  ])("rejects unsafe onboarding website %s", async (website) => {
+    const t = testConvex();
+    const { userId, user } = await createPendingOnboardingUser(t, "unsafe@example.com");
+
+    await expect(
+      user.mutation(api.customers.completeSelfServiceOnboarding, {
+        name: "Unsafe Website",
+        website,
+      }),
+    ).rejects.toThrow("valid HTTPS URL without credentials");
+
+    await t.run(async (ctx) => {
+      const customer = await ctx.db
+        .query("customers")
+        .withIndex("by_userId", (q) => q.eq("userId", userId))
+        .unique();
+      expect(customer).toMatchObject({ status: "pending" });
+      expect(customer?.profileId).toBeUndefined();
+    });
+  });
+
   it("requires a server-verified email for live onboarding", async () => {
     const t = testConvex();
     const userId = await t.run(async (ctx) =>
