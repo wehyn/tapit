@@ -25,6 +25,7 @@ async function reconcileJob(
   job: Doc<"profileMediaUploadJobs">,
   dryRun: boolean,
   now: number,
+  isStorageContinuation: boolean,
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
   const profile = await ctx.db.get(job.profileId);
@@ -71,8 +72,18 @@ async function reconcileJob(
           jobId: job._id,
           now,
           dryRun,
+          isStorageContinuation: true,
         });
       }
+      if (isStorageContinuation)
+        console.info("profile media orphan reconciliation page", {
+          status: job.status,
+          jobCount: 1,
+          hasMore: true,
+          dryRun,
+          continuationScheduled: !dryRun && !page.isDone,
+          ...counts,
+        });
       return counts;
     }
   }
@@ -147,6 +158,15 @@ async function reconcileJob(
       scanPreviewAmbiguous: previewAmbiguous,
     });
   } else if (!dryRun) await ctx.db.delete(job._id);
+  if (isStorageContinuation)
+    console.info("profile media orphan reconciliation page", {
+      status: job.status,
+      jobCount: 1,
+      hasMore: false,
+      dryRun,
+      continuationScheduled: false,
+      ...counts,
+    });
   return counts;
 }
 
@@ -172,7 +192,12 @@ export const pageExpiredJobs = internalQuery({
 });
 
 export const reconcileOneJob = internalMutation({
-  args: { jobId: v.id("profileMediaUploadJobs"), now: v.number(), dryRun: v.boolean() },
+  args: {
+    jobId: v.id("profileMediaUploadJobs"),
+    now: v.number(),
+    dryRun: v.boolean(),
+    isStorageContinuation: v.optional(v.boolean()),
+  },
   returns: v.object({
     scanned: v.number(),
     deleted: v.number(),
@@ -183,7 +208,7 @@ export const reconcileOneJob = internalMutation({
     const job = await ctx.db.get(args.jobId);
     if (job === null || job.uploadWindowEndsAt > args.now)
       return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-    return await reconcileJob(ctx, job, args.dryRun, args.now);
+    return await reconcileJob(ctx, job, args.dryRun, args.now, args.isStorageContinuation ?? false);
   },
 });
 
@@ -240,24 +265,32 @@ export const reconcileStatusPage = internalMutation({
       now: args.now,
       paginationOpts: { cursor: args.cursor, numItems: args.batchSize },
     });
-    const totals: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
+    const pageCounts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
     for (const job of page.page) {
       const result: Counts = await ctx.runMutation(internal.profileMediaCleanup.reconcileOneJob, {
         jobId: job._id,
         now: args.now,
         dryRun: args.dryRun,
       });
-      totals.scanned += result.scanned;
-      totals.deleted += result.deleted;
-      totals.retained += result.retained;
-      totals.skipped += result.skipped;
+      pageCounts.scanned += result.scanned;
+      pageCounts.deleted += result.deleted;
+      pageCounts.retained += result.retained;
+      pageCounts.skipped += result.skipped;
     }
     if (!args.dryRun && !page.isDone)
       await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.reconcileStatusPage, {
         ...args,
         cursor: page.continueCursor,
       });
-    return totals;
+    console.info("profile media orphan reconciliation page", {
+      status: args.status,
+      jobCount: page.page.length,
+      hasMore: !page.isDone,
+      dryRun: args.dryRun,
+      continuationScheduled: !args.dryRun && !page.isDone,
+      ...pageCounts,
+    });
+    return pageCounts;
   },
 });
 
@@ -294,7 +327,6 @@ export const reconcileExpired = internalMutation({
       totals.retained += result.retained;
       totals.skipped += result.skipped;
     }
-    console.info("profile media orphan reconciliation", totals);
     return totals;
   },
 });
