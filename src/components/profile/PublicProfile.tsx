@@ -727,14 +727,16 @@ export function PublicProfile({
         </div>
       </Container>
       {showEditProfileLink ? (
-        <Link
-          aria-label="Edit profile"
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-lg transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
-          href="/app/profile"
-          style={activeProfileStyles}
-        >
-          Edit profile
-        </Link>
+        <nav aria-label="Profile owner actions">
+          <Link
+            aria-label="Edit profile"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-lg transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
+            href="/app/profile"
+            style={activeProfileStyles}
+          >
+            Edit profile
+          </Link>
+        </nav>
       ) : null}
     </>
   );

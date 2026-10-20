@@ -2348,7 +2348,10 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await previewButton.click();
   const previewDialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
   const slideshowPreview = previewDialog.getByRole("region", { name: "Profile slideshow" });
-  await expect(slideshowPreview.locator("img")).toHaveAttribute("alt", "transparent-logo.png");
+  await expect(slideshowPreview.getByRole("img", { name: "transparent-logo.png" })).toHaveAttribute(
+    "alt",
+    "transparent-logo.png",
+  );
   await page.keyboard.press("Escape");
   await expect(
     page.getByRole("button", { name: /Remove failed slideshow image.*opaque-landscape\.png/ }),
