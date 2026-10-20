@@ -131,6 +131,79 @@ test("a failed draft save keeps the customer signed in when they try to sign out
   expect(savedSession).toContain("mara@example.test");
 });
 
+test("sign out stays blocked while a link draft has a validation error", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/links");
+
+  const destination = page.getByLabel("Destination for LinkedIn");
+  await destination.fill("not-a-url");
+  await expect(
+    page.getByText("Link destination must be a valid HTTPS, mailto, or tel address."),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/app\/links$/);
+  await expect(destination).toHaveValue("not-a-url");
+  await expect(
+    page
+      .getByRole("alert")
+      .filter({ hasText: "Your draft could not be saved. You are still signed in." }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeVisible();
+  expect(await page.evaluate(() => window.localStorage.getItem("tapit:demo-session:v1"))).toContain(
+    "mara@example.test",
+  );
+});
+
+test("sidebar navigation can save a repaired media draft or continue after repair", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await selectWarmStudio(page);
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page
+    .getByLabel("Upload background image")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  const description = page.getByLabel("Background image description");
+  await description.fill("");
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toBeVisible();
+
+  const linksNavigation = page
+    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("link", { name: "Links", exact: true });
+  await linksNavigation.click();
+  const saveAndContinue = page.getByRole("button", { name: "Save and continue to Links" });
+  await expect(saveAndContinue).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/customize$/);
+
+  await description.fill("Warm studio backdrop");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await expect(saveAndContinue).toHaveCount(0);
+
+  await description.fill("");
+  await expect(
+    page.getByText("A background image needs an accessible description.", { exact: true }),
+  ).toBeVisible();
+  await linksNavigation.click();
+  await expect(saveAndContinue).toBeVisible();
+  await description.fill("Warm studio backdrop");
+  await saveAndContinue.click();
+
+  await expect(page).toHaveURL(/\/app\/links$/);
+  await expect(page.getByRole("button", { name: "Add link", exact: true })).toBeVisible();
+});
+
 test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 899 });
   await signInAsCustomer(page);
@@ -1480,6 +1553,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   await expect(
     page.getByText("The custom profile accent color does not meet contrast requirements."),
   ).toBeVisible();
+  await page.getByRole("tab", { name: "Media" }).click();
   await publishChanges.click();
   const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
   await expect(requirementsDialog).toBeVisible();
@@ -1491,7 +1565,25 @@ test("customer can customize, save, and publish a custom profile palette", async
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
   ).toHaveCount(0);
-  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
+  const openCustomize = requirementsDialog.getByRole("link", { name: "Open Customize" });
+  const maybeLater = requirementsDialog.getByRole("button", { name: "Maybe later" });
+  await expect(openCustomize).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(maybeLater).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(openCustomize).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(requirementsDialog).toBeHidden();
+  await expect(publishChanges).toBeFocused();
+
+  await publishChanges.click();
+  await expect(requirementsDialog).toBeVisible();
+  await requirementsDialog.getByRole("link", { name: "Open Customize" }).click();
+  await expect(page).toHaveURL(/\/app\/customize\?section=overview$/);
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 
   await page.getByRole("radio", { name: "Moss" }).check();
   await expect(publishChanges).toBeEnabled();
