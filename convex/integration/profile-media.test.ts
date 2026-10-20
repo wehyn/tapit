@@ -904,6 +904,107 @@ describe("profile media hardening", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(otherProfileImageStorageId))).not.toBeNull();
   });
 
+  it("does not change or schedule a continuation for a truncated dry-run job page", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const now = Date.now() + 2 * 24 * 60 * 60 * 1000;
+    const jobIds = await t.run(async (ctx) => {
+      const created: Id<"profileMediaUploadJobs">[] = [];
+      for (let index = 0; index < 33; index += 1)
+        created.push(
+          await ctx.db.insert("profileMediaUploadJobs", {
+            profileId: ids.ownerProfileId,
+            ownerId: ids.ownerId,
+            sha256: `${index}`.padStart(64, "0"),
+            expectedMediaRevision: 0,
+            status: "pending",
+            createdAt: now - 2 * 24 * 60 * 60 * 1000,
+            uploadWindowEndsAt: now - 24 * 60 * 60 * 1000,
+          }),
+        );
+      return created;
+    });
+    expect(jobIds).toHaveLength(33);
+    const jobsBefore = await t.run(async (ctx) =>
+      Promise.all(jobIds.map((jobId) => ctx.db.get(jobId))),
+    );
+
+    vi.useFakeTimers();
+    try {
+      await t.mutation(internal.profileMediaCleanup.reconcileExpired, {
+        now,
+        dryRun: true,
+        jobBatchSize: 32,
+      });
+
+      const jobsAfter = await t.run(async (ctx) =>
+        Promise.all(jobIds.map((jobId) => ctx.db.get(jobId))),
+      );
+      const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+
+      expect.soft(jobsAfter).toEqual(jobsBefore);
+      expect.soft(jobsAfter.every((job) => job?.scanCursor === undefined)).toBe(true);
+      expect.soft(scheduled).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not change or schedule a continuation for a truncated dry-run storage page", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const storageIds = await t.run(async (ctx) => {
+      const created: Id<"_storage">[] = [];
+      for (let index = 0; index < 65; index += 1)
+        created.push(await ctx.storage.store(new Blob([`dry-run-storage-${index}`])));
+      return created;
+    });
+    const metadata = await t.run(async (ctx) =>
+      Promise.all(storageIds.map((storageId) => ctx.db.system.get("_storage", storageId))),
+    );
+    expect(storageIds).toHaveLength(65);
+    const createdAt = Math.min(...metadata.map((item) => item!._creationTime)) - 1;
+    const uploadWindowEndsAt = Math.max(...metadata.map((item) => item!._creationTime)) + 1;
+    const jobId = await t.run((ctx) =>
+      ctx.db.insert("profileMediaUploadJobs", {
+        profileId: ids.ownerProfileId,
+        ownerId: ids.ownerId,
+        sha256: "f".repeat(64),
+        expectedMediaRevision: 0,
+        status: "pending",
+        createdAt,
+        uploadWindowEndsAt,
+      }),
+    );
+    const jobBefore = await t.run((ctx) => ctx.db.get(jobId));
+    const storageBefore = await t.run((ctx) =>
+      Promise.all(storageIds.map((storageId) => ctx.storage.getUrl(storageId))),
+    );
+
+    vi.useFakeTimers();
+    try {
+      await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+        jobId,
+        now: uploadWindowEndsAt + 1,
+        dryRun: true,
+      });
+
+      const jobAfter = await t.run((ctx) => ctx.db.get(jobId));
+      const storageAfter = await t.run((ctx) =>
+        Promise.all(storageIds.map((storageId) => ctx.storage.getUrl(storageId))),
+      );
+      const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+
+      expect.soft(jobAfter).toEqual(jobBefore);
+      expect.soft(jobAfter?.scanCursor).toBeUndefined();
+      expect.soft(storageAfter).toEqual(storageBefore);
+      expect.soft(storageAfter.every((url) => url !== null)).toBe(true);
+      expect.soft(scheduled).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("cleans failed upload jobs and their expired storage", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
