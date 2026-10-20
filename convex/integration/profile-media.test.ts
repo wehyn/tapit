@@ -1093,18 +1093,152 @@ describe("profile media hardening", () => {
 
       expect(await t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).toBeNull();
       expect(await t.query(internal.profileMedia.getUploadJob, { jobId })).toBeNull();
-      expect(logSpy).toHaveBeenCalledWith(
-        "profile media orphan reconciliation page",
-        expect.objectContaining({
-          status: "failed",
-          jobCount: 1,
-          hasMore: false,
-          scanned: 1,
-          deleted: 1,
-          retained: 0,
-          skipped: 0,
-        }),
+      const pageLogs = logSpy.mock.calls.map(([event, fields]) => [event, fields]);
+      expect(pageLogs).toEqual([
+        [
+          "profile media orphan reconciliation page",
+          {
+            status: "pending",
+            jobCount: 0,
+            hasMore: false,
+            dryRun: false,
+            continuationScheduled: false,
+            scanned: 0,
+            deleted: 0,
+            retained: 0,
+            skipped: 0,
+          },
+        ],
+        [
+          "profile media orphan reconciliation page",
+          {
+            status: "failed",
+            jobCount: 1,
+            hasMore: false,
+            dryRun: false,
+            continuationScheduled: false,
+            scanned: 64,
+            deleted: 0,
+            retained: 0,
+            skipped: 0,
+          },
+        ],
+        [
+          "profile media orphan reconciliation page",
+          {
+            status: "attached",
+            jobCount: 0,
+            hasMore: false,
+            dryRun: false,
+            continuationScheduled: false,
+            scanned: 0,
+            deleted: 0,
+            retained: 0,
+            skipped: 0,
+          },
+        ],
+        [
+          "profile media orphan reconciliation page",
+          {
+            status: "failed",
+            jobCount: 1,
+            hasMore: false,
+            dryRun: false,
+            continuationScheduled: false,
+            scanned: 1,
+            deleted: 1,
+            retained: 0,
+            skipped: 0,
+          },
+        ],
+      ]);
+      const loggedDeletions = logSpy.mock.calls.reduce(
+        (total, [, fields]) => total + ("deleted" in fields ? Number(fields.deleted) : 0),
+        0,
       );
+      expect(loggedDeletions).toBe(1);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it("does not duplicate page logs when a status page resumes a saved storage cursor", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const now = Date.now() + 2 * 24 * 60 * 60 * 1000;
+    const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.ownerProfileId,
+      ownerId: ids.ownerId,
+      sha256: "placeholder",
+      expectedMediaRevision: 0,
+    });
+    const storageIds = await t.run(async (ctx) => {
+      const created: Id<"_storage">[] = [];
+      for (let index = 0; index < 64; index += 1)
+        created.push(await ctx.storage.store(new Blob([`status-page-scan-filler-${index}`])));
+      created.push(await ctx.storage.store(new Blob(["status-page resumed orphan"])));
+      return created;
+    });
+    const metadata = await t.run(async (ctx) =>
+      Promise.all(storageIds.map((storageId) => ctx.db.system.get("_storage", storageId))),
+    );
+    const orphanStorageId = storageIds.at(-1);
+    const orphanMetadata = metadata.at(-1);
+    if (orphanStorageId === undefined || orphanMetadata === null || orphanMetadata === undefined)
+      throw new Error("Orphan storage was not created");
+    const creationTimes = metadata.map((item) => {
+      if (item === null) throw new Error("Storage metadata was not created");
+      return item._creationTime;
+    });
+    await t.run(async (ctx) => {
+      const job = await ctx.db.get(jobId);
+      if (job === null) throw new Error("Upload job was not created");
+      await ctx.db.patch(jobId, {
+        status: "failed",
+        sha256: orphanMetadata.sha256,
+        createdAt: Math.min(job.createdAt, ...creationTimes) - 1,
+        uploadWindowEndsAt: Math.max(...creationTimes) + 1,
+      });
+    });
+
+    await t.mutation(internal.profileMediaCleanup.reconcileOneJob, {
+      jobId,
+      now,
+      dryRun: false,
+    });
+    const jobWithCursor = await t.query(internal.profileMedia.getUploadJob, { jobId });
+    expect(jobWithCursor?.scanCursor).toBeDefined();
+
+    const logSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await t.mutation(internal.profileMediaCleanup.reconcileStatusPage, {
+        status: "failed",
+        cursor: null,
+        now,
+        dryRun: false,
+        batchSize: 8,
+      });
+
+      const pageLogs = logSpy.mock.calls.filter(
+        ([event]) => event === "profile media orphan reconciliation page",
+      );
+      expect(pageLogs).toEqual([
+        [
+          "profile media orphan reconciliation page",
+          {
+            status: "failed",
+            jobCount: 1,
+            hasMore: false,
+            dryRun: false,
+            continuationScheduled: false,
+            scanned: 1,
+            deleted: 1,
+            retained: 0,
+            skipped: 0,
+          },
+        ],
+      ]);
+      expect(await t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).toBeNull();
     } finally {
       logSpy.mockRestore();
     }
