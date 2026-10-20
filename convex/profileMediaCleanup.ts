@@ -37,6 +37,7 @@ async function reconcileJob(
   let previewCandidate = job.scanPreviewCandidateId;
   let sourceAmbiguous = job.scanSourceAmbiguous;
   let previewAmbiguous = job.scanPreviewAmbiguous;
+  const storageContinuation = job.status !== "attached" && job.scanCursor !== undefined;
   if (job.status !== "attached") {
     const page = await ctx.db.system
       .query("_storage")
@@ -73,6 +74,13 @@ async function reconcileJob(
           dryRun,
         });
       }
+      if (!dryRun && storageContinuation)
+        console.info("profile media orphan reconciliation page", {
+          status: job.status,
+          jobCount: 1,
+          hasMore: true,
+          ...counts,
+        });
       return counts;
     }
   }
@@ -147,6 +155,13 @@ async function reconcileJob(
       scanPreviewAmbiguous: previewAmbiguous,
     });
   } else if (!dryRun) await ctx.db.delete(job._id);
+  if (storageContinuation)
+    console.info("profile media orphan reconciliation page", {
+      status: job.status,
+      jobCount: 1,
+      hasMore: false,
+      ...counts,
+    });
   return counts;
 }
 
