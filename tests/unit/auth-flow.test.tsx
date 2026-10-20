@@ -500,16 +500,44 @@ describe("pending Google onboarding", () => {
     const name = screen.getByLabelText(/^Display name/);
     expect(name).toHaveValue("Google Display Name");
     expect(screen.getByText(/private draft/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Bio or role (optional)"), "A short bio");
+    await user.type(screen.getByLabelText("Website (optional)"), "https://bio.example.test");
     await user.clear(name);
     await user.type(name, "Updated Name");
     await user.click(screen.getByRole("button", { name: /complete onboarding/i }));
 
-    expect(mutation).toHaveBeenCalledWith({ name: "Updated Name" });
+    expect(mutation).toHaveBeenCalledWith({
+      name: "Updated Name",
+      bio: "A short bio",
+      website: "https://bio.example.test",
+    });
     const successDialog = screen.getByRole("dialog");
     expect(successDialog).toHaveTextContent("Profile created");
     expect(successDialog).toHaveTextContent("/google-display-name");
     await user.click(within(successDialog).getByRole("button", { name: "Customize your profile" }));
     expect(replace).toHaveBeenCalledWith("/app/profile");
+  });
+
+  it("rejects a non-HTTPS website before submitting onboarding", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: false,
+      accountStatus: "pending",
+      role: null,
+      accountId: "customer_1",
+      profileId: null,
+      onboardingName: "Google Display Name",
+    });
+    const OnboardingForm = await loadOnboarding();
+    const user = userEvent.setup();
+
+    render(<OnboardingForm />);
+
+    await user.type(screen.getByLabelText("Website (optional)"), "http://unsafe.example.test");
+    await user.click(screen.getByRole("button", { name: /complete onboarding/i }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(/valid HTTPS website/i);
+    expect(mutation).not.toHaveBeenCalled();
   });
 
   it("requires confirmation before deleting a pending account and signs out", async () => {
