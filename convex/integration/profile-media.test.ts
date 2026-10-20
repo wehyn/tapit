@@ -928,6 +928,7 @@ describe("profile media hardening", () => {
     const jobsBefore = await t.run(async (ctx) =>
       Promise.all(jobIds.map((jobId) => ctx.db.get(jobId))),
     );
+    const logSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 
     vi.useFakeTimers();
     try {
@@ -945,8 +946,19 @@ describe("profile media hardening", () => {
       expect.soft(jobsAfter).toEqual(jobsBefore);
       expect.soft(jobsAfter.every((job) => job?.scanCursor === undefined)).toBe(true);
       expect.soft(scheduled).toEqual([]);
+      expect(logSpy).toHaveBeenCalledWith(
+        "profile media orphan reconciliation page",
+        expect.objectContaining({
+          status: "pending",
+          jobCount: 32,
+          hasMore: true,
+          dryRun: true,
+          continuationScheduled: false,
+        }),
+      );
     } finally {
       vi.useRealTimers();
+      logSpy.mockRestore();
     }
   });
 
