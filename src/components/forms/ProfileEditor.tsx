@@ -174,6 +174,14 @@ function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | 
   return published == null && !hasValidEnabledLink(draft);
 }
 
+function mediaRecoveryCategory(
+  messages: readonly string[],
+): Extract<ProfileCustomizationCategory, "media" | "slideshow"> {
+  return messages.some((message) => classifyProfileWorkspaceError(message) === "slideshow")
+    ? "slideshow"
+    : "media";
+}
+
 function hasValidEnabledLink(draft: ProfileContent) {
   return draft.links.some(
     (link) =>
@@ -214,7 +222,7 @@ function getPublishRequirements(issues: readonly PublicationIssue[]): PublishReq
       case "customization":
         return customize(classifyProfileWorkspaceError(issue.message) ?? "overview");
       case "media":
-        return customize("media");
+        return customize(mediaRecoveryCategory([issue.message]));
     }
   });
 }
@@ -222,10 +230,12 @@ function getPublishRequirements(issues: readonly PublicationIssue[]): PublishReq
 function DemoProfileEditor({
   view,
   categoryFocusRequest,
+  requestCategoryFocus,
   onRequirementAction,
 }: {
   view: ProfileEditorView;
   categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
   onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
   const router = useRouter();
@@ -240,7 +250,7 @@ function DemoProfileEditor({
   const theme = draft.theme ?? legacyTheme;
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
-  const [mediaFocusRequest, setMediaFocusRequest] = useState(0);
+  const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
@@ -394,7 +404,8 @@ function DemoProfileEditor({
     } else {
       setDepartureState({ kind: "repair", href, outcome });
       if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
-        setMediaFocusRequest((current) => current + 1);
+        setShowCustomizationRecovery(true);
+        requestCategoryFocus(mediaRecoveryCategory(outcome.blocker.messages));
       }
     }
     return outcome;
@@ -633,7 +644,6 @@ function DemoProfileEditor({
         categoryFocusRequest={categoryFocusRequest}
         customization={draft.customization}
         errors={customizationErrors}
-        mediaFocusRequest={mediaFocusRequest}
         media={draft.media}
         mediaBusy={mediaBusy}
         mediaError={mediaError}
@@ -687,7 +697,7 @@ function DemoProfileEditor({
               }
               slugLocked={slugLocked}
             />
-            {mediaFocusRequest > 0 ? (
+            {showCustomizationRecovery ? (
               <>
                 <PendingMediaUploadStatus pending={pendingMediaPreview} />
                 {customizationEditor}
@@ -797,7 +807,7 @@ export function ProfileEditor({
     },
     [requestCategoryFocus],
   );
-  const editorProps = { view, categoryFocusRequest, onRequirementAction };
+  const editorProps = { view, categoryFocusRequest, requestCategoryFocus, onRequirementAction };
   return !isLocalDemoMode() ? (
     <LiveProfileEditor {...editorProps} />
   ) : (
@@ -808,10 +818,12 @@ export function ProfileEditor({
 function LiveProfileEditor({
   view,
   categoryFocusRequest,
+  requestCategoryFocus,
   onRequirementAction,
 }: {
   view: ProfileEditorView;
   categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
   onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
   const profile = useQuery(api.profiles.mine);
@@ -820,6 +832,7 @@ function LiveProfileEditor({
   return (
     <LiveProfileEditorContent
       categoryFocusRequest={categoryFocusRequest}
+      requestCategoryFocus={requestCategoryFocus}
       onRequirementAction={onRequirementAction}
       profile={profile}
       view={view}
@@ -831,11 +844,13 @@ function LiveProfileEditorContent({
   profile,
   view,
   categoryFocusRequest,
+  requestCategoryFocus,
   onRequirementAction,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
   view: ProfileEditorView;
   categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
   onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
   const router = useRouter();
@@ -846,7 +861,7 @@ function LiveProfileEditorContent({
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
-  const [mediaFocusRequest, setMediaFocusRequest] = useState(0);
+  const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
@@ -1228,7 +1243,8 @@ function LiveProfileEditorContent({
     } else {
       setDepartureState({ kind: "repair", href, outcome });
       if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
-        setMediaFocusRequest((current) => current + 1);
+        setShowCustomizationRecovery(true);
+        requestCategoryFocus(mediaRecoveryCategory(outcome.blocker.messages));
       }
     }
     return outcome;
@@ -1365,7 +1381,6 @@ function LiveProfileEditorContent({
         categoryFocusRequest={categoryFocusRequest}
         customization={currentDraft.customization}
         errors={customizationErrors}
-        mediaFocusRequest={mediaFocusRequest}
         media={currentDraft.media}
         mediaBusy={mediaBusy}
         mediaError={mediaError}
@@ -1420,7 +1435,7 @@ function LiveProfileEditorContent({
               }
               slugLocked={slugLocked}
             />
-            {mediaFocusRequest > 0 ? (
+            {showCustomizationRecovery ? (
               <>
                 <PendingMediaUploadStatus pending={pendingMediaPreview} />
                 {customizationEditor}

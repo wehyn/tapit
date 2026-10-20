@@ -39,7 +39,6 @@ export type ProfileCustomizationEditorProps = {
   customization?: ProfileCustomization;
   errors?: readonly string[];
   categoryFocusRequest?: ProfileCustomizationFocusRequest;
-  mediaFocusRequest?: number;
   media?: ProfileMediaPresentation;
   mediaBusy?: boolean;
   mediaError?: string;
@@ -546,7 +545,6 @@ export function ProfileCustomizationEditor({
   customization,
   errors = [],
   categoryFocusRequest,
-  mediaFocusRequest = 0,
   media,
   mediaBusy,
   mediaError,
@@ -559,11 +557,10 @@ export function ProfileCustomizationEditor({
   onThemeChange,
   theme,
 }: ProfileCustomizationEditorProps) {
-  type CategoryFocusTarget = "panel" | "tab" | "recovery-panel";
+  type CategoryFocusTarget = "panel" | "tab";
   type CategorySelection = {
     category: ProfileCustomizationCategory;
     categoryFocusSequence: number;
-    mediaFocusSequence: number;
   };
 
   const baseId = useId();
@@ -573,12 +570,10 @@ export function ProfileCustomizationEditor({
   );
   const focusTargetRef = useRef<CategoryFocusTarget | null>(null);
   const handledCategoryFocusRequestRef = useRef(0);
-  const handledMediaFocusRequestRef = useRef(0);
   const focusOverviewAfterTransitionRef = useRef(false);
   const [categorySelection, setCategorySelection] = useState<CategorySelection>(() => ({
     category: categoryFocusRequest?.category ?? "overview",
     categoryFocusSequence: categoryFocusRequest?.sequence ?? 0,
-    mediaFocusSequence: 0,
   }));
   const [mediaErrorTarget, setMediaErrorTarget] = useState<"background" | "slideshow">(
     "background",
@@ -594,12 +589,10 @@ export function ProfileCustomizationEditor({
           ...(customization?.customColors ? { customColors: customization.customColors } : {}),
         };
   const activeCategory =
-    mediaFocusRequest > categorySelection.mediaFocusSequence
-      ? "media"
-      : categoryFocusRequest !== undefined &&
-          categorySelection.categoryFocusSequence !== categoryFocusRequest.sequence
-        ? categoryFocusRequest.category
-        : categorySelection.category;
+    categoryFocusRequest !== undefined &&
+    categorySelection.categoryFocusSequence !== categoryFocusRequest.sequence
+      ? categoryFocusRequest.category
+      : categorySelection.category;
   const mediaPanelIsActive = activeCategory === "media" || activeCategory === "slideshow";
   const mediaPanelCategory = mediaPanelIsActive ? activeCategory : "media";
   const mediaEditorSection = activeCategory === "slideshow" ? "slideshow" : "background";
@@ -609,12 +602,6 @@ export function ProfileCustomizationEditor({
     const focusTarget = focusTargetRef.current;
     focusTargetRef.current = null;
     if (focusTarget === "panel") panelRefs.current[activeCategory]?.focus();
-    if (focusTarget === "recovery-panel") {
-      let focusFrame = window.requestAnimationFrame(() => {
-        focusFrame = window.requestAnimationFrame(() => panelRefs.current[activeCategory]?.focus());
-      });
-      return () => window.cancelAnimationFrame(focusFrame);
-    }
     return;
   }, [activeCategory]);
 
@@ -625,21 +612,14 @@ export function ProfileCustomizationEditor({
       activeCategory !== categoryFocusRequest.category
     )
       return;
-    handledCategoryFocusRequestRef.current = categoryFocusRequest.sequence;
-    const focusFrame = window.requestAnimationFrame(() =>
-      panelRefs.current[categoryFocusRequest.category]?.focus(),
-    );
-    return () => window.cancelAnimationFrame(focusFrame);
-  }, [activeCategory, categoryFocusRequest]);
-
-  useEffect(() => {
-    if (mediaFocusRequest <= handledMediaFocusRequestRef.current) return;
-    handledMediaFocusRequestRef.current = mediaFocusRequest;
-    let focusFrame = window.requestAnimationFrame(() => {
-      focusFrame = window.requestAnimationFrame(() => panelRefs.current.media?.focus());
+    const focusFrame = window.requestAnimationFrame(() => {
+      const panel = panelRefs.current[categoryFocusRequest.category];
+      if (!panel) return;
+      panel.focus();
+      handledCategoryFocusRequestRef.current = categoryFocusRequest.sequence;
     });
     return () => window.cancelAnimationFrame(focusFrame);
-  }, [activeCategory, mediaFocusRequest]);
+  }, [activeCategory, categoryFocusRequest]);
 
   useEffect(() => {
     if (!focusOverviewAfterTransitionRef.current) return;
@@ -695,7 +675,6 @@ export function ProfileCustomizationEditor({
     setCategorySelection({
       category,
       categoryFocusSequence: categoryFocusRequest?.sequence ?? 0,
-      mediaFocusSequence: mediaFocusRequest,
     });
   }
 
