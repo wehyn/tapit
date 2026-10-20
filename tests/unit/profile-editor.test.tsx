@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { AnchorHTMLAttributes } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   localMode: true,
   liveProfile: null as Record<string, unknown> | null,
   saveDraft: vi.fn(async () => ({ draftRevision: 0, imageRevision: 0, mediaRevision: 0 })),
+  registeredSave: null as null | ((href?: string) => Promise<unknown>),
   guardedNavigation: vi.fn(),
   updateDemoState: vi.fn(),
   router: { push: vi.fn() },
@@ -38,7 +39,9 @@ vi.mock("convex/react", () => ({
 }));
 
 vi.mock("@/components/layout/DraftSaveContext", () => ({
-  useDraftSaveRegistration: () => undefined,
+  useDraftSaveRegistration: (handler: ((href?: string) => Promise<unknown>) | null) => {
+    if (handler !== null) mocks.registeredSave = handler;
+  },
   useDraftSaveLink: (href: string) => {
     mocks.guardedNavigation(href);
     return (event: Event) => event.preventDefault();
@@ -147,7 +150,10 @@ describe("ProfileEditor workspace boundaries", () => {
   beforeEach(() => {
     mocks.localMode = true;
     mocks.liveProfile = { ...demoProfile, _id: "live-profile" };
-    mocks.saveDraft.mockClear();
+    mocks.saveDraft
+      .mockReset()
+      .mockResolvedValue({ draftRevision: 0, imageRevision: 0, mediaRevision: 0 });
+    mocks.registeredSave = null;
     mocks.guardedNavigation.mockClear();
     mocks.updateDemoState.mockClear();
   });
@@ -180,6 +186,33 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(screen.queryByRole("radio", { name: "Moss" })).not.toBeInTheDocument();
     },
   );
+
+  it("reports a pending save when navigation is requested during a live profile save", async () => {
+    const user = userEvent.setup();
+    mocks.localMode = false;
+    mocks.saveDraft
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValueOnce({ draftRevision: 1, imageRevision: 0, mediaRevision: 0 });
+    renderBranch("live");
+
+    await user.clear(screen.getByLabelText("Bio or role"));
+    await user.type(screen.getByLabelText("Bio or role"), "Updated bio");
+    const saveButton = screen.getByRole("button", { name: "Save draft" });
+    await user.click(saveButton);
+    await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledOnce());
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    const saveForNavigation = mocks.registeredSave;
+    if (saveForNavigation === null)
+      throw new Error("The profile editor did not register draft save.");
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await saveForNavigation("/app/links");
+    });
+
+    expect(outcome).toEqual({ kind: "deferred", reason: "pending-save" });
+    expect(mocks.saveDraft).toHaveBeenCalledOnce();
+  });
 
   it.each(["demo", "live"] as const)(
     "keeps visual controls on Customize in the %s branch",

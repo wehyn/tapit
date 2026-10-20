@@ -60,6 +60,22 @@ async function loadShells() {
   return { AdminShell, CustomerShell };
 }
 
+async function loadCustomerShellWithDraftSaver(outcome: {
+  kind: "deferred";
+  reason: "pending-save";
+}) {
+  vi.resetModules();
+  const [{ CustomerShell }, { useDraftSaveRegistration }] = await Promise.all([
+    import("../../src/components/layout/CustomerShell"),
+    import("../../src/components/layout/DraftSaveContext"),
+  ]);
+  function RegisterDraftSaver() {
+    useDraftSaveRegistration(async () => outcome);
+    return <div>customer content</div>;
+  }
+  return { CustomerShell, RegisterDraftSaver };
+}
+
 async function loadDemoCustomerShell() {
   vi.resetModules();
   const [{ CustomerShell }, { resetDemoState, setDemoSession }] = await Promise.all([
@@ -434,6 +450,40 @@ describe("non-active workspace shells", () => {
     );
 
     expect(screen.getByText("customer content")).toBeInTheDocument();
+  });
+
+  it("keeps the customer signed in and explains that the draft is still saving", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    currentPath = "/app/profile";
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+      email: "mara@example.com",
+    });
+    const { CustomerShell, RegisterDraftSaver } = await loadCustomerShellWithDraftSaver({
+      kind: "deferred",
+      reason: "pending-save",
+    });
+
+    render(
+      <CustomerShell>
+        <RegisterDraftSaver />
+      </CustomerShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for mara@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your draft is still saving. Try signing out again when it finishes. You are still signed in.",
+    );
+    expect(signOut).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("marks Customize active for an active customer at /app/customize", async () => {
