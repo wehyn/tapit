@@ -1480,7 +1480,18 @@ test("customer can customize, save, and publish a custom profile palette", async
   await expect(
     page.getByText("The custom profile accent color does not meet contrast requirements."),
   ).toBeVisible();
-  await expect(publishChanges).toBeDisabled();
+  await publishChanges.click();
+  const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  await expect(requirementsDialog).toBeVisible();
+  await expect(
+    requirementsDialog.getByText(
+      "The custom profile accent color does not meet contrast requirements.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toHaveCount(0);
+  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
 
   await page.getByRole("radio", { name: "Moss" }).check();
   await expect(publishChanges).toBeEnabled();
@@ -2555,9 +2566,17 @@ test("background descriptions default to the filename and remain required for sa
     page.getByText("A background image needs an accessible description.", { exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  const publishButton = page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ });
+  await publishButton.click();
+  const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  await expect(requirementsDialog).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
-  ).toBeDisabled();
+    requirementsDialog.getByText("A background image needs an accessible description."),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toHaveCount(0);
+  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
 
   await backgroundDescription.fill("Warm studio backdrop");
   await expect(

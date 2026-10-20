@@ -515,6 +515,8 @@ test("administrator owns a private personal workspace and keeps console access",
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByLabel("Name")).toHaveValue("Tapit Admin");
   await expect(page.getByLabel("Stable profile slug")).toHaveValue("admin-tapit");
+  const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
   const profileNavigation = page.getByRole("navigation", {
     name: "Your Tapit profile navigation",
   });
