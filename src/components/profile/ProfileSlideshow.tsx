@@ -292,7 +292,7 @@ export function ProfileSlideshow({
       ) : null}
       <dialog
         aria-label="Full slideshow image"
-        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl open:flex backdrop:bg-black/80"
+        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl open:flex backdrop:bg-black/80"
         onClose={() => {
           setFullImageOpen(false);
           viewImageRef.current?.focus();
@@ -308,7 +308,7 @@ export function ProfileSlideshow({
         </button>
         <img
           alt={currentAlt}
-          className="mx-auto block min-h-0 max-w-full object-contain"
+          className="mx-auto block min-h-0 w-full flex-1 object-contain"
           src={current.src}
         />
       </dialog>
