@@ -4,11 +4,13 @@ import { beforeEach, expect, it, vi } from "vitest";
 const mutation = vi.hoisted(() =>
   vi.fn().mockResolvedValue({ updatedAt: 2, draftRevision: 1, imageRevision: 4 }),
 );
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
 const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
+vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("convex/react", () => ({
   useAction: () => vi.fn(),
   useMutation: () => mutation,
