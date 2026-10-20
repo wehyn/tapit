@@ -206,6 +206,122 @@ test("sidebar navigation can save a repaired media draft or continue after repai
   await expect(page.getByRole("button", { name: "Add link", exact: true })).toBeVisible();
 });
 
+test("slideshow validation blocks publish and navigation, then focuses the slideshow repair", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/customize");
+  await selectWarmStudio(page);
+  await page.getByRole("tab", { name: "Slideshow" }).click();
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  const description = page.getByLabel("Slideshow image 1 description");
+  await description.evaluate((element) => {
+    if (!(element instanceof HTMLInputElement)) {
+      throw new Error("Expected the slideshow description input.");
+    }
+    element.maxLength = 200;
+  });
+  await description.fill("x".repeat(161));
+  const validationMessage = "Slideshow image 1 description must be at most 160 characters.";
+  const validationError = page.getByText(validationMessage, { exact: true });
+  await expect(validationError).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+
+  const publishButton = page.getByRole("button", { name: "Publish changes", exact: true });
+  await expect(publishButton).toBeEnabled();
+  await publishButton.click();
+  const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  await expect(requirementsDialog).toBeVisible();
+  await expect(requirementsDialog.getByText(validationMessage, { exact: true })).toBeVisible();
+  const openCustomize = requirementsDialog.getByRole("link", { name: "Open Customize" });
+  await expect(openCustomize).toHaveAttribute("href", "/app/customize?section=slideshow");
+  await openCustomize.click();
+
+  const slideshowTab = page.getByRole("tab", { name: "Slideshow" });
+  const slideshowPanel = page.getByRole("tabpanel", { name: "Slideshow", exact: true });
+  await expect(requirementsDialog).toBeHidden();
+  await expect(page).toHaveURL(/\/app\/customize(?:\?section=slideshow)?$/);
+  await expect(slideshowTab).toHaveAttribute("aria-selected", "true");
+  await expect(slideshowPanel).toBeFocused();
+  await expect(slideshowPanel.getByText(validationMessage, { exact: true })).toBeVisible();
+
+  const linksNavigation = page
+    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("link", { name: "Links", exact: true });
+  await linksNavigation.click();
+  const saveAndContinue = page.getByRole("button", { name: "Save and continue to Links" });
+  await expect(saveAndContinue).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/customize(?:\?section=slideshow)?$/);
+  await expect(slideshowTab).toHaveAttribute("aria-selected", "true");
+  await expect(slideshowPanel).toBeFocused();
+  await expect(slideshowPanel.getByText(validationMessage, { exact: true })).toBeVisible();
+
+  await description.fill("Accessible slideshow detail");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(saveAndContinue).toHaveCount(0);
+});
+
+test("profile navigation recovery mounts and focuses the slideshow repair", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(page.getByRole("status").filter({ hasText: "Uploading image" })).toHaveCount(0);
+  await page.getByLabel("Slideshow image 1 description").fill("Accessible slideshow detail");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+
+  await page.goto("/app/profile");
+  await page.evaluate(() => {
+    const isRecord = (value: unknown): value is Record<string, unknown> =>
+      value !== null && typeof value === "object" && !Array.isArray(value);
+    const invalidateDraft = (profile: unknown) => {
+      if (!isRecord(profile) || !isRecord(profile.draft) || !isRecord(profile.draft.media)) {
+        throw new Error("Expected a saved slideshow draft.");
+      }
+      const slides = profile.draft.media.slideshow;
+      if (!Array.isArray(slides) || !isRecord(slides[0])) {
+        throw new Error("Expected a saved slideshow image.");
+      }
+      slides[0].altText = "x".repeat(161);
+    };
+    const savedState = window.localStorage.getItem("tapit:demo-state:v1");
+    if (savedState === null) throw new Error("Expected saved demo state.");
+    const state: unknown = JSON.parse(savedState);
+    if (!isRecord(state) || !isRecord(state.profile) || !Array.isArray(state.profiles)) {
+      throw new Error("Expected a saved demo profile.");
+    }
+    const profileId = state.profile.id;
+    invalidateDraft(state.profile);
+    for (const profile of state.profiles) {
+      if (isRecord(profile) && profile.id === profileId) invalidateDraft(profile);
+    }
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+
+  const linksNavigation = page
+    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("link", { name: "Links", exact: true });
+  await linksNavigation.click();
+  await expect(page.getByRole("button", { name: "Save and continue to Links" })).toBeVisible();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+
+  const slideshowTab = page.getByRole("tab", { name: "Slideshow" });
+  const slideshowPanel = page.getByRole("tabpanel", { name: "Slideshow", exact: true });
+  await expect(slideshowTab).toHaveAttribute("aria-selected", "true");
+  await expect(slideshowPanel).toBeFocused();
+  await expect(
+    slideshowPanel.getByText("Slideshow image 1 description must be at most 160 characters.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
 test("editor actions stay beside the preview on desktop and fit on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 899 });
   await signInAsCustomer(page);
