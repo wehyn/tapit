@@ -2106,7 +2106,7 @@ test("ten distinct demo slideshow images fit local storage and reload", async ({
   );
   expect(savedLength).toBeLessThan(2_000_000);
   await page.reload();
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   await expect(page.getByText("10 of 10 images")).toBeVisible();
 });
 
