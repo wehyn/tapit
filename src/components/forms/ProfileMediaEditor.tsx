@@ -85,7 +85,9 @@ export function ProfileMediaEditor({
   });
   const slideshowPreviewImages = [
     ...availableSlideshowImages,
-    ...slideshowQueue.map((image) => ({ src: image.previewUrl, alt: image.altText })),
+    ...slideshowQueue
+      .filter((image) => image.status !== "failed")
+      .map((image) => ({ src: image.previewUrl, alt: image.altText })),
   ];
   const missingSlideshowImageCount = value.slideshow.length - availableSlideshowImages.length;
   const canPreviewSlideshow = slideshowPreviewImages.length > 0;
