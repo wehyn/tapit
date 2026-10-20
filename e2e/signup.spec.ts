@@ -110,6 +110,12 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.reload();
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      ),
+  );
   await expect(requirementsDialog).toHaveCount(0);
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(requirementsDialog).toBeVisible();
