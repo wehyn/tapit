@@ -54,8 +54,13 @@ const categoryLabels: Record<ProfileCustomizationCategory, string> = {
   overview: "Overview",
   identity: "Identity",
   media: "Media",
+  slideshow: "Slideshow",
   layout: "Layout",
 };
+
+const PROFILE_CUSTOMIZATION_PANEL_CATEGORIES = PROFILE_CUSTOMIZATION_CATEGORIES.filter(
+  (category) => category !== "slideshow",
+);
 
 const radioClass =
   "relative flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
@@ -560,6 +565,9 @@ export function ProfileCustomizationEditor({
   const focusOverviewAfterTransitionRef = useRef(false);
   const [selectedCategory, setSelectedCategory] =
     useState<ProfileCustomizationCategory>("overview");
+  const [mediaErrorTarget, setMediaErrorTarget] = useState<"background" | "slideshow">(
+    "background",
+  );
   const selectedPreset: ProfileAppearancePreset =
     customization?.preset === "warm-studio" ? "warm-studio" : (theme ?? "paper");
   const activeCustomization: ProfileCustomization =
@@ -571,6 +579,10 @@ export function ProfileCustomizationEditor({
           ...(customization?.customColors ? { customColors: customization.customColors } : {}),
         };
   const activeCategory = selectedCategory;
+  const mediaPanelIsActive = activeCategory === "media" || activeCategory === "slideshow";
+  const mediaPanelCategory = mediaPanelIsActive ? activeCategory : "media";
+  const mediaEditorSection = activeCategory === "slideshow" ? "slideshow" : "background";
+  const visibleMediaError = mediaErrorTarget === mediaEditorSection ? mediaError : undefined;
 
   useEffect(() => {
     const focusTarget = focusTargetRef.current;
@@ -590,10 +602,15 @@ export function ProfileCustomizationEditor({
     PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => [category, errorsFor(category)]),
   ) as Record<ProfileCustomizationCategory, string[]>;
   const mediaCategoryErrors = categoryErrors.media.filter((error) => error !== mediaError);
+  const slideshowCategoryErrors = categoryErrors.slideshow.filter((error) => error !== mediaError);
   const categoryHasErrors: Record<ProfileCustomizationCategory, boolean> = {
     overview: categoryErrors.overview.length > 0,
     identity: categoryErrors.identity.length > 0,
-    media: categoryErrors.media.length > 0 || Boolean(mediaError),
+    media:
+      categoryErrors.media.length > 0 || Boolean(mediaError && mediaErrorTarget === "background"),
+    slideshow:
+      categoryErrors.slideshow.length > 0 ||
+      Boolean(mediaError && mediaErrorTarget === "slideshow"),
     layout: categoryErrors.layout.length > 0,
   };
 
@@ -701,7 +718,7 @@ export function ProfileCustomizationEditor({
           const disabled = false;
           return (
             <button
-              aria-controls={`${baseId}-panel-${category}`}
+              aria-controls={`${baseId}-panel-${category === "slideshow" ? "media" : category}`}
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
@@ -731,20 +748,21 @@ export function ProfileCustomizationEditor({
         })}
       </nav>
 
-      {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => (
+      {PROFILE_CUSTOMIZATION_PANEL_CATEGORIES.map((category) => (
         <section
-          aria-labelledby={`${baseId}-tab-${category}`}
-          aria-label={`${categoryLabels[category]} settings`}
+          aria-labelledby={`${baseId}-tab-${category === "media" ? mediaPanelCategory : category}`}
+          aria-label={`${categoryLabels[category === "media" ? mediaPanelCategory : category]} settings`}
           className={
             barePanels
               ? "outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
               : "rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
           }
-          hidden={activeCategory !== category}
+          hidden={category === "media" ? !mediaPanelIsActive : activeCategory !== category}
           id={`${baseId}-panel-${category}`}
           key={category}
           ref={(element) => {
             panelRefs.current[category] = element;
+            if (category === "media") panelRefs.current.slideshow = element;
           }}
           role="tabpanel"
           tabIndex={-1}
@@ -868,22 +886,30 @@ export function ProfileCustomizationEditor({
 
           {category === "media" ? (
             <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
-              <CategoryErrorList errors={mediaCategoryErrors} />
+              <CategoryErrorList
+                errors={
+                  activeCategory === "slideshow" ? slideshowCategoryErrors : mediaCategoryErrors
+                }
+              />
               {onMediaChange && onMediaUpload ? (
                 <ProfileMediaEditor
                   barePanels={barePanels}
                   busy={mediaBusy}
-                  error={mediaError}
+                  error={visibleMediaError}
                   media={media}
                   onChange={onMediaChange}
                   onMediaErrorClear={onMediaErrorClear}
                   onPendingPreviewChange={onMediaPendingPreviewChange}
                   onMediaUploadCancel={onMediaUploadCancel}
-                  onUpload={onMediaUpload}
+                  onUpload={(file, target) => {
+                    setMediaErrorTarget(target);
+                    return onMediaUpload(file, target);
+                  }}
+                  section={mediaEditorSection}
                 />
               ) : (
-                <Notice tone={mediaError ? "error" : "neutral"}>
-                  {mediaError ? <span className="block">{mediaError}</span> : null}
+                <Notice tone={visibleMediaError ? "error" : "neutral"}>
+                  {visibleMediaError ? <span className="block">{visibleMediaError}</span> : null}
                   <span>
                     Media controls are unavailable because both media change and upload handlers are
                     required.
