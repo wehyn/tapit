@@ -119,10 +119,13 @@ describe("ProfileSlideshow", () => {
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
   });
 
-  it("reveals controls on pointer movement and respects an explicit pause", () => {
+  it("reveals controls on pointer movement without exposing a pause control", () => {
     render(<ProfileSlideshow autoplay images={images} />);
     const observer = IntersectionObserverMock.instances[0]!;
     const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
+    expect(screen.queryByRole("button", { name: "Pause slideshow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Play slideshow" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "View image" })).toBeInTheDocument();
     act(() => observer.setVisible(true));
 
     fireEvent.pointerMove(slideshow);
@@ -130,16 +133,8 @@ describe("ProfileSlideshow", () => {
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
 
     fireEvent.pointerMove(slideshow);
-    fireEvent.click(screen.getByRole("button", { name: "Pause slideshow" }));
-    expect(screen.getByRole("button", { name: "Play slideshow" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
     act(() => vi.advanceTimersByTime(4000));
-    expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
-    fireEvent.pointerMove(slideshow);
-    act(() => vi.advanceTimersByTime(4000));
-    expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
+    expect(screen.getByRole("img")).toHaveAttribute("alt", images[2]!.alt);
   });
 
   it("marks the initial frame eager and later frames lazy with async decoding", () => {

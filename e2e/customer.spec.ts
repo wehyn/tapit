@@ -2065,7 +2065,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await page.getByRole("button", { name: "Publish changes" }).click();
   await page.goto("/mara-velasquez");
   const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
-  await expect(publicSlideshow.getByRole("button", { name: "Pause slideshow" })).toBeVisible();
+  await expect(publicSlideshow.getByRole("button", { name: "Pause slideshow" })).toHaveCount(0);
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
   await publicSlideshow.hover();
   await publicSlideshow.getByRole("button", { name: "Next image" }).click();
@@ -2073,6 +2073,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await expect(selectedImage).toBeVisible();
   const selectedSrc = await selectedImage.getAttribute("src");
   await page.setViewportSize({ width: 390, height: 844 });
+  await publicSlideshow.hover();
   const viewImage = publicSlideshow.getByRole("button", { name: "View image" });
   await expect(viewImage).toBeVisible();
   await viewImage.click();
@@ -2615,17 +2616,20 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await page.goto("/mara-velasquez");
   const slideshow = page.getByRole("region", { name: "Profile slideshow" });
   await slideshow.scrollIntoViewIfNeeded();
+  await slideshow.hover();
   const picker = slideshow.getByRole("group", { name: "Choose slideshow image" });
   const controls = picker.locator("..");
-  const pauseButton = slideshow.getByRole("button", { name: "Pause slideshow" });
 
   await expect(controls).toHaveCSS("opacity", "1");
   await expect(controls).toHaveCSS("pointer-events", "auto");
   const pickerBox = await picker.boundingBox();
-  const pauseButtonBox = await pauseButton.boundingBox();
+  const slideshowBox = await slideshow.boundingBox();
   expect(pickerBox).not.toBeNull();
-  expect(pauseButtonBox).not.toBeNull();
-  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(pauseButtonBox!.x);
+  expect(slideshowBox).not.toBeNull();
+  expect(
+    Math.abs(pickerBox!.x + pickerBox!.width / 2 - (slideshowBox!.x + slideshowBox!.width / 2)),
+  ).toBeLessThanOrEqual(1);
+  expect(pickerBox!.width).toBeLessThan(slideshowBox!.width);
 
   await expect(controls).toHaveCSS("opacity", "0", { timeout: 5_000 });
   await expect(controls).toHaveCSS("pointer-events", "none");
@@ -2640,14 +2644,8 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await expect(controls).toHaveCSS("opacity", "1");
   await expect(controls).toHaveCSS("pointer-events", "auto");
 
-  await pauseButton.click();
-  await expect(slideshow.getByRole("button", { name: "Play slideshow" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
-  await page.waitForTimeout(3_100);
-  await expect(controls).toHaveCSS("opacity", "1");
-  await expect(controls).toHaveCSS("pointer-events", "auto");
+  await expect(slideshow.getByRole("button", { name: "Pause slideshow" })).toHaveCount(0);
+  await expect(slideshow.getByRole("button", { name: "Play slideshow" })).toHaveCount(0);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
