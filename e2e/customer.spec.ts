@@ -2029,6 +2029,7 @@ test("slideshow upload errors are announced on the labelled slideshow panel", as
 
 test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
   await openSlideshowEditor(page);
+  await page.getByLabel("Autoplay slideshow while visible").uncheck();
   await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
@@ -2040,7 +2041,8 @@ test("slideshow upload queue resumes after removing a failed item", async ({ pag
   const pendingSlideshow = page
     .getByTestId("profile-preview-device")
     .getByRole("region", { name: "Profile slideshow" });
-  await expect(pendingSlideshow.getByRole("img")).toHaveAttribute("src", /^blob:/);
+  await expect(pendingSlideshow.getByRole("button", { name: "Next image" })).toHaveCount(0);
+  await expect(pendingSlideshow.getByRole("img")).toHaveAttribute("alt", "transparent-logo.png");
 
   await setDemoMediaUploadControl(page, { fail: false });
   await page
