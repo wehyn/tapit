@@ -22,6 +22,7 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
 
 export type LinksWorkspaceMessage = {
   tone: "success" | "error";
@@ -46,7 +47,7 @@ export type LinksWorkspaceProps = {
   onMoveLink: (id: string, direction: -1 | 1) => void;
   onReorderLink: (sourceId: string, targetId: string, insertAfter: boolean) => void;
   onRemoveLink: (id: string) => void;
-  onSaveDraft: () => Promise<boolean>;
+  onSaveDraft: () => Promise<DraftSaveOutcome>;
   onPublish: () => void | Promise<void>;
 };
 

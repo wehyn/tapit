@@ -99,6 +99,10 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.getByLabel("Profile link").fill("new-tapit-customer");
   await page.getByRole("button", { name: "Create your profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
+  await page
+    .getByRole("dialog", { name: "Before you publish" })
+    .getByRole("button", { name: "Maybe later" })
+    .click();
   await expect(
     page.getByText(
       "Your profile link is ready. Add a Portfolio, TikTok, or contact link, then publish it.",

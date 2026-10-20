@@ -7,6 +7,10 @@ export const PROFILE_CUSTOMIZATION_CATEGORIES = [
 ] as const;
 
 export type ProfileCustomizationCategory = (typeof PROFILE_CUSTOMIZATION_CATEGORIES)[number];
+export type ProfileCustomizationFocusRequest = {
+  category: ProfileCustomizationCategory;
+  sequence: number;
+};
 
 const MARKERS: Record<ProfileCustomizationCategory, readonly string[]> = {
   overview: [

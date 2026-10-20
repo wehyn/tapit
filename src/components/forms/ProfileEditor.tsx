@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
+import { useRouter } from "next/navigation";
 import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
@@ -13,9 +14,10 @@ import {
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
-  validatePublication,
+  validatePublicationIssues,
   validatePublicationAccess,
   type ProfileContent,
+  type PublicationIssue,
   type ProfileTheme,
 } from "@/lib/domain";
 import {
@@ -51,11 +53,24 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
-import { ProfileWorkspaceFrame } from "@/components/forms/ProfileWorkspaceFrame";
+import {
+  ProfileWorkspaceFrame,
+  type PublishRequirement,
+} from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
-import { useDraftSaveLink, useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
-import { splitProfileWorkspaceErrors } from "@/lib/profile-workspace";
+import {
+  useDraftSaveLink,
+  useDraftSaveRegistration,
+  type DraftDepartureState,
+  type DraftSaveOutcome,
+} from "@/components/layout/DraftSaveContext";
+import {
+  classifyProfileWorkspaceError,
+  splitProfileWorkspaceErrors,
+  type ProfileCustomizationCategory,
+  type ProfileCustomizationFocusRequest,
+} from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -156,16 +171,74 @@ function unresolvedMediaMessage(pending: PendingProfileMediaUpload[]) {
 }
 
 function needsLinkOnboarding(draft: ProfileContent, published: ProfileContent | null | undefined) {
-  return (
-    published == null &&
-    !draft.links.some(
-      (link) =>
-        link.enabled && link.label.trim().length > 0 && !validateLinkDestination(link.destination),
-    )
+  return published == null && !hasValidEnabledLink(draft);
+}
+
+function mediaRecoveryCategory(
+  messages: readonly string[],
+): Extract<ProfileCustomizationCategory, "media" | "slideshow"> {
+  return messages.some((message) => classifyProfileWorkspaceError(message) === "slideshow")
+    ? "slideshow"
+    : "media";
+}
+
+function hasValidEnabledLink(draft: ProfileContent) {
+  return draft.links.some(
+    (link) =>
+      link.enabled && link.label.trim().length > 0 && !validateLinkDestination(link.destination),
   );
 }
 
-function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
+function getPublishRequirements(issues: readonly PublicationIssue[]): PublishRequirement[] {
+  return issues.map((issue, index) => {
+    const id = `${index}-${issue.message}`;
+    const customize = (section: ProfileCustomizationCategory) =>
+      ({
+        id,
+        kind: "customization",
+        message: issue.message,
+        href: `/app/customize?section=${section}`,
+        section,
+        actionLabel: "Open Customize",
+      }) satisfies PublishRequirement;
+
+    switch (issue.kind) {
+      case "profile":
+        return {
+          id,
+          kind: "profile",
+          message: issue.message,
+          href: "/app/profile",
+          actionLabel: "Open Profile",
+        } satisfies PublishRequirement;
+      case "links":
+        return {
+          id,
+          kind: "links",
+          message: issue.message,
+          href: "/app/links",
+          actionLabel: "Open Links",
+        } satisfies PublishRequirement;
+      case "customization":
+        return customize(classifyProfileWorkspaceError(issue.message) ?? "overview");
+      case "media":
+        return customize(mediaRecoveryCategory([issue.message]));
+    }
+  });
+}
+
+function DemoProfileEditor({
+  view,
+  categoryFocusRequest,
+  requestCategoryFocus,
+  onRequirementAction,
+}: {
+  view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
+  onRequirementAction: (requirement: PublishRequirement) => void;
+}) {
+  const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
@@ -176,6 +249,8 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   }));
   const theme = draft.theme ?? legacyTheme;
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
+  const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
@@ -208,36 +283,32 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     },
     [],
   );
-  const errors = (() => {
-    const customer =
-      session?.role === "customer"
-        ? state.customers.find((candidate) => candidate.email === session.email)
-        : undefined;
-    const lifecycleErrors = customer
-      ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
-      : [];
-    return [
-      ...validatePublication(draft, profile.published, {
-        immutableSlug: profile.draft.slug,
-        activeTheme: theme,
-        existingSlugs: getDemoProfiles(state)
-          .filter((candidate) => candidate.id !== profile.id)
-          .flatMap((candidate) => [
-            candidate.draft.slug,
-            ...(candidate.published === null ? [] : [candidate.published.slug]),
-          ]),
-      }),
-      ...lifecycleErrors,
-      ...(state.cards.some(
-        (card) =>
-          card.profileId === profile.id &&
-          card.status === "claimable" &&
-          card.claimedAt === undefined,
-      )
-        ? ["Claim the attached card before publishing this profile."]
-        : []),
-    ];
-  })();
+  const publicationIssues = validatePublicationIssues(draft, profile.published, {
+    immutableSlug: profile.draft.slug,
+    activeTheme: theme,
+    existingSlugs: getDemoProfiles(state)
+      .filter((candidate) => candidate.id !== profile.id)
+      .flatMap((candidate) => [
+        candidate.draft.slug,
+        ...(candidate.published === null ? [] : [candidate.published.slug]),
+      ]),
+  });
+  const publicationErrors = publicationIssues.map((issue) => issue.message);
+  const customer =
+    session?.role === "customer"
+      ? state.customers.find((candidate) => candidate.email === session.email)
+      : undefined;
+  const lifecycleErrors = customer
+    ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
+    : [];
+  const cardErrors = state.cards.some(
+    (card) =>
+      card.profileId === profile.id && card.status === "claimable" && card.claimedAt === undefined,
+  )
+    ? ["Claim the attached card before publishing this profile."]
+    : [];
+  const errors = [...publicationErrors, ...lifecycleErrors, ...cardErrors];
+  const publishRequirements = getPublishRequirements(publicationIssues);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
   const mediaErrors = validateProfileMedia(draft.media);
@@ -266,17 +337,21 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     updateField("theme", themeOption);
   }
 
-  async function saveDraft() {
+  async function saveDraft(): Promise<DraftSaveOutcome> {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
-      return false;
+      return { kind: "deferred", reason: "pending-media" };
     }
+    if (cropFile !== null) return { kind: "deferred", reason: "crop-open" };
+    if (imagePending) return { kind: "deferred", reason: "pending-media" };
     if (mediaErrors.length > 0) {
       setMessage({ tone: "error", text: mediaErrors.join(" ") });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "media-validation", messages: mediaErrors },
+      };
     }
-    if (cropFile !== null || imagePending) return false;
-    if (!isDirty) return true;
+    if (!isDirty) return { kind: "saved" };
     try {
       let assignedSlug = profile.draft.slug;
       updateDemoState((current) =>
@@ -296,17 +371,54 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           ? "Draft saved. The assigned profile slug was refreshed and is managed by an administrator."
           : "Draft saved. Visitors still see the last published version.",
       });
-      return true;
+      return { kind: "saved" };
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Draft could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Draft could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     }
   }
 
-  useDraftSaveRegistration(saveDraft);
+  async function saveFromButton() {
+    const outcome = await saveDraft();
+    if (outcome.kind === "saved") setDepartureState({ kind: "idle" });
+  }
+
+  async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
+    if (href !== undefined) setDepartureState({ kind: "saving", href });
+    let outcome: DraftSaveOutcome;
+    try {
+      outcome = await saveDraft();
+    } catch (error) {
+      outcome = {
+        kind: "failed",
+        message: error instanceof Error ? error.message : "Draft could not be saved.",
+      };
+    }
+    if (href === undefined) return outcome;
+    if (outcome.kind === "saved") {
+      setDepartureState({ kind: "idle" });
+    } else {
+      setDepartureState({ kind: "repair", href, outcome });
+      if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
+        setShowCustomizationRecovery(true);
+        requestCategoryFocus(mediaRecoveryCategory(outcome.blocker.messages));
+      }
+    }
+    return outcome;
+  }
+
+  useDraftSaveRegistration(saveForNavigation);
+
+  async function saveAndContinue() {
+    if (departureState.kind !== "repair") return;
+    const { href } = departureState;
+    const outcome = await saveForNavigation(href);
+    if (outcome.kind === "saved") router.push(href);
+  }
 
   function publish() {
     if (hasUnresolvedMedia) {
@@ -513,7 +625,39 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       ) : null}
     </div>
   );
-
+  const customizationEditor = (
+    <div
+      className={
+        draft.customization === undefined && view !== "customize"
+          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          : "contents"
+      }
+    >
+      <h2
+        className="text-lg font-semibold tracking-tight text-tapit-ink"
+        hidden={draft.customization !== undefined}
+      >
+        Profile presets
+      </h2>
+      <ProfileCustomizationEditor
+        barePanels={view === "customize"}
+        categoryFocusRequest={categoryFocusRequest}
+        customization={draft.customization}
+        errors={customizationErrors}
+        media={draft.media}
+        mediaBusy={mediaBusy}
+        mediaError={mediaError}
+        onChange={(customization) => updateField("customization", customization)}
+        onMediaErrorClear={() => setMediaError("")}
+        onMediaUploadCancel={cancelMediaUpload}
+        onMediaPendingPreviewChange={setPendingMediaPreview}
+        onMediaChange={(media) => updateField("media", media)}
+        onMediaUpload={uploadDemoMedia}
+        onThemeChange={chooseTheme}
+        theme={theme}
+      />
+    </div>
+  );
   return (
     <ProfileWorkspaceFrame
       controls={
@@ -527,7 +671,11 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={draft.links}
-              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              message={
+                message && departureState.kind === "idle" ? (
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                ) : null
+              }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
@@ -549,6 +697,12 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               }
               slugLocked={slugLocked}
             />
+            {showCustomizationRecovery ? (
+              <>
+                <PendingMediaUploadStatus pending={pendingMediaPreview} />
+                {customizationEditor}
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -565,41 +719,14 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            <div
-              className={
-                draft.customization === undefined && view !== "customize"
-                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
-                  : "contents"
-              }
-            >
-              <h2
-                className="text-lg font-semibold tracking-tight text-tapit-ink"
-                hidden={draft.customization !== undefined}
-              >
-                Profile presets
-              </h2>
-              <ProfileCustomizationEditor
-                barePanels={view === "customize"}
-                customization={draft.customization}
-                errors={customizationErrors}
-                media={draft.media}
-                mediaBusy={mediaBusy}
-                mediaError={mediaError}
-                onChange={(customization) => updateField("customization", customization)}
-                onMediaErrorClear={() => setMediaError("")}
-                onMediaUploadCancel={cancelMediaUpload}
-                onMediaPendingPreviewChange={setPendingMediaPreview}
-                onMediaChange={(media) => updateField("media", media)}
-                onMediaUpload={uploadDemoMedia}
-                onThemeChange={chooseTheme}
-                theme={theme}
-              />
-            </div>
+            {customizationEditor}
           </>
         )
       }
       message={
-        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+        view === "customize" && message && departureState.kind === "idle" ? (
+          <Notice tone={message.tone}>{message.text}</Notice>
+        ) : null
       }
       cropDialog={
         cropFile !== null ? (
@@ -614,14 +741,23 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
           />
         ) : null
       }
+      departureState={departureState}
+      onSaveAndContinue={() => void saveAndContinue()}
+      onStayHere={() => setDepartureState({ kind: "idle" })}
+      onRequirementAction={onRequirementAction}
       onPublish={publish}
-      onSave={() => void saveDraft()}
+      publishRequirements={publishRequirements}
+      firstVisitRequirementKey={
+        view === "profile" && needsLinkOnboarding(draft, profile.published) ? profile.id : undefined
+      }
+      onSave={() => void saveFromButton()}
       preview={preview}
       profileUrl={`/${draft.slug}`}
       hasPublishedProfile={profile.published !== null && profile.status === "published"}
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
-        errors.length > 0 ||
+        lifecycleErrors.length > 0 ||
+        cardErrors.length > 0 ||
         publicationLabel === "Published" ||
         cropFile !== null ||
         imagePending ||
@@ -641,30 +777,91 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   );
 }
 
-export function ProfileEditor({ view = "profile" }: { view?: ProfileEditorView } = {}) {
-  return !isLocalDemoMode() ? <LiveProfileEditor view={view} /> : <DemoProfileEditor view={view} />;
+export function ProfileEditor({
+  view = "profile",
+  initialCustomizationCategory,
+}: {
+  view?: ProfileEditorView;
+  initialCustomizationCategory?: ProfileCustomizationCategory;
+} = {}) {
+  const [categoryFocusRequest, setCategoryFocusRequest] =
+    useState<ProfileCustomizationFocusRequest>(() => ({
+      category: initialCustomizationCategory ?? "overview",
+      sequence: initialCustomizationCategory === undefined ? 0 : 1,
+    }));
+  const previousInitialCategoryRef = useRef(initialCustomizationCategory);
+  const requestCategoryFocus = useCallback((category: ProfileCustomizationCategory) => {
+    setCategoryFocusRequest((current) => ({
+      category,
+      sequence: current.sequence + 1,
+    }));
+  }, []);
+  useEffect(() => {
+    if (previousInitialCategoryRef.current === initialCustomizationCategory) return;
+    previousInitialCategoryRef.current = initialCustomizationCategory;
+    requestCategoryFocus(initialCustomizationCategory ?? "overview");
+  }, [initialCustomizationCategory, requestCategoryFocus]);
+  const onRequirementAction = useCallback(
+    (requirement: PublishRequirement) => {
+      if (requirement.kind === "customization") requestCategoryFocus(requirement.section);
+    },
+    [requestCategoryFocus],
+  );
+  const editorProps = { view, categoryFocusRequest, requestCategoryFocus, onRequirementAction };
+  return !isLocalDemoMode() ? (
+    <LiveProfileEditor {...editorProps} />
+  ) : (
+    <DemoProfileEditor {...editorProps} />
+  );
 }
 
-function LiveProfileEditor({ view }: { view: ProfileEditorView }) {
+function LiveProfileEditor({
+  view,
+  categoryFocusRequest,
+  requestCategoryFocus,
+  onRequirementAction,
+}: {
+  view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
+  onRequirementAction: (requirement: PublishRequirement) => void;
+}) {
   const profile = useQuery(api.profiles.mine);
   if (profile === undefined) return <ProfileEditorLoading />;
   if (profile === null) return <MissingProfilePage />;
-  return <LiveProfileEditorContent profile={profile} view={view} />;
+  return (
+    <LiveProfileEditorContent
+      categoryFocusRequest={categoryFocusRequest}
+      requestCategoryFocus={requestCategoryFocus}
+      onRequirementAction={onRequirementAction}
+      profile={profile}
+      view={view}
+    />
+  );
 }
 
 function LiveProfileEditorContent({
   profile,
   view,
+  categoryFocusRequest,
+  requestCategoryFocus,
+  onRequirementAction,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
   view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
+  onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
+  const router = useRouter();
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const removeImage = useMutation(api.storage.removeImage);
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
+  const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
@@ -674,8 +871,10 @@ function LiveProfileEditorContent({
   const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
   const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
   const [mediaError, setMediaError] = useState("");
-  const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
-  const registeredSave = useCallback(() => navigationSaveRef.current(), []);
+  const navigationSaveRef = useRef<(href?: string) => Promise<DraftSaveOutcome>>(async () => ({
+    kind: "saved",
+  }));
+  const registeredSave = useCallback((href?: string) => navigationSaveRef.current(href), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
   const imageRequestRef = useRef(0);
@@ -736,9 +935,11 @@ function LiveProfileEditorContent({
         publishedAt: new Date(liveProfile.published.publishedAt).toISOString(),
       }
     : null;
-  const errors = validatePublication(currentDraft, publishedForValidation, {
+  const publicationIssues = validatePublicationIssues(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
+  const errors = publicationIssues.map((issue) => issue.message);
+  const publishRequirements = getPublishRequirements(publicationIssues);
   const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
@@ -961,17 +1162,23 @@ function LiveProfileEditorContent({
     return persistedDraft;
   }
 
-  async function saveDraft(keepPublishPending = false): Promise<boolean> {
+  async function saveDraft(keepPublishPending = false): Promise<DraftSaveOutcome> {
     if (hasUnresolvedMedia) {
       setMessage({ tone: "error", text: unresolvedMediaMessage(pendingMediaPreview) });
-      return false;
+      return { kind: "deferred", reason: "pending-media" };
     }
+    if (cropFile !== null) return { kind: "deferred", reason: "crop-open" };
+    if (pending === "image") return { kind: "deferred", reason: "pending-media" };
+    if (!keepPublishPending && pending !== null)
+      return { kind: "deferred", reason: "pending-save" };
     if (mediaErrors.length > 0) {
       setMessage({ tone: "error", text: mediaErrors.join(" ") });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "media-validation", messages: mediaErrors },
+      };
     }
-    if (!keepPublishPending && (pending !== null || cropFile !== null)) return false;
-    if (!isDirty) return true;
+    if (!isDirty) return { kind: "saved" };
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
     try {
@@ -997,25 +1204,62 @@ function LiveProfileEditorContent({
             tone: "success",
             text: "Draft saved. Visitors still see the last published version.",
           });
-          return true;
+          return { kind: "saved" };
         }
         draftToSave = latestDraft;
       }
       throw new Error("Your draft changed while it was saving. Try again.");
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Draft could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Draft could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     } finally {
       if (!keepPublishPending) setPending(null);
     }
   }
 
+  async function saveFromButton() {
+    const outcome = await saveDraft();
+    if (outcome.kind === "saved") setDepartureState({ kind: "idle" });
+  }
+
+  async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
+    if (href !== undefined) setDepartureState({ kind: "saving", href });
+    let outcome: DraftSaveOutcome;
+    try {
+      outcome = await saveDraft();
+    } catch (error) {
+      outcome = {
+        kind: "failed",
+        message: error instanceof Error ? error.message : "Draft could not be saved.",
+      };
+    }
+    if (href === undefined) return outcome;
+    if (outcome.kind === "saved") {
+      setDepartureState({ kind: "idle" });
+    } else {
+      setDepartureState({ kind: "repair", href, outcome });
+      if (outcome.kind === "blocked" && outcome.blocker.kind === "media-validation") {
+        setShowCustomizationRecovery(true);
+        requestCategoryFocus(mediaRecoveryCategory(outcome.blocker.messages));
+      }
+    }
+    return outcome;
+  }
+
   useEffect(() => {
-    navigationSaveRef.current = saveDraft;
+    navigationSaveRef.current = saveForNavigation;
   });
+
+  async function saveAndContinue() {
+    if (departureState.kind !== "repair") return;
+    const { href } = departureState;
+    const outcome = await saveForNavigation(href);
+    if (outcome.kind === "saved") router.push(href);
+  }
 
   async function publish() {
     if (hasUnresolvedMedia) {
@@ -1029,7 +1273,7 @@ function LiveProfileEditorContent({
     setPending("publish");
     setMessage(null);
     try {
-      if (isDirty && !(await saveDraft(true))) return;
+      if (isDirty && (await saveDraft(true)).kind !== "saved") return;
       await publishMutation({
         profileId: liveProfile._id,
         expectedImageRevision: imageRevisionRef.current,
@@ -1118,6 +1362,40 @@ function LiveProfileEditorContent({
     </div>
   );
 
+  const customizationEditor = (
+    <div
+      className={
+        currentDraft.customization === undefined && view !== "customize"
+          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          : "contents"
+      }
+    >
+      <h2
+        className="text-lg font-semibold tracking-tight text-tapit-ink"
+        hidden={currentDraft.customization !== undefined}
+      >
+        Profile presets
+      </h2>
+      <ProfileCustomizationEditor
+        barePanels={view === "customize"}
+        categoryFocusRequest={categoryFocusRequest}
+        customization={currentDraft.customization}
+        errors={customizationErrors}
+        media={currentDraft.media}
+        mediaBusy={mediaBusy}
+        mediaError={mediaError}
+        onChange={(customization) => updateField("customization", customization)}
+        onMediaErrorClear={() => setMediaError("")}
+        onMediaUploadCancel={cancelMediaUpload}
+        onMediaPendingPreviewChange={setPendingMediaPreview}
+        onMediaChange={(media) => updateField("media", media)}
+        onMediaUpload={uploadLiveMedia}
+        onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
+        theme={theme}
+      />
+    </div>
+  );
+
   return (
     <ProfileWorkspaceFrame
       controls={
@@ -1131,7 +1409,11 @@ function LiveProfileEditorContent({
               customizationErrors={customizationErrors}
               imageContent={imageContent}
               links={currentDraft.links}
-              message={message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+              message={
+                message && departureState.kind === "idle" ? (
+                  <Notice tone={message.tone}>{message.text}</Notice>
+                ) : null
+              }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
               onCopyUrl={copyUrl}
@@ -1153,6 +1435,12 @@ function LiveProfileEditorContent({
               }
               slugLocked={slugLocked}
             />
+            {showCustomizationRecovery ? (
+              <>
+                <PendingMediaUploadStatus pending={pendingMediaPreview} />
+                {customizationEditor}
+              </>
+            ) : null}
           </>
         ) : (
           <>
@@ -1169,41 +1457,14 @@ function LiveProfileEditorContent({
               </Notice>
             ) : null}
             <PendingMediaUploadStatus pending={pendingMediaPreview} />
-            <div
-              className={
-                currentDraft.customization === undefined && view !== "customize"
-                  ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
-                  : "contents"
-              }
-            >
-              <h2
-                className="text-lg font-semibold tracking-tight text-tapit-ink"
-                hidden={currentDraft.customization !== undefined}
-              >
-                Profile presets
-              </h2>
-              <ProfileCustomizationEditor
-                barePanels={view === "customize"}
-                customization={currentDraft.customization}
-                errors={customizationErrors}
-                media={currentDraft.media}
-                mediaBusy={mediaBusy}
-                mediaError={mediaError}
-                onChange={(customization) => updateField("customization", customization)}
-                onMediaErrorClear={() => setMediaError("")}
-                onMediaUploadCancel={cancelMediaUpload}
-                onMediaPendingPreviewChange={setPendingMediaPreview}
-                onMediaChange={(media) => updateField("media", media)}
-                onMediaUpload={uploadLiveMedia}
-                onThemeChange={(nextTheme) => updateField("theme", nextTheme)}
-                theme={theme}
-              />
-            </div>
+            {customizationEditor}
           </>
         )
       }
       message={
-        view === "customize" && message ? <Notice tone={message.tone}>{message.text}</Notice> : null
+        view === "customize" && message && departureState.kind === "idle" ? (
+          <Notice tone={message.tone}>{message.text}</Notice>
+        ) : null
       }
       cropDialog={
         cropFile !== null ? (
@@ -1218,8 +1479,18 @@ function LiveProfileEditorContent({
           />
         ) : null
       }
+      departureState={departureState}
+      onSaveAndContinue={() => void saveAndContinue()}
+      onStayHere={() => setDepartureState({ kind: "idle" })}
+      onRequirementAction={onRequirementAction}
       onPublish={publish}
-      onSave={() => void saveDraft()}
+      publishRequirements={publishRequirements}
+      firstVisitRequirementKey={
+        view === "profile" && needsLinkOnboarding(currentDraft, publishedForValidation)
+          ? liveProfile._id
+          : undefined
+      }
+      onSave={() => void saveFromButton()}
       preview={preview}
       profileUrl={`/${currentDraft.slug}`}
       hasPublishedProfile={
@@ -1229,7 +1500,6 @@ function LiveProfileEditorContent({
       }
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
-        errors.length > 0 ||
         publicationLabel === "Published" ||
         pending !== null ||
         cropFile !== null ||

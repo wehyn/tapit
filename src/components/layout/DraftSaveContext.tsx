@@ -4,11 +4,34 @@ import { createContext, useCallback, useContext, useEffect, useRef } from "react
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
-export type DraftSaveHandler = () => Promise<boolean>;
+export type DraftSaveOutcome =
+  | { kind: "saved" }
+  | {
+      kind: "blocked";
+      blocker:
+        | { kind: "media-validation"; messages: readonly string[] }
+        | { kind: "links-validation"; messages: readonly string[] };
+    }
+  | { kind: "deferred"; reason: "pending-media" | "crop-open" | "pending-save" }
+  | { kind: "failed"; message: string };
+
+export type DraftSaveHandler = (href?: string) => Promise<DraftSaveOutcome>;
+export type DraftDepartureState =
+  | { kind: "idle" }
+  | { kind: "saving"; href: string }
+  | {
+      kind: "repair";
+      href: string;
+      outcome: Exclude<DraftSaveOutcome, { kind: "saved" }>;
+    };
 
 const DraftSaveContext = createContext<DraftSaveHandler | null>(null);
 type Registration = (handler: DraftSaveHandler) => () => void;
 const DraftSaveRegistrationContext = createContext<Registration | null>(null);
+
+function keepDraftAfterSaveFailure(): undefined {
+  return undefined;
+}
 
 export function DraftSaveProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const handlerRef = useRef<DraftSaveHandler | null>(null);
@@ -18,9 +41,9 @@ export function DraftSaveProvider({ children }: { children: React.ReactNode }): 
       if (handlerRef.current === handler) handlerRef.current = null;
     };
   }, []);
-  const saveDraft = useCallback<DraftSaveHandler>(async () => {
+  const saveDraft = useCallback<DraftSaveHandler>(async (href) => {
     const handler = handlerRef.current;
-    return handler === null ? true : handler();
+    return handler === null ? { kind: "saved" } : handler(href);
   }, []);
 
   return (
@@ -47,7 +70,10 @@ export function useDraftSave(): DraftSaveHandler {
   return handler;
 }
 
-export function useDraftSaveLink(href: string): (event: MouseEvent<HTMLAnchorElement>) => void {
+export function useDraftSaveLink(
+  href: string,
+  onInterceptedClick?: () => void,
+): (event: MouseEvent<HTMLAnchorElement>) => void {
   const saveDraft = useDraftSave();
   const router = useRouter();
 
@@ -64,15 +90,11 @@ export function useDraftSaveLink(href: string): (event: MouseEvent<HTMLAnchorEle
         return;
       }
       event.preventDefault();
-      void saveDraft().then(
-        (shouldNavigate) => {
-          if (shouldNavigate) router.push(href);
-        },
-        () => {
-          // A failed draft save keeps the user on the current page.
-        },
-      );
+      onInterceptedClick?.();
+      void saveDraft(href).then((outcome) => {
+        if (outcome.kind === "saved") router.push(href);
+      }, keepDraftAfterSaveFailure);
     },
-    [href, router, saveDraft],
+    [href, onInterceptedClick, router, saveDraft],
   );
 }

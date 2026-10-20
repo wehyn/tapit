@@ -506,6 +506,8 @@ export function validateProfileIdentityColor(
       : "The profile bio custom color does not meet contrast requirements.";
 }
 
+export const INVALID_FEATURED_LINK_ID_MESSAGE = "The featured link id is invalid.";
+
 /** Returns publication-blocking customization errors. Featured links are intentionally advisory. */
 export function validateProfileCustomization(
   customization: ProfileCustomization | undefined,
@@ -536,7 +538,7 @@ export function validateProfileCustomization(
     errors.push("The profile customization contact display is invalid.");
   }
   if (value.featuredLinkId !== undefined && typeof value.featuredLinkId !== "string") {
-    errors.push("The featured link id is invalid.");
+    errors.push(INVALID_FEATURED_LINK_ID_MESSAGE);
   }
   const customPaletteActive =
     value.preset === "custom" &&

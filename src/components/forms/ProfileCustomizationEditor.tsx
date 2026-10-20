@@ -25,6 +25,7 @@ import {
   PROFILE_CUSTOMIZATION_CATEGORIES,
   classifyProfileWorkspaceError,
   type ProfileCustomizationCategory,
+  type ProfileCustomizationFocusRequest,
 } from "@/lib/profile-workspace";
 import type { ProfileMediaImage, ProfileMediaPresentation } from "@/lib/profile-media";
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
@@ -37,6 +38,7 @@ export type ProfileCustomizationEditorProps = {
   barePanels?: boolean;
   customization?: ProfileCustomization;
   errors?: readonly string[];
+  categoryFocusRequest?: ProfileCustomizationFocusRequest;
   media?: ProfileMediaPresentation;
   mediaBusy?: boolean;
   mediaError?: string;
@@ -542,6 +544,7 @@ export function ProfileCustomizationEditor({
   barePanels = false,
   customization,
   errors = [],
+  categoryFocusRequest,
   media,
   mediaBusy,
   mediaError,
@@ -555,6 +558,10 @@ export function ProfileCustomizationEditor({
   theme,
 }: ProfileCustomizationEditorProps) {
   type CategoryFocusTarget = "panel" | "tab";
+  type CategorySelection = {
+    category: ProfileCustomizationCategory;
+    categoryFocusSequence: number;
+  };
 
   const baseId = useId();
   const panelRefs = useRef<Partial<Record<ProfileCustomizationCategory, HTMLElement | null>>>({});
@@ -562,9 +569,12 @@ export function ProfileCustomizationEditor({
     {},
   );
   const focusTargetRef = useRef<CategoryFocusTarget | null>(null);
+  const handledCategoryFocusRequestRef = useRef(0);
   const focusOverviewAfterTransitionRef = useRef(false);
-  const [selectedCategory, setSelectedCategory] =
-    useState<ProfileCustomizationCategory>("overview");
+  const [categorySelection, setCategorySelection] = useState<CategorySelection>(() => ({
+    category: categoryFocusRequest?.category ?? "overview",
+    categoryFocusSequence: categoryFocusRequest?.sequence ?? 0,
+  }));
   const [mediaErrorTarget, setMediaErrorTarget] = useState<"background" | "slideshow">(
     "background",
   );
@@ -578,7 +588,11 @@ export function ProfileCustomizationEditor({
           preset: selectedPreset,
           ...(customization?.customColors ? { customColors: customization.customColors } : {}),
         };
-  const activeCategory = selectedCategory;
+  const activeCategory =
+    categoryFocusRequest !== undefined &&
+    categorySelection.categoryFocusSequence !== categoryFocusRequest.sequence
+      ? categoryFocusRequest.category
+      : categorySelection.category;
   const mediaPanelIsActive = activeCategory === "media" || activeCategory === "slideshow";
   const mediaPanelCategory = mediaPanelIsActive ? activeCategory : "media";
   const mediaEditorSection = activeCategory === "slideshow" ? "slideshow" : "background";
@@ -588,7 +602,24 @@ export function ProfileCustomizationEditor({
     const focusTarget = focusTargetRef.current;
     focusTargetRef.current = null;
     if (focusTarget === "panel") panelRefs.current[activeCategory]?.focus();
+    return;
   }, [activeCategory]);
+
+  useEffect(() => {
+    if (
+      categoryFocusRequest === undefined ||
+      categoryFocusRequest.sequence <= handledCategoryFocusRequestRef.current ||
+      activeCategory !== categoryFocusRequest.category
+    )
+      return;
+    const focusFrame = window.requestAnimationFrame(() => {
+      const panel = panelRefs.current[categoryFocusRequest.category];
+      if (!panel) return;
+      panel.focus();
+      handledCategoryFocusRequestRef.current = categoryFocusRequest.sequence;
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [activeCategory, categoryFocusRequest]);
 
   useEffect(() => {
     if (!focusOverviewAfterTransitionRef.current) return;
@@ -641,7 +672,10 @@ export function ProfileCustomizationEditor({
       : findError("profile bio color", "profile bio custom color");
 
   function setCategory(category: ProfileCustomizationCategory) {
-    setSelectedCategory(category);
+    setCategorySelection({
+      category,
+      categoryFocusSequence: categoryFocusRequest?.sequence ?? 0,
+    });
   }
 
   function handleTabKeyDown(
@@ -685,7 +719,7 @@ export function ProfileCustomizationEditor({
   }
 
   function applyPreset(preset: ProfileAppearancePreset) {
-    setSelectedCategory("overview");
+    setCategory("overview");
     focusOverviewAfterTransitionRef.current = true;
     onChange(
       copyCustomization({

@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   saveDraft: vi.fn(async () => ({ draftRevision: 0, imageRevision: 0, mediaRevision: 0 })),
   guardedNavigation: vi.fn(),
   updateDemoState: vi.fn(),
+  router: { push: vi.fn() },
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => mocks.router,
 }));
 
 // Failure modes covered by this controller test:

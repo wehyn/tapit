@@ -3,6 +3,7 @@
 import type { Id } from "../../../convex/_generated/dataModel";
 import { isReservedProfileSlug } from "./reserved-profile-slug";
 import {
+  INVALID_FEATURED_LINK_ID_MESSAGE,
   normalizeProfileCustomization,
   type ProfileCustomization,
   type ProfileCustomizationValidationOptions,
@@ -24,6 +25,8 @@ export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "r
 export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
 export type DeletionStatus = "active" | "requested" | "deleted";
 export type ProfileTheme = "paper" | "moss" | "night" | "custom";
+export type PublicationIssueKind = "profile" | "links" | "customization" | "media";
+export type PublicationIssue = { kind: PublicationIssueKind; message: string };
 
 export interface Actor {
   id: string;
@@ -296,43 +299,59 @@ function duplicateEnabledLinkDestinations(links: readonly ProfileLink[]): boolea
   return false;
 }
 
-export function validatePublication(
+export function validatePublicationIssues(
   draft: ProfileContent,
   previous: PublishedProfileSnapshot | null,
   options: ProfileSlugValidationOptions = {},
-): string[] {
-  const errors: string[] = [];
-  if (!nonblank(draft.name)) errors.push("A nonblank profile name is required.");
+): PublicationIssue[] {
+  const issues: PublicationIssue[] = [];
+  const add = (kind: PublicationIssueKind, messages: readonly string[]) => {
+    issues.push(...messages.map((message) => ({ kind, message })));
+  };
+  if (!nonblank(draft.name)) add("profile", ["A nonblank profile name is required."]);
   if (!nonblank(draft.slug)) {
-    errors.push("A profile slug is required.");
+    add("profile", ["A profile slug is required."]);
   } else {
     const slugError = validateProfileSlug(draft.slug, {
       ...options,
       immutableSlug: options.immutableSlug ?? previous?.slug,
     });
-    if (slugError !== null) errors.push(slugError);
+    if (slugError !== null) add("profile", [slugError]);
   }
-  if (validEnabledLinks(draft.links).length === 0) {
-    errors.push("At least one valid enabled link is required.");
-  }
-  if (invalidEnabledLinks(draft.links)) {
-    errors.push("Every enabled link needs a label and safe destination.");
-  }
-  if (duplicateEnabledLinkDestinations(draft.links)) {
-    errors.push("Duplicate enabled link destinations are not allowed.");
-  }
+  const linkErrors = [
+    ...(validEnabledLinks(draft.links).length === 0
+      ? ["At least one valid enabled link is required."]
+      : []),
+    ...(invalidEnabledLinks(draft.links)
+      ? ["Every enabled link needs a label and safe destination."]
+      : []),
+    ...(duplicateEnabledLinkDestinations(draft.links)
+      ? ["Duplicate enabled link destinations are not allowed."]
+      : []),
+  ];
+  add("links", linkErrors);
   const redirectError = validateProfileRedirect(draft.redirect);
-  if (redirectError !== null) errors.push(redirectError);
+  if (redirectError !== null) add("profile", [redirectError]);
   const websiteError = validateWebsite(draft.website);
-  if (websiteError !== null) errors.push(websiteError);
-  errors.push(
-    ...validateProfileCustomization(draft.customization, draft.links, {
-      allowWhite: draft.media?.background !== undefined || draft.theme === "night",
-      activeTheme: draft.theme ?? options.activeTheme,
-    } satisfies ProfileCustomizationValidationOptions),
-  );
-  errors.push(...validateProfileMedia(draft.media));
-  return errors;
+  if (websiteError !== null) add("profile", [websiteError]);
+  const customizationErrors = validateProfileCustomization(draft.customization, draft.links, {
+    allowWhite: draft.media?.background !== undefined || draft.theme === "night",
+    activeTheme: draft.theme ?? options.activeTheme,
+  } satisfies ProfileCustomizationValidationOptions);
+  for (const message of customizationErrors) {
+    const kind = message === INVALID_FEATURED_LINK_ID_MESSAGE ? "links" : "customization";
+    add(kind, [message]);
+  }
+  add("media", validateProfileMedia(draft.media));
+  return issues;
+}
+
+export function validatePublication(
+  draft: ProfileContent,
+  previous: PublishedProfileSnapshot | null,
+  options: ProfileSlugValidationOptions = {},
+): string[] {
+  return validatePublicationIssues(draft, previous, options).map((issue) => issue.message);
 }
 
 /** Promotes a valid draft while retaining the previous snapshot until success. */

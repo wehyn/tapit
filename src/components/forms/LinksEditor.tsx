@@ -30,7 +30,11 @@ import {
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
-import { useDraftSaveRegistration } from "@/components/layout/DraftSaveContext";
+import {
+  useDraftSaveRegistration,
+  type DraftSaveHandler,
+  type DraftSaveOutcome,
+} from "@/components/layout/DraftSaveContext";
 import { Notice } from "@/components/ui/Notice";
 import { api } from "../../../convex/_generated/api";
 
@@ -288,14 +292,18 @@ function DemoLinksEditor() {
     setMessage(null);
   }
 
-  const saveDraft = useCallback(async () => {
-    if (!isDirty) return true;
+  const saveDraft = useCallback(async (): Promise<DraftSaveOutcome> => {
+    if (pendingAction !== null) return { kind: "deferred", reason: "pending-save" };
+    if (!isDirty) return { kind: "saved" };
     if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
         text: "Fix each highlighted link before saving the draft.",
       });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "links-validation", messages: Object.values(validation) },
+      };
     }
     setPendingAction("save");
     try {
@@ -314,17 +322,18 @@ function DemoLinksEditor() {
         tone: "success",
         text: "Links saved to draft.",
       });
-      return true;
+      return { kind: "saved" };
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Links could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Links could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     } finally {
       setPendingAction(null);
     }
-  }, [featuredLinkId, isDirty, legacyTheme, links, profile.id, validation]);
+  }, [featuredLinkId, isDirty, legacyTheme, links, pendingAction, profile.id, validation]);
 
   useDraftSaveRegistration(saveDraft);
 
@@ -441,8 +450,8 @@ export function LiveLinksEditorContent({
   );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
-  const navigationSaveRef = useRef<() => Promise<boolean>>(async () => true);
-  const registeredSave = useCallback(() => navigationSaveRef.current(), []);
+  const navigationSaveRef = useRef<DraftSaveHandler>(async () => ({ kind: "saved" }));
+  const registeredSave = useCallback((href?: string) => navigationSaveRef.current(href), []);
   useDraftSaveRegistration(registeredSave);
   const draftRevisionRef = useRef(0);
   const serverDraftRevisionRef = useRef(profile.draftRevision ?? 0);
@@ -636,14 +645,18 @@ export function LiveLinksEditorContent({
     },
     [profile._id, saveLinks],
   );
-  const saveDraft = useCallback(async (): Promise<boolean> => {
-    if (!isDirty) return true;
+  const saveDraft = useCallback(async (): Promise<DraftSaveOutcome> => {
+    if (pendingAction !== null) return { kind: "deferred", reason: "pending-save" };
+    if (!isDirty) return { kind: "saved" };
     if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
         text: "Fix each highlighted link before saving.",
       });
-      return false;
+      return {
+        kind: "blocked",
+        blocker: { kind: "links-validation", messages: Object.values(validation) },
+      };
     }
     setPendingAction("save");
     try {
@@ -653,17 +666,18 @@ export function LiveLinksEditorContent({
         tone: "success",
         text: "Links saved to draft.",
       });
-      return true;
+      return { kind: "saved" };
     } catch (error) {
+      const text = error instanceof Error ? error.message : "Links could not be saved.";
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Links could not be saved.",
+        text,
       });
-      return false;
+      return { kind: "failed", message: text };
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, persistLinks, validation]);
+  }, [isDirty, pendingAction, persistLinks, validation]);
   useEffect(() => {
     navigationSaveRef.current = saveDraft;
   }, [saveDraft]);
