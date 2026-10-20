@@ -2099,7 +2099,12 @@ test("slideshow upload queue counts failed and queued items toward the ten image
   ).toBeVisible();
 });
 
-test("ten distinct demo slideshow images fit local storage and reload", async ({ page }) => {
+test("ten distinct demo slideshow images fit local storage and keep public controls usable on mobile", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "no-preference" });
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
@@ -2145,6 +2150,70 @@ test("ten distinct demo slideshow images fit local storage and reload", async ({
   await page.reload();
   await page.getByRole("tab", { name: "Slideshow" }).click();
   await expect(page.getByText("10 of 10 images")).toBeVisible();
+
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  const slideshow = page.getByRole("region", { name: "Profile slideshow" });
+  await slideshow.scrollIntoViewIfNeeded();
+  const picker = slideshow.getByRole("group", { name: "Choose slideshow image" });
+  const controls = picker.locator("..");
+  const pauseButton = slideshow.getByRole("button", { name: "Pause slideshow" });
+
+  await expect(controls).toHaveCSS("opacity", "1");
+  await expect(controls).toHaveCSS("pointer-events", "auto");
+  const pickerBox = await picker.boundingBox();
+  const pauseButtonBox = await pauseButton.boundingBox();
+  expect(pickerBox).not.toBeNull();
+  expect(pauseButtonBox).not.toBeNull();
+  expect(pickerBox!.x + pickerBox!.width).toBeLessThanOrEqual(pauseButtonBox!.x);
+
+  await expect(controls).toHaveCSS("opacity", "0", { timeout: 5_000 });
+  await expect(controls).toHaveCSS("pointer-events", "none");
+  for (let tabIndex = 0; tabIndex < 60; tabIndex += 1) {
+    const focusIsInSlideshow = await slideshow.evaluate((root) =>
+      root.contains(document.activeElement),
+    );
+    if (focusIsInSlideshow) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(slideshow.getByRole("button", { name: "Previous image" })).toBeFocused();
+  await expect(controls).toHaveCSS("opacity", "1");
+  await expect(controls).toHaveCSS("pointer-events", "auto");
+
+  await pauseButton.click();
+  await expect(slideshow.getByRole("button", { name: "Play slideshow" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.waitForTimeout(3_100);
+  await expect(controls).toHaveCSS("opacity", "1");
+  await expect(controls).toHaveCSS("pointer-events", "auto");
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.reload();
+  await slideshow.scrollIntoViewIfNeeded();
+  await expect(page.getByRole("status")).toContainText(
+    "Your reduced-motion preference disables autoplay.",
+  );
+  await expect(controls).toHaveCSS("opacity", "1");
+  await page.waitForTimeout(3_100);
+  await expect(controls).toHaveCSS("opacity", "1");
+  await expect(controls).toHaveCSS("pointer-events", "auto");
+
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Media" }).click();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.getByLabel("Autoplay slideshow while visible").uncheck();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+  await slideshow.scrollIntoViewIfNeeded();
+  await expect(slideshow.getByRole("button", { name: "Pause slideshow" })).toHaveCount(0);
+  await expect(controls).toHaveCSS("opacity", "1");
+  await page.waitForTimeout(3_100);
+  await expect(controls).toHaveCSS("opacity", "1");
+  await expect(controls).toHaveCSS("pointer-events", "auto");
 });
 
 test("customize mobile profile preview keeps its hero full-width and identity free of backplates", async ({

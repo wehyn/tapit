@@ -40,7 +40,7 @@ export function ProfileSlideshow({
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
   const [playbackState, setPlaybackState] = useState<PlaybackState>("playing");
-  const [controlsVisible, setControlsVisible] = useState(false);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [keyboardFocused, setKeyboardFocused] = useState(false);
   const reducedMotion = useSyncExternalStore(
     subscribeToReducedMotion,
@@ -52,6 +52,9 @@ export function ProfileSlideshow({
   const pointerId = useRef<number | null>(null);
   const controlsTimeout = useRef<number | null>(null);
   const total = images.length;
+  const isPlaybackRunning =
+    autoplay && visible && !reducedMotion && playbackState === "playing" && total > 1;
+  const controlsShouldBeVisible = controlsVisible || !isPlaybackRunning;
   const showPlaybackControl = autoplay && !reducedMotion && total > 1;
   const showReducedMotionNotice = autoplay && reducedMotion && total > 1;
 
@@ -61,7 +64,11 @@ export function ProfileSlideshow({
       return;
     }
     const observer = new IntersectionObserver(
-      ([entry]) => setVisible(entry?.isIntersecting ?? false),
+      ([entry]) => {
+        const isVisible = entry?.isIntersecting ?? false;
+        setVisible(isVisible);
+        if (isVisible) setControlsVisible(true);
+      },
       {
         threshold: 0.1,
       },
@@ -71,32 +78,48 @@ export function ProfileSlideshow({
   }, []);
 
   useEffect(() => {
-    if (!autoplay || !visible || reducedMotion || playbackState === "paused" || total <= 1) return;
+    if (!isPlaybackRunning) return;
     const interval = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % total);
     }, 4000);
     return () => window.clearInterval(interval);
-  }, [autoplay, playbackState, reducedMotion, total, visible]);
+  }, [isPlaybackRunning, total]);
 
-  useEffect(
-    () => () => {
-      if (controlsTimeout.current !== null) window.clearTimeout(controlsTimeout.current);
-    },
-    [],
-  );
+  useEffect(() => {
+    if (!isPlaybackRunning || keyboardFocused) {
+      if (controlsTimeout.current !== null) {
+        window.clearTimeout(controlsTimeout.current);
+        controlsTimeout.current = null;
+      }
+      return;
+    }
+
+    if (controlsTimeout.current !== null) window.clearTimeout(controlsTimeout.current);
+    controlsTimeout.current = window.setTimeout(() => {
+      setControlsVisible(false);
+      controlsTimeout.current = null;
+    }, CONTROLS_IDLE_DELAY_MS);
+
+    return () => {
+      if (controlsTimeout.current !== null) {
+        window.clearTimeout(controlsTimeout.current);
+        controlsTimeout.current = null;
+      }
+    };
+  }, [isPlaybackRunning, keyboardFocused]);
 
   if (total === 0) return null;
 
   const safeActiveIndex = activeIndex < total ? activeIndex : 0;
   const goTo = (index: number) => setActiveIndex((index + total) % total);
   const current = images[safeActiveIndex]!;
-  const revealControls = (keepVisible = playbackState === "paused" || keyboardFocused) => {
+  const revealControls = (keepVisible = !isPlaybackRunning || keyboardFocused) => {
     if (controlsTimeout.current !== null) {
       window.clearTimeout(controlsTimeout.current);
       controlsTimeout.current = null;
     }
     setControlsVisible(true);
-    if (keepVisible) return;
+    if (keepVisible || !isPlaybackRunning) return;
     controlsTimeout.current = window.setTimeout(() => {
       setControlsVisible(false);
       controlsTimeout.current = null;
@@ -170,7 +193,7 @@ export function ProfileSlideshow({
           style={{ outlineColor: imageOutlineColor }}
         />
         <div
-          className={`absolute inset-0 transition-opacity duration-200 motion-reduce:transition-none ${controlsVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+          className={`absolute inset-0 transition-opacity duration-200 motion-reduce:transition-none ${controlsShouldBeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
         >
           {total > 1 ? (
             <>
@@ -195,7 +218,7 @@ export function ProfileSlideshow({
           {total > 1 ? (
             <div
               aria-label="Choose slideshow image"
-              className={`absolute bottom-3 left-3 flex overflow-x-auto rounded-full bg-[#2c2420]/45 p-1 ${showPlaybackControl ? "right-36" : "right-3"}`}
+              className={`absolute bottom-3 left-3 flex overflow-x-auto rounded-full bg-[#2c2420]/45 p-1 ${showPlaybackControl ? "right-[10.5rem]" : "right-3"}`}
               role="group"
             >
               {images.map((image, index) => (

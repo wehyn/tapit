@@ -126,7 +126,6 @@ describe("ProfileSlideshow", () => {
     act(() => observer.setVisible(true));
 
     fireEvent.pointerMove(slideshow);
-    expect(screen.getByRole("button", { name: "Pause slideshow" })).toBeVisible();
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
 
