@@ -4,6 +4,7 @@ export type ShellNavItem = {
   href: string;
   label: string;
   icon: IconName;
+  tourDescription?: string;
 };
 
 export type ShellNavGroup = {

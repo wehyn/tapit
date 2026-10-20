@@ -11,6 +11,25 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+const customerNavigationTourKey = "tapit:customer-navigation-tour:profile-mara";
+const customerNavigationTourSteps = [
+  {
+    label: "Profile",
+    description: "Edit your profile details and the information people see.",
+  },
+  { label: "Customize", description: "Choose the look and layout of your profile." },
+  { label: "Links", description: "Manage the links shown on your profile." },
+  { label: "Build card", description: "Create a digital card you can share." },
+  { label: "Analytics", description: "See how people interact with your profile." },
+  { label: "Account", description: "Manage your account settings." },
+];
+
+async function signInForNavigationTour(page: Page) {
+  await resetDemoHarness(page);
+  await page.evaluate((key) => window.localStorage.removeItem(key), customerNavigationTourKey);
+  await signInAsCustomer(page);
+}
+
 async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem("tapit:demo-state:v1");
@@ -100,6 +119,168 @@ test("signing out saves the registered profile draft first", async ({ page }) =>
       ?.bio;
   });
   expect(savedBio).toBe("Saved when signing out.");
+});
+
+test("first-time customers can tour and revisit each desktop navigation item", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signInForNavigationTour(page);
+
+  const navigation = page
+    .getByTestId("workspace-sidebar")
+    .getByRole("navigation", { name: "Your Tapit profile navigation" });
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const spotlight = page.getByTestId("navigation-tour-spotlight");
+
+  await expect(coach).toBeVisible();
+  await expect(spotlight).toBeVisible();
+  for (const [index, step] of customerNavigationTourSteps.entries()) {
+    const target = navigation.getByRole("link", { name: step.label, exact: true });
+    await expect(target).toBeVisible();
+    await expect(target).toHaveAttribute("aria-describedby", /.+/);
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${customerNavigationTourSteps.length}`);
+
+    const targetBounds = await target.boundingBox();
+    const spotlightBounds = await spotlight.boundingBox();
+    expect(targetBounds).not.toBeNull();
+    expect(spotlightBounds).not.toBeNull();
+    if (targetBounds && spotlightBounds) {
+      expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
+      expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
+      expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
+        targetBounds.x + targetBounds.width,
+      );
+      expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
+        targetBounds.y + targetBounds.height,
+      );
+    }
+
+    if (index === 0) {
+      await page.screenshot({ path: testInfo.outputPath("navigation-tour-desktop.png") });
+    }
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(navigation.getByRole("link", { name: "Account", exact: true })).toBeFocused();
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), customerNavigationTourKey))
+    .toBe("done");
+
+  await navigation.getByRole("link", { name: "Links", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/links$/);
+  await page.goto("/app/profile");
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
+});
+
+test("the navigation tour can be skipped with the keyboard", async ({ page }) => {
+  await signInForNavigationTour(page);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const skip = coach.getByRole("button", { name: "Skip tour", exact: true });
+  await expect(coach).toContainText("Step 1 of 6");
+  await skip.focus();
+  await page.keyboard.press("Enter");
+
+  await expect(coach).toHaveCount(0);
+  await expect(
+    page.getByTestId("workspace-sidebar").getByRole("link", { name: "Profile", exact: true }),
+  ).toBeFocused();
+  await expect
+    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), customerNavigationTourKey))
+    .toBe("done");
+});
+
+test("mobile navigation tour keeps its drawer and spotlight target visible", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInForNavigationTour(page);
+
+  const opener = page.getByRole("button", { name: "Open navigation" });
+  const drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
+  const navigation = drawer.getByRole("navigation", {
+    name: "Your Tapit profile navigation",
+  });
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const spotlight = page.getByTestId("navigation-tour-spotlight");
+
+  await expect(opener).toHaveAttribute("aria-expanded", "true");
+  await expect(drawer).toHaveAttribute("aria-modal", "true");
+  await expect(coach).toBeVisible();
+  await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused();
+
+  const brand = drawer.getByRole("link", { name: "Tapit home" });
+  const next = coach.getByRole("button", { name: "Next", exact: true });
+  await page.keyboard.press("Shift+Tab");
+  await expect(brand).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(next).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(brand).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused();
+
+  for (const [index, step] of customerNavigationTourSteps.entries()) {
+    const target = navigation.getByRole("link", { name: step.label, exact: true });
+    await expect(target).toBeVisible();
+    await expect(target).toBeInViewport();
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${customerNavigationTourSteps.length}`);
+
+    const targetBounds = await target.boundingBox();
+    const spotlightBounds = await spotlight.boundingBox();
+    expect(targetBounds).not.toBeNull();
+    expect(spotlightBounds).not.toBeNull();
+    if (targetBounds && spotlightBounds) {
+      expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
+      expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
+      expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
+        targetBounds.x + targetBounds.width,
+      );
+      expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
+        targetBounds.y + targetBounds.height,
+      );
+    }
+
+    if (index === 0) {
+      await page.screenshot({ path: testInfo.outputPath("navigation-tour-mobile.png") });
+    }
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    if (index < customerNavigationTourSteps.length - 1) await expect(drawer).toBeVisible();
+  }
+
+  await expect(drawer).toHaveCount(0);
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  await expect(opener).toBeFocused();
+});
+
+test("mobile Escape and drawer close end the tour and restore focus", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await signInForNavigationTour(page);
+
+  const opener = page.getByRole("button", { name: "Open navigation" });
+  let drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
+  await expect(drawer).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  await expect(opener).toBeFocused();
+
+  await page.evaluate((key) => window.localStorage.removeItem(key), customerNavigationTourKey);
+  await page.reload();
+  drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
+  await expect(drawer).toBeVisible();
+  await drawer.getByRole("button", { name: "Close navigation" }).click();
+  await expect(drawer).toHaveCount(0);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
+  await expect(opener).toHaveAttribute("aria-expanded", "false");
+  await expect(opener).toBeFocused();
 });
 
 test("a failed draft save keeps the customer signed in when they try to sign out", async ({
