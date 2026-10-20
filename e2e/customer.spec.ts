@@ -2202,7 +2202,7 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
 
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.getByLabel("Autoplay slideshow while visible").uncheck();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();

@@ -108,6 +108,16 @@ export function ProfileSlideshow({
     };
   }, [isPlaybackRunning, keyboardFocused]);
 
+  useEffect(
+    () => () => {
+      if (controlsTimeout.current !== null) {
+        window.clearTimeout(controlsTimeout.current);
+        controlsTimeout.current = null;
+      }
+    },
+    [],
+  );
+
   if (total === 0) return null;
 
   const safeActiveIndex = activeIndex < total ? activeIndex : 0;
