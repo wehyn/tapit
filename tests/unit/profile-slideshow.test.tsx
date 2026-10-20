@@ -119,19 +119,17 @@ describe("ProfileSlideshow", () => {
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
   });
 
-  it("pauses for interaction and resumes unless the user explicitly paused it", () => {
+  it("reveals controls on pointer movement and respects an explicit pause", () => {
     render(<ProfileSlideshow autoplay images={images} />);
     const observer = IntersectionObserverMock.instances[0]!;
     const slideshow = screen.getByRole("region", { name: "Profile slideshow" });
     act(() => observer.setVisible(true));
 
-    fireEvent.mouseEnter(slideshow);
-    act(() => vi.advanceTimersByTime(4000));
-    expect(screen.getByRole("img")).toHaveAttribute("alt", images[0]!.alt);
-    fireEvent.mouseLeave(slideshow);
+    fireEvent.pointerMove(slideshow);
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
 
+    fireEvent.pointerMove(slideshow);
     fireEvent.click(screen.getByRole("button", { name: "Pause slideshow" }));
     expect(screen.getByRole("button", { name: "Play slideshow" })).toHaveAttribute(
       "aria-pressed",
@@ -139,8 +137,7 @@ describe("ProfileSlideshow", () => {
     );
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
-    fireEvent.mouseEnter(slideshow);
-    fireEvent.mouseLeave(slideshow);
+    fireEvent.pointerMove(slideshow);
     act(() => vi.advanceTimersByTime(4000));
     expect(screen.getByRole("img")).toHaveAttribute("alt", images[1]!.alt);
   });
