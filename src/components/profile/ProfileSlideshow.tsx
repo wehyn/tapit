@@ -292,7 +292,7 @@ export function ProfileSlideshow({
       ) : null}
       <dialog
         aria-label="Full slideshow image"
-        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl backdrop:bg-black/80"
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl open:flex backdrop:bg-black/80"
         onClose={() => {
           setFullImageOpen(false);
           viewImageRef.current?.focus();
@@ -300,7 +300,7 @@ export function ProfileSlideshow({
         ref={dialogRef}
       >
         <button
-          className="ml-auto mb-2 block min-h-11 rounded-full px-3 py-2 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          className="ml-auto mb-2 block min-h-11 shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
           onClick={() => dialogRef.current?.close()}
           type="button"
         >
@@ -308,7 +308,7 @@ export function ProfileSlideshow({
         </button>
         <img
           alt={currentAlt}
-          className="mx-auto block max-h-[calc(100dvh-7.25rem-2px)] max-w-full object-contain"
+          className="mx-auto block min-h-0 max-w-full object-contain"
           src={current.src}
         />
       </dialog>

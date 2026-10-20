@@ -2222,6 +2222,8 @@ test("tall and wide published slideshow images fit the full image dialog", async
     { width: 390, height: 844, rootFontSize: 16 },
     { width: 1280, height: 720, rootFontSize: 16 },
     { width: 390, height: 844, rootFontSize: 32 },
+    { width: 390, height: 844, rootFontSize: 12 },
+    { width: 320, height: 720, rootFontSize: 32 },
   ]) {
     await page.setViewportSize(viewport);
     await page.evaluate((size) => {
@@ -2235,6 +2237,13 @@ test("tall and wide published slideshow images fit the full image dialog", async
       const image = fullImageView.getByRole("img", { name });
       await expect(image).toBeVisible();
       await expect(image).toHaveAttribute("src", slideSrc!);
+      if (viewport.width === 320) {
+        expect(
+          await fullImageView
+            .getByRole("button", { name: "Close full image" })
+            .evaluate((button) => button.getBoundingClientRect().height),
+        ).toBeGreaterThan(2.75 * rootFontSize);
+      }
       await expect
         .poll(() =>
           image.evaluate((element: HTMLImageElement) => {
