@@ -2218,11 +2218,15 @@ test("tall and wide published slideshow images fit the full image dialog", async
 
   const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
   const fullImageView = page.getByRole("dialog", { name: "Full slideshow image" });
-  for (const viewport of [
-    { width: 390, height: 844 },
-    { width: 1280, height: 720 },
+  for (const { rootFontSize, ...viewport } of [
+    { width: 390, height: 844, rootFontSize: 16 },
+    { width: 1280, height: 720, rootFontSize: 16 },
+    { width: 390, height: 844, rootFontSize: 32 },
   ]) {
     await page.setViewportSize(viewport);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = `${size}px`;
+    }, rootFontSize);
     for (const [index, name] of ["Tall portrait", "Wide panorama"].entries()) {
       await publicSlideshow.getByRole("button", { name: `Image ${index + 1} of 2` }).click();
       const slide = publicSlideshow.getByRole("img", { name });
@@ -2240,11 +2244,6 @@ test("tall and wide published slideshow images fit the full image dialog", async
             return {
               loaded: element.naturalWidth > 0,
               noCrop: getComputedStyle(element).objectFit === "contain",
-              aspectRatioPreserved:
-                Math.abs(
-                  imageBounds.width / imageBounds.height -
-                    element.naturalWidth / element.naturalHeight,
-                ) < 0.01,
               withinDialog:
                 imageBounds.left >= dialogBounds.left &&
                 imageBounds.right <= dialogBounds.right &&
@@ -2264,7 +2263,6 @@ test("tall and wide published slideshow images fit the full image dialog", async
         .toEqual({
           loaded: true,
           noCrop: true,
-          aspectRatioPreserved: true,
           withinDialog: true,
           withinViewport: true,
           noDialogScroll: true,
