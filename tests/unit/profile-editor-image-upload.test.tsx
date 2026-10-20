@@ -232,7 +232,7 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   );
   render(<ProfileEditor view="customize" />);
 
-  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Slideshow" }));
   const slideshowInput = screen.getByLabelText("Upload slideshow images");
   fireEvent.change(slideshowInput, {
     target: { files: [new File(["first"], "first.png", { type: "image/png" })] },
@@ -247,7 +247,7 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
   fireEvent.click(screen.getByRole("tab", { name: "Overview" }));
   fireEvent.click(screen.getByLabelText("Moss"));
   expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("tab", { name: "Media" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Slideshow" }));
   expect(screen.getByText("Uploading", { exact: true })).toBeVisible();
   expect(screen.getByText("Waiting", { exact: true })).toBeVisible();
   expect(fetchMock).toHaveBeenCalledOnce();
@@ -278,6 +278,8 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
 
   const resolveSecondUpload = resolveUploads[1];
   if (!resolveSecondUpload) throw new Error("Expected the second deferred upload request.");
+  const saveDraftButton = screen.getByRole("button", { name: "Save draft" });
+  expect(saveDraftButton).toBeDisabled();
   resolveSecondUpload(
     new Response(
       JSON.stringify({
@@ -289,8 +291,16 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
       { status: 200, headers: { "Content-Type": "application/json" } },
     ),
   );
-  await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(
+    () =>
+      expect(
+        saveDraftButton,
+        "Save draft did not re-enable after the second slideshow upload completed.",
+      ).toBeEnabled(),
+    { timeout: 5_000 },
+  );
+  expect(screen.getByText("Image 2 of 2")).toBeVisible();
+  fireEvent.click(saveDraftButton);
 
   await waitFor(() => expect(mutation).toHaveBeenCalled());
   expect(mutation).toHaveBeenLastCalledWith(

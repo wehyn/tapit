@@ -1649,6 +1649,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await page.getByLabel("Crop horizontal position: 50%").fill("30");
   await page.getByLabel("Crop vertical position: 50%").fill("65");
 
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   const slideshowInput = page.getByLabel("Upload slideshow images");
   await slideshowInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
@@ -1816,7 +1817,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await expect(page.getByText("1 of 10 images")).toBeVisible();
@@ -1848,7 +1849,7 @@ async function openSlideshowEditor(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
 }
 
 test("slideshow upload queue waits for the active upload and preserves selection order", async ({
@@ -1916,6 +1917,40 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(page.getByRole("button", { name: "Retry upload" })).toHaveCount(0);
   await expect(page.getByRole("alert").filter({ hasText: /media upload failed/i })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
+});
+
+test("slideshow upload errors are announced on the labelled slideshow panel", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { fail: true });
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+
+  const slideshowTab = page.getByRole("tab", { name: "Slideshow" });
+  const mediaTab = page.getByRole("tab", { name: "Media" });
+  await expect(slideshowTab).toHaveAccessibleDescription("Needs attention");
+
+  const slideshowPanel = page.getByRole("tabpanel", { name: "Slideshow" });
+  await expect(slideshowPanel).toBeVisible();
+  const slideshowTabId = await slideshowTab.getAttribute("id");
+  if (!slideshowTabId) throw new Error("The Slideshow tab is missing its accessible id.");
+  await expect(slideshowTab).toHaveAttribute(
+    "aria-controls",
+    (await slideshowPanel.getAttribute("id")) ?? "",
+  );
+  await expect(slideshowPanel).toHaveAttribute("aria-labelledby", slideshowTabId);
+
+  await mediaTab.click();
+  await expect(mediaTab).not.toHaveAccessibleDescription(/Needs attention/);
+  const mediaPanel = page.getByRole("tabpanel", { name: "Media" });
+  await expect(mediaPanel).toBeVisible();
+  const mediaTabId = await mediaTab.getAttribute("id");
+  if (!mediaTabId) throw new Error("The Media tab is missing its accessible id.");
+  await expect(mediaPanel).toHaveAttribute("aria-labelledby", mediaTabId);
 });
 
 test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
@@ -2065,7 +2100,7 @@ test("ten distinct demo slideshow images fit local storage and reload", async ({
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
 
   for (let index = 0; index < 10; index += 1) {
     await page.evaluate(async (slideIndex) => {
@@ -2105,7 +2140,7 @@ test("ten distinct demo slideshow images fit local storage and reload", async ({
   );
   expect(savedLength).toBeLessThan(2_000_000);
   await page.reload();
-  await page.getByRole("tab", { name: "Media" }).click();
+  await page.getByRole("tab", { name: "Slideshow" }).click();
   await expect(page.getByText("10 of 10 images")).toBeVisible();
 });
 

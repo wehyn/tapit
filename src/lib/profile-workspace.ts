@@ -2,6 +2,7 @@ export const PROFILE_CUSTOMIZATION_CATEGORIES = [
   "overview",
   "identity",
   "media",
+  "slideshow",
   "layout",
 ] as const;
 
@@ -25,13 +26,12 @@ const MARKERS: Record<ProfileCustomizationCategory, readonly string[]> = {
   ],
   media: [
     "profile media",
-    "media autoplay",
     "hero height",
-    "slideshow",
     "background image",
     "background horizontal position",
     "background vertical position",
   ],
+  slideshow: ["media autoplay", "slideshow"],
   layout: [
     "profile customization content order",
     "profile customization layout order",

@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
@@ -768,7 +768,7 @@ function LiveProfileEditorContent({
       : "Draft saved";
   const latestDraftRef = useRef(currentDraft);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestDraftRef.current = currentDraft;
   }, [currentDraft]);
 
