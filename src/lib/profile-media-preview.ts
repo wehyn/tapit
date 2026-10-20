@@ -40,7 +40,7 @@ export function mergePendingProfileMediaPreview(
         positionX: entry.positionX,
         positionY: entry.positionY,
       };
-    } else {
+    } else if (entry.status !== "failed") {
       slideshow.push(localImage);
     }
   }
