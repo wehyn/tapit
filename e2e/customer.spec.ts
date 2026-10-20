@@ -1919,6 +1919,40 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
+test("slideshow upload errors are announced on the labelled slideshow panel", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { fail: true });
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+
+  await expect(
+    page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
+  ).toBeVisible();
+
+  const slideshowTab = page.getByRole("tab", { name: "Slideshow" });
+  const mediaTab = page.getByRole("tab", { name: "Media" });
+  await expect(slideshowTab).toHaveAccessibleDescription("Needs attention");
+
+  const slideshowPanel = page.getByRole("tabpanel", { name: "Slideshow" });
+  await expect(slideshowPanel).toBeVisible();
+  const slideshowTabId = await slideshowTab.getAttribute("id");
+  if (!slideshowTabId) throw new Error("The Slideshow tab is missing its accessible id.");
+  await expect(slideshowTab).toHaveAttribute(
+    "aria-controls",
+    (await slideshowPanel.getAttribute("id")) ?? "",
+  );
+  await expect(slideshowPanel).toHaveAttribute("aria-labelledby", slideshowTabId);
+
+  await mediaTab.click();
+  await expect(mediaTab).not.toHaveAccessibleDescription(/Needs attention/);
+  const mediaPanel = page.getByRole("tabpanel", { name: "Media" });
+  await expect(mediaPanel).toBeVisible();
+  const mediaTabId = await mediaTab.getAttribute("id");
+  if (!mediaTabId) throw new Error("The Media tab is missing its accessible id.");
+  await expect(mediaPanel).toHaveAttribute("aria-labelledby", mediaTabId);
+});
+
 test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
   await openSlideshowEditor(page);
   await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
