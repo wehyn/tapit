@@ -3,7 +3,7 @@ import sharp from "sharp";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
+import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
 async function publishWarmStudioProfile(page: Page) {
   await resetDemoHarness(page);
@@ -198,6 +198,29 @@ test("public profiles resolve lowercase and mixed-case direct URLs", async ({ pa
     await page.goto(`/${slug}`);
     await expect(page.getByRole("heading", { name: "Mara Velasquez", exact: true })).toBeVisible();
   }
+});
+
+test("owner shortcut is hidden when signed out and links Mara to profile editor", async ({ page }) => {
+  await resetDemoHarness(page);
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
+
+  await signInAsCustomer(page);
+  await expect(
+    page.getByTestId("profile-preview-device").getByRole("link", { name: "Edit profile" }),
+  ).toHaveCount(0);
+  await page.goto("/mara-velasquez");
+  const editProfile = page.getByRole("link", { name: "Edit profile", exact: true });
+  await expect(editProfile).toBeVisible();
+  await expect(editProfile).toHaveAttribute("href", "/app/profile");
+});
+
+test("shortcut stays hidden for a signed-in admin viewing Mara's profile", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsAdmin(page);
+  await page.goto("/mara-velasquez");
+
+  await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
 });
 
 test("public profile identity stays centered across screen widths", async ({ page }) => {
