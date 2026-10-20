@@ -11,6 +11,7 @@ export function AppShell({
   eyebrow,
   mobileHeaderActions,
   navigationTourStorageKey,
+  canReplayNavigationTour,
   navGroups,
   beforeNavigate,
   pageTitle,
@@ -22,6 +23,7 @@ export function AppShell({
   eyebrow: string;
   mobileHeaderActions?: ReactNode;
   navigationTourStorageKey?: string;
+  canReplayNavigationTour?: boolean;
   navGroups: ShellNavGroup[];
   beforeNavigate?: (href: string) => Promise<boolean>;
   pageTitle?: string;
@@ -71,6 +73,7 @@ export function AppShell({
         groups={navGroups}
         mobileHeaderActions={mobileHeaderActions}
         navigationTourStorageKey={navigationTourStorageKey}
+        canReplayNavigationTour={canReplayNavigationTour}
         onNavigate={handleNavigation}
         sidebarFooter={sidebarFooter}
         title={title}

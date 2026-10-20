@@ -19,6 +19,12 @@ import { Button } from "../ui/Button";
 
 const drawerId = "authenticated-navigation-drawer";
 
+declare global {
+  interface Window {
+    tapitStartNavigationTour?: () => void;
+  }
+}
+
 type TourItem = ShellNavItem & { tourDescription: string };
 type TourLayout = {
   target: { top: number; left: number; width: number; height: number };
@@ -31,6 +37,7 @@ export function SidebarNav({
   groups,
   mobileHeaderActions,
   navigationTourStorageKey,
+  canReplayNavigationTour = false,
   onNavigate,
   sidebarFooter,
   title,
@@ -40,6 +47,7 @@ export function SidebarNav({
   groups: ShellNavGroup[];
   mobileHeaderActions?: ReactNode;
   navigationTourStorageKey?: string;
+  canReplayNavigationTour?: boolean;
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
   sidebarFooter?: ReactNode;
   title: string;
@@ -59,6 +67,21 @@ export function SidebarNav({
     [groups],
   );
   const tourItem = tourIndex === null ? undefined : tourItems[tourIndex];
+  const startNavigationTour = useCallback(() => {
+    const desktopSidebar = document.querySelector<HTMLElement>('[data-testid="workspace-sidebar"]');
+    if (desktopSidebar?.getClientRects().length === 0) setOpen(true);
+    setTourIndex(0);
+  }, []);
+
+  useEffect(() => {
+    if (!canReplayNavigationTour || tourItems.length === 0) return;
+    window.tapitStartNavigationTour = startNavigationTour;
+    return () => {
+      if (window.tapitStartNavigationTour === startNavigationTour) {
+        delete window.tapitStartNavigationTour;
+      }
+    };
+  }, [canReplayNavigationTour, startNavigationTour, tourItems.length]);
 
   const finishTour = useCallback(
     (closeDrawer = false) => {
