@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth } from "@convex-dev/auth/react";
+import { useMutation, useQuery, useQuery_experimental } from "convex/react";
 import { useCallback } from "react";
 
 import { api } from "../../../convex/_generated/api";
@@ -10,12 +11,14 @@ import {
   getDemoTheme,
   recordLinkClick,
   recordProfileView,
+  useDemoSession,
   useHydratedDemoState,
 } from "@/lib/demo/store";
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
+import { matchesOwnedProfileQuery } from "@/lib/profile-ownership";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
@@ -44,6 +47,7 @@ function DemoPublicProfileScreen({
   source: "nfc" | "qr" | "direct";
 }) {
   const { hydrated, state } = useHydratedDemoState();
+  const session = useDemoSession();
   if (!hydrated) {
     return <PublicProfileLoading />;
   }
@@ -56,6 +60,13 @@ function DemoPublicProfileScreen({
   if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   }
+  const viewer = session
+    ? state.customers.find((customer) => customer.email === session.email)
+    : undefined;
+  const showOwnerShortcut =
+    viewer !== undefined &&
+    isActiveAccount(viewer.status, viewer.deletionStatus) &&
+    viewer.id === profile.ownerId;
 
   const projection = projectDemoPublicProfile(
     profile,
@@ -87,6 +98,7 @@ function DemoPublicProfileScreen({
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
+      showOwnerShortcut={showOwnerShortcut}
       theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, source)}
       onView={(id) => recordProfileView(id, source)}
@@ -101,7 +113,12 @@ function LivePublicProfileScreen({
   slug: string;
   source: "nfc" | "qr" | "direct";
 }) {
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const profile = useQuery(api.profiles.publicBySlug, { slug });
+  const ownedProfile = useQuery_experimental({
+    query: api.profiles.mine,
+    args: isAuthenticated && !authLoading ? {} : "skip",
+  });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
   const onView = useCallback(
@@ -155,6 +172,8 @@ function LivePublicProfileScreen({
       icon: link.icon as import("@/lib/domain").ProfileLink["icon"],
     })),
   };
+  const showOwnerShortcut =
+    !authLoading && isAuthenticated && matchesOwnedProfileQuery(ownedProfile, profile.id);
   return (
     <PublicProfile
       mobileLayout
@@ -163,6 +182,7 @@ function LivePublicProfileScreen({
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${profile.slug}`}
+      showOwnerShortcut={showOwnerShortcut}
       theme={projection.theme}
     />
   );

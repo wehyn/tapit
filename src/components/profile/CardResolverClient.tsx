@@ -1,15 +1,24 @@
 "use client";
 
+import { useConvexAuth } from "@convex-dev/auth/react";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useQuery_experimental } from "convex/react";
 import { useCallback } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { getDemoProfileById, getDemoTheme, useHydratedDemoState } from "@/lib/demo/store";
+import {
+  getDemoProfileById,
+  getDemoTheme,
+  recordLinkClick,
+  recordProfileView,
+  useDemoSession,
+  useHydratedDemoState,
+} from "@/lib/demo/store";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
+import { matchesOwnedProfileQuery } from "@/lib/profile-ownership";
 
 import {
   InactiveCardPage,
@@ -20,7 +29,6 @@ import {
 import { PublicProfile } from "./PublicProfile";
 import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
 import { UnpublishedCardClaim } from "./UnpublishedCardClaim";
-import { recordLinkClick, recordProfileView } from "@/lib/demo/store";
 
 function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
   if (source === undefined) return "nfc";
@@ -31,6 +39,7 @@ function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
 
 function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
   const { hydrated, state } = useHydratedDemoState();
+  const session = useDemoSession();
   if (!hydrated) {
     return <CardResolverLoading />;
   }
@@ -45,6 +54,13 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   }
+  const viewer = session
+    ? state.customers.find((customer) => customer.email === session.email)
+    : undefined;
+  const showOwnerShortcut =
+    viewer !== undefined &&
+    isActiveAccount(viewer.status, viewer.deletionStatus) &&
+    viewer.id === profile.ownerId;
   const projection = projectDemoPublicProfile(
     profile,
     profile.published,
@@ -74,6 +90,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
       profile={projection}
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
+      showOwnerShortcut={showOwnerShortcut}
       theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, sourceValue(source))}
       onView={(id) => recordProfileView(id, sourceValue(source))}
@@ -90,7 +107,12 @@ export function CardResolverClient({ cardToken, source }: { cardToken: string; s
 }
 
 function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const result = useQuery(api.cards.resolve, { token: cardToken });
+  const ownedProfile = useQuery_experimental({
+    query: api.profiles.mine,
+    args: isAuthenticated && !authLoading ? {} : "skip",
+  });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
   const recordProfileViewForVisit = useCallback(
@@ -147,6 +169,8 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
       icon: link.icon as import("@/lib/domain").ProfileLink["icon"],
     })),
   };
+  const showOwnerShortcut =
+    !authLoading && isAuthenticated && matchesOwnedProfileQuery(ownedProfile, profile.id);
   return (
     <PublicProfile
       mobileLayout
@@ -155,6 +179,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
       profile={profile}
       profileId={profile.id}
       profileUrl={`/${profile.slug}`}
+      showOwnerShortcut={showOwnerShortcut}
       theme={profile.theme}
     />
   );

@@ -12,6 +12,10 @@ const resolverMocks = vi.hoisted(() => ({
 vi.mock("convex/react", () => ({
   useMutation: () => resolverMocks.recordView,
   useQuery: () => resolverMocks.result,
+  useQuery_experimental: () => ({ status: "pending" }),
+}));
+vi.mock("@convex-dev/auth/react", () => ({
+  useConvexAuth: () => ({ isAuthenticated: false, isLoading: false }),
 }));
 vi.mock("../../src/lib/demo/mode", () => ({
   isLocalDemoMode: () => resolverMocks.demoMode,

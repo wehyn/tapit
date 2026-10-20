@@ -2065,10 +2065,36 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await page.getByRole("button", { name: "Publish changes" }).click();
   await page.goto("/mara-velasquez");
   const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
+  await expect(publicSlideshow.getByRole("button", { name: "Pause slideshow" })).toBeVisible();
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
   await publicSlideshow.hover();
   await publicSlideshow.getByRole("button", { name: "Next image" }).click();
-  await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
+  const selectedImage = publicSlideshow.getByRole("img", { name: "Slideshow image 2" });
+  await expect(selectedImage).toBeVisible();
+  const selectedSrc = await selectedImage.getAttribute("src");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const viewImage = publicSlideshow.getByRole("button", { name: "View image" });
+  await expect(viewImage).toBeVisible();
+  await viewImage.click();
+
+  const fullImageView = page.getByRole("dialog");
+  const fullImage = fullImageView.getByRole("img", { name: "Slideshow image 2" });
+  await expect(fullImage).toBeVisible();
+  await expect(fullImage).toHaveAttribute("src", selectedSrc!);
+  await expect(fullImage).toHaveCSS("object-fit", "contain");
+  await expect(fullImageView.getByRole("button", { name: "Close full image" })).toBeVisible();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(4_200);
+  await expect(fullImage).toHaveAttribute("src", selectedSrc!);
+
+  await page.keyboard.press("Escape");
+  await expect(fullImageView).not.toBeVisible();
+  await expect(viewImage).toBeFocused();
+  await expect(selectedImage).toHaveAttribute("src", selectedSrc!);
+  await viewImage.click();
+  await fullImageView.getByRole("button", { name: "Close full image" }).click();
+  await expect(fullImageView).not.toBeVisible();
+  await expect(viewImage).toBeFocused();
 });
 
 async function openSlideshowEditor(page: Page) {
@@ -2142,6 +2168,137 @@ test("slideshow preview shows queued and unsaved slides without losing editor st
   );
 });
 
+test("a single published slideshow image opens in full view", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+
+  const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
+  const viewImage = publicSlideshow.getByRole("button", { name: "View image" });
+  await expect(viewImage).toBeVisible();
+  await viewImage.click();
+  await expect(
+    page.getByRole("dialog").getByRole("img", { name: "opaque-landscape.png" }),
+  ).toBeVisible();
+});
+
+test("small, tall, and wide published slideshow images fit the full image dialog", async ({
+  page,
+}) => {
+  await openSlideshowEditor(page);
+  const upload = page.getByLabel("Upload slideshow images");
+  for (const image of [
+    { name: "Tall portrait", width: 160, height: 1800 },
+    { name: "Wide panorama", width: 1800, height: 160 },
+    { name: "Small landscape", width: 268, height: 151 },
+  ]) {
+    await upload.setInputFiles({
+      name: `${image.name}.png`,
+      mimeType: "image/png",
+      buffer: await sharp({
+        create: {
+          width: image.width,
+          height: image.height,
+          channels: 3,
+          background: "#a84431",
+        },
+      })
+        .png()
+        .toBuffer(),
+    });
+  }
+  await page.getByRole("textbox", { name: "Slideshow image 1 description" }).fill("Tall portrait");
+  await page.getByRole("textbox", { name: "Slideshow image 2 description" }).fill("Wide panorama");
+  await page
+    .getByRole("textbox", { name: "Slideshow image 3 description" })
+    .fill("Small landscape");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+
+  const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
+  const fullImageView = page.getByRole("dialog", { name: "Full slideshow image" });
+  for (const { rootFontSize, ...viewport } of [
+    { width: 390, height: 844, rootFontSize: 16 },
+    { width: 1280, height: 720, rootFontSize: 16 },
+    { width: 390, height: 844, rootFontSize: 32 },
+    { width: 390, height: 844, rootFontSize: 12 },
+    { width: 320, height: 720, rootFontSize: 32 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate((size) => {
+      document.documentElement.style.fontSize = `${size}px`;
+    }, rootFontSize);
+    for (const [index, name] of ["Tall portrait", "Wide panorama", "Small landscape"].entries()) {
+      await publicSlideshow.getByRole("button", { name: `Image ${index + 1} of 3` }).click();
+      const slide = publicSlideshow.getByRole("img", { name });
+      const slideSrc = await slide.getAttribute("src");
+      await publicSlideshow.getByRole("button", { name: "View image" }).click();
+      const image = fullImageView.getByRole("img", { name });
+      await expect(image).toBeVisible();
+      await expect(image).toHaveAttribute("src", slideSrc!);
+      if (viewport.width === 320) {
+        expect(
+          await fullImageView
+            .getByRole("button", { name: "Close full image" })
+            .evaluate((button) => button.getBoundingClientRect().height),
+        ).toBeGreaterThan(2.75 * rootFontSize);
+      }
+      const getLayout = () =>
+        image.evaluate((element: HTMLImageElement) => {
+          const dialog = element.closest("dialog")!;
+          const imageBounds = element.getBoundingClientRect();
+          const dialogBounds = dialog.getBoundingClientRect();
+          const scale = Math.min(
+            imageBounds.width / element.naturalWidth,
+            imageBounds.height / element.naturalHeight,
+          );
+          return {
+            loaded: element.naturalWidth > 0,
+            noCrop: getComputedStyle(element).objectFit === "contain",
+            naturalWidth: element.naturalWidth,
+            renderedWidth: element.naturalWidth * scale,
+            withinDialog:
+              imageBounds.left >= dialogBounds.left &&
+              imageBounds.right <= dialogBounds.right &&
+              imageBounds.top >= dialogBounds.top &&
+              imageBounds.bottom <= dialogBounds.bottom,
+            withinViewport:
+              dialogBounds.left >= 0 &&
+              dialogBounds.right <= window.innerWidth &&
+              dialogBounds.top >= 0 &&
+              dialogBounds.bottom <= window.innerHeight,
+            centered:
+              Math.abs((dialogBounds.left + dialogBounds.right) / 2 - window.innerWidth / 2) < 1 &&
+              Math.abs((dialogBounds.top + dialogBounds.bottom) / 2 - window.innerHeight / 2) < 1,
+            noDialogScroll:
+              dialog.scrollHeight <= dialog.clientHeight &&
+              dialog.scrollWidth <= dialog.clientWidth,
+          };
+        });
+      await expect.poll(getLayout).toMatchObject({
+        loaded: true,
+        noCrop: true,
+        withinDialog: true,
+        withinViewport: true,
+        centered: true,
+        noDialogScroll: true,
+      });
+      if (name === "Small landscape" && viewport.width === 1280 && rootFontSize === 16) {
+        const layout = await getLayout();
+        expect(layout.renderedWidth).toBeGreaterThan(layout.naturalWidth);
+      }
+      await fullImageView.getByRole("button", { name: "Close full image" }).click();
+    }
+  }
+});
+
 test("slideshow upload queue waits for the active upload and preserves selection order", async ({
   page,
 }) => {
@@ -2191,7 +2348,10 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await previewButton.click();
   const previewDialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
   const slideshowPreview = previewDialog.getByRole("region", { name: "Profile slideshow" });
-  await expect(slideshowPreview.locator("img")).toHaveAttribute("alt", "transparent-logo.png");
+  await expect(slideshowPreview.getByRole("img", { name: "transparent-logo.png" })).toHaveAttribute(
+    "alt",
+    "transparent-logo.png",
+  );
   await page.keyboard.press("Escape");
   await expect(
     page.getByRole("button", { name: /Remove failed slideshow image.*opaque-landscape\.png/ }),
