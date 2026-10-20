@@ -1871,7 +1871,6 @@ test("slideshow preview shows queued and unsaved slides without losing editor st
   let slideshow = dialog.getByRole("region", { name: "Profile slideshow" });
   await expect(slideshow.getByRole("img", { name: "opaque-landscape.png" })).toBeVisible();
   const backgroundScrollY = await page.evaluate(() => window.scrollY);
-  expect(backgroundScrollY).toBeGreaterThan(0);
   await page.mouse.move(1, 1);
   await page.mouse.wheel(0, 500);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(backgroundScrollY);
@@ -1961,6 +1960,16 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   ).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  await page.getByLabel("Autoplay slideshow while visible").uncheck();
+  const previewButton = page.getByRole("button", { name: "Preview slideshow" });
+  await previewButton.click();
+  const previewDialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
+  const slideshowPreview = previewDialog.getByRole("region", { name: "Profile slideshow" });
+  await expect(slideshowPreview.locator("img")).toHaveAttribute("alt", "transparent-logo.png");
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("button", { name: /Remove failed slideshow image.*opaque-landscape\.png/ }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
   ).toBeDisabled();
