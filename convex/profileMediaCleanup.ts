@@ -25,6 +25,7 @@ async function reconcileJob(
   job: Doc<"profileMediaUploadJobs">,
   dryRun: boolean,
   now: number,
+  isStorageContinuation: boolean,
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
   const profile = await ctx.db.get(job.profileId);
@@ -37,7 +38,6 @@ async function reconcileJob(
   let previewCandidate = job.scanPreviewCandidateId;
   let sourceAmbiguous = job.scanSourceAmbiguous;
   let previewAmbiguous = job.scanPreviewAmbiguous;
-  const storageContinuation = job.status !== "attached" && job.scanCursor !== undefined;
   if (job.status !== "attached") {
     const page = await ctx.db.system
       .query("_storage")
@@ -72,13 +72,16 @@ async function reconcileJob(
           jobId: job._id,
           now,
           dryRun,
+          isStorageContinuation: true,
         });
       }
-      if (!dryRun && storageContinuation)
+      if (isStorageContinuation)
         console.info("profile media orphan reconciliation page", {
           status: job.status,
           jobCount: 1,
           hasMore: true,
+          dryRun,
+          continuationScheduled: !dryRun && !page.isDone,
           ...counts,
         });
       return counts;
@@ -155,11 +158,13 @@ async function reconcileJob(
       scanPreviewAmbiguous: previewAmbiguous,
     });
   } else if (!dryRun) await ctx.db.delete(job._id);
-  if (storageContinuation)
+  if (isStorageContinuation)
     console.info("profile media orphan reconciliation page", {
       status: job.status,
       jobCount: 1,
       hasMore: false,
+      dryRun,
+      continuationScheduled: false,
       ...counts,
     });
   return counts;
@@ -187,7 +192,12 @@ export const pageExpiredJobs = internalQuery({
 });
 
 export const reconcileOneJob = internalMutation({
-  args: { jobId: v.id("profileMediaUploadJobs"), now: v.number(), dryRun: v.boolean() },
+  args: {
+    jobId: v.id("profileMediaUploadJobs"),
+    now: v.number(),
+    dryRun: v.boolean(),
+    isStorageContinuation: v.optional(v.boolean()),
+  },
   returns: v.object({
     scanned: v.number(),
     deleted: v.number(),
@@ -198,7 +208,7 @@ export const reconcileOneJob = internalMutation({
     const job = await ctx.db.get(args.jobId);
     if (job === null || job.uploadWindowEndsAt > args.now)
       return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-    return await reconcileJob(ctx, job, args.dryRun, args.now);
+    return await reconcileJob(ctx, job, args.dryRun, args.now, args.isStorageContinuation ?? false);
   },
 });
 
