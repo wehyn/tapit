@@ -1830,6 +1830,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
     name: "Profile slideshow",
   });
   await expect(preview.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
+  await preview.hover();
   await preview.getByRole("button", { name: "Next image" }).click();
   await expect(preview.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
   await preview.getByRole("button", { name: "Previous image" }).click();
@@ -1841,6 +1842,7 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await page.goto("/mara-velasquez");
   const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 1" })).toBeVisible();
+  await publicSlideshow.hover();
   await publicSlideshow.getByRole("button", { name: "Next image" }).click();
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
 });
@@ -2041,6 +2043,7 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
   await expect(page.getByLabel("Slideshow image 3 description")).toHaveValue(
     "transparent-logo.png",
   );
+  await preview.hover();
   await preview.getByRole("button", { name: "Image 3 of 3" }).click();
   await expect(preview.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
 
