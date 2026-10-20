@@ -2,6 +2,8 @@ import { expect, type Page } from "@playwright/test";
 
 type DemoMediaUploadControl = { delayMs?: number; fail?: boolean };
 
+const demoCustomerNavigationTourKey = "tapit:customer-navigation-tour:profile-mara";
+
 export async function setDemoMediaUploadControl(page: Page, control: DemoMediaUploadControl) {
   await page.evaluate(({ delayMs, fail }) => {
     if (delayMs === undefined) window.localStorage.removeItem("tapit:e2e-media-upload-delay-ms");
@@ -13,12 +15,13 @@ export async function setDemoMediaUploadControl(page: Page, control: DemoMediaUp
 
 export async function resetDemoHarness(page: Page) {
   await page.goto("/login");
-  await page.evaluate(() => {
+  await page.evaluate((tourKey) => {
     window.localStorage.removeItem("tapit:demo-state:v1");
     window.localStorage.removeItem("tapit:demo-session:v1");
     window.localStorage.removeItem("tapit:e2e-media-upload-delay-ms");
     window.localStorage.removeItem("tapit:e2e-media-upload-failure");
-  });
+    window.localStorage.setItem(tourKey, "done");
+  }, demoCustomerNavigationTourKey);
   await page.reload();
 }
 

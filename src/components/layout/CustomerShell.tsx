@@ -24,16 +24,48 @@ const customerNavGroups: ShellNavGroup[] = [
   {
     label: "Workspace",
     items: [
-      { href: "/app/profile", label: "Profile", icon: "user" },
-      { href: "/app/customize", label: "Customize", icon: "fingerprint" },
-      { href: "/app/links", label: "Links", icon: "link" },
-      { href: "/app/account/build-card", label: "Build card", icon: "card" },
-      { href: "/app/analytics", label: "Analytics", icon: "chart" },
+      {
+        href: "/app/profile",
+        label: "Profile",
+        icon: "user",
+        tourDescription: "Edit your profile details and the information people see.",
+      },
+      {
+        href: "/app/customize",
+        label: "Customize",
+        icon: "fingerprint",
+        tourDescription: "Choose the look and layout of your profile.",
+      },
+      {
+        href: "/app/links",
+        label: "Links",
+        icon: "link",
+        tourDescription: "Manage the links shown on your profile.",
+      },
+      {
+        href: "/app/account/build-card",
+        label: "Build card",
+        icon: "card",
+        tourDescription: "Create a digital card you can share.",
+      },
+      {
+        href: "/app/analytics",
+        label: "Analytics",
+        icon: "chart",
+        tourDescription: "See how people interact with your profile.",
+      },
     ],
   },
   {
     label: "Personal",
-    items: [{ href: "/app/account", label: "Account", icon: "gear" }],
+    items: [
+      {
+        href: "/app/account",
+        label: "Account",
+        icon: "gear",
+        tourDescription: "Manage your account settings.",
+      },
+    ],
   },
 ];
 const adminNavGroups: ShellNavGroup[] = [
@@ -140,6 +172,11 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
+      navigationTourStorageKey={
+        access.account.role === "customer"
+          ? `tapit:customer-navigation-tour:${access.profile.id}`
+          : undefined
+      }
       navGroups={access.account.role === "admin" ? adminNavGroupsForCustomer : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={
@@ -206,6 +243,11 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
+      navigationTourStorageKey={
+        access.role === "customer"
+          ? `tapit:customer-navigation-tour:${access.profileId}`
+          : undefined
+      }
       navGroups={access.role === "admin" ? adminNavGroupsForCustomer : customerNavGroups}
       showPageIntro={false}
       sidebarFooter={

@@ -10,6 +10,7 @@ export function AppShell({
   children,
   eyebrow,
   mobileHeaderActions,
+  navigationTourStorageKey,
   navGroups,
   beforeNavigate,
   pageTitle,
@@ -20,6 +21,7 @@ export function AppShell({
   children: ReactNode;
   eyebrow: string;
   mobileHeaderActions?: ReactNode;
+  navigationTourStorageKey?: string;
   navGroups: ShellNavGroup[];
   beforeNavigate?: (href: string) => Promise<boolean>;
   pageTitle?: string;
@@ -68,6 +70,7 @@ export function AppShell({
         eyebrow={eyebrow}
         groups={navGroups}
         mobileHeaderActions={mobileHeaderActions}
+        navigationTourStorageKey={navigationTourStorageKey}
         onNavigate={handleNavigation}
         sidebarFooter={sidebarFooter}
         title={title}
