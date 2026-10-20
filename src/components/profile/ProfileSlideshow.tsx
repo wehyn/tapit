@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- Published profile media is served from Convex storage URLs and needs native loading/decoding hints. */
-import { ArrowLeft, ArrowRight } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { PointerEvent } from "react";
 
@@ -9,8 +9,6 @@ import type { PublicProfileMediaImage } from "@/lib/profile-media";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const CONTROLS_IDLE_DELAY_MS = 2800;
-
-type PlaybackState = "playing" | "paused";
 
 function subscribeToReducedMotion(onStoreChange: () => void) {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -39,7 +37,6 @@ export function ProfileSlideshow({
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
-  const [playbackState, setPlaybackState] = useState<PlaybackState>("playing");
   const [controlsVisible, setControlsVisible] = useState(true);
   const [keyboardFocused, setKeyboardFocused] = useState(false);
   const [fullImageOpen, setFullImageOpen] = useState(false);
@@ -55,15 +52,8 @@ export function ProfileSlideshow({
   const pointerId = useRef<number | null>(null);
   const controlsTimeout = useRef<number | null>(null);
   const total = images.length;
-  const isPlaybackRunning =
-    autoplay &&
-    visible &&
-    !reducedMotion &&
-    playbackState === "playing" &&
-    !fullImageOpen &&
-    total > 1;
+  const isPlaybackRunning = autoplay && visible && !reducedMotion && !fullImageOpen && total > 1;
   const controlsShouldBeVisible = controlsVisible || !isPlaybackRunning;
-  const showPlaybackControl = autoplay && !reducedMotion && total > 1;
   const showReducedMotionNotice = autoplay && reducedMotion && total > 1;
 
   useEffect(() => {
@@ -161,13 +151,13 @@ export function ProfileSlideshow({
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         setKeyboardFocused(false);
-        revealControls(playbackState === "paused");
+        revealControls(false);
       }}
       onFocus={(event) => {
         const isKeyboardFocus =
           event.target instanceof HTMLElement && event.target.matches(":focus-visible");
         setKeyboardFocused(isKeyboardFocus);
-        revealControls(playbackState === "paused" || isKeyboardFocus);
+        revealControls(isKeyboardFocus);
       }}
       onLostPointerCapture={() => {
         pointerStart.current = null;
@@ -180,7 +170,7 @@ export function ProfileSlideshow({
       onPointerMove={() => revealControls()}
       onPointerDown={(event) => {
         setKeyboardFocused(false);
-        revealControls(playbackState === "paused");
+        revealControls(false);
         if (event.target instanceof Element && event.target.closest("button")) return;
         pointerStart.current = { x: event.clientX, y: event.clientY };
         pointerId.current = event.pointerId;
@@ -237,7 +227,7 @@ export function ProfileSlideshow({
           {total > 1 ? (
             <div
               aria-label="Choose slideshow image"
-              className={`absolute bottom-3 left-3 flex overflow-x-auto rounded-full bg-[#2c2420]/45 p-1 ${showPlaybackControl ? "right-[10.5rem]" : "right-3"}`}
+              className="absolute bottom-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto rounded-full bg-[#2c2420]/45 p-1"
               role="group"
             >
               {images.map((image, index) => (
@@ -257,33 +247,20 @@ export function ProfileSlideshow({
               ))}
             </div>
           ) : null}
-          {showPlaybackControl ? (
-            <button
-              aria-pressed={playbackState === "paused"}
-              className="absolute bottom-3 right-3 rounded-full bg-[#fffdf9]/90 px-4 py-2.5 text-sm font-semibold text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
-              onClick={() => {
-                const nextState = playbackState === "playing" ? "paused" : "playing";
-                setPlaybackState(nextState);
-                revealControls(nextState === "paused" || keyboardFocused);
-              }}
-              type="button"
-            >
-              {playbackState === "paused" ? "Play slideshow" : "Pause slideshow"}
-            </button>
-          ) : null}
+          <button
+            aria-label="View image"
+            className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+            onClick={() => {
+              dialogRef.current?.showModal();
+              setFullImageOpen(true);
+            }}
+            ref={viewImageRef}
+            type="button"
+          >
+            <ArrowsOut aria-hidden="true" size={24} />
+          </button>
         </div>
       </div>
-      <button
-        className="mx-auto my-1 block min-h-11 rounded-full px-4 py-2.5 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
-        onClick={() => {
-          dialogRef.current?.showModal();
-          setFullImageOpen(true);
-        }}
-        ref={viewImageRef}
-        type="button"
-      >
-        View image
-      </button>
       {showReducedMotionNotice ? (
         <p className="border-t border-[#e5d6c5] px-4 py-3 text-sm text-[#594c43]" role="status">
           Your reduced-motion preference disables autoplay. Use Previous image, Next image, or the
