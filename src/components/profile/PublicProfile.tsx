@@ -684,54 +684,58 @@ export function PublicProfile({
     : "min-h-[100dvh] px-4 py-8 sm:px-6 sm:py-12";
   const profileContentMaxWidth = preview ? "max-w-none" : wideProfile ? "max-w-6xl" : "max-w-md";
   const Container = preview ? "div" : "main";
+  const activeProfileStyles: ProfileThemeCSSProperties = {
+    ...(customTheme
+      ? customProfileThemeStyles(appearance.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS)
+      : theme === "paper" || theme === "custom"
+        ? {}
+        : profileThemeStyles[theme]),
+    ...(accentOverride
+      ? {
+          "--tapit-accent": accentOverride,
+          "--tapit-accent-strong": accentOverride,
+          "--tapit-focus": accentOverride,
+        }
+      : {}),
+  };
   return (
-    <Container
-      style={{
-        ...(customTheme
-          ? customProfileThemeStyles(appearance.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS)
-          : theme === "paper" || theme === "custom"
-            ? {}
-            : profileThemeStyles[theme]),
-        ...(accentOverride
-          ? {
-              "--tapit-accent": accentOverride,
-              "--tapit-accent-strong": accentOverride,
-              "--tapit-focus": accentOverride,
-            }
-          : {}),
-      }}
-      className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${showEditProfileLink ? "pb-24 sm:pb-24" : ""} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
-    >
-      <div
-        className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "h-full" : "min-h-[calc(100dvh-4rem)]"}`}
+    <>
+      <Container
+        style={activeProfileStyles}
+        className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${showEditProfileLink ? "pb-24 sm:pb-24" : ""} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
       >
-        <section
-          className={`${profileFrameClasses} ${profileGrid} ${panelClasses} ${warmStudio ? "" : "text-tapit-ink"} ${preview ? "flex min-h-full flex-1 flex-col" : ""}`}
+        <div
+          className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "h-full" : "min-h-[calc(100dvh-4rem)]"}`}
         >
-          {identityColumn}
-          <div
-            className={`min-w-0 ${preview ? "flex flex-1 flex-col" : ""} ${compactPhonePreview ? "" : "border-t border-current/10"} ${contentColumnSpacing} ${wideProfile ? `lg:border-t-0 lg:border-l ${preview ? "min-[480px]:border-t-0 min-[480px]:border-l" : ""}` : ""}`}
+          <section
+            className={`${profileFrameClasses} ${profileGrid} ${panelClasses} ${warmStudio ? "" : "text-tapit-ink"} ${preview ? "flex min-h-full flex-1 flex-col" : ""}`}
           >
-            {profileContent}
-          </div>
-        </section>
-        {!preview ? (
-          <footer
-            className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${warmStudio ? mutedClasses : "text-tapit-muted"}`}
-          >
-            Tapit
-          </footer>
-        ) : null}
-      </div>
+            {identityColumn}
+            <div
+              className={`min-w-0 ${preview ? "flex flex-1 flex-col" : ""} ${compactPhonePreview ? "" : "border-t border-current/10"} ${contentColumnSpacing} ${wideProfile ? `lg:border-t-0 lg:border-l ${preview ? "min-[480px]:border-t-0 min-[480px]:border-l" : ""}` : ""}`}
+            >
+              {profileContent}
+            </div>
+          </section>
+          {!preview ? (
+            <footer
+              className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${warmStudio ? mutedClasses : "text-tapit-muted"}`}
+            >
+              Tapit
+            </footer>
+          ) : null}
+        </div>
+      </Container>
       {showEditProfileLink ? (
         <Link
           aria-label="Edit profile"
           className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-lg transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
           href="/app/profile"
+          style={activeProfileStyles}
         >
           Edit profile
         </Link>
       ) : null}
-    </Container>
+    </>
   );
 }

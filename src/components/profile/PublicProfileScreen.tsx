@@ -1,7 +1,7 @@
 "use client";
 
 import { useConvexAuth } from "@convex-dev/auth/react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery, useQuery_experimental } from "convex/react";
 import { useCallback } from "react";
 
 import { api } from "../../../convex/_generated/api";
@@ -114,10 +114,10 @@ function LivePublicProfileScreen({
 }) {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const profile = useQuery(api.profiles.publicBySlug, { slug });
-  const ownedProfile = useQuery(
-    api.profiles.mine,
-    isAuthenticated && !authLoading ? {} : "skip",
-  );
+  const ownedProfile = useQuery_experimental({
+    query: api.profiles.mine,
+    args: isAuthenticated && !authLoading ? {} : "skip",
+  });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
   const onView = useCallback(
@@ -174,9 +174,9 @@ function LivePublicProfileScreen({
   const showOwnerShortcut =
     !authLoading &&
     isAuthenticated &&
-    ownedProfile !== undefined &&
-    ownedProfile !== null &&
-    ownedProfile._id === profile.id;
+    ownedProfile.status === "success" &&
+    ownedProfile.data !== null &&
+    ownedProfile.data._id === profile.id;
   return (
     <PublicProfile
       mobileLayout
