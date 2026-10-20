@@ -308,7 +308,7 @@ export function ProfileSlideshow({
         </button>
         <img
           alt={currentAlt}
-          className="mx-auto block max-h-[calc(100dvh-7rem)] max-w-full object-contain"
+          className="mx-auto block max-h-[calc(100dvh-7rem-6px)] max-w-full object-contain"
           src={current.src}
         />
       </dialog>
