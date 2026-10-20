@@ -42,18 +42,26 @@ export function ProfileSlideshow({
   const [playbackState, setPlaybackState] = useState<PlaybackState>("playing");
   const [controlsVisible, setControlsVisible] = useState(true);
   const [keyboardFocused, setKeyboardFocused] = useState(false);
+  const [fullImageOpen, setFullImageOpen] = useState(false);
   const reducedMotion = useSyncExternalStore(
     subscribeToReducedMotion,
     getReducedMotionSnapshot,
     () => false,
   );
   const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const viewImageRef = useRef<HTMLButtonElement>(null);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const pointerId = useRef<number | null>(null);
   const controlsTimeout = useRef<number | null>(null);
   const total = images.length;
   const isPlaybackRunning =
-    autoplay && visible && !reducedMotion && playbackState === "playing" && total > 1;
+    autoplay &&
+    visible &&
+    !reducedMotion &&
+    playbackState === "playing" &&
+    !fullImageOpen &&
+    total > 1;
   const controlsShouldBeVisible = controlsVisible || !isPlaybackRunning;
   const showPlaybackControl = autoplay && !reducedMotion && total > 1;
   const showReducedMotionNotice = autoplay && reducedMotion && total > 1;
@@ -123,6 +131,7 @@ export function ProfileSlideshow({
   const safeActiveIndex = activeIndex < total ? activeIndex : 0;
   const goTo = (index: number) => setActiveIndex((index + total) % total);
   const current = images[safeActiveIndex]!;
+  const currentAlt = current.alt.trim() || `Slideshow image ${safeActiveIndex + 1}`;
   const revealControls = (keepVisible = !isPlaybackRunning || keyboardFocused) => {
     if (controlsTimeout.current !== null) {
       window.clearTimeout(controlsTimeout.current);
@@ -194,7 +203,7 @@ export function ProfileSlideshow({
     >
       <div className="relative aspect-[16/9] min-h-40">
         <img
-          alt={current.alt.trim() || `Slideshow image ${safeActiveIndex + 1}`}
+          alt={currentAlt}
           className={`tapit-profile-slideshow-image tapit-image-outline absolute inset-0 size-full object-cover ${reducedMotion ? "tapit-profile-slideshow-image--reduced" : ""}`}
           decoding="async"
           key={safeActiveIndex}
@@ -264,12 +273,45 @@ export function ProfileSlideshow({
           ) : null}
         </div>
       </div>
+      <button
+        className="mx-auto my-1 block min-h-11 rounded-full px-4 py-2.5 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+        onClick={() => {
+          dialogRef.current?.showModal();
+          setFullImageOpen(true);
+        }}
+        ref={viewImageRef}
+        type="button"
+      >
+        View image
+      </button>
       {showReducedMotionNotice ? (
         <p className="border-t border-[#e5d6c5] px-4 py-3 text-sm text-[#594c43]" role="status">
           Your reduced-motion preference disables autoplay. Use Previous image, Next image, or the
           image picker to browse manually.
         </p>
       ) : null}
+      <dialog
+        aria-label="Full slideshow image"
+        className="max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl backdrop:bg-black/80"
+        onClose={() => {
+          setFullImageOpen(false);
+          viewImageRef.current?.focus();
+        }}
+        ref={dialogRef}
+      >
+        <button
+          className="ml-auto mb-2 block min-h-11 rounded-full px-3 py-2 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          onClick={() => dialogRef.current?.close()}
+          type="button"
+        >
+          Close full image
+        </button>
+        <img
+          alt={currentAlt}
+          className="mx-auto block max-h-[calc(100dvh-7rem)] max-w-full object-contain"
+          src={current.src}
+        />
+      </dialog>
     </div>
   );
 }

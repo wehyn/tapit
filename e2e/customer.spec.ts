@@ -2069,6 +2069,21 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await publicSlideshow.hover();
   await publicSlideshow.getByRole("button", { name: "Next image" }).click();
   await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const viewImage = publicSlideshow.getByRole("button", { name: "View image" });
+  await expect(viewImage).toBeVisible();
+  await viewImage.click();
+
+  const fullImageView = page.getByRole("dialog");
+  const fullImage = fullImageView.getByRole("img", { name: "Slideshow image 2" });
+  await expect(fullImage).toBeVisible();
+  await expect(fullImage).toHaveCSS("object-fit", "contain");
+  await expect(fullImageView.getByRole("button", { name: "Close full image" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(fullImageView).not.toBeVisible();
+  await expect(viewImage).toBeFocused();
+  await expect(publicSlideshow.getByRole("img", { name: "Slideshow image 2" })).toBeVisible();
 });
 
 async function openSlideshowEditor(page: Page) {
@@ -2140,6 +2155,25 @@ test("slideshow preview shows queued and unsaved slides without losing editor st
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
     "transparent-logo.png",
   );
+});
+
+test("a single published slideshow image opens in full view", async ({ page }) => {
+  await openSlideshowEditor(page);
+  await page
+    .getByLabel("Upload slideshow images")
+    .setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await page.goto("/mara-velasquez");
+
+  const publicSlideshow = page.getByRole("region", { name: "Profile slideshow" });
+  const viewImage = publicSlideshow.getByRole("button", { name: "View image" });
+  await expect(viewImage).toBeVisible();
+  await viewImage.click();
+  await expect(
+    page.getByRole("dialog").getByRole("img", { name: "opaque-landscape.png" }),
+  ).toBeVisible();
 });
 
 test("slideshow upload queue waits for the active upload and preserves selection order", async ({
