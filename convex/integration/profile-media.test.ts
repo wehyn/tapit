@@ -1033,6 +1033,71 @@ describe("profile media hardening", () => {
     expect(await t.run((ctx) => ctx.storage.getUrl(failedStorageId))).toBeNull();
   });
 
+  it("logs deletion counts from scheduled storage scan continuations", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const jobId = await t.mutation(internal.profileMedia.createUploadJob, {
+      profileId: ids.ownerProfileId,
+      ownerId: ids.ownerId,
+      sha256: "placeholder",
+      expectedMediaRevision: 0,
+    });
+    const firstFillerStorageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["profile-media-scan-filler-0"])),
+    );
+    for (let index = 1; index < 64; index += 1) {
+      await t.run((ctx) => ctx.storage.store(new Blob([`profile-media-scan-filler-${index}`])));
+    }
+    const orphanStorageId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(["continued profile media orphan"])),
+    );
+    const [firstMetadata, orphanMetadata] = await Promise.all([
+      t.run(async (ctx) => (await ctx.db.system.get("_storage", firstFillerStorageId))!),
+      t.run(async (ctx) => (await ctx.db.system.get("_storage", orphanStorageId))!),
+    ]);
+    await t.run(async (ctx) => {
+      const job = await ctx.db.get(jobId);
+      if (job === null) throw new Error("Upload job was not created");
+      await ctx.db.patch(jobId, {
+        status: "failed",
+        sha256: orphanMetadata.sha256,
+        createdAt:
+          Math.min(job.createdAt, firstMetadata._creationTime, orphanMetadata._creationTime) - 1,
+        uploadWindowEndsAt: Math.max(firstMetadata._creationTime, orphanMetadata._creationTime) + 1,
+      });
+    });
+
+    const logSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await t.mutation(internal.profileMediaCleanup.reconcileExpired, {
+        now: orphanMetadata._creationTime + 2 * 24 * 60 * 60 * 1000,
+      });
+      vi.useFakeTimers();
+      try {
+        await t.finishAllScheduledFunctions(vi.runAllTimers);
+      } finally {
+        vi.useRealTimers();
+      }
+
+      expect(await t.run((ctx) => ctx.storage.getUrl(orphanStorageId))).toBeNull();
+      expect(await t.query(internal.profileMedia.getUploadJob, { jobId })).toBeNull();
+      expect(logSpy).toHaveBeenCalledWith(
+        "profile media orphan reconciliation page",
+        expect.objectContaining({
+          status: "failed",
+          jobCount: 1,
+          hasMore: false,
+          scanned: 1,
+          deleted: 1,
+          retained: 0,
+          skipped: 0,
+        }),
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
   it("retains profile image storage referenced by an image mapping or upload job", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
