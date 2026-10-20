@@ -276,6 +276,8 @@ export const reconcileStatusPage = internalMutation({
       status: args.status,
       jobCount: page.page.length,
       hasMore: !page.isDone,
+      dryRun: args.dryRun,
+      continuationScheduled: !args.dryRun && !page.isDone,
       ...pageCounts,
     });
     return pageCounts;
