@@ -18,6 +18,7 @@ import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
+import { matchesOwnedProfileQuery } from "@/lib/profile-ownership";
 
 import { MissingProfilePage, UnavailableProfilePage } from "@/components/state/StatePage";
 
@@ -172,11 +173,7 @@ function LivePublicProfileScreen({
     })),
   };
   const showOwnerShortcut =
-    !authLoading &&
-    isAuthenticated &&
-    ownedProfile.status === "success" &&
-    ownedProfile.data !== null &&
-    ownedProfile.data._id === profile.id;
+    !authLoading && isAuthenticated && matchesOwnedProfileQuery(ownedProfile, profile.id);
   return (
     <PublicProfile
       mobileLayout

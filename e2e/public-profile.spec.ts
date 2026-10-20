@@ -205,14 +205,17 @@ test("owner shortcut is hidden when signed out and links Mara to profile editor"
 }) => {
   await resetDemoHarness(page);
   await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
   await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
 
   await signInAsCustomer(page);
-  await expect(
-    page.getByTestId("profile-preview-device").getByRole("link", { name: "Edit profile" }),
-  ).toHaveCount(0);
+  const preview = page.getByTestId("profile-preview-device");
+  await expect(preview).toBeVisible();
+  await expect(preview.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(preview.getByRole("link", { name: "Edit profile" })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 390 });
   await page.goto("/mara-velasquez");
   const editProfile = page.getByRole("link", { name: "Edit profile", exact: true });
@@ -242,8 +245,10 @@ test("shortcut stays hidden for a signed-in admin viewing Mara's profile", async
   await signInAsAdmin(page);
   await page.goto("/mara-velasquez");
 
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
   await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Edit profile", exact: true })).toHaveCount(0);
 });
 

@@ -18,6 +18,7 @@ import {
 import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
+import { matchesOwnedProfileQuery } from "@/lib/profile-ownership";
 
 import {
   InactiveCardPage,
@@ -169,11 +170,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
     })),
   };
   const showOwnerShortcut =
-    !authLoading &&
-    isAuthenticated &&
-    ownedProfile.status === "success" &&
-    ownedProfile.data !== null &&
-    ownedProfile.data._id === profile.id;
+    !authLoading && isAuthenticated && matchesOwnedProfileQuery(ownedProfile, profile.id);
   return (
     <PublicProfile
       mobileLayout
