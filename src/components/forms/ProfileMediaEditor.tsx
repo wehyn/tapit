@@ -79,12 +79,16 @@ export function ProfileMediaEditor({
   const dragStartIndex = useRef(-1);
   const draggingSlideIndex = useRef(-1);
   const value = copyMedia(media);
-  const slideshowPreviewImages = value.slideshow.flatMap((image) => {
+  const availableSlideshowImages = value.slideshow.flatMap((image) => {
     const src = imageSource(image);
     return src ? [{ src, alt: image.altText }] : [];
   });
-  const canPreviewSlideshow =
-    slideshowPreviewImages.length > 0 && slideshowPreviewImages.length === value.slideshow.length;
+  const slideshowPreviewImages = [
+    ...availableSlideshowImages,
+    ...slideshowQueue.map((image) => ({ src: image.previewUrl, alt: image.altText })),
+  ];
+  const missingSlideshowImageCount = value.slideshow.length - availableSlideshowImages.length;
+  const canPreviewSlideshow = slideshowPreviewImages.length > 0;
   const latestMedia = useRef<ProfileMediaPresentation | undefined>(value);
   const uploadRequests = useRef({ background: 0, slideshow: 0 });
   const clientKeyCounter = useRef(0);
@@ -655,6 +659,11 @@ export function ProfileMediaEditor({
               Upload slideshow image
             </Button>
           </div>
+          {missingSlideshowImageCount > 0 ? (
+            <p className="basis-full text-xs leading-5 text-tapit-muted">
+              Some slideshow images are unavailable for preview.
+            </p>
+          ) : null}
           <input
             accept={imageAccept}
             aria-label="Upload slideshow images"

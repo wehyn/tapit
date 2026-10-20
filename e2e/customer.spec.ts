@@ -1852,6 +1852,71 @@ async function openSlideshowEditor(page: Page) {
   await page.getByRole("tab", { name: "Slideshow" }).click();
 }
 
+test("slideshow preview shows queued and unsaved slides without losing editor state", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openSlideshowEditor(page);
+  await setDemoMediaUploadControl(page, { delayMs: 1200 });
+
+  const upload = page.getByLabel("Upload slideshow images");
+  await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
+  await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
+  const previewButton = page.getByRole("button", { name: "Preview slideshow" });
+  await expect(previewButton).toBeEnabled();
+  await previewButton.click();
+
+  let dialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
+  await expect(dialog).toBeVisible();
+  let slideshow = dialog.getByRole("region", { name: "Profile slideshow" });
+  await expect(slideshow.getByRole("img", { name: "opaque-landscape.png" })).toBeVisible();
+  const backgroundScrollY = await page.evaluate(() => window.scrollY);
+  expect(backgroundScrollY).toBeGreaterThan(0);
+  await page.mouse.move(1, 1);
+  await page.mouse.wheel(0, 500);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(backgroundScrollY);
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "opaque-landscape.png",
+  );
+  await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0, { timeout: 10_000 });
+
+  await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  await expect(page.getByLabel("Slideshow image 2 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+  await page.getByLabel("Autoplay slideshow while visible").uncheck();
+  await page.getByRole("button", { name: "Move slideshow image 2 up" }).click();
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+
+  await previewButton.click();
+  dialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
+  await expect(dialog).toBeVisible();
+  slideshow = dialog.getByRole("region", { name: "Profile slideshow" });
+  await expect(slideshow.getByRole("img", { name: "transparent-logo.png" })).toBeVisible();
+  await slideshow.getByRole("button", { name: "Next image" }).click();
+  await expect(slideshow.getByRole("img", { name: "opaque-landscape.png" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+
+  await previewButton.click();
+  dialog = page.getByRole("dialog", { name: "Mobile slideshow preview" });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Return to editor" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
+    "transparent-logo.png",
+  );
+});
+
 test("slideshow upload queue waits for the active upload and preserves selection order", async ({
   page,
 }) => {
