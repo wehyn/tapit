@@ -278,6 +278,19 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
 
   const resolveSecondUpload = resolveUploads[1];
   if (!resolveSecondUpload) throw new Error("Expected the second deferred upload request.");
+  const saveDraftButton = screen.getByRole("button", { name: "Save draft" });
+  expect(saveDraftButton).toBeDisabled();
+  let showedSecondSlideWhenSaveEnabled = false;
+  const saveWhenEnabled = new Promise<void>((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (saveDraftButton.hasAttribute("disabled")) return;
+      observer.disconnect();
+      showedSecondSlideWhenSaveEnabled = screen.queryByText("Image 2 of 2") !== null;
+      fireEvent.click(saveDraftButton);
+      resolve();
+    });
+    observer.observe(saveDraftButton, { attributes: true, attributeFilter: ["disabled"] });
+  });
   resolveSecondUpload(
     new Response(
       JSON.stringify({
@@ -289,8 +302,8 @@ it("serializes live slideshow uploads and saves the latest media revision", asyn
       { status: 200, headers: { "Content-Type": "application/json" } },
     ),
   );
-  await waitFor(() => expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await saveWhenEnabled;
+  expect(showedSecondSlideWhenSaveEnabled).toBe(true);
 
   await waitFor(() => expect(mutation).toHaveBeenCalled());
   expect(mutation).toHaveBeenLastCalledWith(
