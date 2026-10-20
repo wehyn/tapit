@@ -188,7 +188,9 @@ test("sidebar navigation can save a repaired media draft or continue after repai
 
   await description.fill("Warm studio backdrop");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Draft saved." })).toContainText(
+    "Visitors still see the last published version.",
+  );
   await expect(saveAndContinue).toHaveCount(0);
 
   await description.fill("");
@@ -1599,7 +1601,10 @@ test("customer can customize, save, and publish a custom profile palette", async
     page.getByText("The custom profile accent color does not meet contrast requirements."),
   ).toHaveCount(0);
 
-  await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
+  const saveDraft = page.getByRole("button", { name: "Save draft", exact: true });
+  await expect(saveDraft).toBeEnabled();
+  await saveDraft.click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
   await publishChanges.click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),

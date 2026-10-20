@@ -2,17 +2,35 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { CheckCircleIcon, EyeIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
+import type { ProfileCustomizationCategory } from "@/lib/profile-workspace";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { useDraftSaveLink, type DraftDepartureState } from "@/components/layout/DraftSaveContext";
 
-export type PublishRequirement = {
-  id: string;
-  message: string;
-  href: "/app/profile" | "/app/links" | "/app/customize";
-  actionLabel: string;
-};
+export type PublishRequirement =
+  | {
+      id: string;
+      kind: "profile";
+      message: string;
+      href: "/app/profile";
+      actionLabel: "Open Profile";
+    }
+  | {
+      id: string;
+      kind: "links";
+      message: string;
+      href: "/app/links";
+      actionLabel: "Open Links";
+    }
+  | {
+      id: string;
+      kind: "customization";
+      section: ProfileCustomizationCategory;
+      message: string;
+      href: string;
+      actionLabel: "Open Customize";
+    };
 
 function hasSeenPublishRequirements(storageKey: string) {
   try {
@@ -52,6 +70,7 @@ export type ProfileWorkspaceFrameProps = {
   departureState?: DraftDepartureState;
   onSaveAndContinue?: () => void;
   onStayHere?: () => void;
+  onRequirementAction?: (requirement: PublishRequirement) => void;
 };
 
 export function ProfileWorkspaceFrame({
@@ -76,6 +95,7 @@ export function ProfileWorkspaceFrame({
   departureState,
   onSaveAndContinue,
   onStayHere,
+  onRequirementAction,
 }: ProfileWorkspaceFrameProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
@@ -94,11 +114,15 @@ export function ProfileWorkspaceFrame({
   const closeRequirementsDialog = useCallback(() => {
     setRequirementsDialogOpen(false);
   }, []);
-  const handleRequirementAction = useCallback(() => {
-    focusEditorOnDialogCloseRef.current = true;
-    setRequirementsDialogOpen(false);
-    setMobileView("edit");
-  }, []);
+  const handleRequirementAction = useCallback(
+    (requirement: PublishRequirement) => {
+      focusEditorOnDialogCloseRef.current = requirement.kind !== "customization";
+      onRequirementAction?.(requirement);
+      setRequirementsDialogOpen(false);
+      setMobileView("edit");
+    },
+    [onRequirementAction],
+  );
 
   useEffect(() => {
     if (requirementsDialogOpen || !focusEditorOnDialogCloseRef.current) return;
@@ -265,7 +289,7 @@ export function ProfileWorkspaceFrame({
 }
 
 function destinationLabel(href: string): string {
-  if (href === "/app/customize") return "Customize";
+  if (href.startsWith("/app/customize")) return "Customize";
   if (href === "/app/links") return "Links";
   if (href === "/app/profile") return "Profile";
   return "the requested page";
@@ -317,19 +341,17 @@ function DepartureRecovery({
 }
 
 function PublishRequirementAction({
-  href,
-  label,
+  requirement,
   onInterceptedClick,
 }: {
-  href: PublishRequirement["href"];
-  label: string;
-  onInterceptedClick: () => void;
+  requirement: PublishRequirement;
+  onInterceptedClick: (requirement: PublishRequirement) => void;
 }) {
-  const onClick = useDraftSaveLink(href, onInterceptedClick);
+  const onClick = useDraftSaveLink(requirement.href, () => onInterceptedClick(requirement));
 
   return (
-    <ButtonLink href={href} onClick={onClick} variant="secondary">
-      {label}
+    <ButtonLink href={requirement.href} onClick={onClick} variant="secondary">
+      {requirement.actionLabel}
     </ButtonLink>
   );
 }
@@ -340,7 +362,7 @@ function PublishRequirementsDialog({
   requirements,
 }: {
   onClose: () => void;
-  onRequirementAction: () => void;
+  onRequirementAction: (requirement: PublishRequirement) => void;
   requirements: readonly PublishRequirement[];
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -443,8 +465,7 @@ function PublishRequirementsDialog({
                 {requirement.message}
               </span>
               <PublishRequirementAction
-                href={requirement.href}
-                label={requirement.actionLabel}
+                requirement={requirement}
                 onInterceptedClick={onRequirementAction}
               />
             </li>

@@ -14,9 +14,10 @@ import {
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
-  validatePublication,
+  validatePublicationIssues,
   validatePublicationAccess,
   type ProfileContent,
+  type PublicationIssue,
   type ProfileTheme,
 } from "@/lib/domain";
 import {
@@ -67,6 +68,8 @@ import {
 import {
   classifyProfileWorkspaceError,
   splitProfileWorkspaceErrors,
+  type ProfileCustomizationCategory,
+  type ProfileCustomizationFocusRequest,
 } from "@/lib/profile-workspace";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -178,31 +181,53 @@ function hasValidEnabledLink(draft: ProfileContent) {
   );
 }
 
-function getPublishRequirements(errors: readonly string[]): PublishRequirement[] {
-  return errors.map((message, index) => {
-    const customizationCategory = classifyProfileWorkspaceError(message);
-    const href: PublishRequirement["href"] =
-      customizationCategory !== undefined
-        ? "/app/customize"
-        : message.toLowerCase().includes("link")
-          ? "/app/links"
-          : "/app/profile";
+function getPublishRequirements(issues: readonly PublicationIssue[]): PublishRequirement[] {
+  return issues.map((issue, index) => {
+    const id = `${index}-${issue.message}`;
+    const customize = (section: ProfileCustomizationCategory) =>
+      ({
+        id,
+        kind: "customization",
+        message: issue.message,
+        href: `/app/customize?section=${section}`,
+        section,
+        actionLabel: "Open Customize",
+      }) satisfies PublishRequirement;
 
-    return {
-      id: `${index}-${message}`,
-      message,
-      href,
-      actionLabel:
-        href === "/app/links"
-          ? "Open Links"
-          : href === "/app/customize"
-            ? "Open Customize"
-            : "Open Profile",
-    };
+    switch (issue.kind) {
+      case "profile":
+        return {
+          id,
+          kind: "profile",
+          message: issue.message,
+          href: "/app/profile",
+          actionLabel: "Open Profile",
+        } satisfies PublishRequirement;
+      case "links":
+        return {
+          id,
+          kind: "links",
+          message: issue.message,
+          href: "/app/links",
+          actionLabel: "Open Links",
+        } satisfies PublishRequirement;
+      case "customization":
+        return customize(classifyProfileWorkspaceError(issue.message) ?? "overview");
+      case "media":
+        return customize("media");
+    }
   });
 }
 
-function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
+function DemoProfileEditor({
+  view,
+  categoryFocusRequest,
+  onRequirementAction,
+}: {
+  view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  onRequirementAction: (requirement: PublishRequirement) => void;
+}) {
   const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
@@ -248,7 +273,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     },
     [],
   );
-  const publicationErrors = validatePublication(draft, profile.published, {
+  const publicationIssues = validatePublicationIssues(draft, profile.published, {
     immutableSlug: profile.draft.slug,
     activeTheme: theme,
     existingSlugs: getDemoProfiles(state)
@@ -258,6 +283,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
         ...(candidate.published === null ? [] : [candidate.published.slug]),
       ]),
   });
+  const publicationErrors = publicationIssues.map((issue) => issue.message);
   const customer =
     session?.role === "customer"
       ? state.customers.find((candidate) => candidate.email === session.email)
@@ -272,7 +298,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
     ? ["Claim the attached card before publishing this profile."]
     : [];
   const errors = [...publicationErrors, ...lifecycleErrors, ...cardErrors];
-  const publishRequirements = getPublishRequirements(publicationErrors);
+  const publishRequirements = getPublishRequirements(publicationIssues);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
   const mediaErrors = validateProfileMedia(draft.media);
@@ -344,6 +370,11 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       });
       return { kind: "failed", message: text };
     }
+  }
+
+  async function saveFromButton() {
+    const outcome = await saveDraft();
+    if (outcome.kind === "saved") setDepartureState({ kind: "idle" });
   }
 
   async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
@@ -599,6 +630,7 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       </h2>
       <ProfileCustomizationEditor
         barePanels={view === "customize"}
+        categoryFocusRequest={categoryFocusRequest}
         customization={draft.customization}
         errors={customizationErrors}
         mediaFocusRequest={mediaFocusRequest}
@@ -702,12 +734,13 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
       departureState={departureState}
       onSaveAndContinue={() => void saveAndContinue()}
       onStayHere={() => setDepartureState({ kind: "idle" })}
+      onRequirementAction={onRequirementAction}
       onPublish={publish}
       publishRequirements={publishRequirements}
       firstVisitRequirementKey={
         view === "profile" && needsLinkOnboarding(draft, profile.published) ? profile.id : undefined
       }
-      onSave={() => void saveDraft()}
+      onSave={() => void saveFromButton()}
       preview={preview}
       profileUrl={`/${draft.slug}`}
       hasPublishedProfile={profile.published !== null && profile.status === "published"}
@@ -734,23 +767,76 @@ function DemoProfileEditor({ view }: { view: ProfileEditorView }) {
   );
 }
 
-export function ProfileEditor({ view = "profile" }: { view?: ProfileEditorView } = {}) {
-  return !isLocalDemoMode() ? <LiveProfileEditor view={view} /> : <DemoProfileEditor view={view} />;
+export function ProfileEditor({
+  view = "profile",
+  initialCustomizationCategory,
+}: {
+  view?: ProfileEditorView;
+  initialCustomizationCategory?: ProfileCustomizationCategory;
+} = {}) {
+  const [categoryFocusRequest, setCategoryFocusRequest] =
+    useState<ProfileCustomizationFocusRequest>(() => ({
+      category: initialCustomizationCategory ?? "overview",
+      sequence: initialCustomizationCategory === undefined ? 0 : 1,
+    }));
+  const previousInitialCategoryRef = useRef(initialCustomizationCategory);
+  const requestCategoryFocus = useCallback((category: ProfileCustomizationCategory) => {
+    setCategoryFocusRequest((current) => ({
+      category,
+      sequence: current.sequence + 1,
+    }));
+  }, []);
+  useEffect(() => {
+    if (previousInitialCategoryRef.current === initialCustomizationCategory) return;
+    previousInitialCategoryRef.current = initialCustomizationCategory;
+    requestCategoryFocus(initialCustomizationCategory ?? "overview");
+  }, [initialCustomizationCategory, requestCategoryFocus]);
+  const onRequirementAction = useCallback(
+    (requirement: PublishRequirement) => {
+      if (requirement.kind === "customization") requestCategoryFocus(requirement.section);
+    },
+    [requestCategoryFocus],
+  );
+  const editorProps = { view, categoryFocusRequest, onRequirementAction };
+  return !isLocalDemoMode() ? (
+    <LiveProfileEditor {...editorProps} />
+  ) : (
+    <DemoProfileEditor {...editorProps} />
+  );
 }
 
-function LiveProfileEditor({ view }: { view: ProfileEditorView }) {
+function LiveProfileEditor({
+  view,
+  categoryFocusRequest,
+  onRequirementAction,
+}: {
+  view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  onRequirementAction: (requirement: PublishRequirement) => void;
+}) {
   const profile = useQuery(api.profiles.mine);
   if (profile === undefined) return <ProfileEditorLoading />;
   if (profile === null) return <MissingProfilePage />;
-  return <LiveProfileEditorContent profile={profile} view={view} />;
+  return (
+    <LiveProfileEditorContent
+      categoryFocusRequest={categoryFocusRequest}
+      onRequirementAction={onRequirementAction}
+      profile={profile}
+      view={view}
+    />
+  );
 }
 
 function LiveProfileEditorContent({
   profile,
   view,
+  categoryFocusRequest,
+  onRequirementAction,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
   view: ProfileEditorView;
+  categoryFocusRequest: ProfileCustomizationFocusRequest;
+  onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
   const router = useRouter();
   const saveDraftMutation = useMutation(api.profiles.saveDraft);
@@ -834,10 +920,11 @@ function LiveProfileEditorContent({
         publishedAt: new Date(liveProfile.published.publishedAt).toISOString(),
       }
     : null;
-  const errors = validatePublication(currentDraft, publishedForValidation, {
+  const publicationIssues = validatePublicationIssues(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
-  const publishRequirements = getPublishRequirements(errors);
+  const errors = publicationIssues.map((issue) => issue.message);
+  const publishRequirements = getPublishRequirements(publicationIssues);
   const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
@@ -1119,6 +1206,11 @@ function LiveProfileEditorContent({
     }
   }
 
+  async function saveFromButton() {
+    const outcome = await saveDraft();
+    if (outcome.kind === "saved") setDepartureState({ kind: "idle" });
+  }
+
   async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
     if (href !== undefined) setDepartureState({ kind: "saving", href });
     let outcome: DraftSaveOutcome;
@@ -1270,6 +1362,7 @@ function LiveProfileEditorContent({
       </h2>
       <ProfileCustomizationEditor
         barePanels={view === "customize"}
+        categoryFocusRequest={categoryFocusRequest}
         customization={currentDraft.customization}
         errors={customizationErrors}
         mediaFocusRequest={mediaFocusRequest}
@@ -1374,6 +1467,7 @@ function LiveProfileEditorContent({
       departureState={departureState}
       onSaveAndContinue={() => void saveAndContinue()}
       onStayHere={() => setDepartureState({ kind: "idle" })}
+      onRequirementAction={onRequirementAction}
       onPublish={publish}
       publishRequirements={publishRequirements}
       firstVisitRequirementKey={
@@ -1381,7 +1475,7 @@ function LiveProfileEditorContent({
           ? liveProfile._id
           : undefined
       }
-      onSave={() => void saveDraft()}
+      onSave={() => void saveFromButton()}
       preview={preview}
       profileUrl={`/${currentDraft.slug}`}
       hasPublishedProfile={

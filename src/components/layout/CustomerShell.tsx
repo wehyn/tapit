@@ -6,7 +6,7 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
 
 import { AppShell } from "./AppShell";
-import { DraftSaveProvider, useDraftSave } from "./DraftSaveContext";
+import { DraftSaveProvider, useDraftSave, type DraftSaveOutcome } from "./DraftSaveContext";
 import type { ShellNavGroup } from "./navigation";
 import { Button } from "../ui/Button";
 import {
@@ -52,6 +52,12 @@ const serverHydratedSnapshot = () => false;
 
 const isDemoMode = isLocalDemoMode();
 
+function signOutSaveFailureMessage(outcome: Exclude<DraftSaveOutcome, { kind: "saved" }>): string {
+  return outcome.kind === "deferred" && outcome.reason === "pending-save"
+    ? "Your draft is still saving. Try signing out again when it finishes. You are still signed in."
+    : "Your draft could not be saved. You are still signed in.";
+}
+
 export function CustomerShell({ children }: { children: React.ReactNode }) {
   return (
     <DraftSaveProvider>
@@ -79,7 +85,10 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
   const [sessionError, setSessionError] = useState("");
-  const beforeNavigate = useCallback(async () => (await draftSave()).kind === "saved", [draftSave]);
+  const beforeNavigate = useCallback(
+    async (href: string) => (await draftSave(href)).kind === "saved",
+    [draftSave],
+  );
   const clearInvalidSession = useCallback(() => {
     signingOut.current = recoveryPath !== null;
     if (!clearDemoSession()) {
@@ -137,9 +146,8 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
         <CustomerAccountMenu
           email={access.account.email}
           onSignOut={async () => {
-            if ((await draftSave()).kind !== "saved") {
-              throw new Error("Your draft could not be saved. You are still signed in.");
-            }
+            const outcome = await draftSave();
+            if (outcome.kind !== "saved") throw new Error(signOutSaveFailureMessage(outcome));
             if (!clearDemoSession()) {
               throw new Error("Could not end the session. You are still signed in.");
             }
@@ -163,7 +171,10 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const activeAccess = isActiveAccess(access);
   const draftSave = useDraftSave();
-  const beforeNavigate = useCallback(async () => (await draftSave()).kind === "saved", [draftSave]);
+  const beforeNavigate = useCallback(
+    async (href: string) => (await draftSave(href)).kind === "saved",
+    [draftSave],
+  );
 
   useEffect(() => {
     if (authLoading || (isAuthenticated && access === undefined)) return;
@@ -201,9 +212,8 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
         <CustomerAccountMenu
           email={access.email ?? "Account"}
           onSignOut={async () => {
-            if ((await draftSave()).kind !== "saved") {
-              throw new Error("Your draft could not be saved. You are still signed in.");
-            }
+            const outcome = await draftSave();
+            if (outcome.kind !== "saved") throw new Error(signOutSaveFailureMessage(outcome));
             await signOut();
             router.replace("/login");
           }}
