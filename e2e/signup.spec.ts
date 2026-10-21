@@ -19,7 +19,7 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
     await page.setViewportSize({ width, height: 900 });
 
     await page.goto("/login");
-    await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Privacy", exact: true })).toHaveAttribute(
       "href",
       "/privacy",

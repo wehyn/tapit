@@ -71,7 +71,7 @@ test("capture a public profile at desktop and mobile sizes", async ({ page }) =>
 test("capture sign-in on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in to Tapit" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await captureScreenshot(page, "login-mobile.png", "initial");
 });
 
