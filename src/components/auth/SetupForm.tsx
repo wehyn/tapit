@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Fingerprint } from "@phosphor-icons/react";
 
 import { Brand } from "@/components/layout/Brand";
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
 import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
@@ -39,6 +40,36 @@ export function SetupForm({ token }: { token: string }) {
     <HostedDemoSetupForm token={token} nextPath={nextPath} />
   ) : (
     <LiveSetupForm token={token} nextPath={nextPath} />
+  );
+}
+
+function SetupFrame({ children, footer }: { children: ReactNode; footer?: string }) {
+  return (
+    <main className="flex min-h-dvh flex-col gap-12 bg-tapit-paper px-4 py-6 sm:px-12 sm:py-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Brand />
+        <ButtonLink href="/login" variant="quiet">
+          Already set up? Sign in
+        </ButtonLink>
+      </div>
+      <div className="flex flex-1 flex-col items-center gap-6">
+        <ol aria-label="Setup progress" className="flex flex-wrap justify-center gap-2">
+          <li>
+            <Chip tone="accent">1 · Password</Chip>
+          </li>
+          <li>
+            <Chip>2 · Profile</Chip>
+          </li>
+          <li>
+            <Chip>3 · Done</Chip>
+          </li>
+        </ol>
+        <div className="flex w-full max-w-md flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
+          {children}
+        </div>
+        {footer ? <p className="text-center text-xs text-tapit-muted">{footer}</p> : null}
+      </div>
+    </main>
   );
 }
 
@@ -142,72 +173,63 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
           : undefined;
 
   return (
-    <main className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-6 sm:px-10 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-2xl flex-col">
-        <Brand />
-        <section className="grid flex-1 items-center gap-8 py-8 sm:py-12">
-          <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              Hosted demo setup
-            </p>
-            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              Choose a password
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-tapit-muted">
-              This isolated hosted demo uses its password flow for demonstration only.
-            </p>
-          </div>
-          <div className="grid gap-5 rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
-            {loading ? (
-              <p className="text-sm text-tapit-muted">Checking your setup link…</p>
-            ) : stateCopy ? (
-              <Notice tone="error">{stateCopy}</Notice>
-            ) : invitation?.state !== "valid" ? (
-              <Notice tone="error">This setup link is not available.</Notice>
-            ) : (
-              <>
-                <p className="rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                  Enter the email address from your invitation.
-                </p>
-                <form className="grid gap-5" onSubmit={submit}>
-                  {error ? <Notice tone="error">{error}</Notice> : null}
-                  <Field
-                    autoComplete="email"
-                    id="hosted-setup-email"
-                    label="Invitation email"
-                    onChange={(event) => setEmail(event.target.value)}
-                    required
-                    type="email"
-                    value={email}
-                  />
-                  <Field
-                    autoComplete="new-password"
-                    id="hosted-setup-password"
-                    label="Password"
-                    minLength={8}
-                    onChange={(event) => setPassword(event.target.value)}
-                    type="password"
-                    value={password}
-                  />
-                  <Field
-                    autoComplete="new-password"
-                    id="hosted-setup-confirmation"
-                    label="Confirm password"
-                    minLength={8}
-                    onChange={(event) => setConfirmation(event.target.value)}
-                    type="password"
-                    value={confirmation}
-                  />
-                  <Button disabled={submitting} type="submit">
-                    {submitting ? "Saving password" : "Set password"}
-                  </Button>
-                </form>
-              </>
-            )}
-          </div>
-        </section>
+    <SetupFrame>
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold tracking-widest text-tapit-accent-strong uppercase">
+          Hosted demo setup
+        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">Choose a password</h1>
+        <p className="text-sm text-tapit-muted">
+          This isolated hosted demo uses its password flow for demonstration only.
+        </p>
       </div>
-    </main>
+      {loading ? (
+        <p className="text-sm text-tapit-muted">Checking your setup link…</p>
+      ) : stateCopy ? (
+        <Notice tone="error">{stateCopy}</Notice>
+      ) : invitation?.state !== "valid" ? (
+        <Notice tone="error">This setup link is not available.</Notice>
+      ) : (
+        <>
+          <p className="rounded-control bg-tapit-soft-surface p-4 text-sm text-tapit-muted">
+            Enter the email address from your invitation.
+          </p>
+          <form className="grid gap-6" onSubmit={submit}>
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            <Field
+              autoComplete="email"
+              id="hosted-setup-email"
+              label="Invitation email"
+              onChange={(event) => setEmail(event.target.value)}
+              required
+              type="email"
+              value={email}
+            />
+            <Field
+              autoComplete="new-password"
+              id="hosted-setup-password"
+              label="Password"
+              minLength={8}
+              onChange={(event) => setPassword(event.target.value)}
+              type="password"
+              value={password}
+            />
+            <Field
+              autoComplete="new-password"
+              id="hosted-setup-confirmation"
+              label="Confirm password"
+              minLength={8}
+              onChange={(event) => setConfirmation(event.target.value)}
+              type="password"
+              value={confirmation}
+            />
+            <Button disabled={submitting} type="submit">
+              {submitting ? "Saving password" : "Set password"}
+            </Button>
+          </form>
+        </>
+      )}
+    </SetupFrame>
   );
 }
 
@@ -280,68 +302,50 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-6 sm:px-10 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-        <Brand />
-        <section className="grid flex-1 items-center gap-8 py-8 sm:gap-12 sm:py-12 lg:grid-cols-[0.9fr_0.8fr] lg:gap-20">
-          <div className="max-w-lg">
-            <Fingerprint
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={48}
-              weight="light"
-            />
-            <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              Set up your account
-            </p>
-            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              Choose a password
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-tapit-muted">
-              This one-time link gives you access to your Tapit profile workspace.
-            </p>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
-            {account ? (
-              <p className="mt-6 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                Account email: <strong className="text-tapit-ink">{account.email}</strong>
-              </p>
-            ) : null}
-            <form className="mt-6 grid gap-5" onSubmit={submit}>
-              {error ? <Notice tone="error">{error}</Notice> : null}
-              {complete ? (
-                <Notice tone="success">Password saved. Taking you to your profile.</Notice>
-              ) : null}
-              <Field
-                autoComplete="new-password"
-                help="Use at least 8 characters."
-                id="setup-password"
-                label="Password"
-                minLength={8}
-                onChange={(event) => setPassword(event.target.value)}
-                type="password"
-                value={password}
-              />
-              <Field
-                autoComplete="new-password"
-                id="setup-confirmation"
-                label="Confirm password"
-                minLength={8}
-                onChange={(event) => setConfirmation(event.target.value)}
-                type="password"
-                value={confirmation}
-              />
-              <Button disabled={complete || submitting} type="submit">
-                {submitting ? "Saving password" : "Set password"}
-              </Button>
-            </form>
-          </div>
-        </section>
-        <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
-          Your profile stays private until you choose to publish it.
-        </footer>
+    <SetupFrame footer="Your profile stays private until you choose to publish it.">
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold tracking-widest text-tapit-accent-strong uppercase">
+          Set up your account
+        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">Choose a password</h1>
+        <p className="text-sm text-tapit-muted">
+          This one-time link gives you access to your Tapit profile workspace.
+        </p>
       </div>
-    </main>
+      {account ? (
+        <p className="rounded-control bg-tapit-soft-surface p-4 text-sm text-tapit-muted">
+          Account email: <strong className="text-tapit-ink">{account.email}</strong>
+        </p>
+      ) : null}
+      <form className="grid gap-6" onSubmit={submit}>
+        {error ? <Notice tone="error">{error}</Notice> : null}
+        {complete ? (
+          <Notice tone="success">Password saved. Taking you to your profile.</Notice>
+        ) : null}
+        <Field
+          autoComplete="new-password"
+          help="Use at least 8 characters."
+          id="setup-password"
+          label="Password"
+          minLength={8}
+          onChange={(event) => setPassword(event.target.value)}
+          type="password"
+          value={password}
+        />
+        <Field
+          autoComplete="new-password"
+          id="setup-confirmation"
+          label="Confirm password"
+          minLength={8}
+          onChange={(event) => setConfirmation(event.target.value)}
+          type="password"
+          value={confirmation}
+        />
+        <Button disabled={complete || submitting} type="submit">
+          {submitting ? "Saving password" : "Set password"}
+        </Button>
+      </form>
+    </SetupFrame>
   );
 }
 
@@ -430,56 +434,41 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
           : undefined;
 
   return (
-    <main className="min-h-[100dvh] bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-6 sm:px-10 sm:py-8">
-      <div className="mx-auto flex min-h-[calc(100dvh-3.5rem)] w-full max-w-6xl flex-col">
-        <Brand />
-        <section className="grid flex-1 items-center gap-8 py-8 sm:gap-12 sm:py-12 lg:grid-cols-[0.9fr_0.8fr] lg:gap-20">
-          <div className="max-w-lg">
-            <Fingerprint
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={48}
-              weight="light"
-            />
-            <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-              Set up your account
-            </p>
-            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              Join Tapit with Google
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-tapit-muted">
-              Your invitation stays reusable until an administrator revokes it.
-            </p>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
-            {loading ? (
-              <p className="text-sm text-tapit-muted">Checking your invitation…</p>
-            ) : stateCopy ? (
-              <Notice tone="error">{stateCopy}</Notice>
-            ) : invitation?.state !== "valid" ? (
-              <Notice tone="error">This invitation is not available.</Notice>
-            ) : (
-              <div className="mt-6 grid gap-5">
-                <p className="rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-                  Continue with the Google account that received this invitation.
-                </p>
-                {error ? <Notice tone="error">{error}</Notice> : null}
-                {isAuthenticated ? (
-                  <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
-                ) : (
-                  <Button disabled={submitting} onClick={continueWithGoogle} type="button">
-                    {submitting ? "Opening Google" : "Continue with Google"}
-                  </Button>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-        <footer className="border-t border-tapit-line pt-4 text-xs text-tapit-muted">
-          Your profile stays private until you choose to publish it.
-        </footer>
+    <SetupFrame footer="Your profile stays private until you choose to publish it.">
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-semibold tracking-widest text-tapit-accent-strong uppercase">
+          Set up your account
+        </p>
+        <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">
+          Join Tapit with Google
+        </h1>
+        <p className="text-sm text-tapit-muted">
+          Your invitation stays reusable until an administrator revokes it.
+        </p>
       </div>
-    </main>
+      {loading ? (
+        <p className="text-sm text-tapit-muted">Checking your invitation…</p>
+      ) : stateCopy ? (
+        <Notice tone="error">{stateCopy}</Notice>
+      ) : invitation?.state !== "valid" ? (
+        <Notice tone="error">This invitation is not available.</Notice>
+      ) : (
+        <>
+          <p className="rounded-control bg-tapit-soft-surface p-4 text-sm text-tapit-muted">
+            Continue with the Google account that received this invitation.
+          </p>
+          {error ? <Notice tone="error">{error}</Notice> : null}
+          {isAuthenticated ? (
+            <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
+          ) : (
+            <Button disabled={submitting} onClick={continueWithGoogle} type="button">
+              <Icon name="google" size={20} weight="bold" />
+              {submitting ? "Opening Google" : "Continue with Google"}
+            </Button>
+          )}
+        </>
+      )}
+    </SetupFrame>
   );
 }
 
