@@ -21,7 +21,7 @@ const CARD_DESIGN_UPLOAD_ERROR_ID = "card-design-upload-error";
 
 export function BuildCardExperience({ embedded = false }: { embedded?: boolean } = {}) {
   const showPublicHeader = !embedded;
-  const loginReturnPath = embedded ? "/app/account/build-card" : "/build-card";
+  const loginReturnPath = embedded ? "/app/card" : "/build-card";
 
   if (isLocalDemoMode()) {
     return (
