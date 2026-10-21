@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Customize · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="app">
+  <aside class="side" aria-label="Workspace">
+    <a class="brand" href="Landing.dc.html"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="ws"><a class="on" href="Profile.dc.html">Customer</a><a href="AdminCustomers.dc.html">Admin</a></div>
+    <nav class="nav" aria-label="Customer navigation">
+      <p class="nav-label">Your profile</p>
+      <a class="nav-item" href="Profile.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
+      <a class="nav-item" href="Links.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Links<span class="count">4</span></a>
+      <a class="nav-item on" href="Customize.dc.html" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Customize</a>
+      <p class="nav-label">Share &amp; grow</p>
+      <a class="nav-item" href="BuildCard.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>Card</a>
+      <a class="nav-item" href="Analytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Analytics</a>
+    </nav>
+    <div class="side-foot">
+      <div class="live">
+        <div class="row-2"><span class="chip b-ok"><span class="dot"></span>Live</span><span class="t-xs muted">Published 2 days ago</span></div>
+        <a class="t-sm strong" href="PublicProfile.dc.html">tapit.me/mara-velasquez</a>
+      </div>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Account</a>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17.5v0"/></svg>Help &amp; support</a>
+      <a class="user" href="Account.dc.html"><span class="avatar">MV</span><span class="col-1 grow" style="gap: 0;"><span class="t-sm strong">Mara Velasquez</span><span class="t-xs muted">mara@example.test</span></span></a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="crumbs"><a href="Profile.dc.html">Workspace</a><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="here">Customize</span></div>
+      <button class="search" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search pages, links, settings<span class="kbd">⌘K</span></button>
+      <span class="saved"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>All changes saved</span>
+    </div>
+
+    <div class="head">
+      <div class="col-2">
+        <h1 class="t-xl">Customize</h1>
+        <p class="t-md muted">Pick a starting look, then fine-tune colour, type and buttons.</p>
+      </div>
+      <div class="row-2">
+        <button class="btn btn-quiet" type="button">Reset to preset</button>
+        <a class="btn btn-primary" href="PublicProfile.dc.html">Publish changes</a>
+      </div>
+    </div>
+
+    <div class="seg" role="tablist" aria-label="Customization categories">
+      <button class="on" type="button" role="tab" aria-selected="true">Theme</button>
+      <button type="button" role="tab" aria-selected="false">Colours</button>
+      <button type="button" role="tab" aria-selected="false">Type</button>
+      <button type="button" role="tab" aria-selected="false">Buttons</button>
+      <button type="button" role="tab" aria-selected="false">Layout</button>
+    </div>
+
+    <div class="editor">
+      <div class="form">
+        <div class="card">
+          <div class="col-1"><h2 class="t-lg">Profile preset</h2><p class="t-sm muted">Presets set every colour at once. You can change any of them after.</p></div>
+          <div class="grid-4" style="gap: 12px;">
+            <button type="button" class="card-flat" style="border: 0; font: inherit; cursor: pointer; padding: 12px; gap: 12px; background: #e8edf9; box-shadow: inset 0 0 0 2px #3f6de8; text-align: left;">
+              <div style="height: 96px; border-radius: 12px; background: #f4f6fa; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;"><span style="width: 28px; height: 28px; border-radius: 999px; background: #3f6de8;"></span><span style="width: 56px; height: 8px; border-radius: 4px; background: #1b2433;"></span><span style="width: 72px; height: 12px; border-radius: 4px; background: #fff;"></span></div>
+              <div class="spread"><span class="t-sm strong">Tapit</span><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true" style="color: #315fe4;"><path d="M5 12l5 5L20 7"/></svg></div>
+            </button>
+            <button type="button" class="card-flat" style="border: 0; font: inherit; cursor: pointer; padding: 12px; gap: 12px; text-align: left;">
+              <div style="height: 96px; border-radius: 12px; background: #fffdf9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;"><span style="width: 28px; height: 28px; border-radius: 999px; background: #a84431;"></span><span style="width: 56px; height: 8px; border-radius: 4px; background: #2c2420;"></span><span style="width: 72px; height: 12px; border-radius: 4px; background: #eee8e2;"></span></div>
+              <span class="t-sm strong">Paper</span>
+            </button>
+            <button type="button" class="card-flat" style="border: 0; font: inherit; cursor: pointer; padding: 12px; gap: 12px; text-align: left;">
+              <div style="height: 96px; border-radius: 12px; background: #f2f6f1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;"><span style="width: 28px; height: 28px; border-radius: 999px; background: #3e806d;"></span><span style="width: 56px; height: 8px; border-radius: 4px; background: #17352b;"></span><span style="width: 72px; height: 12px; border-radius: 4px; background: #dcece2;"></span></div>
+              <span class="t-sm strong">Moss</span>
+            </button>
+            <button type="button" class="card-flat" style="border: 0; font: inherit; cursor: pointer; padding: 12px; gap: 12px; text-align: left;">
+              <div style="height: 96px; border-radius: 12px; background: #17211f; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;"><span style="width: 28px; height: 28px; border-radius: 999px; background: #7bc2a9;"></span><span style="width: 56px; height: 8px; border-radius: 4px; background: #f7fbf8;"></span><span style="width: 72px; height: 12px; border-radius: 4px; background: #2d4239;"></span></div>
+              <span class="t-sm strong">Night</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h2 class="t-lg">Accent colour</h2>
+            <div class="row wrap" style="gap: 12px;">
+              <button type="button" aria-label="Tapit blue, selected" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #3f6de8; box-shadow: 0 0 0 3px #fff, 0 0 0 5px #3f6de8;"></button>
+              <button type="button" aria-label="Warm" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #c9a875;"></button>
+              <button type="button" aria-label="Moss" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #3e806d;"></button>
+              <button type="button" aria-label="Clay" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #a84431;"></button>
+              <button type="button" aria-label="Ink" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #1b2433;"></button>
+              <button type="button" aria-label="Custom colour" style="width: 44px; height: 44px; border-radius: 999px; border: 0; background: #f0f3f9; color: #626f82; display: grid; place-items: center;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            </div>
+            <div class="notice" style="background: #e1f2e9;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="color: #10543f;"><path d="M5 12l5 5L20 7"/></svg><span>Text on this colour passes contrast (5.1:1).</span></div>
+          </div>
+          <div class="card">
+            <h2 class="t-lg">Type scale</h2>
+            <div class="seg on-soft"><button type="button">Compact</button><button class="on" type="button">Default</button><button type="button">Large</button></div>
+            <div class="tile" style="flex-direction: column; align-items: flex-start; gap: 4px; padding: 16px;"><p class="t-lg">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+          </div>
+          <div class="card">
+            <h2 class="t-lg">Contact info</h2>
+            <div class="seg on-soft"><button class="on" type="button">Icons</button><button type="button">Buttons</button><button type="button">Hidden</button></div>
+            <p class="hint">Icons keep the top of your profile short.</p>
+          </div>
+          <div class="card">
+            <h2 class="t-lg">Save contact button</h2>
+            <div class="seg on-soft"><button class="on" type="button">Filled</button><button type="button">Soft</button><button type="button">Outline</button></div>
+            <p class="hint">Filled uses your accent colour.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview">
+        <div class="spread"><p class="label">Live preview</p><div class="seg on-soft"><button class="on" type="button">Light</button><button type="button">Dark</button></div></div>
+        <div class="phone">
+          <div class="phone-in">
+            <span class="avatar avatar-xl">MV</span>
+            <div class="col-1" style="align-items: center;"><p class="t-lg">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+            <div class="row-2">
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg></span>
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></span>
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span>
+            </div>
+            <span class="btn btn-primary btn-block">Save contact</span>
+            <div class="list" style="width: 100%;">
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>LinkedIn<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>Portfolio<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Book a conversation<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

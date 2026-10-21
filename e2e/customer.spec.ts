@@ -1041,7 +1041,7 @@ test("active-card QR downloads keep the light surface and remain available", asy
   await expect(page.getByRole("button", { name: "Download SVG" }).first()).toBeEnabled();
   await expect
     .poll(() => png.evaluate((anchor) => getComputedStyle(anchor).borderTopLeftRadius))
-    .toBe("18px");
+    .toBe("20px");
   await expect(page.getByRole("img", { name: /QR code for/ }).first()).toBeVisible();
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -1698,7 +1698,7 @@ test("customer can switch profile presets while preserving customization and med
   await page.getByRole("button", { name: "Publish changes" }).click();
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(/text-4xl/);
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(/text-2xl/);
   await page.goto("/app/customize");
   await warmStudio.check();
   await expect(previewCanvas).toHaveCSS("background-color", "rgb(251, 246, 239)");
@@ -3243,7 +3243,7 @@ test("compact contact actions keep labels accessible and publish their selected 
   for (const label of contactLabels) {
     const link = previewContacts.getByRole("link", { name: label, exact: true });
     await expect(link).toHaveText("");
-    await expect(link).toHaveClass(/rounded-lg/);
+    await expect(link).toHaveClass(/rounded-control/);
   }
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
@@ -3262,7 +3262,7 @@ test("compact contact actions keep labels accessible and publish their selected 
   ).toBeVisible();
   await page.goto("/mara-velasquez");
   await expect(publicContacts.getByRole("link", { name: "Email", exact: true })).toHaveClass(
-    /rounded-lg/,
+    /rounded-control/,
   );
 });
 

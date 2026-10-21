@@ -13,7 +13,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 
 export type ProfileFieldChange = <K extends keyof ProfileContent>(
   field: K,
@@ -44,7 +44,7 @@ const sectionLabels: Record<DetailsSectionName, string> = {
 };
 
 const radioClass =
-  "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+  "flex min-h-12 cursor-pointer items-center gap-3 rounded-card border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
 
 function RadioChoice({
   ariaDescribedBy,
@@ -94,7 +94,7 @@ function SectionRow({
 }) {
   const panelId = `${id}-panel`;
   return (
-    <section className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+    <section className="overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
       <h2>
         <button
           aria-controls={panelId}
@@ -104,7 +104,7 @@ function SectionRow({
           type="button"
         >
           <span>{sectionLabels[name]}</span>
-          <span aria-hidden="true" className="text-xl font-normal text-tapit-muted">
+          <span aria-hidden="true" className="text-lg font-normal text-tapit-muted">
             {open ? (
               <CaretUpIcon size={18} weight="bold" />
             ) : (
@@ -161,7 +161,7 @@ function ProfileIdentityForm({
   onChange: ProfileFieldChange;
 }) {
   return (
-    <Panel className="shadow-none" title="Basics">
+    <Card className="shadow-none" title="Basics">
       <div className="mt-6 grid grid-cols-1 gap-5">
         {message}
         {onboarding}
@@ -186,7 +186,7 @@ function ProfileIdentityForm({
           />
         </div>
       </div>
-    </Panel>
+    </Card>
   );
 }
 
@@ -281,7 +281,7 @@ export function ProfileDetailsEditor({
         onboarding={onboarding}
       />
 
-      <Panel className="shadow-none" title="Contact">
+      <Card className="shadow-none" title="Contact">
         <p className="mt-4 text-sm leading-6 text-tapit-muted">
           These details appear as contact options on your published profile.
         </p>
@@ -311,9 +311,9 @@ export function ProfileDetailsEditor({
             value={draft.website ?? ""}
           />
         </div>
-      </Panel>
+      </Card>
 
-      <Panel className="shadow-none" title="Profile link">
+      <Card className="shadow-none" title="Profile link">
         <Field
           disabled={slugLocked}
           help={
@@ -327,11 +327,11 @@ export function ProfileDetailsEditor({
           placeholder="alex-morgan"
           value={draft.slug}
         />
-        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-card border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
           <span className="font-semibold text-tapit-ink">Public URL</span>
           <Link
             aria-label={`Open public profile /${draft.slug}`}
-            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-sm sm:flex-1"
+            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-control sm:flex-1"
             href={`/${draft.slug}`}
           >
             <code className="break-all">
@@ -386,7 +386,7 @@ export function ProfileDetailsEditor({
             Visitors see your contact details and profile links.
           </p>
         )}
-      </Panel>
+      </Card>
 
       <SectionRow
         id={`${baseId}-about`}

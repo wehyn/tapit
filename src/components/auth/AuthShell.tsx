@@ -40,7 +40,7 @@ export function AuthShell({
               <p className="tapit-eyebrow mt-6">
                 {mode === "signup" ? "Make it yours" : "Welcome back"}
               </p>
-              <h1 className="tapit-display mt-3 text-3xl font-semibold leading-[1.08] tracking-[-0.045em] text-tapit-ink sm:text-5xl">
+              <h1 className="tapit-display mt-3 text-xl font-semibold leading-[1.08] tracking-[-0.045em] text-tapit-ink sm:text-2xl">
                 {mode === "signup" ? "Create your Tapit profile" : "Sign in to Tapit"}
               </h1>
               <p className="mt-4 max-w-sm text-base leading-7 text-tapit-muted">
@@ -53,11 +53,11 @@ export function AuthShell({
                     : "Manage your profile, links, and publication state from one calm workspace."}
               </p>
             </div>
-            <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8 lg:p-9">
+            <div className="rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8 lg:p-9">
               {variant === "google" ? null : (
                 <div className="mb-6 grid gap-2 sm:grid-cols-2">
                   <button
-                    className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signup" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                    className={`min-h-12 rounded-card px-3 text-sm font-semibold ${mode === "signup" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
                     disabled={modeChangeDisabled}
                     onClick={() => onModeChange("signup")}
                     type="button"
@@ -65,7 +65,7 @@ export function AuthShell({
                     New to Tapit? Create your profile
                   </button>
                   <button
-                    className={`min-h-12 rounded-tapit px-3 text-sm font-semibold ${mode === "signin" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
+                    className={`min-h-12 rounded-card px-3 text-sm font-semibold ${mode === "signin" ? "bg-tapit-accent text-white" : "border border-tapit-line text-tapit-muted"}`}
                     disabled={modeChangeDisabled}
                     onClick={() => onModeChange("signin")}
                     type="button"
@@ -85,7 +85,7 @@ export function AuthShell({
                 </p>
               ) : null}
               {demoHint ? (
-                <p className="mt-6 rounded-tapit bg-tapit-paper px-4 py-3 text-xs leading-5 text-tapit-muted">
+                <p className="mt-6 rounded-card bg-tapit-paper px-4 py-3 text-xs leading-5 text-tapit-muted">
                   Local demo: use <strong>mara@example.test</strong> or{" "}
                   <strong>admin@tapit.local</strong> with password <strong>tapit-demo</strong>.
                 </p>

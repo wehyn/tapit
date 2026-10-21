@@ -101,7 +101,7 @@ export function ProfileLayoutOrderEditor({
             aria-posinset={index + 1}
             aria-setsize={value.length}
             aria-roledescription="sortable row"
-            className={`flex min-h-16 items-center gap-3 border px-3 py-2 transition-colors ${barePanels ? "rounded-tapit border-tapit-line bg-tapit-surface" : "rounded-xl border-current/15 bg-tapit-surface shadow-sm"} ${dragging === block ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+            className={`flex min-h-16 items-center gap-3 border px-3 py-2 transition-colors ${barePanels ? "rounded-card border-tapit-line bg-tapit-surface" : "rounded-control border-current/15 bg-tapit-surface shadow-card"} ${dragging === block ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
           >
             <span
               aria-hidden="true"
@@ -110,7 +110,7 @@ export function ProfileLayoutOrderEditor({
               onPointerMove={handlePointerMove}
               onPointerUp={finishPointerDrag}
               onPointerCancel={finishPointerDrag}
-              className="flex size-10 shrink-0 touch-none cursor-grab items-center justify-center rounded-lg text-tapit-muted active:cursor-grabbing"
+              className="flex size-10 shrink-0 touch-none cursor-grab items-center justify-center rounded-control text-tapit-muted active:cursor-grabbing"
             >
               <DotsSixVerticalIcon size={20} weight="bold" />
             </span>
@@ -123,7 +123,7 @@ export function ProfileLayoutOrderEditor({
                 aria-label={`Move ${labels[block]} up`}
                 disabled={index === 0}
                 onClick={() => move(block, index - 1)}
-                className="grid size-10 place-items-center rounded-lg text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
+                className="grid size-10 place-items-center rounded-control text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
               >
                 <ArrowUpIcon
                   aria-hidden="true"
@@ -136,7 +136,7 @@ export function ProfileLayoutOrderEditor({
                 aria-label={`Move ${labels[block]} down`}
                 disabled={index === value.length - 1}
                 onClick={() => move(block, index + 1)}
-                className="grid size-10 place-items-center rounded-lg text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
+                className="grid size-10 place-items-center rounded-control text-tapit-muted transition hover:bg-tapit-accent/10 hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-35"
               >
                 <ArrowDownIcon
                   aria-hidden="true"

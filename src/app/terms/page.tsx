@@ -12,9 +12,9 @@ export default function TermsPage() {
   return (
     <main className="min-h-screen bg-tapit-paper text-tapit-ink">
       <PublicHeader />
-      <article className="mx-auto my-6 w-[calc(100%-2rem)] max-w-3xl rounded-tapit border border-tapit-line bg-tapit-surface px-5 pb-10 pt-8 text-base leading-7 shadow-[0_16px_44px_rgba(27,36,51,0.055)] sm:my-12 sm:px-10 sm:py-12 sm:leading-8">
+      <article className="mx-auto my-6 w-[calc(100%-2rem)] max-w-3xl rounded-card border border-tapit-line bg-tapit-surface px-5 pb-10 pt-8 text-base leading-7 shadow-[0_16px_44px_rgba(27,36,51,0.055)] sm:my-12 sm:px-10 sm:py-12 sm:leading-8">
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-tapit-accent">Terms</p>
-        <h1 className="tapit-display mt-5 text-3xl font-semibold tracking-[-0.055em] sm:text-5xl">
+        <h1 className="tapit-display mt-5 text-xl font-semibold tracking-[-0.055em] sm:text-2xl">
           Tapit terms of use
         </h1>
         <p className="mt-5 text-sm text-tapit-muted">Effective 25 September 2026</p>
@@ -29,7 +29,7 @@ export default function TermsPage() {
         </p>
 
         <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="service">
-          <h2 className="tapit-display text-2xl font-medium tracking-tight" id="service">
+          <h2 className="tapit-display text-xl font-medium tracking-tight" id="service">
             The service
           </h2>
           <p className="mt-4 text-tapit-muted">
@@ -41,7 +41,7 @@ export default function TermsPage() {
         </section>
 
         <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="account">
-          <h2 className="tapit-display text-2xl font-medium tracking-tight" id="account">
+          <h2 className="tapit-display text-xl font-medium tracking-tight" id="account">
             Your account and content
           </h2>
           <p className="mt-4 text-tapit-muted">
@@ -53,7 +53,7 @@ export default function TermsPage() {
         </section>
 
         <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="use">
-          <h2 className="tapit-display text-2xl font-medium tracking-tight" id="use">
+          <h2 className="tapit-display text-xl font-medium tracking-tight" id="use">
             Acceptable use
           </h2>
           <p className="mt-4 text-tapit-muted">
@@ -65,7 +65,7 @@ export default function TermsPage() {
         </section>
 
         <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="availability">
-          <h2 className="tapit-display text-2xl font-medium tracking-tight" id="availability">
+          <h2 className="tapit-display text-xl font-medium tracking-tight" id="availability">
             Availability
           </h2>
           <p className="mt-4 text-tapit-muted">
@@ -76,7 +76,7 @@ export default function TermsPage() {
         </section>
 
         <section className="mt-12 border-t border-tapit-line pt-6" aria-labelledby="privacy">
-          <h2 className="tapit-display text-2xl font-medium tracking-tight" id="privacy">
+          <h2 className="tapit-display text-xl font-medium tracking-tight" id="privacy">
             Privacy and changes
           </h2>
           <p className="mt-4 text-tapit-muted">

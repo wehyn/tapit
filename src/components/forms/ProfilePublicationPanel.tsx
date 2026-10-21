@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 
 import type { ProfileStatus } from "@/lib/domain";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Card } from "@/components/ui/Card";
+import { StatusChip } from "@/components/ui/Chip";
 
 export type ProfilePublicationPanelProps = {
   status: ProfileStatus;
@@ -26,9 +26,9 @@ export function ProfilePublicationPanel({
   const hasErrors = errors.length > 0 || customizationErrors.length > 0;
 
   return (
-    <Panel className="shadow-none" title="Publication">
+    <Card className="shadow-none" title="Publication">
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <StatusBadge status={status} />
+        <StatusChip status={status} />
         <span className="text-sm text-tapit-muted">{publicationState}</span>
       </div>
       {errors.length > 0 ? (
@@ -66,6 +66,6 @@ export function ProfilePublicationPanel({
           </p>
         )
       ) : null}
-    </Panel>
+    </Card>
   );
 }

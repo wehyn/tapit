@@ -166,7 +166,7 @@ describe("public profile preview behavior", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: projection.name })).toHaveClass("text-4xl");
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveClass("text-2xl");
     expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
       color: "#ffffff",
     });
@@ -394,8 +394,8 @@ describe("public profile preview behavior", () => {
     });
     expect(hero).toContainElement(heading);
     expect(hero).toHaveAttribute("data-hero-height", "220");
-    expect(heading).toHaveClass("text-3xl");
-    expect(heading).not.toHaveClass("sm:text-4xl");
+    expect(heading).toHaveClass("text-xl");
+    expect(heading).not.toHaveClass("sm:text-2xl");
   });
 
   it("renders projected media for a legacy themed profile", () => {
@@ -466,9 +466,9 @@ describe("public profile preview behavior", () => {
   });
 
   it.each([
-    ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "border-[#3e806d]"],
-    ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "border-[#2c2420]"],
-    ["comfortable", "coral", "text-3xl", "bg-[#ffede3]", "text-[#a84431]", "border-[#a84431]"],
+    ["compact", "jade", "text-xl", "bg-[#e1f0ea]", "text-[#3e806d]", "border-[#3e806d]"],
+    ["editorial", "ink", "text-2xl", "bg-[#eee8e2]", "text-[#2c2420]", "border-[#2c2420]"],
+    ["comfortable", "coral", "text-xl", "bg-[#ffede3]", "text-[#a84431]", "border-[#a84431]"],
   ] as const)(
     "applies the %s type scale and finite %s accent in preview",
     (typeScale, accent, headingClass, avatarBackground, avatarText, linkBorder) => {
@@ -560,8 +560,8 @@ describe("public profile preview behavior", () => {
     expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(
-      "text-3xl",
-      "sm:text-4xl",
+      "text-xl",
+      "sm:text-2xl",
     );
   });
 

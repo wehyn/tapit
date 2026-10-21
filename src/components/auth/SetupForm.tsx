@@ -150,14 +150,14 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
             <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Hosted demo setup
             </p>
-            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               Choose a password
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
               This isolated hosted demo uses its password flow for demonstration only.
             </p>
           </div>
-          <div className="grid gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
+          <div className="grid gap-5 rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your setup link…</p>
             ) : stateCopy ? (
@@ -166,7 +166,7 @@ function HostedDemoSetupForm({ token, nextPath }: { token: string; nextPath?: st
               <Notice tone="error">This setup link is not available.</Notice>
             ) : (
               <>
-                <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+                <p className="rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
                   Enter the email address from your invitation.
                 </p>
                 <form className="grid gap-5" onSubmit={submit}>
@@ -294,16 +294,16 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
             <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Set up your account
             </p>
-            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               Choose a password
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
               This one-time link gives you access to your Tapit profile workspace.
             </p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
+          <div className="rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
             {account ? (
-              <p className="mt-6 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+              <p className="mt-6 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
                 Account email: <strong className="text-tapit-ink">{account.email}</strong>
               </p>
             ) : null}
@@ -444,14 +444,14 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
             <p className="mt-8 text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
               Set up your account
             </p>
-            <h1 className="tapit-display mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <h1 className="tapit-display mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               Join Tapit with Google
             </h1>
             <p className="mt-3 text-sm leading-6 text-tapit-muted">
               Your invitation stays reusable until an administrator revokes it.
             </p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
+          <div className="rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-8">
             {loading ? (
               <p className="text-sm text-tapit-muted">Checking your invitation…</p>
             ) : stateCopy ? (
@@ -460,7 +460,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
               <Notice tone="error">This invitation is not available.</Notice>
             ) : (
               <div className="mt-6 grid gap-5">
-                <p className="rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+                <p className="rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
                   Continue with the Google account that received this invitation.
                 </p>
                 {error ? <Notice tone="error">{error}</Notice> : null}

@@ -72,7 +72,7 @@ function SectionIntro({
   return (
     <div className={`max-w-2xl ${centered ? "mx-auto text-center" : ""}`}>
       <p className="tapit-eyebrow">{eyebrow}</p>
-      <h2 className="mt-4 text-balance text-3xl font-semibold leading-tight tracking-[-0.05em] text-tapit-ink sm:text-4xl lg:text-5xl">
+      <h2 className="mt-4 text-balance text-xl font-semibold leading-tight tracking-[-0.05em] text-tapit-ink sm:text-2xl lg:text-2xl">
         {title}
       </h2>
       {children ? (
@@ -253,35 +253,35 @@ function ProfilePreview() {
           <div className="flex flex-col items-center text-center">
             <Image
               alt=""
-              className="size-[4.5rem] rounded-full border-4 border-white object-cover shadow-md"
+              className="size-[4.5rem] rounded-full border-4 border-white object-cover shadow-card"
               height={72}
               loading="eager"
               src="/images/tapit-demo-mara-avatar.png"
               width={72}
             />
-            <h3 className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
+            <h3 className="mt-3 text-lg font-semibold tracking-tight text-tapit-ink">
               Mara Velasquez
             </h3>
             <p className="mt-1 text-xs leading-5 text-tapit-muted">Independent creative studio</p>
           </div>
           <div className="mt-5 grid gap-2.5">
-            <div className="flex min-h-11 items-center justify-between rounded-xl bg-tapit-accent px-3.5 text-sm font-semibold text-white">
+            <div className="flex min-h-11 items-center justify-between rounded-control bg-tapit-accent px-3.5 text-sm font-semibold text-white">
               <span>Explore my work</span>
               <ArrowUpRightIcon aria-hidden="true" size={17} />
             </div>
-            <div className="flex min-h-11 items-center gap-3 rounded-xl border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
+            <div className="flex min-h-11 items-center gap-3 rounded-control border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
               <GlobeIcon aria-hidden="true" className="text-tapit-accent" size={17} />
               Portfolio
             </div>
-            <div className="flex min-h-11 items-center gap-3 rounded-xl border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
+            <div className="flex min-h-11 items-center gap-3 rounded-control border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
               <InstagramLogoIcon aria-hidden="true" className="text-tapit-accent" size={17} />
               Instagram
             </div>
-            <div className="flex min-h-11 items-center gap-3 rounded-xl border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
+            <div className="flex min-h-11 items-center gap-3 rounded-control border border-tapit-line px-3.5 text-sm font-medium text-tapit-ink">
               <EnvelopeSimpleIcon aria-hidden="true" className="text-tapit-accent" size={17} />
               Email
             </div>
-            <div className="mt-0.5 flex min-h-11 items-center justify-center gap-2 rounded-xl bg-tapit-soft-surface text-xs font-semibold text-tapit-accent-strong">
+            <div className="mt-0.5 flex min-h-11 items-center justify-center gap-2 rounded-control bg-tapit-soft-surface text-xs font-semibold text-tapit-accent-strong">
               <DownloadSimpleIcon aria-hidden="true" size={16} />
               Save contact
             </div>
@@ -402,7 +402,7 @@ export default function HomePage() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <ShareNetworkIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
-                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-lg">
                   Social links
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-tapit-muted">
@@ -415,7 +415,7 @@ export default function HomePage() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <GlobeIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
-                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-lg">
                   Work and portfolio
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-tapit-muted">
@@ -428,7 +428,7 @@ export default function HomePage() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <EnvelopeSimpleIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
-                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-lg">
                   Contact details
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-tapit-muted">
@@ -441,7 +441,7 @@ export default function HomePage() {
                 <span className="grid size-12 place-items-center rounded-2xl bg-tapit-accent-soft text-tapit-accent transition-transform duration-150 motion-safe:group-hover:scale-105">
                   <UserPlusIcon aria-hidden="true" size={22} weight="duotone" />
                 </span>
-                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-lg">
                   Save contact
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-tapit-muted">
@@ -465,7 +465,7 @@ export default function HomePage() {
           <ScrollReveal className="order-2 lg:order-1">
             <div className="max-w-xl">
               <p className="tapit-eyebrow">A card with more room</p>
-              <h2 className="mt-4 text-balance text-3xl leading-tight font-semibold tracking-[-0.05em] text-tapit-ink sm:text-4xl lg:text-5xl">
+              <h2 className="mt-4 text-balance text-xl leading-tight font-semibold tracking-[-0.05em] text-tapit-ink sm:text-2xl lg:text-2xl">
                 A thoughtful first hello. A profile that keeps working.
               </h2>
               <p className="mt-5 text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
@@ -540,7 +540,7 @@ export default function HomePage() {
                 <p className="text-xs font-semibold tracking-[0.16em] text-[#a9ddc6] uppercase">
                   For your business
                 </p>
-                <h3 className="mt-8 text-xl font-semibold tracking-tight sm:text-2xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight sm:text-xl">
                   Keep your details together.
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-white/70">
@@ -554,7 +554,7 @@ export default function HomePage() {
                 <p className="text-xs font-semibold tracking-[0.16em] text-tapit-accent uppercase">
                   For your next connection
                 </p>
-                <h3 className="mt-8 text-xl font-semibold tracking-tight text-tapit-ink sm:text-2xl">
+                <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
                   Make the next step clear.
                 </h3>
                 <p className="mt-3 text-sm leading-6 text-tapit-muted">
@@ -614,7 +614,7 @@ export default function HomePage() {
                       {number}
                     </span>
                   </div>
-                  <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-xl">
+                  <h3 className="mt-8 text-lg font-semibold tracking-tight text-tapit-ink sm:text-lg">
                     {title}
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-tapit-muted">{description}</p>
@@ -670,7 +670,7 @@ export default function HomePage() {
               <p className="text-xs font-semibold tracking-[0.18em] text-[#a9ddc6] uppercase">
                 Your next introduction starts here
               </p>
-              <h2 className="mt-4 text-balance text-3xl leading-tight font-semibold tracking-[-0.05em] sm:text-4xl lg:text-5xl">
+              <h2 className="mt-4 text-balance text-xl leading-tight font-semibold tracking-[-0.05em] sm:text-2xl lg:text-2xl">
                 Make it easy to remember what comes next.
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-6 text-white/70 sm:text-base sm:leading-7">

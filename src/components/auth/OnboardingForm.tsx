@@ -142,12 +142,12 @@ export function OnboardingForm() {
 
   return (
     <main className="grid min-h-[100dvh] place-items-center bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-8 sm:px-10 sm:py-10">
-      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-9">
+      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-9">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Finish your profile
           </p>
-          <h1 className="tapit-display mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
+          <h1 className="tapit-display mt-3 text-2xl font-semibold tracking-[-0.055em] text-tapit-ink">
             Choose your display name
           </h1>
           <p className="mt-4 text-sm leading-6 text-tapit-muted">
@@ -208,7 +208,7 @@ export function OnboardingForm() {
           ) : null}
         </form>
         {slug !== undefined ? null : confirmingDelete ? (
-          <div className="grid gap-3 rounded-tapit border border-tapit-line p-4">
+          <div className="grid gap-3 rounded-card border border-tapit-line p-4">
             <p className="text-sm text-tapit-muted">
               Delete this pending account? Your Google identity will remain available to start again
               later.

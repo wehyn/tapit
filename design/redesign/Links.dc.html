@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Links · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="app">
+  <aside class="side" aria-label="Workspace">
+    <a class="brand" href="Landing.dc.html"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="ws"><a class="on" href="Profile.dc.html">Customer</a><a href="AdminCustomers.dc.html">Admin</a></div>
+    <nav class="nav" aria-label="Customer navigation">
+      <p class="nav-label">Your profile</p>
+      <a class="nav-item" href="Profile.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
+      <a class="nav-item on" href="Links.dc.html" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Links<span class="count">4</span></a>
+      <a class="nav-item" href="Customize.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Customize</a>
+      <p class="nav-label">Share &amp; grow</p>
+      <a class="nav-item" href="BuildCard.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>Card</a>
+      <a class="nav-item" href="Analytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Analytics</a>
+    </nav>
+    <div class="side-foot">
+      <div class="live">
+        <div class="row-2"><span class="chip b-ok"><span class="dot"></span>Live</span><span class="t-xs muted">Published 2 days ago</span></div>
+        <a class="t-sm strong" href="PublicProfile.dc.html">tapit.me/mara-velasquez</a>
+      </div>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Account</a>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17.5v0"/></svg>Help &amp; support</a>
+      <a class="user" href="Account.dc.html"><span class="avatar">MV</span><span class="col-1 grow" style="gap: 0;"><span class="t-sm strong">Mara Velasquez</span><span class="t-xs muted">mara@example.test</span></span></a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="crumbs"><a href="Profile.dc.html">Workspace</a><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="here">Links</span></div>
+      <button class="search" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search pages, links, settings<span class="kbd">⌘K</span></button>
+      <span class="saved" style="background: #fff4df; color: #784b13;"><span class="dot"></span>1 unpublished change</span>
+    </div>
+
+    <div class="head">
+      <div class="col-2">
+        <h1 class="t-xl">Links</h1>
+        <p class="t-md muted">Drag to reorder. Switch a link off to hide it without deleting it.</p>
+      </div>
+      <div class="row-2">
+        <button class="btn btn-secondary" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add link</button>
+        <a class="btn btn-primary" href="PublicProfile.dc.html">Publish changes</a>
+      </div>
+    </div>
+
+    <div class="editor">
+      <div class="form">
+        <div class="card">
+          <div class="col-1"><h2 class="t-lg">Featured link</h2><p class="t-sm muted">Shown as a large button at the top of your profile.</p></div>
+          <div class="tile" style="background: #e8edf9;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Book a conversation</p><p class="t-xs muted">cal.com/mara-velasquez</p></div><button class="btn btn-quiet" type="button">Change</button></div>
+        </div>
+
+        <div class="card">
+          <div class="spread"><h2 class="t-lg">Your links</h2><span class="t-sm muted">4 shown · 1 hidden</span></div>
+          <div class="list">
+            <div class="tile"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">LinkedIn</p><p class="t-xs muted">linkedin.com/in/mara-velasquez</p></div><span class="t-xs muted">148 clicks</span><button class="switch" type="button" aria-label="LinkedIn shown"></button><button class="btn btn-quiet btn-icon" type="button" aria-label="More for LinkedIn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+
+            <div class="tile" style="background: #fff; box-shadow: 0 0 0 2px #3f6de8; flex-direction: column; align-items: stretch; gap: 16px; padding: 16px;">
+              <div class="row"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span><p class="t-sm strong grow">Portfolio</p><span class="chip b-warn">Editing</span><button class="switch" type="button" aria-label="Portfolio shown"></button></div>
+              <div class="grid-2">
+                <div class="field"><label for="l-label">Label</label><input class="input" id="l-label" value="Portfolio"></div>
+                <div class="field"><label for="l-url">Destination</label><input class="input" id="l-url" value="https://mara-velasquez.example"></div>
+              </div>
+              <div class="spread">
+                <div class="row-2"><span class="label">Icon</span><span class="btn btn-tonal btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span><span class="btn btn-quiet btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg></span><span class="btn btn-quiet btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg></span></div>
+                <div class="row-2"><button class="btn btn-danger-soft" type="button">Delete</button><button class="btn btn-primary" type="button">Done</button></div>
+              </div>
+            </div>
+
+            <div class="tile"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Book a conversation</p><p class="t-xs muted">cal.com/mara-velasquez</p></div><span class="t-xs muted">96 clicks</span><button class="switch" type="button" aria-label="Booking shown"></button><button class="btn btn-quiet btn-icon" type="button" aria-label="More for Book a conversation"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+
+            <div class="tile"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Email</p><p class="t-xs muted">mara@example.test</p></div><span class="t-xs muted">61 clicks</span><button class="switch" type="button" aria-label="Email shown"></button><button class="btn btn-quiet btn-icon" type="button" aria-label="More for Email"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+
+            <div class="tile" style="opacity: .6;"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Old newsletter</p><p class="t-xs muted">Hidden from your profile</p></div><button class="switch off" type="button" aria-label="Old newsletter hidden"></button><button class="btn btn-quiet btn-icon" type="button" aria-label="More for Old newsletter"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+
+            <button class="tile" type="button" style="border: 0; font: inherit; background: #e8edf9; color: #315fe4; justify-content: center; cursor: pointer;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="t-sm strong">Add a link</span></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="t-lg">Quick add</h2>
+          <div class="row wrap" style="gap: 8px;">
+            <button class="btn btn-secondary" type="button">Instagram</button>
+            <button class="btn btn-secondary" type="button">WhatsApp</button>
+            <button class="btn btn-secondary" type="button">Viber</button>
+            <button class="btn btn-secondary" type="button">Facebook</button>
+            <button class="btn btn-secondary" type="button">TikTok</button>
+            <button class="btn btn-secondary" type="button">Phone</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview">
+        <div class="spread"><p class="label">Live preview</p><span class="chip">Draft</span></div>
+        <div class="phone">
+          <div class="phone-in">
+            <span class="avatar avatar-xl">MV</span>
+            <div class="col-1" style="align-items: center;"><p class="t-lg">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+            <span class="btn btn-primary btn-block"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Book a conversation</span>
+            <div class="list" style="width: 100%;">
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>LinkedIn<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink" style="box-shadow: 0 0 0 2px #3f6de8;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>Portfolio<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg>Email<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <p class="hint" style="text-align: center;">The link you are editing is outlined.</p>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -65,7 +65,7 @@ const PROFILE_CUSTOMIZATION_PANEL_CATEGORIES = PROFILE_CUSTOMIZATION_CATEGORIES.
 );
 
 const radioClass =
-  "relative flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+  "relative flex min-h-12 cursor-pointer items-center gap-3 rounded-card border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
 
 type ProfileAppearancePreset = ProfileTheme | "warm-studio";
 
@@ -172,7 +172,7 @@ function PresetRadio({
 }) {
   return (
     <label
-      className={`relative grid cursor-pointer gap-2.5 rounded-tapit border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
+      className={`relative grid cursor-pointer gap-2.5 rounded-card border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
         disabled ? "cursor-not-allowed opacity-55" : ""
       } ${
         checked
@@ -358,7 +358,7 @@ function IdentityColorControls({
         className={
           barePanels
             ? "grid gap-4"
-            : "grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-3.5 sm:p-4"
+            : "grid gap-4 rounded-card border border-tapit-line bg-tapit-surface p-3.5 sm:p-4"
         }
       >
         {(["name", "bio"] as const).map((field) => (
@@ -414,7 +414,7 @@ function CustomPaletteColorField({
       className={
         barePanels
           ? "grid min-w-0 gap-2 py-1"
-          : "grid gap-2 rounded-tapit border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          : "grid gap-2 rounded-card border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
       }
     >
       <span className="text-sm font-semibold text-tapit-ink">{label}</span>
@@ -430,14 +430,14 @@ function CustomPaletteColorField({
             />
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 rounded-full border border-tapit-line shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus peer-focus-visible:ring-offset-2"
+              className="pointer-events-none absolute inset-0 rounded-full border border-tapit-line shadow-card peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus peer-focus-visible:ring-offset-2"
               style={{ backgroundColor: color }}
             />
           </span>
         ) : (
           <input
             aria-label={`${label} color`}
-            className="size-11 shrink-0 cursor-pointer rounded-xl border border-tapit-line bg-tapit-surface p-1"
+            className="size-11 shrink-0 cursor-pointer rounded-control border border-tapit-line bg-tapit-surface p-1"
             onChange={(event) => commit(event.target.value)}
             type="color"
             value={color}
@@ -447,7 +447,7 @@ function CustomPaletteColorField({
           aria-label={`${label} hex`}
           autoCapitalize="characters"
           autoComplete="off"
-          className="min-h-11 w-32 rounded-tapit border border-tapit-line bg-tapit-surface px-3 font-mono text-sm uppercase text-tapit-ink outline-none transition focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20"
+          className="min-h-11 w-32 rounded-card border border-tapit-line bg-tapit-surface px-3 font-mono text-sm uppercase text-tapit-ink outline-none transition focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20"
           maxLength={7}
           onChange={(event) => commit(event.target.value)}
           pattern="^#[0-9a-fA-F]{6}$"
@@ -530,7 +530,7 @@ function CategoryErrorList({ errors }: { errors: readonly string[] }) {
   if (errors.length === 0) return null;
   return (
     <ul
-      className="grid gap-2 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] px-4 py-3 text-sm text-tapit-danger"
+      className="grid gap-2 rounded-card border border-tapit-danger/30 bg-[#fff1f0] px-4 py-3 text-sm text-tapit-danger"
       role="alert"
     >
       {errors.map((error) => (
@@ -756,7 +756,7 @@ export function ProfileCustomizationEditor({
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
-              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent focus-visible:outline-none ${
+              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-card focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent focus-visible:outline-none ${
                 selected
                   ? "border-tapit-accent text-tapit-ink"
                   : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"
@@ -789,7 +789,7 @@ export function ProfileCustomizationEditor({
           className={
             barePanels
               ? "outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
-              : "rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
+              : "rounded-card border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
           }
           hidden={category === "media" ? !mediaPanelIsActive : activeCategory !== category}
           id={`${baseId}-panel-${category}`}
@@ -839,12 +839,12 @@ export function ProfileCustomizationEditor({
                   })}
                 </div>
               </fieldset>
-              <details className="rounded-tapit border border-tapit-line bg-tapit-paper/60 px-4 py-3">
+              <details className="rounded-card border border-tapit-line bg-tapit-paper/60 px-4 py-3">
                 <summary
                   className={
                     barePanels
-                      ? "flex min-h-11 cursor-pointer items-center rounded-sm text-sm font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
-                      : "min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+                      ? "flex min-h-11 cursor-pointer items-center rounded-control text-sm font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
+                      : "min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-control focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
                   }
                 >
                   Fine tune

@@ -18,9 +18,23 @@
   --tapit-danger: #a33c38;
   --tapit-danger-soft: #fff1f0;
   --tapit-focus: var(--tapit-accent);
-  --tapit-radius: 18px;
-  --tapit-shadow-soft: 0 8px 24px rgb(27 36 51 / 0.05);
-  --tapit-shadow-raised: 0 20px 56px rgb(27 36 51 / 0.12);
+  --tapit-shadow: 0 1px 2px rgb(27 36 51 / 0.04), 0 8px 24px rgb(27 36 51 / 0.05);
+
+  /* Public profile themes. "paper" is the core palette above. */
+  --tapit-moss-ink: #17352b;
+  --tapit-moss-muted: #4f6d5c;
+  --tapit-moss-surface: #f7fbf8;
+  --tapit-moss-paper: #e8f1eb;
+  --tapit-moss-soft-surface: #dcece2;
+  --tapit-moss-accent: #176b57;
+  --tapit-moss-accent-strong: #105543;
+  --tapit-night-ink: #f2f6f1;
+  --tapit-night-muted: #b7c9c0;
+  --tapit-night-surface: #22302b;
+  --tapit-night-paper: #17211f;
+  --tapit-night-soft-surface: #2d4239;
+  --tapit-night-accent: #7bc2a9;
+  --tapit-night-accent-strong: #a0dbc5;
 }
 
 @theme inline {
@@ -42,7 +56,50 @@
   --color-tapit-danger: var(--tapit-danger);
   --color-tapit-danger-soft: var(--tapit-danger-soft);
   --color-tapit-focus: var(--tapit-focus);
-  --radius-tapit: var(--tapit-radius);
+  --color-tapit-moss-ink: var(--tapit-moss-ink);
+  --color-tapit-moss-muted: var(--tapit-moss-muted);
+  --color-tapit-moss-surface: var(--tapit-moss-surface);
+  --color-tapit-moss-paper: var(--tapit-moss-paper);
+  --color-tapit-moss-soft-surface: var(--tapit-moss-soft-surface);
+  --color-tapit-moss-accent: var(--tapit-moss-accent);
+  --color-tapit-moss-accent-strong: var(--tapit-moss-accent-strong);
+  --color-tapit-night-ink: var(--tapit-night-ink);
+  --color-tapit-night-muted: var(--tapit-night-muted);
+  --color-tapit-night-surface: var(--tapit-night-surface);
+  --color-tapit-night-paper: var(--tapit-night-paper);
+  --color-tapit-night-soft-surface: var(--tapit-night-soft-surface);
+  --color-tapit-night-accent: var(--tapit-night-accent);
+  --color-tapit-night-accent-strong: var(--tapit-night-accent-strong);
+
+  /* Radius: 12 for controls and tiles, 20 for cards and sheets, rounded-full for pills. */
+  --radius-*: initial;
+  --radius-control: 12px;
+  --radius-card: 20px;
+
+  /* Type: 12 / 14 / 16 / 20 / 28 / 40, and 56 for the landing hero. */
+  --text-*: initial;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.25rem;
+  --text-lg--line-height: 1.75rem;
+  --text-lg--letter-spacing: -0.01em;
+  --text-xl: 1.75rem;
+  --text-xl--line-height: 2.25rem;
+  --text-xl--letter-spacing: -0.025em;
+  --text-2xl: 2.5rem;
+  --text-2xl--line-height: 3rem;
+  --text-2xl--letter-spacing: -0.035em;
+  --text-3xl: 3.5rem;
+  --text-3xl--line-height: 3.75rem;
+  --text-3xl--letter-spacing: -0.045em;
+
+  /* One shadow. Everything else separates by tone and space. */
+  --shadow-*: initial;
+  --shadow-card: var(--tapit-shadow);
 }
 
 @layer base {
@@ -110,9 +167,9 @@ body {
 
 .tapit-eyebrow {
   color: var(--tapit-accent-strong);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 650;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -126,34 +183,6 @@ body {
   background: linear-gradient(110deg, var(--tapit-accent) 8%, #6288ed 90%);
   background-clip: text;
   color: transparent;
-}
-
-.tapit-button-motion {
-  transition:
-    transform 300ms cubic-bezier(0.2, 1.65, 0.4, 1),
-    box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
-    background-color 150ms ease-out,
-    border-color 150ms ease-out,
-    color 150ms ease-out;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .tapit-button-motion:not(:disabled):hover {
-    transform: translateY(-3px) scale(1.025);
-  }
-
-  .tapit-button-motion:not(:disabled):hover:not([data-variant="quiet"]) {
-    box-shadow: 0 8px 18px rgb(27 36 51 / 0.1);
-  }
-}
-
-.tapit-button-motion:not(:disabled):active {
-  transform: translateY(1px) scale(0.96);
-  transition-duration: 220ms;
-}
-
-.tapit-button-motion:not(:disabled):active:not([data-variant="quiet"]) {
-  box-shadow: 0 2px 5px rgb(27 36 51 / 0.08);
 }
 
 .tapit-ambient {
@@ -337,15 +366,6 @@ select {
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
-  }
-
-  .tapit-button-motion {
-    transition: none !important;
-  }
-
-  .tapit-button-motion:hover,
-  .tapit-button-motion:active {
-    transform: none !important;
   }
 
   *,

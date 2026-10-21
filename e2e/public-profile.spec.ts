@@ -540,7 +540,7 @@ test("legacy customer typography and selected theme remain intact after publishi
   expect(directProfile.headingFontFamily).toBe(previewFontFamily);
   expect(directProfile.pageBackground).toBe("rgb(23, 33, 31)");
   expect(directProfile.panelBackground).toBe("rgb(34, 48, 43)");
-  expect(directProfile.panelRadius).toBe("18px");
+  expect(directProfile.panelRadius).toBe("20px");
   expect(directProfile.pageClass).toContain("bg-[#17211f]");
 });
 

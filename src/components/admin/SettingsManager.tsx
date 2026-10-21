@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 
 function DemoSettingsManager() {
   // Retained only as an inert compatibility helper for the merged worktree.
@@ -59,13 +59,13 @@ function DemoSettingsManager() {
         description="Manage support destinations and review current launch readiness notes."
         title="Settings"
       />
-      <Panel
+      <Card
         description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
         title="Support contact"
       >
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-          <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
+          <div className="flex items-start gap-3 rounded-card border border-tapit-line bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
             <GearSixIcon
               aria-hidden="true"
               className="mt-0.5 shrink-0 text-tapit-accent"
@@ -86,8 +86,8 @@ function DemoSettingsManager() {
             </Button>
           </div>
         </form>
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="Local demo mode keeps customer data and invitation links in this browser only. Production deployment must connect Convex, email delivery, storage, monitoring, and an approved domain before launch."
         title="Launch gates"
       >
@@ -101,7 +101,7 @@ function DemoSettingsManager() {
           <li>Transactional email provider and retention policy</li>
           <li>Real-device NFC and QR verification</li>
         </ul>
-      </Panel>
+      </Card>
     </div>
   );
 }
@@ -143,7 +143,7 @@ function LiveSettingsManager() {
         description="Manage support destinations and review current launch readiness notes."
         title="Settings"
       />
-      <Panel
+      <Card
         description="This destination is used for generic support states and account help."
         title="Support contact"
       >
@@ -161,8 +161,8 @@ function LiveSettingsManager() {
             </Button>
           </div>
         </form>
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="Live mode stores settings in Convex and records sensitive administrator changes in the audit log."
         title="Launch gates"
       >
@@ -170,7 +170,7 @@ function LiveSettingsManager() {
           <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} />
           Operational readiness checklist
         </p>
-      </Panel>
+      </Card>
     </div>
   );
 }

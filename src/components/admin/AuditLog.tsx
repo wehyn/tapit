@@ -12,7 +12,7 @@ import { useDemoState } from "@/lib/demo/store";
 import { Field } from "@/components/ui/Field";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 type AuditEntry = {
@@ -200,7 +200,7 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
       className="px-2 py-4 sm:px-3 sm:py-5"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+      <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
         <span className="min-w-0">
           <span className="block font-semibold text-tapit-ink">
             {readableAuditAction(entry.action)}
@@ -260,8 +260,8 @@ function AuditHistory({
   loadMoreStatus?: "CanLoadMore" | "LoadingMore" | "Exhausted";
 }) {
   return (
-    <Panel title="History">
-      <div className="mt-5 divide-y divide-tapit-line rounded-tapit border border-tapit-line bg-tapit-surface px-3 sm:px-4">
+    <Card title="History">
+      <div className="mt-5 divide-y divide-tapit-line rounded-card border border-tapit-line bg-tapit-surface px-3 sm:px-4">
         {entries.length === 0 ? (
           <Notice>{emptyMessage}</Notice>
         ) : (
@@ -279,7 +279,7 @@ function AuditHistory({
           {loadMoreStatus === "LoadingMore" ? "Loading older entries…" : "Load older entries"}
         </Button>
       ) : null}
-    </Panel>
+    </Card>
   );
 }
 
@@ -316,7 +316,7 @@ function DemoAuditLog() {
         description="Review who changed account, profile, card, and operational settings."
         title="Audit log"
       />
-      <Panel
+      <Card
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
       >
@@ -337,7 +337,7 @@ function DemoAuditLog() {
             />
           </div>
         </div>
-      </Panel>
+      </Card>
       <AuditHistory entries={entries} />
     </div>
   );
@@ -377,7 +377,7 @@ function LiveAuditLog() {
         description="Review who changed account, profile, card, and operational settings."
         title="Audit log"
       />
-      <Panel
+      <Card
         description="See who made each change and which account it affected. Open an entry for details."
         title="Audit log"
       >
@@ -391,7 +391,7 @@ function LiveAuditLog() {
             value={search}
           />
         </div>
-      </Panel>
+      </Card>
       <AuditHistory
         emptyMessage={
           audits.status === "CanLoadMore"

@@ -14,7 +14,7 @@ import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialo
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type PreparedProfileImage = { blob: Blob; contentType: string };
@@ -156,7 +156,7 @@ function PhotoEditor({
     <div className="border-t border-tapit-line/70 pt-5">
       <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent">
           {draft.imageUrl ? (
             <NextImage
               alt={`${draft.name} profile`}
@@ -172,7 +172,7 @@ function PhotoEditor({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
             htmlFor={photoId}
           >
             <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
@@ -281,7 +281,7 @@ function LinksAndRedirectEditor({
   }
 
   return (
-    <Panel className="shadow-none" title="Links and card redirect">
+    <Card className="shadow-none" title="Links and card redirect">
       <div className="mt-6 grid gap-5">
         <section className="grid gap-4" aria-label="Card tap and scan redirect">
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-tapit-ink">
@@ -324,7 +324,7 @@ function LinksAndRedirectEditor({
         <div className="grid gap-4">
           {draft.links.map((link, index) => (
             <article
-              className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+              className="grid gap-4 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
               key={`${link.id}-${index}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +394,7 @@ function LinksAndRedirectEditor({
                     </option>
                   ))}
                 </SelectField>
-                <label className="flex min-h-12 items-center gap-3 self-end rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink">
+                <label className="flex min-h-12 items-center gap-3 self-end rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink">
                   <input
                     checked={link.enabled}
                     className="size-4 accent-tapit-accent"
@@ -408,7 +408,7 @@ function LinksAndRedirectEditor({
           ))}
         </div>
       </div>
-    </Panel>
+    </Card>
   );
 }
 
@@ -482,7 +482,7 @@ export function AdminProfileContentEditor({
         slugLocked
       />
       <LinksAndRedirectEditor draft={draft} onChange={onChange} />
-      <Panel
+      <Card
         className="shadow-none"
         title={draft.customization === undefined ? "Legacy appearance" : "Profile appearance"}
       >
@@ -499,7 +499,7 @@ export function AdminProfileContentEditor({
             theme={theme}
           />
         </div>
-      </Panel>
+      </Card>
       {mediaBusy || photoBusy ? (
         <Notice>Waiting for profile media to finish uploading…</Notice>
       ) : null}

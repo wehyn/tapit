@@ -486,7 +486,7 @@ export function ProfileMediaEditor({
         className={
           barePanels
             ? "grid min-w-0 gap-4"
-            : "grid gap-5 rounded-tapit border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
+            : "grid gap-5 rounded-card border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
         }
         aria-labelledby={`${baseId}-background-heading`}
       >
@@ -545,7 +545,7 @@ export function ProfileMediaEditor({
             {imageSource(value.background) ? (
               <div
                 aria-label={value.background.altText}
-                className="h-40 rounded-tapit border border-tapit-line bg-cover bg-center"
+                className="h-40 rounded-card border border-tapit-line bg-cover bg-center"
                 role="img"
                 style={{
                   backgroundImage: `url(${JSON.stringify(imageSource(value.background))})`,
@@ -623,7 +623,7 @@ export function ProfileMediaEditor({
         className={
           barePanels
             ? "grid min-w-0 gap-3 border-t border-tapit-line pt-4"
-            : "grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5"
+            : "grid gap-3 rounded-card border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5"
         }
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -688,14 +688,14 @@ export function ProfileMediaEditor({
           <div
             className={
               barePanels
-                ? "grid min-w-0 gap-3 rounded-tapit border border-dashed border-tapit-line bg-tapit-surface p-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center"
-                : "grid gap-3 rounded-tapit border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
+                ? "grid min-w-0 gap-3 rounded-card border border-dashed border-tapit-line bg-tapit-surface p-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center"
+                : "grid gap-3 rounded-card border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
             }
             key={entry.clientKey}
           >
             <div
               aria-label={entry.altText}
-              className="h-16 w-20 rounded-tapit bg-cover bg-center"
+              className="h-16 w-20 rounded-card bg-cover bg-center"
               role="img"
               style={{ backgroundImage: `url(${JSON.stringify(entry.previewUrl)})` }}
             />
@@ -746,7 +746,7 @@ export function ProfileMediaEditor({
             <li
               aria-posinset={index + 1}
               aria-setsize={value.slideshow.length}
-              className={`grid min-w-0 gap-3 rounded-tapit border p-3 motion-safe:transition-colors ${barePanels ? "border-tapit-line/70 bg-tapit-surface" : "border-tapit-line"} ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+              className={`grid min-w-0 gap-3 rounded-card border p-3 motion-safe:transition-colors ${barePanels ? "border-tapit-line/70 bg-tapit-surface" : "border-tapit-line"} ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
               data-slideshow-order-index={index}
               key={image.assetId}
             >
@@ -758,7 +758,7 @@ export function ProfileMediaEditor({
                 </span>
                 <button
                   aria-label={`Reorder slideshow image ${index + 1}`}
-                  className="grid size-12 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                  className="grid size-12 shrink-0 touch-none cursor-grab place-items-center rounded-control text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                   onPointerCancel={(event) => finishSlidePointerDrag(event, false)}
                   onPointerDown={(event) => handleSlidePointerDown(event, index)}
                   onPointerMove={handleSlidePointerMove}
@@ -803,14 +803,14 @@ export function ProfileMediaEditor({
                 {imageSource(image) ? (
                   <div
                     aria-label={image.altText}
-                    className="h-16 w-20 rounded-tapit bg-cover bg-center"
+                    className="h-16 w-20 rounded-card bg-cover bg-center"
                     role="img"
                     style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
                   />
                 ) : (
                   <div
                     aria-hidden="true"
-                    className="h-16 w-20 rounded-tapit bg-tapit-soft-surface"
+                    className="h-16 w-20 rounded-card bg-tapit-soft-surface"
                   />
                 )}
                 <Field
@@ -890,7 +890,7 @@ export function ProfileMediaEditor({
         <div
           className={
             activeUploadFailure
-              ? "grid gap-3 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] p-3 sm:flex sm:items-center sm:justify-between"
+              ? "grid gap-3 rounded-card border border-tapit-danger/30 bg-[#fff1f0] p-3 sm:flex sm:items-center sm:justify-between"
               : undefined
           }
         >

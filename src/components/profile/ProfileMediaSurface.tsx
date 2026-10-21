@@ -35,7 +35,7 @@ export function ProfileMediaSurface({
     <section
       aria-describedby={descriptionId}
       aria-label="Profile hero"
-      className={`${fullSurface ? "relative isolate" : compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-tapit border border-[#e5d6c5]"}`}
+      className={`${fullSurface ? "relative isolate" : compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-card border border-[#e5d6c5]"}`}
       role="region"
       style={
         fullSurface

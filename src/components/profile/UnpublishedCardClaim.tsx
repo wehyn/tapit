@@ -36,11 +36,11 @@ type ClaimScreenProps = {
 function ClaimScreen({ challenge, code, error, onChange, onSubmit, submitting }: ClaimScreenProps) {
   return (
     <main className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10">
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
         <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
           Card setup
         </p>
-        <h1 className="tapit-display mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
+        <h1 className="tapit-display mt-3 text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
           Are you the owner of this card?
         </h1>
         <p className="mt-4 text-sm leading-6 text-tapit-muted">
@@ -207,11 +207,11 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
   if (!isAuthenticated) {
     return (
       <main className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10">
-        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Card setup
           </p>
-          <h1 className="tapit-display mt-3 text-3xl font-semibold leading-tight tracking-tight text-tapit-ink">
+          <h1 className="tapit-display mt-3 text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
             Are you the owner of this card?
           </h1>
           <p className="mt-4 max-w-md text-sm leading-6 text-tapit-muted">
@@ -246,7 +246,7 @@ function ClaimLoading() {
       aria-live="polite"
       className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10"
     >
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
         <p className="text-sm text-tapit-muted" role="status">
           Checking your sign-in status...
         </p>

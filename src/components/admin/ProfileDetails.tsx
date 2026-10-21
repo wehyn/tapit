@@ -3,7 +3,7 @@ import type { ProfileContent, ProfileStatus, PublishedProfileSnapshot } from "@/
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StatusChip } from "@/components/ui/Chip";
 
 export interface AdminProfileDetailsView {
   currentSlug: string;
@@ -54,7 +54,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
   return (
     <section
       aria-label={heading}
-      className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-7"
+      className="rounded-card border border-tapit-line bg-tapit-surface p-5 sm:p-7"
     >
       <h3 className="text-base font-semibold text-tapit-ink">{heading}</h3>
       <dl className="mt-6 grid min-w-0 gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
@@ -68,7 +68,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 alt={`${content.name || "Profile"} profile image`}
-                className="tapit-image-outline size-28 rounded-tapit bg-tapit-surface object-cover"
+                className="tapit-image-outline size-28 rounded-card bg-tapit-surface object-cover"
                 src={content.imageUrl}
               />
             ) : (
@@ -90,7 +90,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {customization ? (
         <section
           aria-label="Appearance details"
-          className="mt-8 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="mt-8 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Appearance and layout</h4>
           <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -126,7 +126,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {section ? (
         <section
           aria-label={section.kind === "about" ? "About section" : "Services section"}
-          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="mt-5 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">
             {section.kind === "about" ? "About" : "Services"}
@@ -146,7 +146,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {media ? (
         <section
           aria-label="Profile media"
-          className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="mt-5 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Media</h4>
           <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
@@ -164,7 +164,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   alt={media.background.altText}
-                  className="tapit-image-outline h-24 w-full rounded-tapit object-cover"
+                  className="tapit-image-outline h-24 w-full rounded-card object-cover"
                   src={media.background.previewUrl ?? media.background.url}
                 />
               ) : null}
@@ -181,7 +181,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
             <ol className="mt-5 grid gap-3 sm:grid-cols-2">
               {media.slideshow.map((image, index) => (
                 <li
-                  className="flex items-center gap-3 rounded-tapit border border-tapit-line p-3"
+                  className="flex items-center gap-3 rounded-card border border-tapit-line p-3"
                   key={`${image.assetId}-${index}`}
                 >
                   {image.previewUrl || image.url ? (
@@ -189,7 +189,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       alt={image.altText}
-                      className="tapit-image-outline size-14 shrink-0 rounded-tapit object-cover"
+                      className="tapit-image-outline size-14 shrink-0 rounded-card object-cover"
                       src={image.previewUrl ?? image.url}
                     />
                   ) : null}
@@ -212,7 +212,7 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
         {content.links.length === 0 ? (
           <p className="mt-2 text-sm text-tapit-muted">No links saved.</p>
         ) : (
-          <ol className="mt-4 divide-y divide-tapit-line rounded-tapit border border-tapit-line bg-tapit-surface">
+          <ol className="mt-4 divide-y divide-tapit-line rounded-card border border-tapit-line bg-tapit-surface">
             {content.links.map((link, index) => (
               <li className="p-4 sm:p-5" key={`${link.id}-${index}`}>
                 <p className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted">
@@ -257,7 +257,7 @@ export function ProfileDetails({
     <div className="grid min-w-0 gap-8">
       <section
         aria-labelledby="admin-profile-overview-heading"
-        className="rounded-tapit border border-tapit-line bg-tapit-paper p-5 sm:p-7"
+        className="rounded-card border border-tapit-line bg-tapit-paper p-5 sm:p-7"
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -265,19 +265,19 @@ export function ProfileDetails({
               Profile overview
             </p>
             <h2
-              className="mt-2 text-xl font-semibold tracking-tight text-tapit-ink"
+              className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
               id="admin-profile-overview-heading"
             >
               Account and lifecycle
             </h2>
           </div>
-          <StatusBadge status={view.status} />
+          <StatusChip status={view.status} />
         </div>
         <dl className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2">
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
+          <div className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5">
             <Definition label="Customer email" value={view.customerEmail} />
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5">
+          <div className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5">
             <Definition label="Assigned cards" value={cardCount} />
           </div>
         </dl>
@@ -293,7 +293,7 @@ export function ProfileDetails({
 
       <section
         aria-labelledby="admin-profile-slug-heading"
-        className="rounded-tapit border border-tapit-accent/20 bg-tapit-accent-soft/30 p-5 sm:p-7"
+        className="rounded-card border border-tapit-accent/20 bg-tapit-accent-soft/30 p-5 sm:p-7"
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-3xl">
@@ -301,7 +301,7 @@ export function ProfileDetails({
               Public address
             </p>
             <h2
-              className="mt-2 text-xl font-semibold tracking-tight text-tapit-ink"
+              className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
               id="admin-profile-slug-heading"
             >
               Administrator slug
@@ -311,7 +311,7 @@ export function ProfileDetails({
               resolving, and the former slug may later be assigned to another profile.
             </p>
           </div>
-          <code className="max-w-full break-all rounded-tapit border border-tapit-accent/20 bg-tapit-surface px-3 py-2 text-sm text-tapit-ink">
+          <code className="max-w-full break-all rounded-card border border-tapit-accent/20 bg-tapit-surface px-3 py-2 text-sm text-tapit-ink">
             /{view.currentSlug}
           </code>
         </div>
@@ -347,7 +347,7 @@ export function ProfileDetails({
             Working copy
           </p>
           <h2
-            className="mt-2 text-xl font-semibold tracking-tight text-tapit-ink"
+            className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
             id="admin-profile-draft-heading"
           >
             Saved draft
@@ -362,7 +362,7 @@ export function ProfileDetails({
             Visitor-facing version
           </p>
           <h2
-            className="mt-2 text-xl font-semibold tracking-tight text-tapit-ink"
+            className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
             id="admin-profile-published-heading"
           >
             Published snapshot

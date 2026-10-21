@@ -574,7 +574,7 @@ function DemoProfileEditor({
     <div className="border-t border-tapit-line/70 pt-5">
       <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent">
           {draft.imageUrl ? (
             <NextImage
               alt={`${draft.name} profile`}
@@ -590,7 +590,7 @@ function DemoProfileEditor({
         </div>
         <div>
           <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
             htmlFor="profile-image"
           >
             <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
@@ -629,7 +629,7 @@ function DemoProfileEditor({
     <div
       className={
         draft.customization === undefined && view !== "customize"
-          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          ? "min-w-0 rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
           : "contents"
       }
     >
@@ -1298,7 +1298,7 @@ function LiveProfileEditorContent({
     <div className="border-t border-tapit-line/70 pt-5">
       <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
       <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent">
           {currentDraft.imageUrl ? (
             <NextImage
               alt={`${currentDraft.name} profile`}
@@ -1314,7 +1314,7 @@ function LiveProfileEditorContent({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
             htmlFor="profile-image"
           >
             <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
@@ -1366,7 +1366,7 @@ function LiveProfileEditorContent({
     <div
       className={
         currentDraft.customization === undefined && view !== "customize"
-          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          ? "min-w-0 rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
           : "contents"
       }
     >

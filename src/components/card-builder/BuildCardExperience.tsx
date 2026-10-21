@@ -10,7 +10,7 @@ import { api } from "../../../convex/_generated/api";
 import { CardPreviewDialog } from "@/components/card-builder/CardPreviewDialog";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { Notice } from "@/components/ui/Notice";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Chip } from "@/components/ui/Chip";
 import { CARD_DESIGN_ACCEPT, validateCardDesignFile } from "@/lib/card-design";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useDemoSession } from "@/lib/demo/store";
@@ -151,8 +151,8 @@ export function BuildCardWorkspace({
         <section className="flex flex-1 items-center py-14 sm:py-20">
           <div className="mx-auto w-full max-w-4xl">
             <div className="mx-auto max-w-2xl text-center">
-              <StatusBadge prominent status="Custom ordering coming soon" />
-              <h1 className="tapit-display mt-5 text-4xl font-medium tracking-[-0.055em] sm:text-6xl">
+              <Chip tone="accent">Custom ordering coming soon</Chip>
+              <h1 className="tapit-display mt-5 text-2xl font-medium tracking-[-0.055em] sm:text-3xl">
                 Bring your card to life
               </h1>
               <p className="mx-auto mt-5 max-w-xl text-center text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
@@ -163,7 +163,7 @@ export function BuildCardWorkspace({
             <div className="mx-auto mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
               <a
                 aria-label="Build your own with Canva"
-                className="group flex min-h-56 flex-col items-center justify-center gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent sm:p-7"
+                className="group flex min-h-56 flex-col items-center justify-center gap-5 rounded-card border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent sm:p-7"
                 href={BUILD_CARD_CANVA_URL}
                 rel="noopener noreferrer"
                 target="_blank"
@@ -178,7 +178,7 @@ export function BuildCardWorkspace({
                   Start fresh
                 </span>
                 <span>
-                  <span className="block text-xl font-semibold tracking-tight">
+                  <span className="block text-lg font-semibold tracking-tight">
                     Build your own with Canva
                   </span>
                   <span className="mt-2 block text-sm leading-6 text-tapit-muted">
@@ -188,7 +188,7 @@ export function BuildCardWorkspace({
               </a>
 
               <label
-                className="group flex min-h-56 cursor-pointer flex-col items-center justify-center gap-5 rounded-tapit border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
+                className="group flex min-h-56 cursor-pointer flex-col items-center justify-center gap-5 rounded-card border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
                 htmlFor="card-design-upload"
               >
                 <span
@@ -201,7 +201,7 @@ export function BuildCardWorkspace({
                   Already got your design?
                 </span>
                 <span>
-                  <span className="block text-xl font-semibold tracking-tight">
+                  <span className="block text-lg font-semibold tracking-tight">
                     Upload your design
                   </span>
                   <span className="mt-2 block text-sm leading-6 text-tapit-muted">

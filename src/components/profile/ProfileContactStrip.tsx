@@ -21,7 +21,7 @@ export function ProfileContactStrip({
   const actions = getAutomaticContactActions({ email, phone, website });
   if (actions.length === 0) return null;
   const compact = display !== "labels";
-  const shapeClass = display === "icons-soft-square" ? "rounded-lg" : "rounded-full";
+  const shapeClass = display === "icons-soft-square" ? "rounded-control" : "rounded-full";
   return (
     <nav aria-label="Contact actions" className={`flex flex-wrap gap-2 ${className}`}>
       {actions.map((action) => {

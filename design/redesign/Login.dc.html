@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sign in · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div style="background: #f4f6fa; min-height: 960px; padding: 16px; display: flex; flex-wrap: wrap; gap: 16px;">
+  <div style="flex: 1 1 520px; display: flex; flex-direction: column; padding: 24px 32px;">
+    <a class="brand" href="Landing.dc.html" style="padding: 0; align-self: flex-start;"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px 0;">
+      <div class="card" style="width: 100%; max-width: 440px; padding: 32px; gap: 24px;">
+        <div class="col-2"><h1 class="t-xl">Welcome back</h1><p class="t-sm muted">Sign in to edit your profile and see who is tapping.</p></div>
+        <div class="seg on-soft" style="width: 100%;"><a class="on" href="Login.dc.html" style="flex: 1; justify-content: center;">Sign in</a><a href="Onboarding.dc.html" style="flex: 1; justify-content: center;">Create account</a></div>
+        <button class="btn btn-secondary btn-lg" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12.2c0-.6-.1-1.2-.2-1.7H12v3.3h4.5a3.9 3.9 0 0 1-1.7 2.5v2.1h2.7c1.6-1.5 2.5-3.6 2.5-6.2z"/><path d="M12 20c2.3 0 4.2-.8 5.5-2.1l-2.7-2.1c-.7.5-1.7.8-2.8.8-2.2 0-4-1.5-4.7-3.4H4.5v2.2A8 8 0 0 0 12 20z"/><path d="M7.3 13.2a4.8 4.8 0 0 1 0-3.1V7.9H4.5a8 8 0 0 0 0 7.5z"/><path d="M12 6.8c1.2 0 2.3.4 3.2 1.2l2.4-2.4A8 8 0 0 0 4.5 7.9l2.8 2.2C8 8.2 9.8 6.8 12 6.8z"/></svg>Continue with Google</button>
+        <p class="t-xs muted" style="text-align: center;">or sign in with email</p>
+        <div class="field"><label for="lg-email">Email</label><input class="input" id="lg-email" value="mara@example.test"></div>
+        <div class="field"><div class="spread"><label for="lg-pass">Password</label><a class="t-xs strong" href="Login.dc.html">Forgot?</a></div><input class="input" id="lg-pass" type="password" value="tapit-demo"></div>
+        <a class="btn btn-primary btn-lg" href="Profile.dc.html">Sign in</a>
+        <div class="notice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="color: #315fe4;"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v0"/></svg><span class="t-sm">Demo: mara@example.test or admin@tapit.local, password tapit-demo.</span></div>
+      </div>
+    </div>
+    <div class="row-2 t-xs muted"><a class="btn btn-quiet" href="Legal.dc.html">Privacy</a><a class="btn btn-quiet" href="Legal.dc.html">Terms</a></div>
+  </div>
+  <div class="card-accent" style="flex: 1 1 480px; padding: 48px; justify-content: center; align-items: center; gap: 32px;">
+    <div class="phone" style="width: 300px;">
+      <div class="phone-in" style="padding: 24px 20px 20px;">
+        <span class="avatar avatar-lg">MV</span>
+        <div class="col-1" style="align-items: center;"><p class="t-lg" style="color: #1b2433;">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+        <span class="btn btn-primary btn-block">Save contact</span>
+        <span class="plink">Portfolio<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+      </div>
+    </div>
+    <div class="col-2" style="text-align: center; max-width: 360px;"><h2 class="t-lg">One profile for every introduction</h2><p class="t-sm" style="color: #e8edf9;">Your card, your QR code and your link all open the same page.</p></div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

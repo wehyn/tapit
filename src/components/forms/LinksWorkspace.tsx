@@ -163,7 +163,7 @@ export function LinksWorkspace({
       <div className="mb-5 min-[1280px]:hidden">
         <div
           aria-label="Links view"
-          className="inline-flex rounded-tapit border border-tapit-line bg-tapit-surface p-1"
+          className="inline-flex rounded-card border border-tapit-line bg-tapit-surface p-1"
           role="group"
         >
           {(["edit", "preview"] as const).map((view) => (
@@ -194,7 +194,7 @@ export function LinksWorkspace({
           ) : null}
           <section
             aria-label="Editable profile links"
-            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_18px_rgba(27,36,51,0.04)]"
+            className="mt-6 rounded-card border border-tapit-line bg-tapit-surface shadow-[0_4px_18px_rgba(27,36,51,0.04)]"
             ref={linksListRef}
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">
@@ -312,7 +312,7 @@ export function LinksWorkspace({
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
                     <button
                       aria-label={`Reorder ${link.label || "link"}`}
-                      className="hidden size-10 touch-none cursor-grab place-items-center rounded-tapit text-tapit-muted transition hover:bg-tapit-paper hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
+                      className="hidden size-10 touch-none cursor-grab place-items-center rounded-card text-tapit-muted transition hover:bg-tapit-paper hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
                       draggable
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
@@ -360,7 +360,7 @@ export function LinksWorkspace({
                         <input
                           aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
                           aria-invalid={Boolean(validation[link.id])}
-                          className={`min-h-11 w-full min-w-0 rounded-tapit border border-transparent bg-transparent px-2 text-base font-medium text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper ${validation[link.id] ? "border-tapit-danger" : ""}`}
+                          className={`min-h-11 w-full min-w-0 rounded-card border border-transparent bg-transparent px-2 text-base font-medium text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper ${validation[link.id] ? "border-tapit-danger" : ""}`}
                           id={`${link.id}-label`}
                           onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
                           placeholder="e.g. Portfolio"
@@ -375,7 +375,7 @@ export function LinksWorkspace({
                       <input
                         aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
                         aria-invalid={Boolean(validation[link.id])}
-                        className="min-h-11 w-full min-w-0 rounded-tapit border border-transparent bg-transparent px-2 text-sm text-tapit-muted outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper"
+                        className="min-h-11 w-full min-w-0 rounded-card border border-transparent bg-transparent px-2 text-sm text-tapit-muted outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper"
                         id={`${link.id}-destination`}
                         onChange={(event) =>
                           onUpdateLink(link.id, {
@@ -412,19 +412,19 @@ export function LinksWorkspace({
                       />
                       <span
                         aria-hidden="true"
-                        className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-tapit-soft-surface transition-colors after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:shadow-sm motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
+                        className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-tapit-soft-surface transition-colors after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:shadow-card motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
                       />
                       <span className="hidden md:inline">Enabled</span>
                     </label>
                     <details className="relative col-start-2 justify-self-end md:col-auto md:justify-self-auto">
                       <summary
                         aria-label={`Actions for ${link.label || "link"}`}
-                        className="grid size-11 cursor-pointer list-none place-items-center rounded-tapit border border-transparent text-tapit-muted transition hover:border-tapit-line hover:bg-tapit-paper hover:text-tapit-ink"
+                        className="grid size-11 cursor-pointer list-none place-items-center rounded-card border border-transparent text-tapit-muted transition hover:border-tapit-line hover:bg-tapit-paper hover:text-tapit-ink"
                       >
                         <DotsThreeVerticalIcon aria-hidden="true" size={20} weight="bold" />
                       </summary>
                       <div
-                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-tapit border border-tapit-line bg-white p-2 shadow-xl ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
+                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-card border border-tapit-line bg-white p-2 shadow-card ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
                       >
                         <Button
                           className="justify-start !min-h-10 !px-3"

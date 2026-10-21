@@ -28,9 +28,9 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import { QrControls } from "@/components/qr/QrControls";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StatusChip } from "@/components/ui/Chip";
 import { api } from "../../../convex/_generated/api";
 
 type Confirmation =
@@ -347,7 +347,7 @@ function DemoCardsManager() {
         description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
         title="Cards"
       />
-      <Panel
+      <Card
         className="min-w-0"
         description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
         title="Register card URL"
@@ -376,7 +376,7 @@ function DemoCardsManager() {
               Assignment profile
             </label>
             <select
-              className="mt-2 min-h-12 w-full rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+              className="mt-2 min-h-12 w-full rounded-card border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
               id="card-assignment-profile"
               onChange={(event) => setSelectedProfileId(event.target.value)}
               value={selectedProfileId}
@@ -398,9 +398,9 @@ function DemoCardsManager() {
             <Notice tone={message.tone}>{message.text}</Notice>
           </div>
         ) : null}
-      </Panel>
+      </Card>
 
-      <Panel
+      <Card
         className="min-w-0"
         description="Search registered URLs, tokens, and state. Inactive and replaced cards cannot be reactivated or reassigned."
         title="Card registry"
@@ -422,11 +422,11 @@ function DemoCardsManager() {
             const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
             return (
               <article
-                className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
+                className="min-w-0 rounded-card border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
                 key={card.id}
               >
                 <details className="group">
-                  <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
+                  <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-card outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
                     <div className="min-w-0">
                       <p className="truncate font-semibold text-tapit-ink">
                         {profileLabel}{" "}
@@ -437,7 +437,7 @@ function DemoCardsManager() {
                       <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <StatusBadge status={card.status} />
+                      <StatusChip status={card.status} />
                       <CaretDownIcon
                         aria-hidden="true"
                         className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
@@ -535,13 +535,13 @@ function DemoCardsManager() {
                           </Button>
                           {claimCode?.cardId === card.id ? (
                             <span
-                              className="inline-flex min-h-11 items-center gap-2 rounded-tapit bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
+                              className="inline-flex min-h-11 items-center gap-2 rounded-card bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
                               aria-label={`Claim code for ${card.token}`}
                             >
                               {claimCode.code}
                               <button
                                 aria-label="Copy claim code"
-                                className="rounded p-1 hover:bg-white"
+                                className="rounded-control p-1 hover:bg-white"
                                 onClick={() => void navigator.clipboard?.writeText(claimCode.code)}
                                 type="button"
                               >
@@ -619,10 +619,10 @@ function DemoCardsManager() {
             );
           })}
         </div>
-      </Panel>
+      </Card>
 
       {confirmation?.type === "replace" ? (
-        <Panel
+        <Card
           className="min-w-0"
           description={`The old ${confirmation.card.token} path will become replaced and the new card will remain assigned to its existing profile.`}
           title="Replacement card URL"
@@ -644,7 +644,7 @@ function DemoCardsManager() {
               Cancel
             </Button>
           </div>
-        </Panel>
+        </Card>
       ) : null}
 
       <ConfirmDialog
@@ -809,7 +809,7 @@ function LiveCardsManager() {
         description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
         title="Cards"
       />
-      <Panel className="min-w-0" title="Register card URL">
+      <Card className="min-w-0" title="Register card URL">
         <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
           <div className="min-w-0 flex-1 sm:min-w-72">
             <Field
@@ -828,7 +828,7 @@ function LiveCardsManager() {
               Assignment profile
             </label>
             <select
-              className="mt-2 min-h-12 w-full rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+              className="mt-2 min-h-12 w-full rounded-card border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
               id="live-card-assignment-profile"
               onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
               value={selectedProfileId ?? ""}
@@ -895,8 +895,8 @@ function LiveCardsManager() {
             <Notice tone={message.tone}>{message.text}</Notice>
           </div>
         ) : null}
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         className="min-w-0"
         description="Inactive and replaced cards cannot be reused."
         title="Card registry"
@@ -910,11 +910,11 @@ function LiveCardsManager() {
               const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
               return (
                 <article
-                  className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+                  className="min-w-0 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
                   key={card._id}
                 >
                   <details className="group">
-                    <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-tapit outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
+                    <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-card outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
                       <div className="min-w-0">
                         <p className="truncate font-semibold text-tapit-ink">
                           {profileLabel}{" "}
@@ -925,7 +925,7 @@ function LiveCardsManager() {
                         <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <StatusBadge status={card.status} />
+                        <StatusChip status={card.status} />
                         <CaretDownIcon
                           aria-hidden="true"
                           className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
@@ -941,7 +941,7 @@ function LiveCardsManager() {
                           <>
                             <select
                               aria-label={`Assign ${card.token}`}
-                              className="min-h-11 rounded-tapit border border-tapit-line bg-white px-3"
+                              className="min-h-11 rounded-card border border-tapit-line bg-white px-3"
                               onChange={(event) =>
                                 setProfileId(event.target.value as Id<"profiles">)
                               }
@@ -1032,7 +1032,7 @@ function LiveCardsManager() {
                                   const generated = claimCodes[card._id]!;
                                   return (
                                     <>
-                                      <code className="inline-flex min-h-11 items-center rounded-tapit bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
+                                      <code className="inline-flex min-h-11 items-center rounded-card bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
                                         {generated.code}
                                       </code>
                                       <Button
@@ -1083,7 +1083,7 @@ function LiveCardsManager() {
                           <>
                             <input
                               aria-label={`Replacement URL for ${card.token}`}
-                              className="min-h-11 rounded-tapit border border-tapit-line px-3"
+                              className="min-h-11 rounded-card border border-tapit-line px-3"
                               onChange={(event) => setReplacementUrl(event.target.value)}
                               placeholder="/c/replacement-token"
                               value={replacementUrl}
@@ -1137,7 +1137,7 @@ function LiveCardsManager() {
             {cardsStatus === "LoadingMore" ? "Loading cards…" : "Load more cards"}
           </Button>
         ) : null}
-      </Panel>
+      </Card>
       <ConfirmDialog
         confirmLabel="Confirm attachment"
         description={

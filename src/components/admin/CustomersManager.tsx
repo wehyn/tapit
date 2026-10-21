@@ -20,8 +20,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Card } from "@/components/ui/Card";
+import { StatusChip } from "@/components/ui/Chip";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -182,7 +182,7 @@ function DemoCustomersManager() {
         description="Manage customer access, invitations, and account status."
         title="Customers"
       />
-      <Panel
+      <Card
         description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
         title="Create customer"
       >
@@ -230,7 +230,7 @@ function DemoCustomersManager() {
           </div>
         ) : null}
         {setupLink ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
             <span>
               Local setup link:{" "}
               <a className="font-semibold text-tapit-accent hover:underline" href={setupLink}>
@@ -252,9 +252,9 @@ function DemoCustomersManager() {
             </Button>
           </div>
         ) : null}
-      </Panel>
+      </Card>
 
-      <Panel
+      <Card
         className="overflow-hidden"
         description="Search by email. New invitations remain separate from profile publication and card assignment."
         title="Customer accounts"
@@ -276,7 +276,7 @@ function DemoCustomersManager() {
             />
           </div>
         </div>
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
           {customers.length === 0 ? (
             <Notice>No customers match this search. Create an invited account above.</Notice>
           ) : null}
@@ -296,7 +296,7 @@ function DemoCustomersManager() {
               >
                 <button
                   aria-pressed={selectedCustomer?.id === customer.id}
-                  className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-left focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
+                  className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-left focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
                   onClick={() => setSelectedCustomerId(customer.id)}
                   type="button"
                 >
@@ -309,7 +309,7 @@ function DemoCustomersManager() {
                     </p>
                   </div>
                   <span className="flex shrink-0 items-center gap-2">
-                    <StatusBadge status={customer.status} />
+                    <StatusChip status={customer.status} />
                     <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
                   </span>
                 </button>
@@ -367,14 +367,14 @@ function DemoCustomersManager() {
             );
           })}
         </div>
-      </Panel>
+      </Card>
       {selectedCustomer
         ? (() => {
             const profile = getDemoProfiles(state).find(
               (candidate) => candidate.id === selectedCustomer.profileId,
             );
             return (
-              <Panel
+              <Card
                 className="border-tapit-accent/30"
                 description="A focused view keeps account operations separate from the registry."
                 title="Selected customer"
@@ -386,7 +386,7 @@ function DemoCustomersManager() {
                       {profile?.draft.name || "Profile pending setup"}
                     </p>
                   </div>
-                  <StatusBadge
+                  <StatusChip
                     status={
                       selectedCustomer.deletionStatus === "requested"
                         ? "requested"
@@ -420,7 +420,7 @@ function DemoCustomersManager() {
                     </dd>
                   </div>
                 </dl>
-              </Panel>
+              </Card>
             );
           })()
         : null}
@@ -625,7 +625,7 @@ function LiveCustomersManager() {
         description="Manage customer access, invitations, and account status."
         title="Customers"
       />
-      <Panel title="Create customer">
+      <Card title="Create customer">
         <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
           <div className="min-w-72 flex-1">
             <Field
@@ -667,7 +667,7 @@ function LiveCustomersManager() {
           </div>
         ) : null}
         {setupLink ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-tapit bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
+          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
             <span className="break-all">
               Reusable until revoked: <strong className="text-tapit-accent">{setupLink}</strong>
             </span>
@@ -686,8 +686,8 @@ function LiveCustomersManager() {
             </Button>
           </div>
         ) : null}
-      </Panel>
-      <Panel title="Customer accounts">
+      </Card>
+      <Card title="Customer accounts">
         <div className="mt-6 max-w-md">
           <Field
             id="live-customer-search"
@@ -698,7 +698,7 @@ function LiveCustomersManager() {
             value={query}
           />
         </div>
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
           {customers.length === 0 ? (
             <Notice>
               {customersStatus === "CanLoadMore"
@@ -749,7 +749,7 @@ function LiveCustomersManager() {
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted sm:hidden">
                   Account status
                 </span>
-                <StatusBadge status={customer.status} />
+                <StatusChip status={customer.status} />
               </div>
               {(() => {
                 const invitation = invitationByCustomer.get(customer._id);
@@ -831,11 +831,11 @@ function LiveCustomersManager() {
               : "Load more invitation history"}
           </Button>
         ) : null}
-      </Panel>
-      <Panel title="Deletion requests">
+      </Card>
+      <Card title="Deletion requests">
         {overdueDeletionRequests.status === "error" ? (
           <div
-            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
+            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
             role="alert"
           >
             <p>
@@ -851,7 +851,7 @@ function LiveCustomersManager() {
           </div>
         ) : overdueDeletionRequests.status === "success" && overdueDeletionRequests.data ? (
           <p
-            className="mt-5 rounded-tapit border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
+            className="mt-5 rounded-card border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
             role="alert"
           >
             At least one deletion request is over 30 days old and still awaits administrator
@@ -864,7 +864,7 @@ function LiveCustomersManager() {
           ) : (
             requests.map(({ request, customer }) => (
               <article
-                className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-tapit-line bg-tapit-paper p-4"
                 key={request._id}
               >
                 <div>
@@ -890,7 +890,7 @@ function LiveCustomersManager() {
                     Approve deletion
                   </Button>
                 ) : (
-                  <StatusBadge status={request.status} />
+                  <StatusChip status={request.status} />
                 )}
               </article>
             ))
@@ -907,7 +907,7 @@ function LiveCustomersManager() {
             {requestsStatus === "LoadingMore" ? "Loading requests…" : "Load more requests"}
           </Button>
         ) : null}
-      </Panel>
+      </Card>
     </div>
   );
 }

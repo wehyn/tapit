@@ -42,10 +42,10 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import { ProfileDetails, type AdminProfileDetailsView } from "@/components/admin/ProfileDetails";
 import { AdminProfileContentEditor } from "@/components/admin/AdminProfileContentEditor";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { StatusChip } from "@/components/ui/Chip";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -76,13 +76,13 @@ function ProfileRegistryControls({
   query: string;
 }) {
   return (
-    <section className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 sm:p-7">
+    <section className="rounded-card border border-tapit-line bg-tapit-surface p-5 sm:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.16em] text-tapit-accent uppercase">
             Operations
           </p>
-          <h2 className="mt-2 text-xl font-semibold tracking-[-0.035em] text-tapit-ink">
+          <h2 className="mt-2 text-lg font-semibold tracking-[-0.035em] text-tapit-ink">
             Profile management
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-tapit-muted">{description}</p>
@@ -165,7 +165,7 @@ function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) 
                 <span className="font-mono text-xs text-tapit-muted">tapit.com/{entry.slug}</span>
               </td>
               <td className="px-5 py-3.5">
-                <StatusBadge status={entry.status} />
+                <StatusChip status={entry.status} />
               </td>
               <td className="px-5 py-3.5 text-right">
                 <button
@@ -191,7 +191,7 @@ function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) 
 
 function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) {
   return (
-    <div className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface min-[1100px]:hidden">
+    <div className="overflow-hidden rounded-card border border-tapit-line bg-tapit-surface min-[1100px]:hidden">
       {entries.map((entry) => (
         <button
           aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
@@ -211,7 +211,7 @@ function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) 
             <span className="mt-1 block truncate text-sm text-tapit-muted">/{entry.slug}</span>
           </span>
           <span className="flex shrink-0 flex-col items-end gap-2">
-            <StatusBadge status={entry.status} />
+            <StatusChip status={entry.status} />
             <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
           </span>
         </button>
@@ -484,7 +484,7 @@ function ProfileDialog({
         aria-labelledby="admin-profile-dialog-title"
         aria-hidden={!active}
         aria-modal={active}
-        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:max-h-[calc(100dvh-3rem)]"
+        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:max-h-[calc(100dvh-3rem)]"
         id="admin-profile-dialog"
         ref={dialogRef}
         role="dialog"
@@ -493,7 +493,7 @@ function ProfileDialog({
         <div className="flex shrink-0 items-start justify-between gap-4 border-b border-tapit-line px-5 py-5 sm:px-8 sm:py-6">
           <div className="min-w-0">
             <h2
-              className="text-2xl font-semibold tracking-tight text-tapit-ink"
+              className="text-xl font-semibold tracking-tight text-tapit-ink"
               id="admin-profile-dialog-title"
             >
               {title}
@@ -504,7 +504,7 @@ function ProfileDialog({
           </div>
           <Button
             aria-label="Close profile details"
-            className="h-10 w-10 shrink-0 px-0 text-xl leading-none"
+            className="h-10 w-10 shrink-0 px-0 text-lg leading-none"
             disabled={closeDisabled}
             onClick={onClose}
             type="button"
@@ -518,7 +518,7 @@ function ProfileDialog({
             <button
               aria-controls="admin-profile-editor-panel"
               aria-selected={selectedTab === "edit"}
-              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "edit" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
+              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "edit" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
               id="admin-profile-editor-tab"
               onClick={() => setSelectedTab("edit")}
               onKeyDown={(event) => handleTabKeyDown(event, "edit")}
@@ -532,7 +532,7 @@ function ProfileDialog({
             <button
               aria-controls="admin-profile-details-panel"
               aria-selected={selectedTab === "details"}
-              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "details" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
+              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "details" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
               id="admin-profile-details-tab"
               onClick={() => setSelectedTab("details")}
               onKeyDown={(event) => handleTabKeyDown(event, "details")}
@@ -839,14 +839,14 @@ function DemoProfilesManager() {
         query={query}
       />
 
-      <Panel className="p-3 sm:p-4" title="Profile registry">
+      <Card className="p-3 sm:p-4" title="Profile registry">
         <div className="mt-4">
           <ProfileRegistry
             emptyMessage="No profiles match this search."
             entries={registryEntries}
           />
         </div>
-      </Panel>
+      </Card>
 
       {profile ? (
         <ProfileDialog
@@ -872,7 +872,7 @@ function DemoProfilesManager() {
                 </div>
               ) : null}
               <div className="mt-5 flex flex-wrap items-center gap-3">
-                <StatusBadge status={profile.status} />
+                <StatusChip status={profile.status} />
                 {profile.status === "published" ? (
                   <span className="inline-flex items-center gap-1 text-sm text-tapit-accent-strong">
                     <CheckCircleIcon aria-hidden="true" size={17} weight="fill" /> Public
@@ -1415,7 +1415,7 @@ function LiveProfilesManager() {
         onQueryChange={setQuery}
         query={query}
       />
-      <Panel className="p-3 sm:p-4" title="Profile registry">
+      <Card className="p-3 sm:p-4" title="Profile registry">
         <div className="mt-4">
           <ProfileRegistry
             emptyMessage={
@@ -1438,7 +1438,7 @@ function LiveProfilesManager() {
             </Button>
           </div>
         ) : null}
-      </Panel>
+      </Card>
 
       {profile ? (
         <ProfileDialog

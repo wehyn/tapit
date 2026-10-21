@@ -15,7 +15,7 @@ export function ProfileSectionDisclosure({
   const regionId = `profile-section-${section.kind}`;
   return (
     <details
-      className={`group overflow-hidden rounded-tapit border ${className}`}
+      className={`group overflow-hidden rounded-card border ${className}`}
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >

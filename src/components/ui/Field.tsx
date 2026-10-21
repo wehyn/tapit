@@ -1,7 +1,48 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from "react";
 
 const controlClasses =
-  "mt-2 min-h-12 w-full rounded-[14px] border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink outline-none placeholder:text-tapit-muted transition-colors focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20 disabled:cursor-not-allowed disabled:bg-tapit-soft-surface disabled:opacity-70";
+  "min-h-11 w-full rounded-control bg-tapit-soft-surface px-4 py-3 text-sm text-tapit-ink placeholder:text-tapit-muted transition-colors focus:bg-tapit-surface focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent disabled:cursor-not-allowed disabled:opacity-70 aria-invalid:bg-tapit-danger-soft aria-invalid:focus:outline-tapit-danger";
+
+function Label({ htmlFor, children }: { htmlFor?: string; children: ReactNode }) {
+  return (
+    <label className="text-sm font-semibold text-tapit-ink" htmlFor={htmlFor}>
+      {children}
+    </label>
+  );
+}
+
+function Messages({
+  error,
+  errorId,
+  help,
+  helpId,
+}: {
+  error?: string;
+  errorId?: string;
+  help?: string;
+  helpId?: string;
+}) {
+  return (
+    <>
+      {help ? (
+        <p className="text-xs text-tapit-muted" id={helpId}>
+          {help}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-xs font-medium text-tapit-danger" id={errorId} role="alert">
+          {error}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+function describedBy(help?: string, helpId?: string, error?: string, errorId?: string) {
+  return (
+    [help ? helpId : undefined, error ? errorId : undefined].filter(Boolean).join(" ") || undefined
+  );
+}
 
 export function Field({
   error,
@@ -12,29 +53,15 @@ export function Field({
   const errorId = props.id ? `${props.id}-error` : undefined;
   const helpId = props.id ? `${props.id}-help` : undefined;
   return (
-    <div>
-      <label className="block text-sm font-semibold text-tapit-ink" htmlFor={props.id}>
-        {label}
-      </label>
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label htmlFor={props.id}>{label}</Label>
       <input
         {...props}
-        aria-describedby={
-          [help ? helpId : undefined, error ? errorId : undefined].filter(Boolean).join(" ") ||
-          undefined
-        }
+        aria-describedby={describedBy(help, helpId, error, errorId)}
         aria-invalid={Boolean(error)}
-        className={`${controlClasses} ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
+        className={controlClasses}
       />
-      {help ? (
-        <p className="mt-1.5 text-xs leading-5 text-tapit-muted" id={helpId}>
-          {help}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="mt-1.5 text-xs font-medium text-tapit-danger" id={errorId} role="alert">
-          {error}
-        </p>
-      ) : null}
+      <Messages error={error} errorId={errorId} help={help} helpId={helpId} />
     </div>
   );
 }
@@ -54,29 +81,15 @@ export function TextareaField({
   const errorId = props.id ? `${props.id}-error` : undefined;
   const helpId = props.id ? `${props.id}-help` : undefined;
   return (
-    <div>
-      <label className="block text-sm font-semibold text-tapit-ink" htmlFor={props.id}>
-        {label}
-      </label>
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label htmlFor={props.id}>{label}</Label>
       <textarea
         {...props}
-        aria-describedby={
-          [help ? helpId : undefined, error ? errorId : undefined].filter(Boolean).join(" ") ||
-          undefined
-        }
+        aria-describedby={describedBy(help, helpId, error, errorId)}
         aria-invalid={Boolean(error)}
-        className={`${controlClasses} ${compact ? "min-h-20" : "min-h-28"} resize-y ${error ? "border-tapit-danger focus:border-tapit-danger focus:ring-tapit-danger/15" : ""}`}
+        className={`${controlClasses} ${compact ? "min-h-20" : "min-h-28"} resize-y`}
       />
-      {help ? (
-        <p className="mt-1.5 text-xs leading-5 text-tapit-muted" id={helpId}>
-          {help}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="mt-1.5 text-xs font-medium text-tapit-danger" id={errorId} role="alert">
-          {error}
-        </p>
-      ) : null}
+      <Messages error={error} errorId={errorId} help={help} helpId={helpId} />
     </div>
   );
 }
@@ -87,10 +100,8 @@ export function SelectField({
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement> & { children: ReactNode; label: string }) {
   return (
-    <div>
-      <label className="block text-sm font-semibold text-tapit-ink" htmlFor={props.id}>
-        {label}
-      </label>
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label htmlFor={props.id}>{label}</Label>
       <select {...props} className={controlClasses}>
         {children}
       </select>

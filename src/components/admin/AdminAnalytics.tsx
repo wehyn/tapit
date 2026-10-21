@@ -18,8 +18,8 @@ import { SelectField } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
+import { Card } from "@/components/ui/Card";
+import { StatusChip } from "@/components/ui/Chip";
 
 const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "lifetime", label: "Lifetime" },
@@ -103,13 +103,13 @@ function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
         ] as const
       ).map(([key, label]) => (
         <div
-          className="rounded-tapit border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+          className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5"
           key={key}
         >
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
             {label}
           </p>
-          <p className="mt-2 text-xl font-semibold text-tapit-ink">
+          <p className="mt-2 text-lg font-semibold text-tapit-ink">
             {totals[key].toLocaleString()}
           </p>
           <p className="mt-1 text-xs text-tapit-muted">Aggregate events</p>
@@ -123,7 +123,7 @@ function ProfileMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
-      <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+      <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
         {value.toLocaleString()}
       </dd>
     </div>
@@ -205,11 +205,11 @@ function ProfileAnalyticsDialog({
       }}
       ref={dialogRef}
     >
-      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
+      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2
-              className="text-xl font-semibold tracking-tight text-tapit-ink"
+              className="text-lg font-semibold tracking-tight text-tapit-ink"
               id="profile-analytics-title"
             >
               {name} analytics
@@ -220,7 +220,7 @@ function ProfileAnalyticsDialog({
           </div>
           <button
             aria-label="Close profile analytics"
-            className="shrink-0 rounded-tapit border border-tapit-line px-3 py-2 text-sm font-semibold text-tapit-ink hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+            className="shrink-0 rounded-card border border-tapit-line px-3 py-2 text-sm font-semibold text-tapit-ink hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -235,7 +235,7 @@ function ProfileAnalyticsDialog({
           <div className="mt-6 grid gap-4">
             <section
               aria-labelledby="profile-analytics-summary-heading"
-              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -252,7 +252,7 @@ function ProfileAnalyticsDialog({
 
             <section
               aria-labelledby="profile-analytics-trend-heading"
-              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -275,7 +275,7 @@ function ProfileAnalyticsDialog({
                           {bucket.total.toLocaleString()}
                         </span>
                         <div
-                          className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                          className="w-full max-w-10 rounded-t-control bg-tapit-accent"
                           style={{ height: `${Math.max(10, (bucket.total / peak) * 125)}px` }}
                           title={`${bucket.total} views and clicks`}
                         />
@@ -298,7 +298,7 @@ function ProfileAnalyticsDialog({
 
             <section
               aria-labelledby="profile-analytics-sources-heading"
-              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -311,7 +311,7 @@ function ProfileAnalyticsDialog({
 
             <section
               aria-labelledby="profile-analytics-links-heading"
-              className="rounded-tapit border border-tapit-line bg-tapit-paper p-5"
+              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -319,7 +319,7 @@ function ProfileAnalyticsDialog({
               >
                 Link results
               </h3>
-              <div className="mt-5 overflow-hidden rounded-tapit border border-tapit-line">
+              <div className="mt-5 overflow-hidden rounded-card border border-tapit-line">
                 {linkResults.length > 0 ? (
                   linkResults.map((link) => (
                     <div
@@ -401,7 +401,7 @@ function DemoAdminAnalytics() {
         description="Review aggregate profile engagement and operational activity over time."
         title="Analytics"
       />
-      <Panel
+      <Card
         description="Cross-customer totals are aggregate-only. No visitor identity or raw event history is available in this console."
         title="Operational analytics"
       >
@@ -426,52 +426,52 @@ function DemoAdminAnalytics() {
             </SelectField>
           </div>
         </div>
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="Aggregate events by entry path; no visitor identities are exposed."
         title="Traffic sources"
       >
         <SourceBreakdown totals={sourceTotals} />
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="A compact view of profile reach and destination activity for the selected time range."
         title="Engagement overview"
       >
         <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
             <UsersThreeIcon aria-hidden="true" className="text-tapit-accent" size={22} />
             <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               {totals.views.toLocaleString()}
             </dd>
             <p className="mt-2 text-xs text-tapit-muted">All active entry paths</p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
             <ActivityIcon aria-hidden="true" className="text-tapit-accent" size={22} />
             <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               {totals.uniqueViews.toLocaleString()}
             </dd>
             <p className="mt-2 text-xs text-tapit-muted">Privacy-preserving estimate</p>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
             <CardsIcon aria-hidden="true" className="text-tapit-accent" size={22} />
             <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-            <dd className="mt-3 text-3xl font-semibold tracking-tight text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
               {totals.clicks.toLocaleString()}
             </dd>
             <p className="mt-2 text-xs text-tapit-muted">Destination selections</p>
           </div>
         </dl>
-      </Panel>
+      </Card>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
-      <Panel
+      <Card
         description="Operational status helps support identify a profile or card issue without exposing visitor details."
         title="Profile and card status"
       >
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
           {profiles.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
@@ -490,7 +490,7 @@ function DemoAdminAnalytics() {
                     "unassigned"}
                 </p>
               </div>
-              <StatusBadge status={profile.status} />
+              <StatusChip status={profile.status} />
             </button>
           ))}
           {state.cards.map((card) => (
@@ -502,11 +502,11 @@ function DemoAdminAnalytics() {
                 <p className="break-all font-semibold text-tapit-ink">{card.token}</p>
                 <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
               </div>
-              <StatusBadge status={card.status} />
+              <StatusChip status={card.status} />
             </div>
           ))}
         </div>
-      </Panel>
+      </Card>
       {selectedProfile ? (
         <ProfileAnalyticsDialog
           links={selectedProfile.draft.links}
@@ -612,7 +612,7 @@ function LiveAdminAnalytics() {
       {pages.status !== "Exhausted" ? (
         <Notice>Analytics totals are partial while the complete range loads.</Notice>
       ) : null}
-      <Panel description="Cross-customer totals are aggregate-only." title="Operational analytics">
+      <Card description="Cross-customer totals are aggregate-only." title="Operational analytics">
         <div className="mt-6 max-w-xs">
           <SelectField
             id="admin-analytics-range"
@@ -627,37 +627,37 @@ function LiveAdminAnalytics() {
             ))}
           </SelectField>
         </div>
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="A compact view of profile reach and destination activity for the selected time range."
         title="Engagement overview"
       >
         <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
             <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
               {totals.views.toLocaleString()}
             </dd>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
             <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
               {totals.uniqueViews.toLocaleString()}
             </dd>
           </div>
-          <div className="rounded-tapit border border-tapit-line bg-tapit-paper/70 p-5">
+          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
             <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-            <dd className="mt-3 text-3xl font-semibold text-tapit-ink">
+            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
               {totals.clicks.toLocaleString()}
             </dd>
           </div>
         </dl>
-      </Panel>
+      </Card>
       {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No aggregate activity in this range.</Notice>
       ) : null}
-      <Panel title="Profile and card status">
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+      <Card title="Profile and card status">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
           {profiles.results.map((profile) => (
             <button
               aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
@@ -672,7 +672,7 @@ function LiveAdminAnalytics() {
                 </p>
                 <p className="mt-1 text-sm text-tapit-muted">/{profile.draft.slug}</p>
               </div>
-              <StatusBadge status={profile.status} />
+              <StatusChip status={profile.status} />
             </button>
           ))}
           {cards.results.map((card) => (
@@ -684,7 +684,7 @@ function LiveAdminAnalytics() {
                 <p className="font-semibold text-tapit-ink">{card.token}</p>
                 <p className="mt-1 text-sm text-tapit-muted">{card.cardUrl}</p>
               </div>
-              <StatusBadge status={card.status} />
+              <StatusChip status={card.status} />
             </div>
           ))}
           {profiles.status === "CanLoadMore" || profiles.status === "LoadingMore" ? (
@@ -710,13 +710,13 @@ function LiveAdminAnalytics() {
             </Button>
           ) : null}
         </div>
-      </Panel>
-      <Panel
+      </Card>
+      <Card
         description="Aggregate events by entry path; no visitor identities are exposed."
         title="Traffic sources"
       >
         <SourceBreakdown totals={sourceTotals} />
-      </Panel>
+      </Card>
       {selectedProfile ? (
         <ProfileAnalyticsDialog
           links={selectedProfile.draft.links}

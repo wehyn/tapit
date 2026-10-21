@@ -112,13 +112,13 @@ export function ProfileImageCropDialog({
         ref={dialogRef}
         aria-labelledby="profile-image-crop-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_48px_rgba(27,36,51,0.14)]"
+        className="w-full max-w-lg rounded-card border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_48px_rgba(27,36,51,0.14)]"
         role="dialog"
         tabIndex={-1}
       >
         <h2
           id="profile-image-crop-title"
-          className="tapit-display text-xl font-semibold text-tapit-ink"
+          className="tapit-display text-lg font-semibold text-tapit-ink"
         >
           Adjust profile photo
         </h2>
@@ -219,7 +219,7 @@ export function ProfileImageCropDialog({
         ) : null}
         <div className="mt-6 flex justify-end gap-3">
           <button
-            className="rounded-tapit border border-tapit-line px-4 py-2.5 text-sm font-semibold text-tapit-ink"
+            className="rounded-card border border-tapit-line px-4 py-2.5 text-sm font-semibold text-tapit-ink"
             disabled={busy}
             onClick={onCancel}
             type="button"
@@ -227,7 +227,7 @@ export function ProfileImageCropDialog({
             Cancel
           </button>
           <button
-            className="rounded-tapit bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white"
+            className="rounded-card bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white"
             disabled={!canApply || busy}
             onClick={() => {
               if (!canApply) {

@@ -82,7 +82,7 @@ export function AppShell({
         {showPageIntro ? (
           <div className="mx-auto w-full max-w-[1440px] px-5 pt-10 sm:px-10 sm:pt-12">
             <p className="tapit-eyebrow">{eyebrow}</p>
-            <h1 className="tapit-display mt-3 text-3xl font-medium leading-tight text-tapit-ink sm:text-4xl">
+            <h1 className="tapit-display mt-3 text-xl font-medium leading-tight text-tapit-ink sm:text-2xl">
               {title}
             </h1>
           </div>

@@ -46,7 +46,7 @@ describe("profile workspace mobile preview", () => {
     );
     expect(within(mobilePreview).queryByText("Tapit", { exact: true })).not.toBeInTheDocument();
     expect(profilePanel).toHaveClass("flex", "flex-col", "min-h-full");
-    expect(profilePanel).toHaveClass("rounded-tapit", "border");
+    expect(profilePanel).toHaveClass("rounded-card", "border");
     const profileLinks = within(mobilePreview).getByRole("list", { name: "Profile links" });
     expect(profileLinks).toHaveClass("gap-3");
     expect(profileLinks.parentElement?.parentElement?.parentElement).toHaveClass("mt-9", "gap-5");

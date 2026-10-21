@@ -175,7 +175,7 @@ export function WorkspacePreview({
   return (
     <section
       ref={previewPanelRef}
-      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_8px_24px_rgba(27,36,51,0.05)] ${
+      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-[0_8px_24px_rgba(27,36,51,0.05)] ${
         phoneNeedsPageScroll
           ? "min-[1400px]:static min-[1400px]:max-h-none"
           : "min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:max-h-[calc(100dvh-7.5rem)]"
@@ -197,7 +197,7 @@ export function WorkspacePreview({
             </p>
           ) : null}
         </div>
-        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
+        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-card border border-tapit-line bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
           <DeviceMobileIcon aria-hidden="true" size={17} />
           Mobile
         </span>
@@ -295,7 +295,7 @@ export function WorkspacePreview({
           </div>
           <Link
             aria-label="View published profile"
-            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
             href={profileUrl}
           >
             View published profile
@@ -303,7 +303,7 @@ export function WorkspacePreview({
           </Link>
           <button
             aria-label="Copy URL"
-            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-tapit border border-tapit-line px-3.5 text-sm font-semibold text-tapit-ink hover:border-tapit-accent"
+            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-card border border-tapit-line px-3.5 text-sm font-semibold text-tapit-ink hover:border-tapit-accent"
             onClick={() => void copyUrl()}
             type="button"
           >

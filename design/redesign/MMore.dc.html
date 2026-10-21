@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>More · Tapit mobile</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="m">
+  <div class="m-top">
+    <span class="brand" style="padding: 0;"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</span>
+  </div>
+  <div class="m-body">
+    <h1 class="t-xl">Stats</h1>
+    <div class="grid-2" style="gap: 12px;"><div class="card" style="height: 110px;"></div><div class="card" style="height: 110px;"></div></div>
+    <div class="card" style="height: 200px;"></div>
+  </div>
+
+  <div style="position: absolute; inset: 0; background: rgb(27 36 51 / .4); display: flex; flex-direction: column; justify-content: flex-end;">
+    <div role="dialog" aria-label="More" style="background: #fff; border-radius: 20px 20px 0 0; padding: 12px 16px 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 -20px 56px rgb(27 36 51 / .12);">
+      <span aria-hidden="true" style="align-self: center; width: 40px; height: 4px; border-radius: 999px; background: #c6cdd8;"></span>
+      <div class="row"><span class="avatar" style="width: 44px; height: 44px; font-size: 14px;">MV</span><div class="col-1 grow" style="gap: 0;"><p class="t-sm strong">Mara Velasquez</p><p class="t-xs muted">tapit.me/mara-velasquez</p></div><span class="chip b-ok"><span class="dot"></span>Live</span></div>
+      <div class="list">
+        <a class="tile" href="Customize.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span class="t-sm strong grow">Customize</span><svg class="i i-sm muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+        <a class="tile" href="BuildCard.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg></span><span class="t-sm strong grow">Card &amp; QR code</span><svg class="i i-sm muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+        <a class="tile" href="Account.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg></span><span class="t-sm strong grow">Account</span><svg class="i i-sm muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+        <a class="tile" href="Account.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17.5v0"/></svg></span><span class="t-sm strong grow">Help &amp; support</span><svg class="i i-sm muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+      </div>
+      <div class="grid-2" style="gap: 8px;">
+        <a class="btn btn-secondary" href="MAnalytics.dc.html">Close</a>
+        <a class="btn btn-danger-soft" href="Login.dc.html">Sign out</a>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

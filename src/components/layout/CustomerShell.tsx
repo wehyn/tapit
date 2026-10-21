@@ -154,7 +154,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     if (sessionError) {
       return (
         <div className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-5">
-          <div className="w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-8">
+          <div className="w-full max-w-md rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-8">
             <p className="text-sm text-tapit-danger" role="alert">
               {sessionError}
             </p>
@@ -324,7 +324,7 @@ function CustomerAccountMenu({
     >
       <div
         aria-label="Account options"
-        className="absolute bottom-full left-0 z-30 mb-3 min-w-56 rounded-tapit border border-tapit-line bg-tapit-surface p-2 shadow-lg lg:left-0 xl:inset-x-0 xl:min-w-0"
+        className="absolute bottom-full left-0 z-30 mb-3 min-w-56 rounded-card border border-tapit-line bg-tapit-surface p-2 shadow-card lg:left-0 xl:inset-x-0 xl:min-w-0"
         hidden={!open}
         id={menuId}
         role="group"
@@ -350,7 +350,7 @@ function CustomerAccountMenu({
         aria-controls={menuId}
         aria-expanded={open}
         aria-label={`Account menu for ${email}`}
-        className="flex min-h-12 w-full items-center gap-3 rounded-tapit px-1 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-paper hover:text-tapit-ink"
+        className="flex min-h-12 w-full items-center gap-3 rounded-card px-1 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-paper hover:text-tapit-ink"
         onClick={() => setOpen((current) => !current)}
         ref={triggerRef}
         type="button"

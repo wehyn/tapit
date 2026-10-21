@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/Button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import { api } from "../../../convex/_generated/api";
 
 function DemoAccountSettings() {
@@ -157,22 +157,22 @@ function DemoAccountSettings() {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel title="Account">
+      <Card title="Account">
         <dl className="mt-6 grid gap-4">
-          <div className="rounded-tapit bg-tapit-paper p-4">
+          <div className="rounded-card bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Email
             </dt>
             <dd className="mt-2 font-semibold text-tapit-ink">{customer.email}</dd>
           </div>
         </dl>
-      </Panel>
+      </Card>
 
       {publicationMessage ? (
         <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
       ) : null}
       {profile.status === "published" ? (
-        <Panel
+        <Card
           description="Take your public profile offline when you need to pause public access."
           title="Publication"
         >
@@ -184,10 +184,10 @@ function DemoAccountSettings() {
               Visitors will see the unavailable profile page.
             </span>
           </div>
-        </Panel>
+        </Card>
       ) : null}
 
-      <Panel title="Change password">
+      <Card title="Change password">
         <form className="mt-6 grid max-w-xl gap-5" onSubmit={savePassword}>
           {passwordMessage ? (
             <Notice tone={passwordMessage.tone}>{passwordMessage.text}</Notice>
@@ -225,10 +225,10 @@ function DemoAccountSettings() {
             </Button>
           </div>
         </form>
-      </Panel>
+      </Card>
 
       {state.supportUrl ? (
-        <Panel title="Support">
+        <Card title="Support">
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
             <LifebuoyIcon
               aria-hidden="true"
@@ -241,10 +241,10 @@ function DemoAccountSettings() {
               Contact support
             </a>
           </div>
-        </Panel>
+        </Card>
       ) : null}
 
-      <Panel className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
+      <Card className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
         <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
           <TrashIcon aria-hidden="true" size={20} weight="bold" />
           Confirming this request immediately hides your profile and deactivates active or
@@ -272,7 +272,7 @@ function DemoAccountSettings() {
             This cannot be undone from the customer workspace.
           </span>
         </div>
-      </Panel>
+      </Card>
 
       <ConfirmDialog
         confirmLabel="Request deletion"
@@ -331,21 +331,21 @@ function LiveAccountSettings() {
   }
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel title="Account">
+      <Card title="Account">
         <dl className="mt-6 grid gap-4">
-          <div className="rounded-tapit bg-tapit-paper p-4">
+          <div className="rounded-card bg-tapit-paper p-4">
             <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
               Email
             </dt>
             <dd className="mt-2 font-semibold text-tapit-ink">{account.email}</dd>
           </div>
         </dl>
-      </Panel>
+      </Card>
       {publicationMessage ? (
         <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
       ) : null}
       {profile?.status === "published" ? (
-        <Panel
+        <Card
           description="Take your public profile offline when you need to pause public access."
           title="Publication"
         >
@@ -357,20 +357,20 @@ function LiveAccountSettings() {
               Visitors will see the unavailable profile page.
             </span>
           </div>
-        </Panel>
+        </Card>
       ) : null}
       {hostedDemo ? (
-        <Panel
+        <Card
           description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
           title="Hosted demo access"
         >
           <div className="mt-5">
             <Notice>Password reset email delivery is disabled in hosted demo mode.</Notice>
           </div>
-        </Panel>
+        </Card>
       ) : null}
       {supportUrl ? (
-        <Panel title="Support">
+        <Card title="Support">
           <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
             <LifebuoyIcon
               aria-hidden="true"
@@ -383,9 +383,9 @@ function LiveAccountSettings() {
               Contact support
             </a>
           </div>
-        </Panel>
+        </Card>
       ) : null}
-      <Panel
+      <Card
         className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
         description="A confirmed request immediately makes your profile unavailable and deactivates assigned cards. An administrator reviews it before permanent removal."
         title="Delete account"
@@ -407,7 +407,7 @@ function LiveAccountSettings() {
             Request deletion
           </Button>
         </div>
-      </Panel>
+      </Card>
       <ConfirmDialog
         confirmLabel="Request deletion"
         description="Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"

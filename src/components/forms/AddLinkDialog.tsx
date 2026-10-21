@@ -104,15 +104,12 @@ export function AddLinkDialog({
         aria-modal="true"
         aria-labelledby="add-link-title"
         tabIndex={-1}
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_70px_rgba(27,36,51,.2)] outline-none sm:p-8"
+        className="w-full max-w-lg rounded-card border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_70px_rgba(27,36,51,.2)] outline-none sm:p-8"
       >
         <p className="text-xs font-semibold uppercase tracking-widest text-tapit-accent">
           Add link · {kind ? "Step 2 of 2" : "Step 1 of 2"}
         </p>
-        <h2
-          id="add-link-title"
-          className="tapit-display mt-2 text-2xl font-semibold text-tapit-ink"
-        >
+        <h2 id="add-link-title" className="tapit-display mt-2 text-xl font-semibold text-tapit-ink">
           {kind
             ? `Add ${kind === "link" ? "a link" : kind === "email" ? "an email" : "a phone number"}`
             : "What would you like to add?"}
@@ -128,9 +125,9 @@ export function AddLinkDialog({
                   setKind(option.value);
                   setError("");
                 }}
-                className="flex items-center gap-4 rounded-tapit border border-tapit-line p-4 text-left transition hover:border-tapit-accent hover:bg-tapit-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="flex items-center gap-4 rounded-card border border-tapit-line p-4 text-left transition hover:border-tapit-accent hover:bg-tapit-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
               >
-                <span className="grid size-11 shrink-0 place-items-center rounded-tapit bg-tapit-accent-soft text-tapit-accent">
+                <span className="grid size-11 shrink-0 place-items-center rounded-card bg-tapit-accent-soft text-tapit-accent">
                   <option.icon size={22} />
                 </span>
                 <span>
@@ -164,7 +161,7 @@ export function AddLinkDialog({
                       ? "e.g. Email me"
                       : "e.g. Call me"
                 }
-                className="min-h-12 w-full rounded-tapit border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
+                className="min-h-12 w-full rounded-card border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
               />
             </div>
             <div>
@@ -193,7 +190,7 @@ export function AddLinkDialog({
                       ? "you@example.com"
                       : "+1 555 123 4567"
                 }
-                className="min-h-12 w-full rounded-tapit border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
+                className="min-h-12 w-full rounded-card border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
               />
             </div>
             {error ? (

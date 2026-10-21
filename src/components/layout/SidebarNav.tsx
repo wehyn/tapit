@@ -374,7 +374,7 @@ export function SidebarNav({
             ref={openerRef}
             type="button"
           >
-            <span aria-hidden="true" className="text-xl leading-none">
+            <span aria-hidden="true" className="text-lg leading-none">
               ☰
             </span>
           </button>
@@ -403,7 +403,7 @@ export function SidebarNav({
               <Brand />
               <button
                 aria-label="Close navigation"
-                className="inline-flex size-11 items-center justify-center rounded-[14px] border border-tapit-line text-2xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
+                className="inline-flex size-11 items-center justify-center rounded-[14px] border border-tapit-line text-xl text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
                 onClick={close}
                 ref={closeButtonRef}
                 type="button"

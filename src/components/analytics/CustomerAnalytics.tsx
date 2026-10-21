@@ -17,7 +17,7 @@ import {
 
 import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 
 const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "lifetime", label: "Lifetime" },
@@ -145,11 +145,11 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
   return (
     <div className="mt-6 grid gap-2 sm:grid-cols-4" aria-label="Traffic source breakdown">
       {labels.map(([source, label]) => (
-        <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4" key={source}>
+        <div className="rounded-card border border-tapit-line bg-tapit-paper p-4" key={source}>
           <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
             {label}
           </dt>
-          <dd className="mt-2 text-xl font-semibold text-tapit-ink">
+          <dd className="mt-2 text-lg font-semibold text-tapit-ink">
             {totals[source].toLocaleString()}
           </dd>
         </div>
@@ -160,9 +160,9 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:p-5">
+    <div className="min-w-0 rounded-card border border-tapit-line bg-tapit-paper p-3 sm:p-5">
       <dt className="text-xs font-semibold text-tapit-muted sm:text-sm">{label}</dt>
-      <dd className="mt-2 text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+      <dd className="mt-2 text-xl font-semibold tracking-tight text-tapit-ink sm:text-xl">
         {value.toLocaleString()}
       </dd>
     </div>
@@ -206,8 +206,8 @@ function DemoCustomerAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel>
-        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+      <Card>
+        <h1 className="tapit-display text-xl font-semibold tracking-tight text-tapit-ink sm:text-xl">
           Profile analytics
         </h1>
         <div className="mt-6 max-w-xs">
@@ -224,17 +224,17 @@ function DemoCustomerAnalytics() {
             ))}
           </SelectField>
         </div>
-      </Panel>
+      </Card>
 
-      <Panel title="Engagement summary">
+      <Card title="Engagement summary">
         <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
         </dl>
-      </Panel>
+      </Card>
 
-      <Panel title="Engagement trend">
+      <Card title="Engagement trend">
         <div
           aria-label="Aggregate engagement trend"
           className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
@@ -260,7 +260,7 @@ function DemoCustomerAnalytics() {
                       {total.toLocaleString()}
                     </span>
                     <div
-                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                      className="w-full max-w-10 rounded-t-control bg-tapit-accent"
                       style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
                       title={`${period.views} views, ${period.clicks} clicks`}
                     />
@@ -275,7 +275,7 @@ function DemoCustomerAnalytics() {
             )}
           </div>
         </div>
-      </Panel>
+      </Card>
       {totals.views === 0 && totals.clicks === 0 ? (
         <Notice>
           No activity in this range yet. Share your profile or active card to begin collecting
@@ -283,15 +283,15 @@ function DemoCustomerAnalytics() {
         </Notice>
       ) : null}
 
-      <Panel
+      <Card
         description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
         title="Views and clicks by source"
       >
         <SourceBreakdown totals={sourceTotals} />
-      </Panel>
+      </Card>
 
-      <Panel title="Link results">
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
+      <Card title="Link results">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line">
           {linkResults.length === 0 ? (
             <div className="p-5 text-sm text-tapit-muted">
               Add links to see destination results.
@@ -314,9 +314,9 @@ function DemoCustomerAnalytics() {
             </div>
           ))}
         </div>
-      </Panel>
+      </Card>
 
-      <Panel
+      <Card
         description="Views and clicks are stored as aggregate time buckets. There is no visitor-level history to inspect or export."
         title="Privacy note"
       >
@@ -330,7 +330,7 @@ function DemoCustomerAnalytics() {
           These metrics are designed to answer how a profile is performing without identifying the
           people who viewed it.
         </p>
-      </Panel>
+      </Card>
     </div>
   );
 }
@@ -410,8 +410,8 @@ function LiveCustomerAnalytics() {
 
   return (
     <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel>
-        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+      <Card>
+        <h1 className="tapit-display text-xl font-semibold tracking-tight text-tapit-ink sm:text-xl">
           Profile analytics
         </h1>
         <div className="mt-6 max-w-xs">
@@ -428,18 +428,18 @@ function LiveCustomerAnalytics() {
             ))}
           </SelectField>
         </div>
-      </Panel>
+      </Card>
       {pages.status !== "Exhausted" ? (
         <Notice>Analytics totals are partial while the complete range loads.</Notice>
       ) : null}
-      <Panel title="Engagement summary">
+      <Card title="Engagement summary">
         <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
           <Metric label="Profile views" value={totals.views} />
           <Metric label="Unique views" value={totals.uniqueViews} />
           <Metric label="Link clicks" value={totals.clicks} />
         </dl>
-      </Panel>
-      <Panel title="Engagement trend">
+      </Card>
+      <Card title="Engagement trend">
         <div
           aria-label="Aggregate engagement trend"
           className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
@@ -465,7 +465,7 @@ function LiveCustomerAnalytics() {
                       {total.toLocaleString()}
                     </span>
                     <div
-                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
+                      className="w-full max-w-10 rounded-t-control bg-tapit-accent"
                       style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
                       title={`${period.views} views, ${period.clicks} clicks`}
                     />
@@ -482,18 +482,18 @@ function LiveCustomerAnalytics() {
             )}
           </div>
         </div>
-      </Panel>
+      </Card>
       {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
         <Notice>No activity in this range yet.</Notice>
       ) : null}
-      <Panel
+      <Card
         description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
         title="Views and clicks by source"
       >
         <SourceBreakdown totals={sourceTotals} />
-      </Panel>
-      <Panel title="Link results">
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
+      </Card>
+      <Card title="Link results">
+        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line">
           {linkResults.length === 0 ? (
             <div className="p-5 text-sm text-tapit-muted">
               Add links to see destination results.
@@ -517,8 +517,8 @@ function LiveCustomerAnalytics() {
             ))
           )}
         </div>
-      </Panel>
-      <Panel title="Privacy note">
+      </Card>
+      <Card title="Privacy note">
         <p className="mt-5 flex items-start gap-3 text-sm leading-6 text-tapit-muted">
           <ShieldCheckIcon
             aria-hidden="true"
@@ -528,7 +528,7 @@ function LiveCustomerAnalytics() {
           />
           Aggregate metrics contain no visitor-level history.
         </p>
-      </Panel>
+      </Card>
     </div>
   );
 }

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>System states · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div style="background: #f4f6fa; min-height: 960px; padding: 48px;">
+<div style="max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 32px;">
+  <div class="col-2"><p class="eyebrow">System states</p><h1 class="t-xl">Loading, empty, missing and error</h1><p class="t-md muted">Every state uses the same card, one icon tile, one sentence and at most two actions.</p></div>
+  <div class="grid-3">
+    <div class="card" style="min-height: 320px;">
+      <p class="label">Loading</p>
+      <div class="row"><span style="width: 56px; height: 56px; border-radius: 999px; background: #f0f3f9;"></span><div class="col-2 grow"><span style="height: 14px; width: 60%; border-radius: 6px; background: #f0f3f9;"></span><span style="height: 12px; width: 40%; border-radius: 6px; background: #f0f3f9;"></span></div></div>
+      <div class="list"><span class="tile"></span><span class="tile"></span><span class="tile"></span></div>
+      <p class="hint">Skeleton tiles match the real layout, so nothing jumps.</p>
+    </div>
+    <div class="card" style="min-height: 320px; align-items: center; justify-content: center; text-align: center;">
+      <span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span>
+      <h2 class="t-lg">No links yet</h2>
+      <p class="t-sm muted" style="max-width: 280px;">Add your first link so people have somewhere to go after they tap.</p>
+      <a class="btn btn-primary" href="Links.dc.html">Add a link</a>
+    </div>
+    <div class="card" style="min-height: 320px; align-items: center; justify-content: center; text-align: center;">
+      <span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg></span>
+      <h2 class="t-lg">No activity in this range</h2>
+      <p class="t-sm muted" style="max-width: 280px;">Share your card or QR code and views will show up here.</p>
+      <a class="btn btn-secondary" href="BuildCard.dc.html">Get your QR code</a>
+    </div>
+    <div class="card" style="min-height: 320px; align-items: center; justify-content: center; text-align: center;">
+      <span class="ico" style="background: #fff4df; color: #784b13;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
+      <h2 class="t-lg">Profile not found</h2>
+      <p class="t-sm muted" style="max-width: 280px;">This link may have changed or the profile is no longer public.</p>
+      <a class="btn btn-secondary" href="Landing.dc.html">Go to Tapit</a>
+    </div>
+    <div class="card" style="min-height: 320px; align-items: center; justify-content: center; text-align: center;">
+      <span class="ico" style="background: #fff1f0; color: #a33c38;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v0"/></svg></span>
+      <h2 class="t-lg">Something went wrong</h2>
+      <p class="t-sm muted" style="max-width: 280px;">We could not load this page. Your changes are safe.</p>
+      <div class="row-2"><button class="btn btn-primary" type="button">Try again</button><a class="btn btn-quiet" href="Account.dc.html">Get help</a></div>
+    </div>
+    <div class="card-flat" style="min-height: 320px; align-items: center; justify-content: center; background: rgb(27 36 51 / .35);">
+      <div role="dialog" aria-label="Leave without publishing?" class="card" style="max-width: 340px; box-shadow: 0 20px 56px rgb(27 36 51 / .12);">
+        <h2 class="t-lg">Leave without publishing?</h2>
+        <p class="t-sm muted">Your draft is saved. Visitors keep seeing the last published version until you publish.</p>
+        <div class="row-2" style="justify-content: flex-end;"><button class="btn btn-quiet" type="button">Stay</button><a class="btn btn-primary" href="Analytics.dc.html">Leave</a></div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

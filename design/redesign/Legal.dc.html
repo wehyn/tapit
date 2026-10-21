@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Privacy · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div style="background: #f4f6fa; min-height: 1200px; padding: 16px;">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px;">
+  <header style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: #fff; border-radius: 20px; padding: 8px 8px 8px 16px; box-shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05);">
+    <a class="brand" href="Landing.dc.html" style="padding: 0;"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="row-2" style="margin-left: auto;"><a class="btn btn-quiet" href="Login.dc.html">Sign in</a><a class="btn btn-primary" href="Login.dc.html">Get started</a></div>
+  </header>
+
+  <div class="col-2" style="padding: 0 8px;">
+    <p class="eyebrow">Legal</p>
+    <h1 class="t-2xl">Privacy policy</h1>
+    <p class="t-md muted">Last updated [DATE]</p>
+    <div class="seg" style="align-self: flex-start; margin-top: 8px;"><a class="on" href="Legal.dc.html">Privacy</a><a href="Legal.dc.html">Terms</a></div>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start;">
+    <nav class="card" aria-label="On this page" style="flex: 1 1 240px; max-width: 280px; padding: 16px; gap: 4px;">
+      <p class="label" style="padding: 8px 12px;">On this page</p>
+      <a class="nav-item on" href="#collect">What we collect</a>
+      <a class="nav-item" href="#analytics">Visitor analytics</a>
+      <a class="nav-item" href="#use">How we use it</a>
+      <a class="nav-item" href="#delete">Deleting your data</a>
+      <a class="nav-item" href="#contact">Contact</a>
+    </nav>
+    <article class="card" style="flex: 999 1 560px; padding: 40px; gap: 32px;">
+      <section id="collect" class="col-2" style="gap: 12px;"><h2 class="t-lg">What we collect</h2><p class="t-md muted">Account details you give us (email, display name, profile link) and the profile content you choose to publish: photo, headline, contact details and links.</p></section>
+      <section id="analytics" class="col-2" style="gap: 12px;"><h2 class="t-lg">Visitor analytics</h2><p class="t-md muted">When someone opens a profile, Tapit counts the view and its entry path (NFC, QR or direct) in hourly totals. Unique views are estimated without storing who visited.</p><div class="notice"><svg class="i" viewBox="0 0 24 24" aria-hidden="true" style="color: #315fe4;"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg><span>Profile owners and administrators only ever see aggregate counts.</span></div></section>
+      <section id="use" class="col-2" style="gap: 12px;"><h2 class="t-lg">How we use it</h2><p class="t-md muted">[Your policy copy for how account and profile data is processed, stored and shared.]</p></section>
+      <section id="delete" class="col-2" style="gap: 12px;"><h2 class="t-lg">Deleting your data</h2><p class="t-md muted">Request deletion from Account. Your profile goes offline right away; data is removed after an administrator approves the request.</p></section>
+      <section id="contact" class="col-2" style="gap: 12px;"><h2 class="t-lg">Contact</h2><p class="t-md muted">Questions about privacy? <a href="Account.dc.html">Contact support</a>.</p></section>
+    </article>
+  </div>
+
+  <footer class="spread" style="padding: 0 8px 32px;">
+    <span class="t-sm muted">© 2026 Tapit</span>
+    <div class="row-2"><a class="btn btn-quiet" href="Legal.dc.html">Privacy</a><a class="btn btn-quiet" href="Legal.dc.html">Terms</a></div>
+  </footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1200}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

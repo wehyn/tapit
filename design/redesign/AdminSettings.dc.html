@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings · Tapit admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="app">
+  <aside class="side" aria-label="Admin workspace">
+    <a class="brand" href="Landing.dc.html"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="ws"><a href="Profile.dc.html">Customer</a><a class="on" href="AdminCustomers.dc.html">Admin</a></div>
+    <nav class="nav" aria-label="Admin navigation">
+      <p class="nav-label">Operations</p>
+      <a class="nav-item" href="AdminCustomers.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2.4.6 4 2.4 4 5.2"/></svg>Customers<span class="count">24</span></a>
+      <a class="nav-item" href="AdminProfiles.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.6-1.8 2-2.7 3.5-2.7s2.9.9 3.5 2.7M15 10h3M15 14h3"/></svg>Profiles</a>
+      <a class="nav-item" href="AdminCards.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>Cards</a>
+      <a class="nav-item" href="AdminAnalytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Analytics</a>
+      <p class="nav-label">Governance</p>
+      <a class="nav-item" href="AdminAudit.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Audit log</a>
+      <a class="nav-item on" href="AdminSettings.dc.html" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="live"><p class="t-xs muted">Needs attention</p><a class="t-sm strong" href="AdminCustomers.dc.html">1 deletion request</a></div>
+      <a class="nav-item" href="Login.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>Sign out</a>
+      <div class="user"><span class="avatar" style="background: #1b2433;">AD</span><span class="col-1 grow" style="gap: 0;"><span class="t-sm strong">Administrator</span><span class="t-xs muted">admin@tapit.local</span></span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="crumbs"><a href="AdminCustomers.dc.html">Admin</a><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="here">Settings</span></div>
+      <button class="search" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search customers, profiles, cards<span class="kbd">⌘K</span></button>
+    </div>
+
+    <div class="head">
+      <div class="col-2">
+        <h1 class="t-xl">Settings</h1>
+        <p class="t-md muted">Support destination and launch readiness.</p>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="col-1"><h2 class="t-lg">Support contact</h2><p class="t-sm muted">Used on error pages and in customer account help.</p></div>
+        <div class="field"><label for="s-sup">Support destination</label><input class="input" id="s-sup" value="mailto:support@tapit.example"></div>
+        <div class="spread"><p class="hint">Email address or https link.</p><button class="btn btn-primary" type="button">Save</button></div>
+      </div>
+
+      <div class="card">
+        <div class="spread"><h2 class="t-lg">Launch gates</h2><span class="chip b-warn">1 of 3 ready</span></div>
+        <div class="list">
+          <div class="tile"><span class="ico" style="background: #e1f2e9; color: #10543f;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Convex deployment and bindings</p><p class="t-xs muted">Verified Oct 18</p></div><span class="chip b-ok">Ready</span></div>
+          <div class="tile"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Real-device NFC and QR checks</p><p class="t-xs muted">iPhone and Android evidence needed</p></div><span class="chip b-warn">Open</span></div>
+          <div class="tile"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg></span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">Email provider and retention policy</p><p class="t-xs muted">Not started</p></div><span class="chip b-warn">Open</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="t-lg">Administrators</h2>
+        <div class="list">
+          <div class="tile"><span class="avatar" style="background: #1b2433;">AD</span><div class="grow col-1" style="gap: 0;"><p class="t-sm strong">admin@tapit.local</p><p class="t-xs muted">Allow-listed first administrator</p></div><span class="chip">You</span></div>
+        </div>
+        <p class="hint">Administrators come from the TAPIT_ADMIN_EMAILS allow-list on each deployment.</p>
+      </div>
+
+      <div class="card-flat">
+        <h2 class="t-lg">Environment</h2>
+        <div class="list">
+          <div class="tile-w" style="min-height: 48px;"><span class="t-sm muted grow">Mode</span><span class="chip b-accent">Demo</span></div>
+          <div class="tile-w" style="min-height: 48px;"><span class="t-sm muted grow">Data</span><span class="t-sm">Browser-local fixtures</span></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

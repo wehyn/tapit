@@ -156,7 +156,7 @@ export function ProfileWorkspaceFrame({
     >
       <div className="col-span-full flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
+          <h1 className="tapit-display text-xl font-semibold tracking-tight text-tapit-ink sm:text-xl">
             {title}
           </h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -175,7 +175,7 @@ export function ProfileWorkspaceFrame({
         <div className="min-[1280px]:hidden">
           <div
             aria-label={`${title} view`}
-            className="inline-flex rounded-tapit border border-tapit-line bg-tapit-surface p-1"
+            className="inline-flex rounded-card border border-tapit-line bg-tapit-surface p-1"
             role="group"
           >
             {(["edit", "preview"] as const).map((view) => (
@@ -437,13 +437,13 @@ function PublishRequirementsDialog({
         aria-describedby="publish-requirements-description"
         aria-labelledby="publish-requirements-title"
         aria-modal="true"
-        className="max-h-[calc(100dvh-4rem)] w-full max-w-lg overflow-y-auto rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
+        className="max-h-[calc(100dvh-4rem)] w-full max-w-lg overflow-y-auto rounded-card border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
         <h2
-          className="text-xl font-semibold tracking-tight text-tapit-ink"
+          className="text-lg font-semibold tracking-tight text-tapit-ink"
           id="publish-requirements-title"
         >
           Before you publish
@@ -458,7 +458,7 @@ function PublishRequirementsDialog({
         <ul className="mt-5 grid gap-4">
           {requirements.map((requirement) => (
             <li
-              className="flex flex-wrap items-center justify-between gap-3 rounded-tapit border border-tapit-line bg-tapit-paper p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-tapit-line bg-tapit-paper p-4"
               key={requirement.id}
             >
               <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-tapit-ink">

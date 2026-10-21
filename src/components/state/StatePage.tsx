@@ -20,7 +20,7 @@ export function StatePage({
     <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-6 sm:px-6 sm:py-10">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-lg rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-6 shadow-[var(--tapit-shadow-soft)] sm:p-9"
+        className="w-full max-w-lg rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-6 shadow-card sm:p-9"
       >
         <Brand />
         <div className="mt-8 flex items-start gap-4 sm:mt-10">
@@ -32,7 +32,7 @@ export function StatePage({
           </div>
           <div>
             <h1
-              className="tapit-display break-words text-2xl font-semibold leading-tight tracking-tight text-tapit-ink"
+              className="tapit-display break-words text-xl font-semibold leading-tight tracking-tight text-tapit-ink"
               id="state-title"
             >
               {title}

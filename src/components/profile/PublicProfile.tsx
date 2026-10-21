@@ -352,23 +352,23 @@ export function PublicProfile({
       ? phonePreview
         ? compactPhonePreview
           ? "text-lg"
-          : "text-2xl"
-        : "text-2xl sm:text-3xl"
+          : "text-xl"
+        : "text-xl sm:text-xl"
       : configured && appearance.typeScale === "editorial"
         ? phonePreview
           ? compactPhonePreview
-            ? "text-2xl"
-            : "text-4xl"
-          : "text-4xl sm:text-5xl"
+            ? "text-xl"
+            : "text-2xl"
+          : "text-2xl sm:text-2xl"
         : configured
           ? phonePreview
             ? compactPhonePreview
-              ? "text-xl"
-              : "text-3xl"
-            : "text-3xl sm:text-4xl"
+              ? "text-lg"
+              : "text-xl"
+            : "text-xl sm:text-2xl"
           : phonePreview
-            ? "text-2xl"
-            : "text-3xl sm:text-4xl";
+            ? "text-xl"
+            : "text-xl sm:text-2xl";
   const profileContentMargin = phonePreview
     ? warmStudio
       ? compactPhonePreview
@@ -469,7 +469,8 @@ export function PublicProfile({
   const disclosure = section ? (
     <ProfileSectionDisclosure section={section} className={`border-current/15 ${mutedClasses}`} />
   ) : null;
-  const whiteIdentityText = "box-decoration-clone rounded-md bg-[#26312c] px-2 py-1 shadow-sm";
+  const whiteIdentityText =
+    "box-decoration-clone rounded-control bg-[#26312c] px-2 py-1 shadow-card";
   const whiteName = warmStudio && appearance.nameColor.toLowerCase() === "#ffffff";
   const whiteBio = warmStudio && appearance.bioColor.toLowerCase() === "#ffffff";
   const nameIdentityText = whiteName ? whiteIdentityText : undefined;
@@ -501,7 +502,7 @@ export function PublicProfile({
         ) : (
           <div
             aria-hidden="true"
-            className={`${compactPhonePreview ? "size-16 text-2xl" : phonePreview ? "size-20 text-3xl" : "size-20 text-3xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
+            className={`${compactPhonePreview ? "size-16 text-xl" : phonePreview ? "size-20 text-xl" : "size-20 text-xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
           >
             {profile.name.slice(0, 1).toUpperCase()}
           </div>
@@ -634,12 +635,12 @@ export function PublicProfile({
   const profileFrameClasses = compactPhonePreview
     ? "rounded-none border-0 shadow-none"
     : !warmStudio
-      ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
+      ? "overflow-hidden rounded-card border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
       : phonePreview
         ? "overflow-hidden rounded-none border-0 shadow-none"
         : preview
-          ? "overflow-hidden rounded-tapit border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-          : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-tapit sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
+          ? "overflow-hidden rounded-card border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
+          : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-card sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
   const showEditProfileLink = showOwnerShortcut && !preview;
   const identityColumnSpacing = phonePreview
     ? compactPhonePreview
@@ -730,7 +731,7 @@ export function PublicProfile({
         <nav aria-label="Profile owner actions">
           <Link
             aria-label="Edit profile"
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-lg transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
             href="/app/profile"
             style={activeProfileStyles}
           >

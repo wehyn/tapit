@@ -147,7 +147,7 @@ export function ProfileSlideshow({
       role="region"
       ref={rootRef}
       aria-label="Profile slideshow"
-      className="relative overflow-hidden rounded-tapit border border-[#e5d6c5] bg-[#fffdf9]"
+      className="relative overflow-hidden rounded-card border border-[#e5d6c5] bg-[#fffdf9]"
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         setKeyboardFocused(false);
@@ -208,7 +208,7 @@ export function ProfileSlideshow({
             <>
               <button
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-card transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
                 onClick={() => goTo(safeActiveIndex - 1)}
                 type="button"
               >
@@ -216,7 +216,7 @@ export function ProfileSlideshow({
               </button>
               <button
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-card transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
                 onClick={() => goTo(safeActiveIndex + 1)}
                 type="button"
               >
@@ -249,7 +249,7 @@ export function ProfileSlideshow({
           ) : null}
           <button
             aria-label="View image"
-            className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+            className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-card transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
             onClick={() => {
               dialogRef.current?.showModal();
               setFullImageOpen(true);
@@ -269,7 +269,7 @@ export function ProfileSlideshow({
       ) : null}
       <dialog
         aria-label="Full slideshow image"
-        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl open:flex backdrop:bg-black/80"
+        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-card border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-card open:flex backdrop:bg-black/80"
         onClose={() => {
           setFullImageOpen(false);
           viewImageRef.current?.focus();
