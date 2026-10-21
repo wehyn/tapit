@@ -1,20 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
-import {
-  ArrowUpRightIcon,
-  DeviceMobileIcon,
-  EyeIcon,
-  GlobeSimpleIcon,
-  LinkSimpleIcon,
-  CopyIcon,
-} from "@phosphor-icons/react";
+import { ArrowUpRightIcon, DeviceMobileIcon, GlobeSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { DEFAULT_CUSTOM_PROFILE_COLORS } from "@/lib/profile-customization";
 import { PublicProfile } from "@/components/profile/PublicProfile";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 
 const MIN_PHONE_SCALE = 0.58;
 const MIN_PHONE_CONTENT_SCALE = 0.95;
@@ -175,17 +169,17 @@ export function WorkspacePreview({
   return (
     <section
       ref={previewPanelRef}
-      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-[0_8px_24px_rgba(27,36,51,0.05)] ${
+      className={`tapit-preview-entry flex h-fit min-w-0 flex-col overflow-hidden rounded-card bg-tapit-surface shadow-card ${
         phoneNeedsPageScroll
           ? "min-[1400px]:static min-[1400px]:max-h-none"
           : "min-[1400px]:sticky min-[1400px]:top-6 min-[1400px]:max-h-[calc(100dvh-7.5rem)]"
       }`}
       data-preview-fit={phoneNeedsPageScroll ? "page-scroll" : "viewport"}
     >
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-5 py-4 sm:px-6">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
         <div className="min-w-0">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-tapit-ink">
-            <EyeIcon aria-hidden="true" size={18} weight="bold" />
+            <Icon name="eye" size={18} weight="bold" />
             Preview
           </h2>
           <p className="mt-1 max-w-[24rem] text-xs leading-5 text-tapit-muted">
@@ -197,7 +191,7 @@ export function WorkspacePreview({
             </p>
           ) : null}
         </div>
-        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-card border border-tapit-line bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
+        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-control bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
           <DeviceMobileIcon aria-hidden="true" size={17} />
           Mobile
         </span>
@@ -237,14 +231,14 @@ export function WorkspacePreview({
             role="group"
             style={{ aspectRatio: "9 / 19.5", transform: `scale(${phoneScale})` }}
           >
-            <div className="absolute inset-0 rounded-[2rem] border border-[#d7deea] bg-white p-[0.31rem] shadow-[0_16px_42px_rgba(27,36,51,0.10),0_2px_6px_rgba(27,36,51,0.04)] sm:rounded-[2.125rem] sm:p-[0.31rem]">
-              <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-[1.625rem] bg-tapit-surface sm:rounded-[1.75rem]">
-                <div className="flex h-10 shrink-0 items-center justify-center border-b border-[#eef0f4] bg-white px-[15px]">
-                  <div className="flex h-[25px] w-full items-center justify-center gap-1.5 rounded-[9px] border border-[#edf0f5] bg-[#f8f9fb] px-2 text-[9px] tracking-[0.01em] text-tapit-muted sm:text-[10px]">
+            <div className="absolute inset-0 rounded-card bg-tapit-surface p-1 shadow-card">
+              <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-control bg-tapit-surface">
+                <div className="flex h-10 shrink-0 items-center justify-center bg-tapit-soft-surface px-4">
+                  <div className="flex h-6 w-full items-center justify-center gap-2 rounded-control bg-tapit-surface px-2 text-xs text-tapit-muted">
                     <GlobeSimpleIcon
                       aria-hidden="true"
-                      className="shrink-0 text-[#9aa4b4]"
-                      size={11}
+                      className="shrink-0 text-tapit-muted"
+                      size={12}
                     />
                     <span className="truncate">{`tapit.app${profilePath}`}</span>
                   </div>
@@ -281,9 +275,9 @@ export function WorkspacePreview({
         </div>
       </div>
       {showProfileUrl ? (
-        <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-tapit-line bg-tapit-surface px-5 py-4 sm:px-6">
+        <div className="flex shrink-0 flex-wrap items-center gap-4 bg-tapit-surface px-4 py-4 sm:px-6">
           <div className="flex min-w-0 basis-full items-center gap-3 sm:basis-auto sm:flex-1">
-            <LinkSimpleIcon aria-hidden="true" className="shrink-0 text-tapit-accent" size={22} />
+            <Icon name="link" className="shrink-0 text-tapit-accent" size={22} />
             <div className="min-w-0">
               <a
                 className="flex min-h-11 scroll-mb-44 items-center truncate text-sm font-medium text-tapit-accent-strong hover:underline"
@@ -293,23 +287,20 @@ export function WorkspacePreview({
               </a>
             </div>
           </div>
-          <Link
-            aria-label="View published profile"
-            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-card border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-            href={profileUrl}
-          >
+          <ButtonLink className="scroll-mb-44" href={profileUrl} variant="secondary">
             View published profile
             <ArrowUpRightIcon aria-hidden="true" size={17} />
-          </Link>
-          <button
+          </ButtonLink>
+          <Button
             aria-label="Copy URL"
-            className="inline-flex min-h-11 scroll-mb-44 items-center gap-2 rounded-card border border-tapit-line px-3.5 text-sm font-semibold text-tapit-ink hover:border-tapit-accent"
+            className="scroll-mb-44"
             onClick={() => void copyUrl()}
             type="button"
+            variant="secondary"
           >
-            <CopyIcon aria-hidden="true" size={17} />
+            <Icon name="copy" size={17} />
             Copy URL
-          </button>
+          </Button>
           {copyStatus ? (
             <p className="basis-full break-all text-xs text-tapit-muted select-text" role="status">
               {copyStatus}
