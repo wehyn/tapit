@@ -2,10 +2,14 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getFunctionName } from "convex/server";
+
 const replace = vi.fn();
 const signIn = vi.fn();
 const signOut = vi.fn();
 const useQuery = vi.fn();
+const mockQuery = useQuery;
+const liveProfileForShell = { status: "published", draft: { slug: "mara-velasquez" } };
 const mutation = vi.fn();
 const setupEmailPreflight = vi.fn();
 const useConvexAuth = vi.fn();
@@ -32,7 +36,10 @@ vi.mock("convex/react", async (importOriginal) => {
     ...actual,
     useMutation: () => mutation,
     useConvex: () => ({ mutation: setupEmailPreflight }),
-    useQuery: (...args: unknown[]) => useQuery(...args),
+    useQuery: (query: unknown, ...args: unknown[]) =>
+      getFunctionName(query as Parameters<typeof getFunctionName>[0]) === "profiles:mine"
+        ? liveProfileForShell
+        : mockQuery(query, ...args),
   };
 });
 
@@ -53,22 +60,23 @@ async function loadPublicAccountAction() {
 
 async function loadShells() {
   vi.resetModules();
-  const [{ AdminShell }, { CustomerShell }] = await Promise.all([
-    import("../../src/components/layout/AdminShell"),
-    import("../../src/components/layout/CustomerShell"),
-  ]);
-  return { AdminShell, CustomerShell };
+  const { WorkspaceShell } = await import("../../src/components/layout/WorkspaceShell");
+  return {
+    AdminShell: ({ children }: { children: React.ReactNode }) => (
+      <WorkspaceShell audience="admin">{children}</WorkspaceShell>
+    ),
+    CustomerShell: ({ children }: { children: React.ReactNode }) => (
+      <WorkspaceShell audience="customer">{children}</WorkspaceShell>
+    ),
+  };
 }
 
 async function loadCustomerShellWithDraftSaver(outcome: {
   kind: "deferred";
   reason: "pending-save";
 }) {
-  vi.resetModules();
-  const [{ CustomerShell }, { useDraftSaveRegistration }] = await Promise.all([
-    import("../../src/components/layout/CustomerShell"),
-    import("../../src/components/layout/DraftSaveContext"),
-  ]);
+  const { CustomerShell } = await loadShells();
+  const { useDraftSaveRegistration } = await import("../../src/components/layout/DraftSaveContext");
   function RegisterDraftSaver() {
     useDraftSaveRegistration(async () => outcome);
     return <div>customer content</div>;
@@ -77,11 +85,8 @@ async function loadCustomerShellWithDraftSaver(outcome: {
 }
 
 async function loadDemoCustomerShell() {
-  vi.resetModules();
-  const [{ CustomerShell }, { resetDemoState, setDemoSession }] = await Promise.all([
-    import("../../src/components/layout/CustomerShell"),
-    import("../../src/lib/demo/store"),
-  ]);
+  const { CustomerShell } = await loadShells();
+  const { resetDemoState, setDemoSession } = await import("../../src/lib/demo/store");
   return { CustomerShell, resetDemoState, setDemoSession };
 }
 
@@ -191,6 +196,7 @@ describe("demo auth isolation", () => {
         <div>admin content</div>
       </AdminShell>,
     );
+    await user.click(screen.getByRole("button", { name: /^Account menu for / }));
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(replace).not.toHaveBeenCalled();
@@ -511,7 +517,9 @@ describe("non-active workspace shells", () => {
       "/app/customize",
     );
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("shows Customize for an active admin in CustomerShell", async () => {
@@ -534,7 +542,9 @@ describe("non-active workspace shells", () => {
     );
 
     expect(screen.getByText("admin profile content")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
       "href",
       "/app/customize",
@@ -557,7 +567,9 @@ describe("non-active workspace shells", () => {
     );
 
     expect(screen.getByText("demo admin profile content")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
       "href",
       "/app/customize",

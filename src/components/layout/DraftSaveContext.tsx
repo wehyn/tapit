@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useRef } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
@@ -29,12 +29,18 @@ const DraftSaveContext = createContext<DraftSaveHandler | null>(null);
 type Registration = (handler: DraftSaveHandler) => () => void;
 const DraftSaveRegistrationContext = createContext<Registration | null>(null);
 
+export type DraftStatus = "saved" | "unsaved" | "saving";
+type DraftStatusReporter = (status: DraftStatus) => void;
+const DraftStatusContext = createContext<DraftStatus>("saved");
+const DraftStatusReportContext = createContext<DraftStatusReporter | null>(null);
+
 function keepDraftAfterSaveFailure(): undefined {
   return undefined;
 }
 
 export function DraftSaveProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
   const handlerRef = useRef<DraftSaveHandler | null>(null);
+  const [status, setStatus] = useState<DraftStatus>("saved");
   const register = useCallback<Registration>((handler) => {
     handlerRef.current = handler;
     return () => {
@@ -48,9 +54,29 @@ export function DraftSaveProvider({ children }: { children: React.ReactNode }): 
 
   return (
     <DraftSaveRegistrationContext.Provider value={register}>
-      <DraftSaveContext.Provider value={saveDraft}>{children}</DraftSaveContext.Provider>
+      <DraftSaveContext.Provider value={saveDraft}>
+        <DraftStatusContext.Provider value={status}>
+          <DraftStatusReportContext.Provider value={setStatus}>
+            {children}
+          </DraftStatusReportContext.Provider>
+        </DraftStatusContext.Provider>
+      </DraftSaveContext.Provider>
     </DraftSaveRegistrationContext.Provider>
   );
+}
+
+export function useDraftStatus(): DraftStatus {
+  return useContext(DraftStatusContext);
+}
+
+export function useDraftStatusReport(status: DraftStatus): void {
+  const report = useContext(DraftStatusReportContext);
+
+  useEffect(() => {
+    if (report === null) return;
+    report(status);
+    return () => report("saved");
+  }, [report, status]);
 }
 
 export function useDraftSaveRegistration(handler: DraftSaveHandler | null): void {

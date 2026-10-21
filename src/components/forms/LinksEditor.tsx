@@ -32,6 +32,7 @@ import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
 import {
   useDraftSaveRegistration,
+  useDraftStatusReport,
   type DraftSaveHandler,
   type DraftSaveOutcome,
 } from "@/components/layout/DraftSaveContext";
@@ -336,6 +337,7 @@ function DemoLinksEditor() {
   }, [featuredLinkId, isDirty, legacyTheme, links, pendingAction, profile.id, validation]);
 
   useDraftSaveRegistration(saveDraft);
+  useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
 
   function publish() {
     if (publicationErrors.length > 0 || Object.keys(validation).length > 0) {
@@ -511,6 +513,7 @@ export function LiveLinksEditorContent({
   const isDirty =
     !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
     featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null);
+  useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = profile.draftRevision ?? 0;
     if (serverDraftProfileIdRef.current !== profile._id) {

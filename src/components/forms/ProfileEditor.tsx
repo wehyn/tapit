@@ -62,6 +62,7 @@ import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialo
 import {
   useDraftSaveLink,
   useDraftSaveRegistration,
+  useDraftStatusReport,
   type DraftDepartureState,
   type DraftSaveOutcome,
 } from "@/components/layout/DraftSaveContext";
@@ -412,6 +413,7 @@ function DemoProfileEditor({
   }
 
   useDraftSaveRegistration(saveForNavigation);
+  useDraftStatusReport(isDirty ? "unsaved" : "saved");
 
   async function saveAndContinue() {
     if (departureState.kind !== "repair") return;
@@ -945,6 +947,7 @@ function LiveProfileEditorContent({
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
+  useDraftStatusReport(pending !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = liveProfile.draftRevision ?? 0;
     if (serverDraftProfileIdRef.current !== liveProfile._id) {

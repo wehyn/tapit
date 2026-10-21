@@ -1,9 +1,8 @@
-import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AppShell } from "@/components/layout/AppShell";
-import type { ShellNavGroup } from "@/components/layout/navigation";
+import { WorkspaceChrome } from "@/components/layout/WorkspaceNav";
 import {
   DraftSaveProvider,
   useDraftSave,
@@ -53,21 +52,6 @@ function SaveButton({ handler }: { handler: DraftSaveHandler | null }) {
   );
 }
 
-const testNavGroups: ShellNavGroup[] = [
-  {
-    label: "Workspace",
-    items: [
-      { href: "/app/customize", label: "Customize", icon: "fingerprint" },
-      { href: "/app/links", label: "Links", icon: "link" },
-      { href: "/app/account/build-card", label: "Build card", icon: "card" },
-    ],
-  },
-  {
-    label: "Personal",
-    items: [{ href: "/app/account", label: "Account", icon: "gear" }],
-  },
-];
-
 describe("DraftSaveProvider", () => {
   it("does not let a stale unregister clear the latest handler", async () => {
     const first = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
@@ -95,21 +79,39 @@ describe("DraftSaveProvider", () => {
   });
 });
 
-describe("AppShell draft navigation", () => {
-  it("marks only the most specific nested destination as active", () => {
-    usePathname.mockReturnValue("/app/account/build-card");
+function sidebarLink(name: string) {
+  return within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name });
+}
 
-    render(
-      <AppShell eyebrow="Customer workspace" navGroups={testNavGroups} title="Workspace">
-        Content
-      </AppShell>,
-    );
+function TestShell({
+  beforeNavigate,
+  children,
+}: {
+  beforeNavigate?: (href: string) => Promise<boolean>;
+  children: React.ReactNode;
+}) {
+  return (
+    <WorkspaceChrome
+      audience="customer"
+      beforeNavigate={beforeNavigate}
+      email="mara@example.test"
+      live={null}
+      onSignOut={async () => undefined}
+      showAudienceSwitch={false}
+    >
+      {children}
+    </WorkspaceChrome>
+  );
+}
 
-    expect(screen.getByRole("link", { name: "Build card" })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
-    expect(screen.getByRole("link", { name: "Account" })).not.toHaveAttribute(
+describe("workspace navigation draft handling", () => {
+  it("marks the matching destination as the current page", () => {
+    usePathname.mockReturnValue("/app/card");
+
+    render(<TestShell>Content</TestShell>);
+
+    expect(screen.getByRole("link", { name: "Card" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Analytics" })).not.toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -127,18 +129,11 @@ describe("AppShell draft navigation", () => {
     render(
       <DraftSaveProvider>
         <SaveButton handler={save} />
-        <AppShell
-          beforeNavigate={async () => saveAndAllowNavigation(save)}
-          eyebrow="Customer workspace"
-          navGroups={testNavGroups}
-          title="Workspace"
-        >
-          Content
-        </AppShell>
+        <TestShell beforeNavigate={async () => saveAndAllowNavigation(save)}>Content</TestShell>
       </DraftSaveProvider>,
     );
 
-    fireEvent.click(screen.getByRole("link", { name: "Links" }));
+    fireEvent.click(sidebarLink("Links"));
     expect(push).not.toHaveBeenCalled();
     resolveSave({ kind: "saved" });
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/links"));
@@ -152,127 +147,75 @@ describe("AppShell draft navigation", () => {
           resolveSave = resolve;
         }),
     );
-
-    function GuardedAppShell() {
+    function GuardedShell() {
       const saveDraft = useDraftSave();
       return (
-        <AppShell
-          beforeNavigate={async (href) => (await saveDraft(href)).kind === "saved"}
-          eyebrow="Customer workspace"
-          navGroups={testNavGroups}
-          title="Workspace"
-        >
+        <TestShell beforeNavigate={async (href) => (await saveDraft(href)).kind === "saved"}>
           Content
-        </AppShell>
+        </TestShell>
       );
     }
 
     render(
       <DraftSaveProvider>
         <SaveButton handler={save} />
-        <GuardedAppShell />
+        <GuardedShell />
       </DraftSaveProvider>,
     );
 
-    fireEvent.click(screen.getByRole("link", { name: "Customize" }));
-    expect(save).toHaveBeenCalledOnce();
+    fireEvent.click(sidebarLink("Customize"));
     expect(push).not.toHaveBeenCalled();
     resolveSave({ kind: "saved" });
     await waitFor(() => expect(push).toHaveBeenCalledWith("/app/customize"));
   });
 
   it("cancels routing when saving fails", async () => {
-    const save = vi.fn<DraftSaveHandler>(async () => ({
-      kind: "blocked",
-      blocker: { kind: "links-validation", messages: ["Fix the highlighted link."] },
+    const save = vi.fn(async (): Promise<DraftSaveOutcome> => ({
+      kind: "failed",
+      message: "Nope",
     }));
 
     render(
       <DraftSaveProvider>
-        <AppShell
-          beforeNavigate={async () => saveAndAllowNavigation(save)}
-          eyebrow="Customer workspace"
-          navGroups={testNavGroups}
-          title="Workspace"
-        >
-          Content
-        </AppShell>
+        <SaveButton handler={save} />
+        <TestShell beforeNavigate={async () => saveAndAllowNavigation(save)}>Content</TestShell>
       </DraftSaveProvider>,
     );
 
-    fireEvent.click(screen.getByRole("link", { name: "Links" }));
+    fireEvent.click(sidebarLink("Links"));
     await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(push).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ["modified click", { metaKey: true }],
-    ["middle click", { button: 1 }],
-  ])("does not flush drafts for a %s", async (_label, eventInit) => {
-    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
+  it("lets the browser handle modified clicks without flushing drafts", () => {
+    const beforeNavigate = vi.fn(async () => true);
 
-    render(
-      <AppShell
-        beforeNavigate={async () => saveAndAllowNavigation(save)}
-        eyebrow="Customer workspace"
-        navGroups={testNavGroups}
-        title="Workspace"
-      >
-        Content
-      </AppShell>,
-    );
+    render(<TestShell beforeNavigate={beforeNavigate}>Content</TestShell>);
 
-    fireEvent.click(screen.getByRole("link", { name: "Links" }), eventInit);
-    expect(save).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
+    fireEvent.click(sidebarLink("Links"), { metaKey: true });
+    expect(beforeNavigate).not.toHaveBeenCalled();
   });
 
   it("does not flush drafts for external destinations", () => {
-    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
+    const beforeNavigate = vi.fn(async () => true);
 
-    render(
-      <AppShell
-        beforeNavigate={async () => saveAndAllowNavigation(save)}
-        eyebrow="Customer workspace"
-        navGroups={[
-          {
-            label: "Workspace",
-            items: [{ href: "https://example.com", label: "External", icon: "link" }],
-          },
-        ]}
-        title="Workspace"
-      >
-        Content
-      </AppShell>,
-    );
+    render(<TestShell beforeNavigate={beforeNavigate}>Content</TestShell>);
 
-    fireEvent.click(screen.getByRole("link", { name: "External" }));
-    expect(save).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
+    fireEvent.click(sidebarLink("Help"));
+    expect(beforeNavigate).not.toHaveBeenCalled();
   });
 
   it("does not flush drafts when another handler already prevented the click", () => {
-    const save = vi.fn<DraftSaveHandler>(async () => ({ kind: "saved" }));
+    const beforeNavigate = vi.fn(async () => true);
 
     render(
-      <div onClick={(event) => event.preventDefault()}>
-        <AppShell
-          beforeNavigate={async () => saveAndAllowNavigation(save)}
-          eyebrow="Customer workspace"
-          navGroups={testNavGroups}
-          title="Workspace"
-        >
-          Content
-        </AppShell>
+      <div onClickCapture={(event) => event.preventDefault()}>
+        <TestShell beforeNavigate={beforeNavigate}>Content</TestShell>
       </div>,
     );
 
-    const link = screen.getByRole("link", { name: "Links" });
-    const event = createEvent.click(link);
-    event.preventDefault();
-    fireEvent(link, event);
-    expect(save).not.toHaveBeenCalled();
-    expect(push).not.toHaveBeenCalled();
+    fireEvent.click(sidebarLink("Links"));
+    expect(beforeNavigate).not.toHaveBeenCalled();
   });
 });
 

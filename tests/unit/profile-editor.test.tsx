@@ -39,6 +39,7 @@ vi.mock("convex/react", () => ({
 }));
 
 vi.mock("@/components/layout/DraftSaveContext", () => ({
+  useDraftStatusReport: () => undefined,
   useDraftSaveRegistration: (handler: ((href?: string) => Promise<unknown>) | null) => {
     if (handler !== null) mocks.registeredSave = handler;
   },
