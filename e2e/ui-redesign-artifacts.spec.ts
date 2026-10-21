@@ -92,17 +92,23 @@ test("capture the customer profile editor at desktop and mobile sizes", async ({
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await captureScreenshot(page, "customer-profile-desktop.png");
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await captureScreenshot(page, "customer-profile-mobile.png");
 
   await page.setViewportSize({ width: 1487, height: 1058 });
   await page.goto("/app/profile");
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await captureScreenshot(page, "customer-profile-prototype-compare.png", "hide", false);
 });
 

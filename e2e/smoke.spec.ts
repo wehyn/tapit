@@ -125,12 +125,16 @@ test("homepage profile CTAs preserve customer and admin destinations and start g
 
   await profileActions.nth(1).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await page.goto("/");
   await page.getByRole("link", { name: "Go to your profile", exact: true }).first().click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await resetDemoHarness(page);
   await page.goto("/");

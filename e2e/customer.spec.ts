@@ -11,25 +11,6 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
-const customerNavigationTourKey = "tapit:customer-navigation-tour:profile-mara";
-const customerNavigationTourSteps = [
-  {
-    label: "Profile",
-    description: "Edit your profile details and the information people see.",
-  },
-  { label: "Customize", description: "Choose the look and layout of your profile." },
-  { label: "Links", description: "Manage the links shown on your profile." },
-  { label: "Build card", description: "Create a digital card you can share." },
-  { label: "Analytics", description: "See how people interact with your profile." },
-  { label: "Account", description: "Manage your account settings." },
-];
-
-async function signInForNavigationTour(page: Page) {
-  await resetDemoHarness(page);
-  await page.evaluate((key) => window.localStorage.removeItem(key), customerNavigationTourKey);
-  await signInAsCustomer(page);
-}
-
 async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem("tapit:demo-state:v1");
@@ -121,166 +102,211 @@ test("signing out saves the registered profile draft first", async ({ page }) =>
   expect(savedBio).toBe("Saved when signing out.");
 });
 
-test("first-time customers can tour and revisit each desktop navigation item", async ({
-  page,
-}, testInfo) => {
+test("desktop sidebar groups customer navigation and pins Account and Help", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await signInForNavigationTour(page);
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
 
-  const navigation = page
-    .getByTestId("workspace-sidebar")
-    .getByRole("navigation", { name: "Your Tapit profile navigation" });
-  const coach = page.getByTestId("navigation-tour-coach-mark");
-  const spotlight = page.getByTestId("navigation-tour-spotlight");
-
-  await expect(coach).toBeVisible();
-  await expect(spotlight).toBeVisible();
-  for (const [index, step] of customerNavigationTourSteps.entries()) {
-    const target = navigation.getByRole("link", { name: step.label, exact: true });
-    await expect(target).toBeVisible();
-    await expect(target).toHaveAttribute("aria-describedby", /.+/);
-    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
-    await expect(coach).toContainText(step.description);
-    await expect(coach).toContainText(`Step ${index + 1} of ${customerNavigationTourSteps.length}`);
-
-    const targetBounds = await target.boundingBox();
-    const spotlightBounds = await spotlight.boundingBox();
-    expect(targetBounds).not.toBeNull();
-    expect(spotlightBounds).not.toBeNull();
-    if (targetBounds && spotlightBounds) {
-      expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
-      expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
-      expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
-        targetBounds.x + targetBounds.width,
-      );
-      expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
-        targetBounds.y + targetBounds.height,
-      );
-    }
-
-    if (index === 0) {
-      await page.screenshot({ path: testInfo.outputPath("navigation-tour-desktop.png") });
-    }
-    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  const sidebar = page.getByTestId("workspace-sidebar");
+  const navigation = sidebar.getByRole("navigation", { name: "Customer navigation" });
+  await expect(
+    navigation.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("heading", { name: "Share & grow", exact: true }),
+  ).toBeVisible();
+  for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+    await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(sidebar.getByText(/^(Live|Draft)$/)).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
+    "href",
+    /^mailto:/,
+  );
+  await expect(
+    sidebar.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeVisible();
 
-  await expect(coach).toHaveCount(0);
-  await expect(navigation.getByRole("link", { name: "Account", exact: true })).toBeFocused();
-  await expect
-    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), customerNavigationTourKey))
-    .toBe("done");
-
-  await navigation.getByRole("link", { name: "Links", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/links$/);
-  await page.goto("/app/profile");
-  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
+  for (const [label, path] of [
+    ["Links", /\/app\/links$/],
+    ["Customize", /\/app\/customize$/],
+    ["Card", /\/app\/card$/],
+    ["Analytics", /\/app\/analytics$/],
+    ["Account", /\/app\/account$/],
+    ["Profile", /\/app\/profile$/],
+  ] as const) {
+    await sidebar.getByRole("link", { name: label, exact: true }).click();
+    await expect(page).toHaveURL(path);
+    await expect(sidebar.getByRole("link", { name: label, exact: true })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  }
 });
 
-test("the navigation tour can be skipped with the keyboard", async ({ page }) => {
-  await signInForNavigationTour(page);
+test("desktop sidebar links take keyboard focus and navigate", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
 
-  const coach = page.getByTestId("navigation-tour-coach-mark");
-  const skip = coach.getByRole("button", { name: "Skip tour", exact: true });
-  await expect(coach).toContainText("Step 1 of 6");
-  await skip.focus();
+  const links = page.getByTestId("workspace-sidebar").getByRole("link", {
+    name: "Links",
+    exact: true,
+  });
+  await links.focus();
+  await expect(links).toBeFocused();
   await page.keyboard.press("Enter");
 
-  await expect(coach).toHaveCount(0);
-  await expect(
-    page.getByTestId("workspace-sidebar").getByRole("link", { name: "Profile", exact: true }),
-  ).toBeFocused();
-  await expect
-    .poll(() => page.evaluate((key) => window.localStorage.getItem(key), customerNavigationTourKey))
-    .toBe("done");
+  await expect(page).toHaveURL(/\/app\/links$/);
+  await expect(links).toHaveAttribute("aria-current", "page");
 });
 
-test("mobile navigation tour keeps its drawer and spotlight target visible", async ({
+test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer", async ({
   page,
-}, testInfo) => {
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signInForNavigationTour(page);
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
 
-  const opener = page.getByRole("button", { name: "Open navigation" });
-  const drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
-  const navigation = drawer.getByRole("navigation", {
-    name: "Your Tapit profile navigation",
-  });
-  const coach = page.getByTestId("navigation-tour-coach-mark");
-  const spotlight = page.getByTestId("navigation-tour-spotlight");
-
-  await expect(opener).toHaveAttribute("aria-expanded", "true");
-  await expect(drawer).toHaveAttribute("aria-modal", "true");
-  await expect(coach).toBeVisible();
-  await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused();
-
-  const brand = drawer.getByRole("link", { name: "Tapit home" });
-  const next = coach.getByRole("button", { name: "Next", exact: true });
-  await page.keyboard.press("Shift+Tab");
-  await expect(brand).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(next).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(brand).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(drawer.getByRole("button", { name: "Close navigation" })).toBeFocused();
-
-  for (const [index, step] of customerNavigationTourSteps.entries()) {
-    const target = navigation.getByRole("link", { name: step.label, exact: true });
-    await expect(target).toBeVisible();
-    await expect(target).toBeInViewport();
-    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
-    await expect(coach).toContainText(step.description);
-    await expect(coach).toContainText(`Step ${index + 1} of ${customerNavigationTourSteps.length}`);
-
-    const targetBounds = await target.boundingBox();
-    const spotlightBounds = await spotlight.boundingBox();
-    expect(targetBounds).not.toBeNull();
-    expect(spotlightBounds).not.toBeNull();
-    if (targetBounds && spotlightBounds) {
-      expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
-      expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
-      expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
-        targetBounds.x + targetBounds.width,
-      );
-      expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
-        targetBounds.y + targetBounds.height,
-      );
-    }
-
-    if (index === 0) {
-      await page.screenshot({ path: testInfo.outputPath("navigation-tour-mobile.png") });
-    }
-    await coach.getByRole("button", { name: "Next", exact: true }).click();
-    if (index < customerNavigationTourSteps.length - 1) await expect(drawer).toBeVisible();
+  const tabBar = page.getByRole("navigation", { name: "Mobile navigation" });
+  for (const label of ["Profile", "Links", "Stats"]) {
+    await expect(tabBar.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  const more = tabBar.getByRole("button", { name: "More", exact: true });
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByTestId("workspace-sidebar")).toBeHidden();
+  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveCount(0);
 
-  await expect(drawer).toHaveCount(0);
-  await expect(opener).toHaveAttribute("aria-expanded", "false");
-  await expect(opener).toBeFocused();
+  await more.click();
+  const sheet = page.getByRole("dialog", { name: "More", exact: true });
+  await expect(sheet).toBeVisible();
+  for (const label of ["Customize", "Card", "Account"]) {
+    await expect(sheet.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  await expect(sheet.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
+    "href",
+    /^mailto:/,
+  );
+  await expect(sheet.getByRole("button", { name: "Close", exact: true })).toBeVisible();
+  await expect(sheet.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+
+  await sheet.getByRole("link", { name: "Card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/card$/);
+  await expect(sheet).toHaveCount(0);
 });
 
-test("mobile Escape and drawer close end the tour and restore focus", async ({ page }) => {
+test("mobile More opens as a dialog, and Escape or Close returns focus to More", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await signInForNavigationTour(page);
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
 
-  const opener = page.getByRole("button", { name: "Open navigation" });
-  let drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
-  await expect(drawer).toBeVisible();
+  const more = page
+    .getByRole("navigation", { name: "Mobile navigation" })
+    .getByRole("button", { name: "More", exact: true });
+  const sheet = page.getByRole("dialog", { name: "More", exact: true });
+  await more.click();
+  await expect(sheet).toHaveAttribute("aria-modal", "true");
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+
   await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
-  await expect(opener).toHaveAttribute("aria-expanded", "false");
-  await expect(opener).toBeFocused();
+  await expect(sheet).toHaveCount(0);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
 
-  await page.evaluate((key) => window.localStorage.removeItem(key), customerNavigationTourKey);
+  await more.click();
+  await sheet.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+});
+
+test("customer can sign out from the More sheet on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await page
+    .getByRole("navigation", { name: "Mobile navigation" })
+    .getByRole("button", { name: "More", exact: true })
+    .click();
+  await page
+    .getByRole("dialog", { name: "More", exact: true })
+    .getByRole("button", { name: "Sign out", exact: true })
+    .click();
+
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  expect(
+    await page.evaluate(() => window.localStorage.getItem("tapit:demo-session:v1")),
+  ).toBeNull();
+});
+
+test("the old build-card path permanently redirects to Card", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  const redirect = await page.request.get("/app/account/build-card", { maxRedirects: 0 });
+  expect(redirect.status()).toBe(308);
+
+  await page.goto("/app/account/build-card");
+  await expect(page).toHaveURL(/\/app\/card$/);
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await expect(
+    page.getByTestId("workspace-sidebar").getByRole("link", { name: "Card", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Card", { exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+});
+
+test("profile setup card links open steps to Links and Customize", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.getByLabel("Bio or role").fill("Profile setup checklist test.");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected saved demo state after sign-in.");
+    const state = JSON.parse(raw);
+    const customer = state.customers.find(
+      (candidate: { email?: string }) => candidate.email === "mara@example.test",
+    );
+    const incomplete = (profile: { id?: string; draft?: object }) => {
+      if (profile.id !== customer?.profileId || !profile.draft) return profile;
+      const draft = { ...profile.draft } as {
+        customization?: unknown;
+        links: { enabled: boolean }[];
+      };
+      delete draft.customization;
+      draft.links = draft.links.map((link, index) => ({ ...link, enabled: index === 0 }));
+      return { ...profile, draft };
+    };
+    state.profiles = state.profiles.map(incomplete);
+    state.profile = incomplete(state.profile);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
   await page.reload();
-  drawer = page.getByRole("dialog", { name: "Your Tapit profile navigation menu" });
-  await expect(drawer).toBeVisible();
-  await drawer.getByRole("button", { name: "Close navigation" }).click();
-  await expect(drawer).toHaveCount(0);
-  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
-  await expect(opener).toHaveAttribute("aria-expanded", "false");
-  await expect(opener).toBeFocused();
+  await page.goto("/app/profile");
+
+  await expect(page.getByText("Finish your profile", { exact: true })).toBeVisible();
+  await expect(page.getByRole("progressbar", { name: "Profile setup progress" })).toHaveAttribute(
+    "aria-valuenow",
+    "3",
+  );
+  await expect(page.getByRole("link", { name: /Add a photo/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Add three links/ })).toHaveAttribute(
+    "href",
+    "/app/links",
+  );
+  await expect(page.getByRole("link", { name: /Choose a look/ })).toHaveAttribute(
+    "href",
+    "/app/customize",
+  );
+  await page.getByRole("link", { name: /Choose a look/ }).click();
+  await expect(page).toHaveURL(/\/app\/customize$/);
 });
 
 test("a failed draft save keeps the customer signed in when they try to sign out", async ({
@@ -360,7 +386,7 @@ test("sidebar navigation can save a repaired media draft or continue after repai
   ).toBeVisible();
 
   const linksNavigation = page
-    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("navigation", { name: "Customer navigation" })
     .getByRole("link", { name: "Links", exact: true });
   await linksNavigation.click();
   const saveAndContinue = page.getByRole("button", { name: "Save and continue to Links" });
@@ -432,7 +458,7 @@ test("slideshow validation blocks publish and navigation, then focuses the slide
   await expect(slideshowPanel.getByText(validationMessage, { exact: true })).toBeVisible();
 
   const linksNavigation = page
-    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("navigation", { name: "Customer navigation" })
     .getByRole("link", { name: "Links", exact: true });
   await linksNavigation.click();
   const saveAndContinue = page.getByRole("button", { name: "Save and continue to Links" });
@@ -486,7 +512,7 @@ test("profile navigation recovery mounts and focuses the slideshow repair", asyn
   await page.reload();
 
   const linksNavigation = page
-    .getByRole("navigation", { name: "Your Tapit profile navigation" })
+    .getByRole("navigation", { name: "Customer navigation" })
     .getByRole("link", { name: "Links", exact: true });
   await linksNavigation.click();
   await expect(page.getByRole("button", { name: "Save and continue to Links" })).toBeVisible();
@@ -533,7 +559,9 @@ test("editor actions stay beside the preview on desktop and fit on mobile", asyn
     await expect(publish).toBeVisible();
 
     if (route === "/app/profile") {
-      const profileUrl = page.getByRole("link", { name: "/mara-velasquez", exact: true });
+      const profileUrl = page
+        .locator("#workspace-preview")
+        .getByRole("link", { name: "/mara-velasquez", exact: true });
       const urlTextCenter = await profileUrl.evaluate((anchor) => {
         const range = document.createRange();
         range.selectNodeContents(anchor);
@@ -797,16 +825,17 @@ test("customize does not offer a published-profile link before first publication
   await expect(page.getByRole("button", { name: "Copy URL", exact: true })).toHaveCount(0);
 });
 
-test("customer build card stays inside the authenticated workspace", async ({ page }) => {
+test("customer card page stays inside the authenticated workspace", async ({ page }) => {
   await signInAsCustomer(page);
 
-  await page.getByRole("link", { name: "Build card", exact: true }).click();
+  await page
+    .getByTestId("workspace-sidebar")
+    .getByRole("link", { name: "Card", exact: true })
+    .click();
 
-  await expect(page).toHaveURL(/\/app\/account\/build-card$/);
+  await expect(page).toHaveURL(/\/app\/card$/);
   await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
-  await expect(
-    page.getByRole("navigation", { name: /Your Tapit profile navigation/ }),
-  ).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Customer navigation" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
@@ -992,9 +1021,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
   await page.goto("/build-card");
 
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: /Your Tapit profile navigation/ })).toHaveCount(
-    0,
-  );
+  await expect(page.getByRole("navigation", { name: /Customer navigation/ })).toHaveCount(0);
   const heading = page.getByRole("heading", { name: "Bring your card to life" });
   await expect(heading).toBeVisible();
   await expect
@@ -1070,31 +1097,34 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
     .toBe("rgb(255, 255, 255)");
   const desktopBox = await island.boundingBox();
   expect(desktopBox).not.toBeNull();
-  expect(desktopBox!.x).toBe(0);
-  expect(desktopBox!.y).toBe(0);
+  expect(desktopBox!.width).toBe(248);
   await page.setViewportSize({ width: 1117, height: 900 });
-  const railBox = await island.boundingBox();
-  expect(railBox).not.toBeNull();
-  expect(railBox!.x + railBox!.width).toBeLessThan(1117);
-  const railProfile = island.getByRole("link", { name: "Profile", exact: true });
-  await expect(railProfile).toBeVisible();
-  await railProfile.focus();
-  await expect(railProfile).toBeFocused();
+  const sidebarBox = await island.boundingBox();
+  expect(sidebarBox).not.toBeNull();
+  expect(sidebarBox!.x + sidebarBox!.width).toBeLessThan(1117);
+  const sidebarProfile = island.getByRole("link", { name: "Profile", exact: true });
+  await expect(sidebarProfile).toBeVisible();
+  await sidebarProfile.focus();
+  await expect(sidebarProfile).toBeFocused();
 
-  const desktopNavigation = page.getByRole("navigation", {
-    name: "Your Tapit profile navigation",
-  });
+  const desktopNavigation = island.getByRole("navigation", { name: "Customer navigation" });
   await expect(desktopNavigation).toBeVisible();
   await expect(page.getByText("Customer workspace", { exact: true })).toHaveCount(0);
-  await expect(desktopNavigation.getByRole("heading", { name: "Workspace" })).toBeVisible();
-  await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
-  for (const label of ["Profile", "Links", "Build card", "Analytics", "Account"]) {
+  await expect(
+    desktopNavigation.getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
+  await expect(
+    desktopNavigation.getByRole("heading", { name: "Share & grow", exact: true }),
+  ).toBeVisible();
+  for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await expect(island.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(island.getByRole("link", { name: "Help", exact: true })).toBeVisible();
   await expect(
     desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(desktopNavigation.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
+  await expect(island.getByRole("group", { name: "Workspace" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
   const desktopAccountMenu = page.getByRole("button", {
     name: "Account menu for mara@example.test",
@@ -1129,66 +1159,46 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   ).toEqual({ position: "sticky", top: "0px" });
   await page.evaluate(() => window.scrollTo(0, 500));
   expect((await mobileHeader.boundingBox())?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
-  const openNavigation = page.getByRole("button", { name: "Open navigation" });
-  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
-  await openNavigation.click();
-  const drawerNavigation = page.getByRole("navigation", {
-    name: "Your Tapit profile navigation",
-  });
-  await expect(drawerNavigation).toBeVisible();
-  await expect(
-    drawerNavigation.getByRole("link", { name: "Build card", exact: true }),
-  ).toBeVisible();
-  const mobileAccountMenu = page.getByRole("button", {
-    name: "Account menu for mara@example.test",
-  });
-  await expect(mobileAccountMenu).toBeVisible();
-  await mobileAccountMenu.click();
-  await expect(signOutButton).toBeVisible();
-  await expect(mobileAccountMenu).toBeFocused();
-  await page.keyboard.press("Escape");
-  await expect(signOutButton).toHaveCount(0);
-  await expect(drawerNavigation).toBeVisible();
-  await expect(mobileAccountMenu).toBeFocused();
-  await expect(openNavigation).toHaveAttribute("aria-expanded", "true");
-  await page.keyboard.press("Escape");
-  await expect(drawerNavigation).toBeHidden();
-  await expect(openNavigation).toBeFocused();
-  await expect(openNavigation).toHaveAttribute("aria-expanded", "false");
+  const moreButton = page
+    .getByRole("navigation", { name: "Mobile navigation" })
+    .getByRole("button", { name: "More", exact: true });
+  const moreSheet = page.getByRole("dialog", { name: "More", exact: true });
+  await expect(moreButton).toHaveAttribute("aria-expanded", "false");
+  await moreButton.click();
+  await expect(moreSheet).toBeVisible();
+  await expect(moreSheet.getByRole("link", { name: "Card", exact: true })).toBeVisible();
+  await expect(moreSheet.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  await page.keyboard.press("Escape");
+  await expect(moreSheet).toHaveCount(0);
+  await expect(moreButton).toBeFocused();
+  await expect(moreButton).toHaveAttribute("aria-expanded", "false");
 
-  await openNavigation.click();
-  await drawerNavigation.getByRole("link", { name: "Build card", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/account\/build-card$/);
-  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
-    "aria-expanded",
-    "false",
-  );
+  await moreButton.click();
+  await moreSheet.getByRole("link", { name: "Card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/card$/);
+  await expect(moreButton).toHaveAttribute("aria-expanded", "false");
 
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto("/app/profile");
   await expect(page.getByRole("heading", { name: "Basics", exact: true })).toBeVisible();
-  await expect(openNavigation).toBeVisible();
+  await expect(moreButton).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  const openerBox = await openNavigation.boundingBox();
-  expect(openerBox).not.toBeNull();
-  expect(openerBox!.height).toBeGreaterThanOrEqual(44);
-  await openNavigation.click();
-  await expect(drawerNavigation).toBeVisible();
-  const drawerBox = await drawerNavigation
-    .locator("xpath=ancestor::div[@role='dialog']")
-    .boundingBox();
-  expect(drawerBox).not.toBeNull();
-  expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(320);
+  const moreBox = await moreButton.boundingBox();
+  expect(moreBox).not.toBeNull();
+  expect(moreBox!.height).toBeGreaterThanOrEqual(44);
+  await moreButton.click();
+  await expect(moreSheet).toBeVisible();
+  const sheetBox = await moreSheet.boundingBox();
+  expect(sheetBox).not.toBeNull();
+  expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.keyboard.press("Escape");
-  await expect(openNavigation).toBeFocused();
+  await expect(moreButton).toBeFocused();
 
   await page.setViewportSize({ width: 1280, height: 900 });
   const wideProfileLink = page
-    .getByRole("navigation", {
-      name: "Your Tapit profile navigation",
-    })
+    .getByRole("navigation", { name: "Customer navigation" })
     .getByRole("link", { name: "Profile", exact: true });
   await expect(wideProfileLink).toHaveAttribute("aria-current", "page");
 });
@@ -1336,7 +1346,7 @@ test("profile editors show their page title without redundant subtitles", async 
     ["/app/customize", "Customize your profile", "Tune the look and feel of your public profile."],
   ] as const) {
     await page.goto(route);
-    const heading = page.getByRole("heading", { name: title, exact: true });
+    const heading = page.getByRole("main").getByRole("heading", { name: title, exact: true });
     await expect(heading).toBeVisible();
     await expect(page.getByText(subtitle, { exact: true })).toHaveCount(0);
   }
@@ -3491,7 +3501,7 @@ test("customer analytics keeps zero totals and privacy context for an empty rang
 
 test("customer can prepare a card design before ordering opens", async ({ page }) => {
   await signInAsCustomer(page);
-  await page.goto("/app/account/build-card");
+  await page.goto("/app/card");
   await expect.soft(page.getByText(/design preparation is available now/i)).toBeVisible();
   await expect.soft(page.getByText(/custom ordering is not open/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Build your own with Canva" })).toHaveAttribute(
@@ -3526,14 +3536,9 @@ test("customer can unpublish from Account", async ({ page }) => {
 test("customer utility workspaces fit phone, tablet, and desktop widths", async ({ page }) => {
   await signInAsCustomer(page);
 
-  for (const route of [
-    "/app/analytics",
-    "/app/account",
-    "/app/account/build-card",
-    "/build-card",
-  ] as const) {
+  for (const route of ["/app/analytics", "/app/account", "/app/card", "/build-card"] as const) {
     await page.goto(route);
-    if (route === "/app/account/build-card") {
+    if (route === "/app/card") {
       await expect
         .poll(() =>
           page
@@ -3548,7 +3553,7 @@ test("customer utility workspaces fit phone, tablet, and desktop widths", async 
       if (route === "/app/analytics" && (width === 390 || width === 1280)) {
         await page.screenshot({ path: `test-results/customer-analytics-${width}.png` });
       }
-      if (route === "/app/account/build-card" && (width === 390 || width === 1280)) {
+      if (route === "/app/card" && (width === 390 || width === 1280)) {
         await page.screenshot({ path: `test-results/customer-build-card-${width}.png` });
       }
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);

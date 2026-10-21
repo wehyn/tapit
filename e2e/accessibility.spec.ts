@@ -79,7 +79,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await page.getByLabel("Password").fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await expectNoA11yViolations(page);
 
   await page.goto("/app/links");
@@ -90,7 +92,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/app/profile");
-    await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+    ).toBeVisible();
     const publicUrlText = page
       .getByRole("link", { name: "Open public profile /mara-velasquez" })
       .locator("code");
@@ -128,11 +132,11 @@ test("customer workspace has no automated accessibility violations", async ({ pa
     });
     expect(layout.documentWidth, JSON.stringify(layout, null, 2)).toBeLessThanOrEqual(width);
     if (width < 1024) {
-      const opener = page.getByRole("button", { name: "Open navigation" });
+      const opener = page
+        .getByRole("navigation", { name: "Mobile navigation" })
+        .getByRole("button", { name: "More", exact: true });
       await opener.click();
-      await expect(
-        page.getByRole("navigation", { name: "Your Tapit profile navigation" }),
-      ).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "More", exact: true })).toBeVisible();
       await expectNoA11yViolations(page);
       await page.keyboard.press("Escape");
       await expect(opener).toBeFocused();
@@ -165,11 +169,11 @@ test("administrator workspace has no automated accessibility violations", async 
       width,
     );
     if (width < 1024) {
-      const opener = page.getByRole("button", { name: "Open navigation" });
+      const opener = page
+        .getByRole("navigation", { name: "Mobile navigation" })
+        .getByRole("button", { name: "More", exact: true });
       await opener.click();
-      await expect(
-        page.getByRole("navigation", { name: "Tapit operations navigation" }),
-      ).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "More", exact: true })).toBeVisible();
       await expectNoA11yViolations(page);
       await page.keyboard.press("Escape");
       await expect(opener).toBeFocused();
@@ -186,7 +190,9 @@ test("customer and administrator workspace index routes keep their redirect targ
 
   await page.goto("/app");
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/customers$/);

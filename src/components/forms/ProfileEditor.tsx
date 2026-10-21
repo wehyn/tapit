@@ -58,6 +58,7 @@ import {
   type PublishRequirement,
 } from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
+import { ProfileChecklist } from "@/components/forms/ProfileChecklist";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import {
   useDraftSaveLink,
@@ -665,6 +666,7 @@ function DemoProfileEditor({
       controls={
         view === "profile" ? (
           <>
+            <ProfileChecklist draft={draft} published={profile.status === "published"} />
             <ProfileDetailsEditor
               customization={draft.customization}
               copyMessage={copyMessage}
@@ -1404,6 +1406,7 @@ function LiveProfileEditorContent({
       controls={
         view === "profile" ? (
           <>
+            <ProfileChecklist draft={currentDraft} published={liveProfile.status === "published"} />
             <ProfileDetailsEditor
               customization={currentDraft.customization}
               copyMessage={copyMessage}
