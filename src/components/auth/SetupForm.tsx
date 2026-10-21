@@ -64,7 +64,7 @@ function SetupFrame({ children, footer }: { children: ReactNode; footer?: string
             <Chip>3 · Done</Chip>
           </li>
         </ol>
-        <div className="flex w-full max-w-md flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
+        <div className="flex w-full max-w-md flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card">
           {children}
         </div>
         {footer ? <p className="text-center text-xs text-tapit-muted">{footer}</p> : null}

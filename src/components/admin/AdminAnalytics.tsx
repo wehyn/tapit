@@ -5,7 +5,6 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ActivityIcon, CardsIcon, ChartLineUpIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -88,12 +87,15 @@ function analyticsCutoff(range: AnalyticsRange, now: number): number {
   return range === "lifetime" ? 0 : now - Number(range.slice(0, -1)) * 86400000;
 }
 
-function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
+function SourceBreakdown({
+  totals,
+  tone = "soft",
+}: {
+  totals: Record<Source, number>;
+  tone?: "soft" | "white";
+}) {
   return (
-    <div
-      className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
-      aria-label="Traffic source breakdown"
-    >
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Traffic source breakdown">
       {(
         [
           ["nfc", "NFC"],
@@ -103,16 +105,12 @@ function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
         ] as const
       ).map(([key, label]) => (
         <div
-          className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5"
+          className={`flex flex-col gap-2 rounded-control p-4 ${tone === "white" ? "bg-tapit-surface" : "bg-tapit-soft-surface"}`}
           key={key}
         >
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-            {label}
-          </p>
-          <p className="mt-2 text-lg font-semibold text-tapit-ink">
-            {totals[key].toLocaleString()}
-          </p>
-          <p className="mt-1 text-xs text-tapit-muted">Aggregate events</p>
+          <p className="text-xs font-semibold text-tapit-muted">{label}</p>
+          <p className="text-lg font-semibold text-tapit-ink">{totals[key].toLocaleString()}</p>
+          <p className="text-xs text-tapit-muted">Aggregate events</p>
         </div>
       ))}
     </div>
@@ -121,11 +119,9 @@ function SourceBreakdown({ totals }: { totals: Record<Source, number> }) {
 
 function ProfileMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="border-l border-tapit-line pl-4 first:border-l-0 first:pl-0 sm:pl-5">
+    <div className="flex flex-col gap-2 rounded-control bg-tapit-surface p-4">
       <dt className="text-sm font-semibold text-tapit-muted">{label}</dt>
-      <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-        {value.toLocaleString()}
-      </dd>
+      <dd className="text-xl font-semibold text-tapit-ink">{value.toLocaleString()}</dd>
     </div>
   );
 }
@@ -173,7 +169,7 @@ function ProfileAnalyticsDialog({
       aria-describedby="profile-analytics-description"
       aria-labelledby="profile-analytics-title"
       aria-modal="true"
-      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain border-0 bg-tapit-ink/70 px-4 py-6 text-left sm:px-8 sm:py-10"
+      className="fixed inset-0 z-50 m-0 h-dvh max-h-none w-full max-w-none overflow-y-auto overscroll-contain bg-tapit-ink/70 p-4 text-left sm:p-8"
       onCancel={(event) => {
         event.preventDefault();
         onClose();
@@ -205,22 +201,19 @@ function ProfileAnalyticsDialog({
       }}
       ref={dialogRef}
     >
-      <div className="mx-auto my-2 max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto overscroll-contain rounded-card border border-tapit-line bg-tapit-surface p-5 shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:p-7">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card">
         <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2
-              className="text-lg font-semibold tracking-tight text-tapit-ink"
-              id="profile-analytics-title"
-            >
+          <div className="flex min-w-0 flex-col gap-2">
+            <h2 className="text-lg font-semibold text-tapit-ink" id="profile-analytics-title">
               {name} analytics
             </h2>
-            <p className="mt-2 text-sm text-tapit-muted" id="profile-analytics-description">
+            <p className="text-sm text-tapit-muted" id="profile-analytics-description">
               /{slug} · {rangeLabel} · Aggregate profile activity
             </p>
           </div>
           <button
             aria-label="Close profile analytics"
-            className="shrink-0 rounded-card border border-tapit-line px-3 py-2 text-sm font-semibold text-tapit-ink hover:bg-tapit-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
+            className="min-h-11 shrink-0 rounded-control bg-tapit-soft-surface px-4 text-sm font-semibold text-tapit-ink transition-colors hover:bg-tapit-accent-soft"
             onClick={onClose}
             ref={closeButtonRef}
             type="button"
@@ -230,12 +223,14 @@ function ProfileAnalyticsDialog({
         </div>
 
         {loading ? (
-          <div className="mt-6 p-4 text-sm text-tapit-muted">Loading profile analytics…</div>
+          <div className="rounded-control bg-tapit-paper p-4 text-sm text-tapit-muted">
+            Loading profile analytics…
+          </div>
         ) : (
-          <div className="mt-6 grid gap-4">
+          <div className="flex flex-col gap-4">
             <section
               aria-labelledby="profile-analytics-summary-heading"
-              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
+              className="flex flex-col gap-4 rounded-card bg-tapit-paper p-6"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -243,7 +238,7 @@ function ProfileAnalyticsDialog({
               >
                 Engagement summary
               </h3>
-              <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+              <dl className="grid gap-4 sm:grid-cols-3">
                 <ProfileMetric label="Profile views" value={summary.views} />
                 <ProfileMetric label="Unique views" value={summary.uniqueViews} />
                 <ProfileMetric label="Link clicks" value={summary.clicks} />
@@ -252,7 +247,7 @@ function ProfileAnalyticsDialog({
 
             <section
               aria-labelledby="profile-analytics-trend-heading"
-              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
+              className="flex flex-col gap-4 rounded-card bg-tapit-paper p-6"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -260,10 +255,10 @@ function ProfileAnalyticsDialog({
               >
                 Engagement trend
               </h3>
-              <div className="mt-5 overflow-x-auto">
+              <div className="overflow-x-auto">
                 <div
                   aria-label="Aggregate engagement trend"
-                  className="flex h-48 min-w-max items-end gap-3 border-b border-tapit-line px-1"
+                  className="flex h-48 min-w-max items-end gap-3 px-1"
                 >
                   {summary.trend.length > 0 ? (
                     summary.trend.map((bucket) => (
@@ -271,7 +266,7 @@ function ProfileAnalyticsDialog({
                         className="flex w-12 shrink-0 flex-col items-center justify-end gap-2"
                         key={bucket.bucketStart}
                       >
-                        <span className="text-[0.65rem] font-semibold text-tapit-muted">
+                        <span className="text-xs font-semibold text-tapit-muted">
                           {bucket.total.toLocaleString()}
                         </span>
                         <div
@@ -279,7 +274,7 @@ function ProfileAnalyticsDialog({
                           style={{ height: `${Math.max(10, (bucket.total / peak) * 125)}px` }}
                           title={`${bucket.total} views and clicks`}
                         />
-                        <span className="text-[0.65rem] text-tapit-muted">
+                        <span className="text-xs text-tapit-muted">
                           {new Date(bucket.bucketStart).toLocaleDateString(undefined, {
                             month: "short",
                             day: "numeric",
@@ -288,7 +283,7 @@ function ProfileAnalyticsDialog({
                       </div>
                     ))
                   ) : (
-                    <p className="mb-6 w-full text-center text-sm text-tapit-muted">
+                    <p className="w-full text-center text-sm text-tapit-muted">
                       No activity in this range.
                     </p>
                   )}
@@ -298,7 +293,7 @@ function ProfileAnalyticsDialog({
 
             <section
               aria-labelledby="profile-analytics-sources-heading"
-              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
+              className="flex flex-col gap-4 rounded-card bg-tapit-paper p-6"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -306,12 +301,12 @@ function ProfileAnalyticsDialog({
               >
                 Traffic sources
               </h3>
-              <SourceBreakdown totals={summary.sourceTotals} />
+              <SourceBreakdown tone="white" totals={summary.sourceTotals} />
             </section>
 
             <section
               aria-labelledby="profile-analytics-links-heading"
-              className="rounded-card border border-tapit-line bg-tapit-paper p-5"
+              className="flex flex-col gap-4 rounded-card bg-tapit-paper p-6"
             >
               <h3
                 className="text-base font-semibold text-tapit-ink"
@@ -319,28 +314,28 @@ function ProfileAnalyticsDialog({
               >
                 Link results
               </h3>
-              <div className="mt-5 overflow-hidden rounded-card border border-tapit-line">
+              <div className="flex flex-col gap-2">
                 {linkResults.length > 0 ? (
                   linkResults.map((link) => (
                     <div
-                      className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-4 last:border-b-0 sm:px-5"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-tapit-surface p-4"
                       key={link.id}
                     >
-                      <div>
+                      <div className="flex min-w-0 flex-col gap-1">
                         <p className="font-semibold text-tapit-ink">
                           {link.label || "Untitled link"}
                         </p>
-                        <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
+                        <p className="max-w-xl truncate text-xs text-tapit-muted">
                           {link.destination || "No destination yet"}
                         </p>
                       </div>
-                      <p className="text-sm font-semibold text-tapit-accent">
+                      <p className="text-sm font-semibold text-tapit-accent-strong">
                         {link.clicks.toLocaleString()} clicks
                       </p>
                     </div>
                   ))
                 ) : (
-                  <p className="p-5 text-sm text-tapit-muted">
+                  <p className="rounded-control bg-tapit-surface p-4 text-sm text-tapit-muted">
                     No links are configured for this profile.
                   </p>
                 )}
@@ -396,117 +391,113 @@ function DemoAdminAnalytics() {
   }, [now, range, state.analytics]);
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review aggregate profile engagement and operational activity over time."
+        description="Totals across every customer. Aggregate only; no visitor identities."
         title="Analytics"
       />
-      <Card
-        description="Cross-customer totals are aggregate-only. No visitor identity or raw event history is available in this console."
-        title="Operational analytics"
-      >
-        <div className="mt-6 flex max-w-xs items-end gap-3">
-          <ChartLineUpIcon
-            aria-hidden="true"
-            className="mb-3 hidden text-tapit-accent sm:block"
-            size={24}
-          />
-          <div className="flex-1">
-            <SelectField
-              id="admin-analytics-range"
-              label="Time range"
-              onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-              value={range}
-            >
-              {ranges.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </SelectField>
-          </div>
-        </div>
-      </Card>
-      <Card
-        description="Aggregate events by entry path; no visitor identities are exposed."
-        title="Traffic sources"
-      >
-        <SourceBreakdown totals={sourceTotals} />
-      </Card>
-      <Card
-        description="A compact view of profile reach and destination activity for the selected time range."
-        title="Engagement overview"
-      >
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
-            <UsersThreeIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-            <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              {totals.views.toLocaleString()}
-            </dd>
-            <p className="mt-2 text-xs text-tapit-muted">All active entry paths</p>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
-            <ActivityIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-            <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              {totals.uniqueViews.toLocaleString()}
-            </dd>
-            <p className="mt-2 text-xs text-tapit-muted">Privacy-preserving estimate</p>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5 sm:p-6">
-            <CardsIcon aria-hidden="true" className="text-tapit-accent" size={22} />
-            <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-            <dd className="mt-3 text-xl font-semibold tracking-tight text-tapit-ink">
-              {totals.clicks.toLocaleString()}
-            </dd>
-            <p className="mt-2 text-xs text-tapit-muted">Destination selections</p>
-          </div>
-        </dl>
-      </Card>
-      {totals.views === 0 && totals.clicks === 0 ? (
-        <Notice>No aggregate activity in this range.</Notice>
-      ) : null}
-      <Card
-        description="Operational status helps support identify a profile or card issue without exposing visitor details."
-        title="Profile and card status"
-      >
-        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
-          {profiles.map((profile) => (
-            <button
-              aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 text-left transition-colors last:border-b-0 hover:bg-tapit-paper/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
-              key={profile.id}
-              onClick={() => setSelectedProfile(profile)}
-              type="button"
-            >
-              <div>
-                <p className="font-semibold text-tapit-ink">
-                  {profile.draft.name || "Unnamed profile"}
-                </p>
-                <p className="mt-1 text-sm text-tapit-muted">
-                  /{profile.draft.slug} ·{" "}
-                  {state.customers.find((customer) => customer.profileId === profile.id)?.email ??
-                    "unassigned"}
-                </p>
-              </div>
-              <StatusChip status={profile.status} />
-            </button>
-          ))}
-          {state.cards.map((card) => (
-            <div
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 last:border-b-0"
-              key={card.id}
-            >
-              <div>
-                <p className="break-all font-semibold text-tapit-ink">{card.token}</p>
-                <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
-              </div>
-              <StatusChip status={card.status} />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card
+            description="Cross-customer totals are aggregate-only. No visitor identity or raw event history is available in this console."
+            title="Operational analytics"
+          >
+            <div className="max-w-xs">
+              <SelectField
+                id="admin-analytics-range"
+                label="Time range"
+                onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+                value={range}
+              >
+                {ranges.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
             </div>
-          ))}
+          </Card>
+          <Card
+            description="A compact view of profile reach and destination activity for the selected time range."
+            title="Engagement overview"
+          >
+            <dl className="grid gap-4 sm:grid-cols-3">
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.views.toLocaleString()}
+                </dd>
+                <p className="text-xs text-tapit-muted">All active entry paths</p>
+              </div>
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.uniqueViews.toLocaleString()}
+                </dd>
+                <p className="text-xs text-tapit-muted">Privacy-preserving estimate</p>
+              </div>
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.clicks.toLocaleString()}
+                </dd>
+                <p className="text-xs text-tapit-muted">Destination selections</p>
+              </div>
+            </dl>
+          </Card>
+          <Card
+            description="Aggregate events by entry path; no visitor identities are exposed."
+            title="Traffic sources"
+          >
+            <SourceBreakdown totals={sourceTotals} />
+          </Card>
+          {totals.views === 0 && totals.clicks === 0 ? (
+            <Notice>No aggregate activity in this range.</Notice>
+          ) : null}
         </div>
-      </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card
+            description="Operational status helps support identify a profile or card issue without exposing visitor details."
+            title="Profile and card status"
+          >
+            <div className="flex flex-col gap-2">
+              {profiles.map((profile) => (
+                <button
+                  aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
+                  className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-control bg-tapit-soft-surface p-4 text-left transition-colors hover:bg-tapit-accent-soft"
+                  key={profile.id}
+                  onClick={() => setSelectedProfile(profile)}
+                  type="button"
+                >
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-semibold text-tapit-ink">
+                      {profile.draft.name || "Unnamed profile"}
+                    </span>
+                    <span className="truncate text-sm text-tapit-muted">
+                      /{profile.draft.slug} ·{" "}
+                      {state.customers.find((customer) => customer.profileId === profile.id)
+                        ?.email ?? "unassigned"}
+                    </span>
+                  </span>
+                  <StatusChip status={profile.status} />
+                </button>
+              ))}
+              {state.cards.map((card) => (
+                <div
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-control bg-tapit-soft-surface p-4"
+                  key={card.id}
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="break-all font-semibold text-tapit-ink">{card.token}</p>
+                    <p className="break-all text-sm text-tapit-muted">{card.cardUrl}</p>
+                  </div>
+                  <StatusChip status={card.status} />
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
       {selectedProfile ? (
         <ProfileAnalyticsDialog
           links={selectedProfile.draft.links}
@@ -595,128 +586,135 @@ function LiveAdminAnalytics() {
     pages.status === "LoadingFirstPage"
   )
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
-          description="Review aggregate profile engagement and operational activity over time."
+          description="Totals across every customer. Aggregate only; no visitor identities."
           title="Analytics"
         />
         <Notice>Loading operational analytics…</Notice>
       </div>
     );
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review aggregate profile engagement and operational activity over time."
+        description="Totals across every customer. Aggregate only; no visitor identities."
         title="Analytics"
       />
-      {pages.status !== "Exhausted" ? (
-        <Notice>Analytics totals are partial while the complete range loads.</Notice>
-      ) : null}
-      <Card description="Cross-customer totals are aggregate-only." title="Operational analytics">
-        <div className="mt-6 max-w-xs">
-          <SelectField
-            id="admin-analytics-range"
-            label="Time range"
-            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-            value={range}
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          {pages.status !== "Exhausted" ? (
+            <Notice>Analytics totals are partial while the complete range loads.</Notice>
+          ) : null}
+          <Card
+            description="Cross-customer totals are aggregate-only."
+            title="Operational analytics"
           >
-            {ranges.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
-        </div>
-      </Card>
-      <Card
-        description="A compact view of profile reach and destination activity for the selected time range."
-        title="Engagement overview"
-      >
-        <dl className="mt-5 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
-            <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
-            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
-              {totals.views.toLocaleString()}
-            </dd>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
-            <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
-            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
-              {totals.uniqueViews.toLocaleString()}
-            </dd>
-          </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-paper/70 p-5">
-            <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
-            <dd className="mt-3 text-xl font-semibold text-tapit-ink">
-              {totals.clicks.toLocaleString()}
-            </dd>
-          </div>
-        </dl>
-      </Card>
-      {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
-        <Notice>No aggregate activity in this range.</Notice>
-      ) : null}
-      <Card title="Profile and card status">
-        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
-          {profiles.results.map((profile) => (
-            <button
-              aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
-              className="grid w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 text-left last:border-b-0 hover:bg-tapit-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
-              key={profile._id}
-              onClick={() => setSelectedProfileId(profile._id)}
-              type="button"
-            >
-              <div>
-                <p className="font-semibold text-tapit-ink">
-                  {profile.draft.name || "Unnamed profile"}
-                </p>
-                <p className="mt-1 text-sm text-tapit-muted">/{profile.draft.slug}</p>
-              </div>
-              <StatusChip status={profile.status} />
-            </button>
-          ))}
-          {cards.results.map((card) => (
-            <div
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-3 border-b border-tapit-line p-4 last:border-b-0"
-              key={card._id}
-            >
-              <div>
-                <p className="font-semibold text-tapit-ink">{card.token}</p>
-                <p className="mt-1 text-sm text-tapit-muted">{card.cardUrl}</p>
-              </div>
-              <StatusChip status={card.status} />
+            <div className="max-w-xs">
+              <SelectField
+                id="admin-analytics-range"
+                label="Time range"
+                onChange={(event) => setRange(event.target.value as AnalyticsRange)}
+                value={range}
+              >
+                {ranges.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </SelectField>
             </div>
-          ))}
-          {profiles.status === "CanLoadMore" || profiles.status === "LoadingMore" ? (
-            <Button
-              className="m-3"
-              disabled={profiles.status === "LoadingMore"}
-              onClick={() => profiles.loadMore(50)}
-              type="button"
-              variant="secondary"
-            >
-              {profiles.status === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
-            </Button>
+          </Card>
+          <Card
+            description="A compact view of profile reach and destination activity for the selected time range."
+            title="Engagement overview"
+          >
+            <dl className="grid gap-4 sm:grid-cols-3">
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Profile views</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.views.toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Unique views</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.uniqueViews.toLocaleString()}
+                </dd>
+              </div>
+              <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4">
+                <dt className="text-sm font-semibold text-tapit-muted">Link clicks</dt>
+                <dd className="text-xl font-semibold text-tapit-ink">
+                  {totals.clicks.toLocaleString()}
+                </dd>
+              </div>
+            </dl>
+          </Card>
+          {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
+            <Notice>No aggregate activity in this range.</Notice>
           ) : null}
-          {cards.status === "CanLoadMore" || cards.status === "LoadingMore" ? (
-            <Button
-              className="m-3"
-              disabled={cards.status === "LoadingMore"}
-              onClick={() => cards.loadMore(50)}
-              type="button"
-              variant="secondary"
-            >
-              {cards.status === "LoadingMore" ? "Loading cards…" : "Load more cards"}
-            </Button>
-          ) : null}
+          <Card
+            description="Aggregate events by entry path; no visitor identities are exposed."
+            title="Traffic sources"
+          >
+            <SourceBreakdown totals={sourceTotals} />
+          </Card>
         </div>
-      </Card>
-      <Card
-        description="Aggregate events by entry path; no visitor identities are exposed."
-        title="Traffic sources"
-      >
-        <SourceBreakdown totals={sourceTotals} />
-      </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card title="Profile and card status">
+            <div className="flex flex-col gap-2">
+              {profiles.results.map((profile) => (
+                <button
+                  aria-label={`View analytics for ${profile.draft.name || "Unnamed profile"} (${profile.status})`}
+                  className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-control bg-tapit-soft-surface p-4 text-left transition-colors hover:bg-tapit-accent-soft"
+                  key={profile._id}
+                  onClick={() => setSelectedProfileId(profile._id)}
+                  type="button"
+                >
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <span className="font-semibold text-tapit-ink">
+                      {profile.draft.name || "Unnamed profile"}
+                    </span>
+                    <span className="truncate text-sm text-tapit-muted">/{profile.draft.slug}</span>
+                  </span>
+                  <StatusChip status={profile.status} />
+                </button>
+              ))}
+              {cards.results.map((card) => (
+                <div
+                  className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-control bg-tapit-soft-surface p-4"
+                  key={card._id}
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="font-semibold text-tapit-ink">{card.token}</p>
+                    <p className="break-all text-sm text-tapit-muted">{card.cardUrl}</p>
+                  </div>
+                  <StatusChip status={card.status} />
+                </div>
+              ))}
+            </div>
+            {profiles.status === "CanLoadMore" || profiles.status === "LoadingMore" ? (
+              <Button
+                disabled={profiles.status === "LoadingMore"}
+                onClick={() => profiles.loadMore(50)}
+                type="button"
+                variant="secondary"
+              >
+                {profiles.status === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
+              </Button>
+            ) : null}
+            {cards.status === "CanLoadMore" || cards.status === "LoadingMore" ? (
+              <Button
+                disabled={cards.status === "LoadingMore"}
+                onClick={() => cards.loadMore(50)}
+                type="button"
+                variant="secondary"
+              >
+                {cards.status === "LoadingMore" ? "Loading cards…" : "Load more cards"}
+              </Button>
+            ) : null}
+          </Card>
+        </div>
+      </div>
       {selectedProfile ? (
         <ProfileAnalyticsDialog
           links={selectedProfile.draft.links}

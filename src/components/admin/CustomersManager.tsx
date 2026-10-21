@@ -4,7 +4,6 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery_experimental } from "convex/react";
-import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
 import { validateProfileSlug } from "@/lib/domain";
@@ -19,9 +18,11 @@ import { Button, ButtonLink } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Card } from "@/components/ui/Card";
 import { StatusChip } from "@/components/ui/Chip";
+import { Tile } from "@/components/ui/Tile";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -177,95 +178,85 @@ function DemoCustomersManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Manage customer access, invitations, and account status."
+        description="Invite people, manage access and handle deletion requests."
         title="Customers"
       />
-      <Card
-        description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
-        title="Create customer"
-      >
-        <form
-          className="mt-6 grid max-w-3xl gap-3 sm:flex sm:flex-wrap sm:items-end"
-          onSubmit={createCustomer}
-        >
-          <div className="sm:min-w-64 sm:flex-1">
-            <Field
-              autoComplete="off"
-              id="customer-email"
-              label="Customer email"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="person@example.com"
-              type="email"
-              value={email}
-            />
-          </div>
-          <div className="sm:min-w-52">
-            <Field
-              id="customer-profile-name"
-              label="Initial profile name"
-              onChange={(event) => setProfileName(event.target.value)}
-              placeholder="Optional display name"
-              value={profileName}
-            />
-          </div>
-          <div className="sm:min-w-52">
-            <Field
-              id="customer-profile-slug"
-              label="Profile slug"
-              onChange={(event) => setProfileSlug(event.target.value)}
-              placeholder="Optional stable slug"
-              value={profileSlug}
-            />
-          </div>
-          <Button type="submit">
-            <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-            Create and invite
-          </Button>
-        </form>
-        {message ? (
-          <div className="mt-5">
-            <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-        {setupLink ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-            <span>
-              Local setup link:{" "}
-              <a className="font-semibold text-tapit-accent hover:underline" href={setupLink}>
-                {setupLink}
-              </a>
-            </span>
-            <Button
-              onClick={() => {
-                void navigator.clipboard?.writeText(
-                  new URL(setupLink, window.location.origin).href,
-                );
-                setCopiedSetupLink(true);
-              }}
-              type="button"
-              variant="secondary"
-            >
-              <CopyIcon aria-hidden="true" className="mr-2" size={17} />
-              {copiedSetupLink ? "Copied" : "Copy link"}
-            </Button>
-          </div>
-        ) : null}
-      </Card>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card
+            description="Create invited customer accounts and keep account, profile, card, and invitation state visible separately."
+            title="Create customer"
+          >
+            <form className="flex flex-wrap items-end gap-4" onSubmit={createCustomer}>
+              <div className="min-w-64 flex-1">
+                <Field
+                  autoComplete="off"
+                  id="customer-email"
+                  label="Customer email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="person@example.com"
+                  type="email"
+                  value={email}
+                />
+              </div>
+              <div className="min-w-52 flex-1">
+                <Field
+                  id="customer-profile-name"
+                  label="Initial profile name"
+                  onChange={(event) => setProfileName(event.target.value)}
+                  placeholder="Optional display name"
+                  value={profileName}
+                />
+              </div>
+              <div className="min-w-52 flex-1">
+                <Field
+                  id="customer-profile-slug"
+                  label="Profile slug"
+                  onChange={(event) => setProfileSlug(event.target.value)}
+                  placeholder="Optional stable slug"
+                  value={profileSlug}
+                />
+              </div>
+              <Button type="submit">
+                <Icon name="user" size={18} />
+                Create and invite
+              </Button>
+            </form>
+            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            {setupLink ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm text-tapit-muted">
+                <span>
+                  Local setup link:{" "}
+                  <a
+                    className="font-semibold text-tapit-accent-strong hover:text-tapit-ink"
+                    href={setupLink}
+                  >
+                    {setupLink}
+                  </a>
+                </span>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(
+                      new URL(setupLink, window.location.origin).href,
+                    );
+                    setCopiedSetupLink(true);
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  <Icon name="link" size={17} />
+                  {copiedSetupLink ? "Copied" : "Copy link"}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
 
-      <Card
-        className="overflow-hidden"
-        description="Search by email. New invitations remain separate from profile publication and card assignment."
-        title="Customer accounts"
-      >
-        <div className="mt-6 flex flex-wrap items-end gap-3">
-          <UsersThreeIcon
-            aria-hidden="true"
-            className="mb-3 hidden text-tapit-muted sm:block"
-            size={22}
-          />
-          <div className="max-w-md flex-1">
+          <Card
+            description="Search by email. New invitations remain separate from profile publication and card assignment."
+            title="Customer accounts"
+          >
             <Field
               id="customer-search"
               label="Search customers"
@@ -274,156 +265,169 @@ function DemoCustomersManager() {
               type="search"
               value={query}
             />
-          </div>
-        </div>
-        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
-          {customers.length === 0 ? (
-            <Notice>No customers match this search. Create an invited account above.</Notice>
-          ) : null}
-          {customers.map((customer) => {
-            const profile = getDemoProfiles(state).find(
-              (candidate) => candidate.id === customer.profileId,
-            );
-            const isProfileOwner = profile !== undefined;
-            const cardCount =
-              profile === undefined
-                ? 0
-                : state.cards.filter((card) => card.profileId === profile.id).length;
-            return (
-              <article
-                className={`min-w-0 border-b border-tapit-line p-4 transition-colors last:border-b-0 sm:p-5 ${selectedCustomer?.id === customer.id ? "bg-tapit-accent-soft/30" : "hover:bg-tapit-paper/55"}`}
-                key={customer.id}
-              >
-                <button
-                  aria-pressed={selectedCustomer?.id === customer.id}
-                  className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-start gap-3 text-left focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
-                  onClick={() => setSelectedCustomerId(customer.id)}
-                  type="button"
-                >
-                  <div className="min-w-0">
-                    <p className="font-semibold text-tapit-ink">{customer.email}</p>
-                    <p className="mt-1 truncate text-sm text-tapit-muted">
-                      {isProfileOwner
-                        ? `${profile.draft.name || "Unnamed profile"} · ${profile.draft.slug}`
-                        : "Profile pending setup"}
-                    </p>
-                  </div>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <StatusChip status={customer.status} />
-                    <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
-                  </span>
-                </button>
-                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Setup
-                    </dt>
-                    <dd className="mt-1 break-words text-tapit-ink">
-                      {customer.setupToken ? "Invitation pending" : "Complete"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Profile
-                    </dt>
-                    <dd className="mt-1 text-tapit-ink">
-                      {isProfileOwner ? profile.status : "Not created"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Cards
-                    </dt>
-                    <dd className="mt-1 text-tapit-ink">{cardCount}</dd>
-                  </div>
-                </dl>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {isProfileOwner ? (
-                    <ButtonLink href="/admin/profiles" variant="secondary">
-                      View profile
-                    </ButtonLink>
-                  ) : null}
-                  {isProfileOwner ? (
-                    <ButtonLink href="/admin/cards" variant="secondary">
-                      View cards
-                    </ButtonLink>
-                  ) : null}
-                  {customer.setupToken ? (
-                    <ButtonLink href={`/setup/${customer.setupToken}`} variant="quiet">
-                      Open setup link
-                    </ButtonLink>
-                  ) : null}
-                  {customer.deletionStatus === "requested" ? (
-                    <Button
-                      onClick={() => setApprovalCustomer(customer)}
+            <div className="flex flex-col gap-2">
+              {customers.length === 0 ? (
+                <Notice>No customers match this search. Create an invited account above.</Notice>
+              ) : null}
+              {customers.map((customer) => {
+                const profile = getDemoProfiles(state).find(
+                  (candidate) => candidate.id === customer.profileId,
+                );
+                const isProfileOwner = profile !== undefined;
+                const cardCount =
+                  profile === undefined
+                    ? 0
+                    : state.cards.filter((card) => card.profileId === profile.id).length;
+                const isSelected = selectedCustomer?.id === customer.id;
+                return (
+                  <article
+                    className={`flex min-w-0 flex-col gap-3 rounded-control p-4 transition-colors ${isSelected ? "bg-tapit-accent-soft" : "bg-tapit-soft-surface hover:bg-tapit-accent-soft"}`}
+                    key={customer.id}
+                  >
+                    <button
+                      aria-pressed={isSelected}
+                      className="grid min-h-11 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 text-left"
+                      onClick={() => setSelectedCustomerId(customer.id)}
                       type="button"
-                      variant="danger"
                     >
-                      Approve deletion
-                    </Button>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })}
+                      <span className="flex min-w-0 flex-col gap-1">
+                        <span className="font-semibold text-tapit-ink">{customer.email}</span>
+                        <span
+                          className={`truncate text-sm ${isSelected ? "text-tapit-ink" : "text-tapit-muted"}`}
+                        >
+                          {isProfileOwner
+                            ? `${profile.draft.name || "Unnamed profile"} · ${profile.draft.slug}`
+                            : "Profile pending setup"}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <StatusChip status={customer.status} />
+                        <Icon name="caretRight" size={16} />
+                      </span>
+                    </button>
+                    <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                      <div className="flex flex-col gap-1">
+                        <dt
+                          className={`text-xs font-semibold ${isSelected ? "text-tapit-ink" : "text-tapit-muted"}`}
+                        >
+                          Setup
+                        </dt>
+                        <dd className="break-words text-tapit-ink">
+                          {customer.setupToken ? "Invitation pending" : "Complete"}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt
+                          className={`text-xs font-semibold ${isSelected ? "text-tapit-ink" : "text-tapit-muted"}`}
+                        >
+                          Profile
+                        </dt>
+                        <dd className="text-tapit-ink">
+                          {isProfileOwner ? profile.status : "Not created"}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt
+                          className={`text-xs font-semibold ${isSelected ? "text-tapit-ink" : "text-tapit-muted"}`}
+                        >
+                          Cards
+                        </dt>
+                        <dd className="text-tapit-ink">{cardCount}</dd>
+                      </div>
+                    </dl>
+                    <div className="flex flex-wrap gap-2">
+                      {isProfileOwner ? (
+                        <ButtonLink href="/admin/profiles" variant="secondary">
+                          View profile
+                        </ButtonLink>
+                      ) : null}
+                      {isProfileOwner ? (
+                        <ButtonLink href="/admin/cards" variant="secondary">
+                          View cards
+                        </ButtonLink>
+                      ) : null}
+                      {customer.setupToken ? (
+                        <ButtonLink
+                          href={`/setup/${customer.setupToken}`}
+                          variant={isSelected ? "secondary" : "quiet"}
+                        >
+                          Open setup link
+                        </ButtonLink>
+                      ) : null}
+                      {customer.deletionStatus === "requested" ? (
+                        <Button
+                          onClick={() => setApprovalCustomer(customer)}
+                          type="button"
+                          variant="danger"
+                        >
+                          Approve deletion
+                        </Button>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </Card>
         </div>
-      </Card>
-      {selectedCustomer
-        ? (() => {
-            const profile = getDemoProfiles(state).find(
-              (candidate) => candidate.id === selectedCustomer.profileId,
-            );
-            return (
-              <Card
-                className="border-tapit-accent/30"
-                description="A focused view keeps account operations separate from the registry."
-                title="Selected customer"
-              >
-                <div className="mt-5 flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="font-semibold text-tapit-ink">{selectedCustomer.email}</p>
-                    <p className="mt-1 text-sm text-tapit-muted">
-                      {profile?.draft.name || "Profile pending setup"}
-                    </p>
-                  </div>
-                  <StatusChip
-                    status={
-                      selectedCustomer.deletionStatus === "requested"
-                        ? "requested"
-                        : selectedCustomer.status
-                    }
-                  />
-                </div>
-                <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Account
-                    </dt>
-                    <dd className="mt-1 text-tapit-ink">{selectedCustomer.status}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Setup
-                    </dt>
-                    <dd className="mt-1 text-tapit-ink">
-                      {selectedCustomer.setupToken ? "Invitation pending" : "Complete"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                      Cards
-                    </dt>
-                    <dd className="mt-1 text-tapit-ink">
-                      {profile
-                        ? state.cards.filter((card) => card.profileId === profile.id).length
-                        : 0}
-                    </dd>
-                  </div>
-                </dl>
-              </Card>
-            );
-          })()
-        : null}
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {selectedCustomer
+            ? (() => {
+                const profile = getDemoProfiles(state).find(
+                  (candidate) => candidate.id === selectedCustomer.profileId,
+                );
+                return (
+                  <Card title="Selected customer">
+                    <div className="flex items-center gap-3">
+                      <span
+                        aria-hidden="true"
+                        className="grid size-12 shrink-0 place-items-center rounded-full bg-tapit-accent text-sm font-semibold text-white"
+                      >
+                        {selectedCustomer.email.slice(0, 2).toUpperCase()}
+                      </span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <p className="truncate font-semibold text-tapit-ink">
+                          {selectedCustomer.email}
+                        </p>
+                        <p className="truncate text-sm text-tapit-muted">
+                          {profile?.draft.name || "Profile pending setup"}
+                        </p>
+                      </div>
+                      <StatusChip
+                        status={
+                          selectedCustomer.deletionStatus === "requested"
+                            ? "requested"
+                            : selectedCustomer.status
+                        }
+                      />
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Tile className="min-h-12">
+                        <span className="grow text-sm text-tapit-muted">Account</span>
+                        <span className="text-sm text-tapit-ink">{selectedCustomer.status}</span>
+                      </Tile>
+                      <Tile className="min-h-12">
+                        <span className="grow text-sm text-tapit-muted">Setup</span>
+                        <span className="text-sm text-tapit-ink">
+                          {selectedCustomer.setupToken ? "Invitation pending" : "Complete"}
+                        </span>
+                      </Tile>
+                      <Tile className="min-h-12">
+                        <span className="grow text-sm text-tapit-muted">Cards</span>
+                        <span className="text-sm text-tapit-ink">
+                          {profile
+                            ? state.cards.filter((card) => card.profileId === profile.id).length
+                            : 0}
+                        </span>
+                      </Tile>
+                    </div>
+                  </Card>
+                );
+              })()
+            : null}
+        </div>
+      </div>
       <ConfirmDialog
         confirmLabel="Approve deletion"
         description={
@@ -497,9 +501,9 @@ function LiveCustomersManager() {
     invitationsStatus === "LoadingFirstPage"
   )
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
-          description="Manage customer access, invitations, and account status."
+          description="Invite people, manage access and handle deletion requests."
           title="Customers"
         />
         <Notice>Loading customer operations…</Notice>
@@ -620,294 +624,296 @@ function LiveCustomersManager() {
     }
   }
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Manage customer access, invitations, and account status."
+        description="Invite people, manage access and handle deletion requests."
         title="Customers"
       />
-      <Card title="Create customer">
-        <form className="mt-6 flex max-w-3xl flex-wrap items-end gap-3" onSubmit={createCustomer}>
-          <div className="min-w-72 flex-1">
-            <Field
-              autoComplete="off"
-              id="live-customer-email"
-              label="Customer email"
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="person@example.com"
-              type="email"
-              value={email}
-            />
-          </div>
-          <div className="min-w-52">
-            <Field
-              id="live-customer-profile-name"
-              label="Initial profile name"
-              onChange={(event) => setProfileName(event.target.value)}
-              placeholder="Optional display name"
-              value={profileName}
-            />
-          </div>
-          <div className="min-w-52">
-            <Field
-              id="live-customer-profile-slug"
-              label="Profile slug"
-              onChange={(event) => setProfileSlug(event.target.value)}
-              placeholder="Optional stable slug"
-              value={profileSlug}
-            />
-          </div>
-          <Button disabled={pending} loading={pending} type="submit">
-            <UserPlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-            Create and invite
-          </Button>
-        </form>
-        {message ? (
-          <div className="mt-5">
-            <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-        {setupLink ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-card bg-tapit-paper px-4 py-3 text-sm text-tapit-muted">
-            <span className="break-all">
-              Reusable until revoked: <strong className="text-tapit-accent">{setupLink}</strong>
-            </span>
-            <Button
-              onClick={() => {
-                void navigator.clipboard?.writeText(
-                  new URL(setupLink, window.location.origin).href,
-                );
-                setCopiedSetupLink(true);
-              }}
-              type="button"
-              variant="secondary"
-            >
-              <CopyIcon aria-hidden="true" className="mr-2" size={17} />
-              {copiedSetupLink ? "Copied" : "Copy link"}
-            </Button>
-          </div>
-        ) : null}
-      </Card>
-      <Card title="Customer accounts">
-        <div className="mt-6 max-w-md">
-          <Field
-            id="live-customer-search"
-            label="Search customers"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search email"
-            type="search"
-            value={query}
-          />
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card title="Create customer">
+            <form className="flex flex-wrap items-end gap-4" onSubmit={createCustomer}>
+              <div className="min-w-72 flex-1">
+                <Field
+                  autoComplete="off"
+                  id="live-customer-email"
+                  label="Customer email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="person@example.com"
+                  type="email"
+                  value={email}
+                />
+              </div>
+              <div className="min-w-52 flex-1">
+                <Field
+                  id="live-customer-profile-name"
+                  label="Initial profile name"
+                  onChange={(event) => setProfileName(event.target.value)}
+                  placeholder="Optional display name"
+                  value={profileName}
+                />
+              </div>
+              <div className="min-w-52 flex-1">
+                <Field
+                  id="live-customer-profile-slug"
+                  label="Profile slug"
+                  onChange={(event) => setProfileSlug(event.target.value)}
+                  placeholder="Optional stable slug"
+                  value={profileSlug}
+                />
+              </div>
+              <Button disabled={pending} loading={pending} type="submit">
+                <Icon name="user" size={18} />
+                Create and invite
+              </Button>
+            </form>
+            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            {setupLink ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm text-tapit-muted">
+                <span className="break-all">
+                  Reusable until revoked:{" "}
+                  <strong className="text-tapit-accent-strong">{setupLink}</strong>
+                </span>
+                <Button
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(
+                      new URL(setupLink, window.location.origin).href,
+                    );
+                    setCopiedSetupLink(true);
+                  }}
+                  type="button"
+                  variant="secondary"
+                >
+                  <Icon name="link" size={17} />
+                  {copiedSetupLink ? "Copied" : "Copy link"}
+                </Button>
+              </div>
+            ) : null}
+          </Card>
+          <Card title="Customer accounts">
+            <div className="max-w-md">
+              <Field
+                id="live-customer-search"
+                label="Search customers"
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search email"
+                type="search"
+                value={query}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              {customers.length === 0 ? (
+                <Notice>
+                  {customersStatus === "CanLoadMore"
+                    ? "No matching accounts are in the loaded pages. Load older accounts to continue."
+                    : "No customer accounts match this search."}
+                </Notice>
+              ) : null}
+              {customers.map((customer) => (
+                <article
+                  className="grid min-w-0 gap-3 rounded-control bg-tapit-soft-surface p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
+                  key={customer._id}
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="font-semibold text-tapit-ink">{customer.email}</p>
+                    <p className="text-sm text-tapit-muted">
+                      {[
+                        customer.role,
+                        ...new Set(
+                          [customer.status, customer.deletionStatus].filter(
+                            (status) => status !== "active",
+                          ),
+                        ),
+                      ].join(" · ")}
+                    </p>
+                    {(() => {
+                      const invitation = invitationByCustomer.get(customer._id);
+                      if (!invitation) return null;
+                      const status =
+                        invitation.invalidatedAt !== null
+                          ? "revoked"
+                          : invitation.acceptedAt !== null
+                            ? "accepted"
+                            : "pending";
+                      return (
+                        <>
+                          <p className="text-sm text-tapit-muted">Invitation: {status}</p>
+                          {invitation.profileName !== null || invitation.slug !== null ? (
+                            <p className="text-sm text-tapit-muted">
+                              Profile: {invitation.profileName ?? "Unnamed profile"}
+                              {invitation.slug === null ? "" : ` · /${invitation.slug}`}
+                            </p>
+                          ) : null}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:justify-end">
+                    <span className="text-xs font-semibold text-tapit-muted sm:hidden">
+                      Account status
+                    </span>
+                    <StatusChip status={customer.status} />
+                  </div>
+                  {(() => {
+                    const invitation = invitationByCustomer.get(customer._id);
+                    const invitationActive = invitation?.invalidatedAt === null;
+                    return (
+                      <div className="flex flex-wrap gap-2">
+                        {invitation && invitationActive ? (
+                          <Button
+                            onClick={() => {
+                              if (window.confirm("Revoke this invitation?"))
+                                void revoke(invitation.invitationId);
+                            }}
+                            type="button"
+                            variant="quiet"
+                          >
+                            Revoke invitation
+                          </Button>
+                        ) : null}
+                        {customer.status === "invited" && !customer.userId ? (
+                          <Button
+                            onClick={() => void replace(customer._id)}
+                            type="button"
+                            variant="quiet"
+                          >
+                            Replace invitation
+                          </Button>
+                        ) : null}
+                        {customer.status === "active" && customer.role === "customer" ? (
+                          <Button
+                            onClick={() => {
+                              if (window.confirm("Promote this customer to administrator?"))
+                                void changeRole(customer._id, "admin");
+                            }}
+                            type="button"
+                            variant="quiet"
+                          >
+                            Promote to administrator
+                          </Button>
+                        ) : null}
+                        {customer.status === "active" && customer.role === "admin" ? (
+                          <Button
+                            onClick={() => {
+                              if (window.confirm("Demote this administrator to customer?"))
+                                void changeRole(customer._id, "customer");
+                            }}
+                            type="button"
+                            variant="quiet"
+                          >
+                            Demote to customer
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
+                </article>
+              ))}
+            </div>
+            {customersStatus === "CanLoadMore" || customersStatus === "LoadingMore" ? (
+              <Button
+                disabled={customersStatus === "LoadingMore"}
+                onClick={() => loadMoreCustomers(50)}
+                type="button"
+                variant="secondary"
+              >
+                {customersStatus === "LoadingMore" ? "Loading accounts…" : "Load more accounts"}
+              </Button>
+            ) : null}
+            {invitationsStatus === "CanLoadMore" || invitationsStatus === "LoadingMore" ? (
+              <Button
+                disabled={invitationsStatus === "LoadingMore"}
+                onClick={() => loadMoreInvitations(50)}
+                type="button"
+                variant="secondary"
+              >
+                {invitationsStatus === "LoadingMore"
+                  ? "Loading invitations…"
+                  : "Load more invitation history"}
+              </Button>
+            ) : null}
+          </Card>
         </div>
-        <div className="mt-6 overflow-hidden rounded-card border border-tapit-line bg-tapit-surface">
-          {customers.length === 0 ? (
-            <Notice>
-              {customersStatus === "CanLoadMore"
-                ? "No matching accounts are in the loaded pages. Load older accounts to continue."
-                : "No customer accounts match this search."}
-            </Notice>
-          ) : null}
-          {customers.map((customer) => (
-            <article
-              className="grid min-w-0 gap-3 border-b border-tapit-line p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start"
-              key={customer._id}
-            >
-              <div>
-                <p className="font-semibold text-tapit-ink">{customer.email}</p>
-                <p className="mt-1 text-sm text-tapit-muted">
-                  {[
-                    customer.role,
-                    ...new Set(
-                      [customer.status, customer.deletionStatus].filter(
-                        (status) => status !== "active",
-                      ),
-                    ),
-                  ].join(" · ")}
+
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card title="Deletion requests">
+            {overdueDeletionRequests.status === "error" ? (
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-tapit-warning-soft p-4 text-sm text-tapit-warning-ink"
+                role="alert"
+              >
+                <p>
+                  Overdue deletion status could not be loaded. Customer management is still
+                  available.
                 </p>
-                {(() => {
-                  const invitation = invitationByCustomer.get(customer._id);
-                  if (!invitation) return null;
-                  const status =
-                    invitation.invalidatedAt !== null
-                      ? "revoked"
-                      : invitation.acceptedAt !== null
-                        ? "accepted"
-                        : "pending";
-                  return (
-                    <>
-                      <p className="mt-1 text-sm text-tapit-muted">Invitation: {status}</p>
-                      {invitation.profileName !== null || invitation.slug !== null ? (
-                        <p className="mt-1 text-sm text-tapit-muted">
-                          Profile: {invitation.profileName ?? "Unnamed profile"}
-                          {invitation.slug === null ? "" : ` · /${invitation.slug}`}
+                <Button
+                  onClick={() => setNow((current) => Math.max(Date.now(), current + 1))}
+                  type="button"
+                  variant="secondary"
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : overdueDeletionRequests.status === "success" && overdueDeletionRequests.data ? (
+              <p
+                className="rounded-control bg-tapit-danger-soft p-4 text-sm font-semibold text-tapit-danger"
+                role="alert"
+              >
+                At least one deletion request is over 30 days old and still awaits administrator
+                approval. Review the request history below.
+              </p>
+            ) : null}
+            <div className="flex flex-col gap-2">
+              {requests.length === 0 ? (
+                <Notice>No deletion requests.</Notice>
+              ) : (
+                requests.map(({ request, customer }) => (
+                  <article
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-tapit-soft-surface p-4"
+                    key={request._id}
+                  >
+                    <div className="flex min-w-0 flex-col gap-1">
+                      <p className="font-semibold text-tapit-ink">
+                        {customer?.email ?? "Unknown customer"}
+                      </p>
+                      <p className="text-sm text-tapit-muted">
+                        Requested {new Date(request.requestedAt).toLocaleString()}
+                      </p>
+                      {request.status === "requested" &&
+                      request.requestedAt < now - 30 * 24 * 60 * 60 * 1000 ? (
+                        <p className="text-sm font-semibold text-tapit-danger" role="status">
+                          Overdue — review and approve or resolve this request now.
                         </p>
                       ) : null}
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="flex items-center justify-between gap-3 sm:justify-end">
-                <span className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted sm:hidden">
-                  Account status
-                </span>
-                <StatusChip status={customer.status} />
-              </div>
-              {(() => {
-                const invitation = invitationByCustomer.get(customer._id);
-                const invitationActive = invitation?.invalidatedAt === null;
-                return (
-                  <div className="flex flex-wrap gap-2">
-                    {invitation && invitationActive ? (
+                    </div>
+                    {request.status === "requested" ? (
                       <Button
-                        onClick={() => {
-                          if (window.confirm("Revoke this invitation?"))
-                            void revoke(invitation.invitationId);
-                        }}
+                        onClick={() => approveRequest(request._id)}
                         type="button"
-                        variant="quiet"
+                        variant="danger"
                       >
-                        Revoke invitation
+                        Approve deletion
                       </Button>
-                    ) : null}
-                    {customer.status === "invited" && !customer.userId ? (
-                      <Button
-                        onClick={() => void replace(customer._id)}
-                        type="button"
-                        variant="quiet"
-                      >
-                        Replace invitation
-                      </Button>
-                    ) : null}
-                    {customer.status === "active" && customer.role === "customer" ? (
-                      <Button
-                        onClick={() => {
-                          if (window.confirm("Promote this customer to administrator?"))
-                            void changeRole(customer._id, "admin");
-                        }}
-                        type="button"
-                        variant="quiet"
-                      >
-                        Promote to administrator
-                      </Button>
-                    ) : null}
-                    {customer.status === "active" && customer.role === "admin" ? (
-                      <Button
-                        onClick={() => {
-                          if (window.confirm("Demote this administrator to customer?"))
-                            void changeRole(customer._id, "customer");
-                        }}
-                        type="button"
-                        variant="quiet"
-                      >
-                        Demote to customer
-                      </Button>
-                    ) : null}
-                  </div>
-                );
-              })()}
-            </article>
-          ))}
-        </div>
-        {customersStatus === "CanLoadMore" || customersStatus === "LoadingMore" ? (
-          <Button
-            className="mt-4"
-            disabled={customersStatus === "LoadingMore"}
-            onClick={() => loadMoreCustomers(50)}
-            type="button"
-            variant="secondary"
-          >
-            {customersStatus === "LoadingMore" ? "Loading accounts…" : "Load more accounts"}
-          </Button>
-        ) : null}
-        {invitationsStatus === "CanLoadMore" || invitationsStatus === "LoadingMore" ? (
-          <Button
-            className="mt-4"
-            disabled={invitationsStatus === "LoadingMore"}
-            onClick={() => loadMoreInvitations(50)}
-            type="button"
-            variant="secondary"
-          >
-            {invitationsStatus === "LoadingMore"
-              ? "Loading invitations…"
-              : "Load more invitation history"}
-          </Button>
-        ) : null}
-      </Card>
-      <Card title="Deletion requests">
-        {overdueDeletionRequests.status === "error" ? (
-          <div
-            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-card border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900"
-            role="alert"
-          >
-            <p>
-              Overdue deletion status could not be loaded. Customer management is still available.
-            </p>
-            <Button
-              onClick={() => setNow((current) => Math.max(Date.now(), current + 1))}
-              type="button"
-              variant="secondary"
-            >
-              Retry
-            </Button>
-          </div>
-        ) : overdueDeletionRequests.status === "success" && overdueDeletionRequests.data ? (
-          <p
-            className="mt-5 rounded-card border border-red-300 bg-red-50 p-4 text-sm font-semibold text-red-800"
-            role="alert"
-          >
-            At least one deletion request is over 30 days old and still awaits administrator
-            approval. Review the request history below.
-          </p>
-        ) : null}
-        <div className="mt-5 grid gap-2">
-          {requests.length === 0 ? (
-            <Notice>No deletion requests.</Notice>
-          ) : (
-            requests.map(({ request, customer }) => (
-              <article
-                className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-tapit-line bg-tapit-paper p-4"
-                key={request._id}
+                    ) : (
+                      <StatusChip status={request.status} />
+                    )}
+                  </article>
+                ))
+              )}
+            </div>
+            {requestsStatus === "CanLoadMore" || requestsStatus === "LoadingMore" ? (
+              <Button
+                disabled={requestsStatus === "LoadingMore"}
+                onClick={() => loadMoreRequests(50)}
+                type="button"
+                variant="secondary"
               >
-                <div>
-                  <p className="font-semibold text-tapit-ink">
-                    {customer?.email ?? "Unknown customer"}
-                  </p>
-                  <p className="mt-1 text-sm text-tapit-muted">
-                    Requested {new Date(request.requestedAt).toLocaleString()}
-                  </p>
-                  {request.status === "requested" &&
-                  request.requestedAt < now - 30 * 24 * 60 * 60 * 1000 ? (
-                    <p className="mt-1 text-sm font-semibold text-red-700" role="status">
-                      Overdue — review and approve or resolve this request now.
-                    </p>
-                  ) : null}
-                </div>
-                {request.status === "requested" ? (
-                  <Button
-                    onClick={() => approveRequest(request._id)}
-                    type="button"
-                    variant="danger"
-                  >
-                    Approve deletion
-                  </Button>
-                ) : (
-                  <StatusChip status={request.status} />
-                )}
-              </article>
-            ))
-          )}
+                {requestsStatus === "LoadingMore" ? "Loading requests…" : "Load more requests"}
+              </Button>
+            ) : null}
+          </Card>
         </div>
-        {requestsStatus === "CanLoadMore" || requestsStatus === "LoadingMore" ? (
-          <Button
-            className="mt-4"
-            disabled={requestsStatus === "LoadingMore"}
-            onClick={() => loadMoreRequests(50)}
-            type="button"
-            variant="secondary"
-          >
-            {requestsStatus === "LoadingMore" ? "Loading requests…" : "Load more requests"}
-          </Button>
-        ) : null}
-      </Card>
+      </div>
     </div>
   );
 }

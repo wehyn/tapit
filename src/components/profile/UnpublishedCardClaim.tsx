@@ -2,7 +2,6 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { ContactlessPayment } from "@phosphor-icons/react";
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -13,6 +12,7 @@ import { Brand } from "@/components/layout/Brand";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { Icon } from "@/components/ui/Icon";
 import { normalizeClaimCode } from "@/lib/auth/claim-code";
 import { completeDemoCardClaim, verifyDemoCardClaim, useDemoSession } from "@/lib/demo/store";
 import { api } from "../../../convex/_generated/api";
@@ -67,9 +67,9 @@ function ClaimPageShell({
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 py-6 sm:py-8">
         <div
           aria-hidden="true"
-          className="mx-auto flex aspect-[1.586] w-60 flex-col justify-between rounded-card bg-tapit-ink p-5 text-white shadow-card"
+          className="mx-auto flex aspect-[1.586] w-60 flex-col justify-between rounded-card bg-tapit-ink p-6 text-white shadow-card"
         >
-          <ContactlessPayment aria-hidden="true" className="self-end text-tapit-warm" size={24} />
+          <Icon className="self-end text-tapit-warm" name="contactless" size={24} />
           <p className="text-sm font-semibold">Your Tapit card</p>
         </div>
         {children}
@@ -98,7 +98,7 @@ function ClaimScreen({
           Enter the claim code that came with it. The card will open your profile from now on.
         </p>
       </div>
-      <section className="grid gap-4 rounded-card bg-tapit-surface p-4 shadow-card">
+      <section className="grid gap-4 rounded-card bg-tapit-surface p-6 shadow-card">
         <form className="grid gap-4" onSubmit={onSubmit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {challenge ? (
@@ -118,7 +118,7 @@ function ClaimScreen({
             />
           </div>
           <Button
-            className="min-h-13 text-base"
+            className="text-base"
             disabled={submitting || challenge !== undefined}
             type="submit"
           >
@@ -269,10 +269,10 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
       <ClaimPageShell signInHref={`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}>
         <section className="flex flex-col items-center gap-4 text-center">
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-            Card setup
+            New card
           </p>
           <h1 className="tapit-display text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
-            Are you the owner of this card?
+            This card is ready to set up
           </h1>
           <p className="text-sm leading-6 text-tapit-muted">
             Sign in to your Tapit account first. Then enter the private claim code supplied with

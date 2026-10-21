@@ -1,11 +1,11 @@
 import type { ReactNode } from "react";
 
 export function segmentedClass(tone: "white" | "soft" = "white") {
-  return `inline-flex gap-1 rounded-control p-1 ${tone === "soft" ? "bg-tapit-soft-surface" : "bg-tapit-surface shadow-card"}`;
+  return `inline-flex max-w-full flex-wrap gap-1 rounded-control p-1 ${tone === "soft" ? "bg-tapit-soft-surface" : "bg-tapit-surface shadow-card"}`;
 }
 
 export function segmentedItemClass(active: boolean) {
-  return `inline-flex min-h-9 items-center gap-2 rounded-control px-3 text-sm font-semibold transition-colors ${
+  return `inline-flex min-h-11 items-center gap-2 rounded-control px-3 text-sm font-semibold transition-colors ${
     active
       ? "bg-tapit-accent-soft text-tapit-accent-strong"
       : "text-tapit-muted hover:text-tapit-ink"

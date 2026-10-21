@@ -3,8 +3,17 @@ import Link from "next/link";
 import type { ProfileContent } from "@/lib/domain";
 import { profileChecklistSteps } from "@/lib/profile-checklist";
 import { Card } from "@/components/ui/Card";
-import { Icon } from "@/components/ui/Icon";
+import { Chip } from "@/components/ui/Chip";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { tileClass } from "@/components/ui/Tile";
+
+const stepIcons: Record<string, IconName> = {
+  photo: "upload",
+  name: "user",
+  links: "link",
+  look: "sliders",
+  publish: "eye",
+};
 
 export function ProfileChecklist({
   draft,
@@ -19,10 +28,16 @@ export function ProfileChecklist({
   const percent = Math.round((doneCount / steps.length) * 100);
 
   return (
-    <Card
-      description={`${doneCount} of ${steps.length} done. Each step takes a minute.`}
-      title="Finish your profile"
-    >
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-1">
+          <h2 className="text-lg font-semibold text-tapit-ink">Finish your profile</h2>
+          <p className="text-sm text-tapit-muted">
+            {`${doneCount} of ${steps.length} done. Each step takes a minute.`}
+          </p>
+        </div>
+        <Chip tone="accent">{percent}%</Chip>
+      </div>
       <div
         aria-label="Profile setup progress"
         aria-valuemax={steps.length}
@@ -40,13 +55,13 @@ export function ProfileChecklist({
         {steps.map((step) => {
           const marker = (
             <span
-              className={`grid size-8 shrink-0 place-items-center rounded-full ${step.done ? "bg-tapit-success-soft text-tapit-success-ink" : "bg-tapit-surface text-tapit-muted"}`}
+              className={`grid size-10 shrink-0 place-items-center rounded-control ${step.done ? "bg-tapit-success-soft text-tapit-success-ink" : "bg-tapit-surface text-tapit-ink"}`}
             >
-              {step.done ? (
-                <Icon name="check" size={16} weight="bold" />
-              ) : (
-                <span className="size-2 rounded-full bg-current" />
-              )}
+              <Icon
+                className="size-5"
+                name={step.done ? "check" : (stepIcons[step.id] ?? "plus")}
+                weight={step.done ? "bold" : "regular"}
+              />
             </span>
           );
           if (step.href && !step.done) {
@@ -58,7 +73,7 @@ export function ProfileChecklist({
                 >
                   {marker}
                   <span className="flex-1">{step.label}</span>
-                  <Icon name="caretRight" size={16} />
+                  <Icon className="size-4" name="caretRight" />
                 </Link>
               </li>
             );

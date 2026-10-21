@@ -2,16 +2,8 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, usePaginatedQuery } from "convex/react";
-import {
-  ArrowRightIcon,
-  ArrowsClockwiseIcon,
-  CaretDownIcon,
-  CopyIcon,
-  PlusIcon,
-  ProhibitIcon,
-} from "@phosphor-icons/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import type { DemoCard } from "@/lib/demo/fixtures";
@@ -26,17 +18,50 @@ import {
 import { Button } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Field } from "@/components/ui/Field";
+import { Field, SelectField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Card } from "@/components/ui/Card";
 import { QrControls } from "@/components/qr/QrControls";
+import { Segmented } from "@/components/ui/Segmented";
 import { StatusChip } from "@/components/ui/Chip";
+import { Tile } from "@/components/ui/Tile";
 import { api } from "../../../convex/_generated/api";
 
 type Confirmation =
   | { type: "deactivate" | "replace"; card: DemoCard }
   | { type: "attach"; card: DemoCard; profileId: string }
   | null;
+
+type CardGroup = "unclaimed" | "claimed" | "inactive";
+type CardFilter = "all" | CardGroup;
+
+const cardFilterOptions: readonly { value: CardFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "unclaimed", label: "Unclaimed" },
+  { value: "claimed", label: "Claimed" },
+  { value: "inactive", label: "Inactive" },
+];
+
+const cardRowColumns = "grid-cols-[minmax(0,1.6fr)_112px_minmax(0,1fr)_16px]";
+
+// Registered and claimable cards both still wait for a customer to claim them.
+function cardGroup(status: string): CardGroup {
+  if (status === "active") return "claimed";
+  if (status === "inactive" || status === "replaced") return "inactive";
+  return "unclaimed";
+}
+
+function countCards(statuses: string[]): Record<CardFilter, number> {
+  const counts: Record<CardFilter, number> = {
+    all: statuses.length,
+    unclaimed: 0,
+    claimed: 0,
+    inactive: 0,
+  };
+  for (const status of statuses) counts[cardGroup(status)] += 1;
+  return counts;
+}
 
 function cardTokenFromUrl(value: string): string | null {
   try {
@@ -84,11 +109,153 @@ function cardUrlIdentity(value: string): string {
   return `${parsed.origin}${pathname}`;
 }
 
+function CardRegistryToolbar({
+  counts,
+  filter,
+  onFilterChange,
+  onQueryChange,
+  query,
+}: {
+  counts: Record<CardFilter, number>;
+  filter: CardFilter;
+  onFilterChange: (filter: CardFilter) => void;
+  onQueryChange: (query: string) => void;
+  query: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <Segmented
+        label="Filter cards"
+        onChange={onFilterChange}
+        options={cardFilterOptions.map((option) => ({
+          label: `${option.label} ${counts[option.value]}`,
+          value: option.value,
+        }))}
+        tone="soft"
+        value={filter}
+      />
+      <label className="flex min-h-11 min-w-0 flex-1 basis-64 items-center gap-2 rounded-control bg-tapit-soft-surface px-3 text-tapit-muted sm:max-w-80">
+        <Icon name="search" size={18} />
+        <input
+          aria-label="Search cards"
+          className="min-w-0 flex-1 bg-transparent text-sm text-tapit-ink outline-none placeholder:text-tapit-muted"
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search URL or token"
+          type="search"
+          value={query}
+        />
+      </label>
+    </div>
+  );
+}
+
+function CardTable({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-x-auto">
+      <div className="flex min-w-160 flex-col gap-2">
+        <div
+          className={`grid ${cardRowColumns} min-h-8 items-center gap-4 px-4 text-xs font-semibold text-tapit-muted`}
+        >
+          <span>Card</span>
+          <span>Status</span>
+          <span>Attached profile</span>
+          <span aria-hidden="true" />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CardRow({
+  children,
+  onOpen,
+  profileLabel,
+  selected,
+  status,
+  token,
+}: {
+  children: ReactNode;
+  onOpen: () => void;
+  profileLabel: string;
+  selected: boolean;
+  status: string;
+  token: string;
+}) {
+  return (
+    <article
+      className={`min-w-0 rounded-control ${selected ? "bg-tapit-accent-soft" : "bg-tapit-soft-surface"}`}
+    >
+      <details
+        className="group"
+        onToggle={(event) => {
+          if (event.currentTarget.open) onOpen();
+        }}
+      >
+        <summary
+          className={`grid ${cardRowColumns} min-h-14 cursor-pointer list-none items-center gap-4 rounded-control px-4 text-sm hover:bg-tapit-accent-soft [&::-webkit-details-marker]:hidden`}
+        >
+          <span className="flex min-w-0 items-center gap-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-control bg-tapit-surface text-tapit-accent-strong shadow-card">
+              <Icon name="card" size={16} />
+            </span>
+            <span className="min-w-0 truncate font-semibold text-tapit-ink">/c/{token}</span>
+          </span>
+          <span>
+            <StatusChip status={status} />
+          </span>
+          <span className="min-w-0 truncate text-tapit-muted">{profileLabel}</span>
+          <span className="grid place-items-center text-tapit-muted">
+            <Icon className="group-open:hidden" name="caretDown" size={16} />
+            <Icon className="hidden group-open:block" name="caretUp" size={16} />
+          </span>
+        </summary>
+        <div className="flex flex-col gap-3 px-4 pb-4">
+          <p className="text-sm text-tapit-muted">
+            {profileLabel} ({token})
+          </p>
+          {children}
+        </div>
+      </details>
+    </article>
+  );
+}
+
+function CardDetail({
+  children,
+  status,
+  token,
+}: {
+  children: ReactNode;
+  status: string;
+  token: string;
+}) {
+  return (
+    <Card title={`Card ${token}`}>
+      <div className="flex">
+        <StatusChip status={status} />
+      </div>
+      <div className="flex flex-col gap-2">{children}</div>
+    </Card>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <Tile className="justify-between">
+      <span className="text-sm text-tapit-muted">{label}</span>
+      <span className="min-w-0 break-words text-right text-sm text-tapit-ink">{value}</span>
+    </Tile>
+  );
+}
+
 function DemoCardsManager() {
   const state = useDemoState();
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<CardFilter>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const profiles = getDemoProfiles(state);
   const [selectedProfileId, setSelectedProfileId] = useState(profiles[0]?.id ?? "");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -101,18 +268,29 @@ function DemoCardsManager() {
   } | null>(null);
   const selectedProfile = getDemoProfileById(state, selectedProfileId) ?? profiles[0];
 
+  const counts = useMemo(() => countCards(state.cards.map((card) => card.status)), [state.cards]);
+
   const cards = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return state.cards
       .map((card, index) => ({ card, createdAt: card.createdAt ?? index }))
       .filter(
         ({ card }) =>
-          !normalized ||
-          `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized),
+          (filter === "all" || cardGroup(card.status) === filter) &&
+          (!normalized ||
+            `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
       )
       .sort((first, second) => second.createdAt - first.createdAt)
       .map(({ card }) => card);
-  }, [query, state.cards]);
+  }, [filter, query, state.cards]);
+
+  const detailCard = cards.find((card) => card.id === selectedId) ?? cards[0];
+  const detailProfile = detailCard ? getDemoProfileById(state, detailCard.profileId) : undefined;
+  const detailOwner = state.customers.find((customer) => customer.id === detailProfile?.ownerId);
+  const detailLabel = detailProfile?.draft.name || detailProfile?.draft.slug || "Unassigned";
+  const detailAuditCount = detailCard
+    ? state.audits.filter((audit) => audit.target.includes(detailCard.token)).length
+    : 0;
 
   function validateCardUrl(value: string): string | null {
     const token = cardTokenFromUrl(value);
@@ -342,20 +520,18 @@ function DemoCardsManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+        description="Register pre-encoded NFC cards, hand out claim codes and replace lost cards."
         title="Cards"
       />
-      <Card
-        className="min-w-0"
-        description="Register the pre-encoded URL exactly once. Assignments and replacements are administrator-only and auditable."
-        title="Register card URL"
-      >
-        <form
-          className="mt-6 flex max-w-3xl flex-wrap items-end gap-3 sm:gap-4"
-          onSubmit={registerCard}
-        >
+      <section className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-accent-soft p-6">
+        <h2 className="text-lg font-semibold text-tapit-ink">Register card URL</h2>
+        <p className="text-sm text-tapit-muted">
+          Register the pre-encoded URL exactly once. Assignments and replacements are
+          administrator-only and auditable.
+        </p>
+        <form className="flex flex-wrap items-end gap-4" onSubmit={registerCard}>
           <div className="min-w-0 flex-1 sm:min-w-72">
             <Field
               id="card-url"
@@ -369,15 +545,9 @@ function DemoCardsManager() {
             Generate secure URL
           </Button>
           <div className="min-w-0 sm:min-w-64">
-            <label
-              className="block text-sm font-semibold text-tapit-ink"
-              htmlFor="card-assignment-profile"
-            >
-              Assignment profile
-            </label>
-            <select
-              className="mt-2 min-h-12 w-full rounded-card border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+            <SelectField
               id="card-assignment-profile"
+              label="Assignment profile"
               onChange={(event) => setSelectedProfileId(event.target.value)}
               value={selectedProfileId}
             >
@@ -386,95 +556,42 @@ function DemoCardsManager() {
                   {profile.draft.name || "Unnamed profile"} · {profile.draft.slug}
                 </option>
               ))}
-            </select>
+            </SelectField>
           </div>
-          <Button type="submit">
-            <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-            Register card
-          </Button>
+          <Button type="submit">Register card</Button>
         </form>
-        {message ? (
-          <div className="mt-5">
-            <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-      </Card>
+        {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+      </section>
 
-      <Card
-        className="min-w-0"
-        description="Search registered URLs, tokens, and state. Inactive and replaced cards cannot be reactivated or reassigned."
-        title="Card registry"
-      >
-        <div className="mt-6 max-w-md">
-          <Field
-            id="card-search"
-            label="Search cards"
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search URL or token"
-            type="search"
-            value={query}
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <Card
+          description="Search registered URLs, tokens, and state. Inactive and replaced cards cannot be reactivated or reassigned."
+          title="Card registry"
+        >
+          <CardRegistryToolbar
+            counts={counts}
+            filter={filter}
+            onFilterChange={setFilter}
+            onQueryChange={setQuery}
+            query={query}
           />
-        </div>
-        <div className="mt-5 grid gap-3">
-          {cards.length === 0 ? <Notice>No registered cards match this search.</Notice> : null}
-          {cards.map((card) => {
-            const profile = getDemoProfileById(state, card.profileId);
-            const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
-            return (
-              <article
-                className="min-w-0 rounded-card border border-tapit-line bg-tapit-surface p-4 transition-colors hover:border-tapit-accent/50 sm:p-5"
-                key={card.id}
-              >
-                <details className="group">
-                  <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-card outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-tapit-ink">
-                        {profileLabel}{" "}
-                        <span className="font-mono text-sm font-normal text-tapit-muted">
-                          ({card.token})
-                        </span>
-                      </p>
-                      <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <StatusChip status={card.status} />
-                      <CaretDownIcon
-                        aria-hidden="true"
-                        className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
-                        size={18}
-                        weight="bold"
-                      />
-                    </div>
-                  </summary>
-                  <div>
-                    <dl className="mt-5 grid gap-3 border-t border-tapit-line pt-4 text-sm sm:grid-cols-3">
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                          Profile
-                        </dt>
-                        <dd className="mt-1 text-tapit-ink">{profileLabel}</dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                          Public effect
-                        </dt>
-                        <dd className="mt-1 text-tapit-ink">
-                          {card.status === "active"
-                            ? "Resolves to published state"
-                            : "No profile content"}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                          History
-                        </dt>
-                        <dd className="mt-1 text-tapit-ink">
-                          {state.audits.filter((audit) => audit.target.includes(card.token)).length}{" "}
-                          audit events
-                        </dd>
-                      </div>
-                    </dl>
-                    <div className="mt-5 flex flex-wrap gap-2">
+          {cards.length === 0 ? (
+            <Notice>No registered cards match this search.</Notice>
+          ) : (
+            <CardTable>
+              {cards.map((card) => {
+                const profile = getDemoProfileById(state, card.profileId);
+                const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
+                return (
+                  <CardRow
+                    key={card.id}
+                    onOpen={() => setSelectedId(card.id)}
+                    profileLabel={profileLabel}
+                    selected={card.id === detailCard?.id}
+                    status={card.status}
+                    token={card.token}
+                  >
+                    <div className="flex flex-wrap gap-2">
                       {card.status === "registered" ? (
                         <Button
                           onClick={() =>
@@ -487,7 +604,6 @@ function DemoCardsManager() {
                           }
                           type="button"
                         >
-                          <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
                           Assign to profile
                         </Button>
                       ) : null}
@@ -535,18 +651,18 @@ function DemoCardsManager() {
                           </Button>
                           {claimCode?.cardId === card.id ? (
                             <span
-                              className="inline-flex min-h-11 items-center gap-2 rounded-card bg-tapit-accent-soft px-3 font-mono font-semibold text-tapit-accent-strong"
+                              className="inline-flex min-h-11 items-center gap-1 rounded-control bg-tapit-accent-soft py-1 pl-4 pr-1 font-mono font-semibold text-tapit-accent-strong"
                               aria-label={`Claim code for ${card.token}`}
                             >
                               {claimCode.code}
-                              <button
+                              <Button
                                 aria-label="Copy claim code"
-                                className="rounded-control p-1 hover:bg-white"
                                 onClick={() => void navigator.clipboard?.writeText(claimCode.code)}
                                 type="button"
+                                variant="quiet"
                               >
-                                <CopyIcon aria-hidden="true" size={18} />
-                              </button>
+                                <Icon name="link" size={16} />
+                              </Button>
                               <Button
                                 onClick={() => {
                                   setClaimCode(null);
@@ -593,9 +709,8 @@ function DemoCardsManager() {
                         <Button
                           onClick={() => setConfirmation({ type: "deactivate", card })}
                           type="button"
-                          variant="danger"
+                          variant="danger-soft"
                         >
-                          <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
                           Deactivate
                         </Button>
                       ) : null}
@@ -605,7 +720,6 @@ function DemoCardsManager() {
                           type="button"
                           variant="secondary"
                         >
-                          <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
                           Replace card
                         </Button>
                       ) : null}
@@ -613,39 +727,55 @@ function DemoCardsManager() {
                     {card.status === "active" ? (
                       <QrControls cardUrl={card.cardUrl} label={card.token} />
                     ) : null}
-                  </div>
-                </details>
-              </article>
-            );
-          })}
-        </div>
-      </Card>
-
-      {confirmation?.type === "replace" ? (
-        <Card
-          className="min-w-0"
-          description={`The old ${confirmation.card.token} path will become replaced and the new card will remain assigned to its existing profile.`}
-          title="Replacement card URL"
-        >
-          <div className="mt-5 flex max-w-3xl flex-wrap items-end gap-3">
-            <div className="min-w-0 flex-1 sm:min-w-72">
-              <Field
-                id="replacement-card-url"
-                label="New pre-encoded card URL"
-                onChange={(event) => setReplacementUrl(event.target.value)}
-                placeholder="/c/replacement-token"
-                value={replacementUrl}
-              />
-            </div>
-            <Button onClick={reviewReplacement} type="button">
-              Review replacement
-            </Button>
-            <Button onClick={cancelConfirmation} type="button" variant="quiet">
-              Cancel
-            </Button>
-          </div>
+                  </CardRow>
+                );
+              })}
+            </CardTable>
+          )}
         </Card>
-      ) : null}
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {detailCard ? (
+            <CardDetail status={detailCard.status} token={detailCard.token}>
+              <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
+              <DetailRow label="Profile" value={detailLabel} />
+              <DetailRow
+                label="Public effect"
+                value={
+                  detailCard.status === "active"
+                    ? "Resolves to published state"
+                    : "No profile content"
+                }
+              />
+              <DetailRow label="History" value={`${detailAuditCount} audit events`} />
+            </CardDetail>
+          ) : null}
+          {confirmation?.type === "replace" ? (
+            <Card
+              description={`The old ${confirmation.card.token} path will become replaced and the new card will remain assigned to its existing profile.`}
+              title="Replacement card URL"
+            >
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="min-w-0 flex-1 sm:min-w-72">
+                  <Field
+                    id="replacement-card-url"
+                    label="New pre-encoded card URL"
+                    onChange={(event) => setReplacementUrl(event.target.value)}
+                    placeholder="/c/replacement-token"
+                    value={replacementUrl}
+                  />
+                </div>
+                <Button onClick={reviewReplacement} type="button">
+                  Review replacement
+                </Button>
+                <Button onClick={cancelConfirmation} type="button" variant="quiet">
+                  Cancel
+                </Button>
+              </div>
+            </Card>
+          ) : null}
+        </div>
+      </div>
 
       <ConfirmDialog
         confirmLabel={
@@ -708,6 +838,9 @@ function LiveCardsManager() {
   const replace = useMutation(api.cards.replace);
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<CardFilter>("all");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [profileId, setProfileId] = useState<Id<"profiles"> | undefined>();
   const [attachment, setAttachment] = useState<{
     cardId: Id<"cards">;
@@ -728,11 +861,27 @@ function LiveCardsManager() {
     () => [...cards].sort((first, second) => second.createdAt - first.createdAt),
     [cards],
   );
+  const counts = useMemo(() => countCards(orderedCards.map((card) => card.status)), [orderedCards]);
+  const visibleCards = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return orderedCards.filter(
+      (card) =>
+        (filter === "all" || cardGroup(card.status) === filter) &&
+        (!normalized ||
+          `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
+    );
+  }, [filter, orderedCards, query]);
+  const detailCard = visibleCards.find((card) => card._id === selectedId) ?? visibleCards[0];
   const assignableProfiles = profiles;
   const availableCustomers = customerPages.results;
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
   const selectedProfileCard =
     selectedProfileId === undefined ? undefined : liveCardForProfile(selectedProfileId);
+  const detailProfile = profiles.find((candidate) => candidate._id === detailCard?.profileId);
+  const detailOwner = availableCustomers.find(
+    (customer) => customer._id === detailProfile?.ownerId,
+  );
+  const detailLabel = detailProfile?.draft.name || detailProfile?.draft.slug || "Unassigned";
 
   function liveCardForProfile(profileId: Id<"profiles">) {
     return orderedCards.find(
@@ -747,9 +896,9 @@ function LiveCardsManager() {
     customerPages.status === "LoadingFirstPage"
   )
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
-          description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+          description="Register pre-encoded NFC cards, hand out claim codes and replace lost cards."
           title="Cards"
         />
         <Notice>Loading card registry…</Notice>
@@ -804,13 +953,14 @@ function LiveCardsManager() {
     }, "Generated a secure card URL. Review it, then register the card.");
   }
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Register, assign, replace, and deactivate NFC cards while keeping each card’s state clear."
+        description="Register pre-encoded NFC cards, hand out claim codes and replace lost cards."
         title="Cards"
       />
-      <Card className="min-w-0" title="Register card URL">
-        <form className="mt-6 flex max-w-5xl flex-wrap items-end gap-3" onSubmit={registerCard}>
+      <section className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-accent-soft p-6">
+        <h2 className="text-lg font-semibold text-tapit-ink">Register card URL</h2>
+        <form className="flex flex-wrap items-end gap-4" onSubmit={registerCard}>
           <div className="min-w-0 flex-1 sm:min-w-72">
             <Field
               id="live-card-url"
@@ -821,15 +971,9 @@ function LiveCardsManager() {
             />
           </div>
           <div className="min-w-0 sm:min-w-64">
-            <label
-              className="block text-sm font-semibold text-tapit-ink"
-              htmlFor="live-card-assignment-profile"
-            >
-              Assignment profile
-            </label>
-            <select
-              className="mt-2 min-h-12 w-full rounded-card border border-tapit-line bg-tapit-surface px-3.5 py-3 text-sm text-tapit-ink"
+            <SelectField
               id="live-card-assignment-profile"
+              label="Assignment profile"
               onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
               value={selectedProfileId ?? ""}
             >
@@ -846,7 +990,7 @@ function LiveCardsManager() {
                   );
                 })(),
               )}
-            </select>
+            </SelectField>
             {profilesStatus === "CanLoadMore" || profilesStatus === "LoadingMore" ? (
               <Button
                 className="mt-2"
@@ -876,268 +1020,251 @@ function LiveCardsManager() {
             Generate secure URL
           </Button>
           <Button disabled={pending} type="submit">
-            <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
             Register card
           </Button>
         </form>
         {selectedProfileId && liveCardForProfile(selectedProfileId) ? (
-          <div className="mt-5">
-            <Notice tone="error">
-              This profile already has {liveCardForProfile(selectedProfileId)!.status} card{" "}
-              <span className="font-mono">{liveCardForProfile(selectedProfileId)!.token}</span>. A
-              second card cannot be attached; use Replace on the existing card when this is a
-              physical-card replacement.
+          <Notice tone="error">
+            This profile already has {liveCardForProfile(selectedProfileId)!.status} card{" "}
+            <span className="font-mono">{liveCardForProfile(selectedProfileId)!.token}</span>. A
+            second card cannot be attached; use Replace on the existing card when this is a
+            physical-card replacement.
+          </Notice>
+        ) : null}
+        {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+      </section>
+
+      <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
+        <Card description="Inactive and replaced cards cannot be reused." title="Card registry">
+          <CardRegistryToolbar
+            counts={counts}
+            filter={filter}
+            onFilterChange={setFilter}
+            onQueryChange={setQuery}
+            query={query}
+          />
+          {visibleCards.length === 0 ? (
+            <Notice>
+              {orderedCards.length === 0
+                ? "No registered cards."
+                : "No registered cards match this search."}
             </Notice>
-          </div>
-        ) : null}
-        {message ? (
-          <div className="mt-5">
-            <Notice tone={message.tone}>{message.text}</Notice>
-          </div>
-        ) : null}
-      </Card>
-      <Card
-        className="min-w-0"
-        description="Inactive and replaced cards cannot be reused."
-        title="Card registry"
-      >
-        <div className="mt-6 grid gap-2">
-          {orderedCards.length === 0 ? (
-            <Notice>No registered cards.</Notice>
           ) : (
-            orderedCards.map((card) => {
-              const profile = profiles.find((candidate) => candidate._id === card.profileId);
-              const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
-              return (
-                <article
-                  className="min-w-0 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
-                  key={card._id}
-                >
-                  <details className="group">
-                    <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-card outline-none [&::-webkit-details-marker]:hidden focus-visible:ring-2 focus-visible:ring-tapit-focus sm:items-center sm:gap-4">
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-tapit-ink">
-                          {profileLabel}{" "}
-                          <span className="font-mono text-sm font-normal text-tapit-muted">
-                            ({card.token})
-                          </span>
-                        </p>
-                        <p className="mt-1 break-all text-sm text-tapit-muted">{card.cardUrl}</p>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center sm:gap-3">
-                        <StatusChip status={card.status} />
-                        <CaretDownIcon
-                          aria-hidden="true"
-                          className="text-tapit-muted motion-safe:transition-transform group-open:rotate-180"
-                          size={18}
-                          weight="bold"
-                        />
-                      </div>
-                    </summary>
-                    <div>
-                      <p className="mt-4 text-sm text-tapit-muted">{profileLabel}</p>
-                      <div className="mt-5 flex flex-wrap gap-2">
-                        {card.status === "registered" ? (
-                          <>
-                            <select
-                              aria-label={`Assign ${card.token}`}
-                              className="min-h-11 rounded-card border border-tapit-line bg-white px-3"
-                              onChange={(event) =>
-                                setProfileId(event.target.value as Id<"profiles">)
-                              }
-                              value={selectedProfileId ?? ""}
-                            >
-                              {assignableProfiles.map((candidate) =>
-                                (() => {
-                                  const attachedCard = liveCardForProfile(candidate._id);
-                                  return (
-                                    <option key={candidate._id} value={candidate._id}>
-                                      {candidate.draft.name || candidate.draft.slug} ·{" "}
-                                      {candidate.slug} ·{" "}
-                                      {availableCustomers.find(
-                                        (customer) => customer._id === candidate.ownerId,
-                                      )?.email ?? "unassigned"}
-                                      {attachedCard
-                                        ? ` · ${attachedCard.status}: ${attachedCard.token}`
-                                        : ""}
-                                    </option>
-                                  );
-                                })(),
-                              )}
-                            </select>
-                            {selectedProfileCard ? (
-                              <p className="basis-full text-sm text-tapit-danger">
-                                This profile already has {selectedProfileCard.status} card{" "}
-                                {selectedProfileCard.token}. Use Replace on that card instead.
-                              </p>
-                            ) : null}
-                            <Button
-                              disabled={
-                                pending || !selectedProfileId || selectedProfileCard !== undefined
-                              }
-                              onClick={() =>
-                                selectedProfileId &&
-                                setAttachment({
-                                  cardId: card._id,
-                                  token: card.token,
-                                  profileId: selectedProfileId,
-                                  profile:
-                                    profiles.find(
-                                      (candidate) => candidate._id === selectedProfileId,
-                                    )?.draft.name ||
-                                    profiles.find(
-                                      (candidate) => candidate._id === selectedProfileId,
-                                    )?.draft.slug ||
-                                    "selected profile",
-                                  customer:
-                                    availableCustomers.find(
-                                      (candidate) =>
-                                        candidate._id ===
-                                        profiles.find(
-                                          (candidate) => candidate._id === selectedProfileId,
-                                        )?.ownerId,
-                                    )?.email || "selected customer",
-                                  profileStatus:
-                                    profiles.find(
-                                      (candidate) => candidate._id === selectedProfileId,
-                                    )?.status || "unknown",
-                                  cardStatus: card.status,
-                                })
-                              }
-                              type="button"
-                            >
-                              <ArrowRightIcon aria-hidden="true" className="mr-2" size={18} />
-                              Assign
-                            </Button>
-                          </>
-                        ) : null}
-                        {card.status === "claimable" ? (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Button
-                              disabled={pending}
-                              onClick={() =>
-                                void run(async () => {
-                                  const result = await generateClaimCode({ cardId: card._id });
-                                  setClaimCodes((current) => ({ ...current, [card._id]: result }));
-                                }, `A new claim code for ${card.token} is ready to share.`)
-                              }
-                              type="button"
-                            >
-                              {claimCodes[card._id]
-                                ? "Regenerate claim code"
-                                : "Generate claim code"}
-                            </Button>
-                            {claimCodes[card._id]
-                              ? (() => {
-                                  const generated = claimCodes[card._id]!;
-                                  return (
-                                    <>
-                                      <code className="inline-flex min-h-11 items-center rounded-card bg-tapit-accent-soft px-3 font-semibold text-tapit-accent-strong">
-                                        {generated.code}
-                                      </code>
-                                      <Button
-                                        aria-label={`Copy claim code for ${card.token}`}
-                                        onClick={() =>
-                                          void navigator.clipboard?.writeText(generated.code)
-                                        }
-                                        type="button"
-                                        variant="secondary"
-                                      >
-                                        <CopyIcon aria-hidden="true" size={18} /> Copy
-                                      </Button>
-                                      <Button
-                                        onClick={() =>
-                                          void run(
-                                            () => invalidateClaimCode({ cardId: card._id }),
-                                            `Claim code for ${card.token} invalidated.`,
-                                          )
-                                        }
-                                        type="button"
-                                        variant="quiet"
-                                      >
-                                        Invalidate
-                                      </Button>
-                                    </>
-                                  );
-                                })()
-                              : null}
-                          </div>
-                        ) : null}
-                        {card.status === "active" ? (
+            <CardTable>
+              {visibleCards.map((card) => {
+                const profile = profiles.find((candidate) => candidate._id === card.profileId);
+                const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
+                return (
+                  <CardRow
+                    key={card._id}
+                    onOpen={() => setSelectedId(card._id)}
+                    profileLabel={profileLabel}
+                    selected={card._id === detailCard?._id}
+                    status={card.status}
+                    token={card.token}
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {card.status === "registered" ? (
+                        <>
+                          <select
+                            aria-label={`Assign ${card.token}`}
+                            className="min-h-11 rounded-control bg-tapit-soft-surface px-4 text-sm text-tapit-ink"
+                            onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
+                            value={selectedProfileId ?? ""}
+                          >
+                            {assignableProfiles.map((candidate) =>
+                              (() => {
+                                const attachedCard = liveCardForProfile(candidate._id);
+                                return (
+                                  <option key={candidate._id} value={candidate._id}>
+                                    {candidate.draft.name || candidate.draft.slug} ·{" "}
+                                    {candidate.slug} ·{" "}
+                                    {availableCustomers.find(
+                                      (customer) => customer._id === candidate.ownerId,
+                                    )?.email ?? "unassigned"}
+                                    {attachedCard
+                                      ? ` · ${attachedCard.status}: ${attachedCard.token}`
+                                      : ""}
+                                  </option>
+                                );
+                              })(),
+                            )}
+                          </select>
+                          {selectedProfileCard ? (
+                            <p className="basis-full text-sm text-tapit-danger">
+                              This profile already has {selectedProfileCard.status} card{" "}
+                              {selectedProfileCard.token}. Use Replace on that card instead.
+                            </p>
+                          ) : null}
+                          <Button
+                            disabled={
+                              pending || !selectedProfileId || selectedProfileCard !== undefined
+                            }
+                            onClick={() =>
+                              selectedProfileId &&
+                              setAttachment({
+                                cardId: card._id,
+                                token: card.token,
+                                profileId: selectedProfileId,
+                                profile:
+                                  profiles.find((candidate) => candidate._id === selectedProfileId)
+                                    ?.draft.name ||
+                                  profiles.find((candidate) => candidate._id === selectedProfileId)
+                                    ?.draft.slug ||
+                                  "selected profile",
+                                customer:
+                                  availableCustomers.find(
+                                    (candidate) =>
+                                      candidate._id ===
+                                      profiles.find(
+                                        (candidate) => candidate._id === selectedProfileId,
+                                      )?.ownerId,
+                                  )?.email || "selected customer",
+                                profileStatus:
+                                  profiles.find((candidate) => candidate._id === selectedProfileId)
+                                    ?.status || "unknown",
+                                cardStatus: card.status,
+                              })
+                            }
+                            type="button"
+                          >
+                            <Icon name="caretRight" size={16} />
+                            Assign
+                          </Button>
+                        </>
+                      ) : null}
+                      {card.status === "claimable" ? (
+                        <div className="flex flex-wrap items-center gap-2">
                           <Button
                             disabled={pending}
                             onClick={() =>
-                              void run(
-                                () => deactivate({ cardId: card._id }),
-                                `Card ${card.token} deactivated.`,
-                              )
+                              void run(async () => {
+                                const result = await generateClaimCode({ cardId: card._id });
+                                setClaimCodes((current) => ({ ...current, [card._id]: result }));
+                              }, `A new claim code for ${card.token} is ready to share.`)
                             }
                             type="button"
-                            variant="danger"
                           >
-                            <ProhibitIcon aria-hidden="true" className="mr-2" size={18} />
-                            Deactivate
+                            {claimCodes[card._id] ? "Regenerate claim code" : "Generate claim code"}
                           </Button>
-                        ) : null}
-                        {card.status === "active" ? (
-                          <>
-                            <input
-                              aria-label={`Replacement URL for ${card.token}`}
-                              className="min-h-11 rounded-card border border-tapit-line px-3"
-                              onChange={(event) => setReplacementUrl(event.target.value)}
-                              placeholder="/c/replacement-token"
-                              value={replacementUrl}
-                            />
-                            <Button
-                              disabled={pending}
-                              onClick={() => {
-                                const token = cardTokenFromUrl(replacementUrl);
-                                if (!token)
-                                  return setMessage({
-                                    tone: "error",
-                                    text: "Enter a valid replacement card URL.",
-                                  });
-                                void run(
-                                  () =>
-                                    replace({
-                                      oldCardId: card._id,
-                                      newCardUrl: new URL(
-                                        replacementUrl.trim(),
-                                        window.location.origin,
-                                      ).toString(),
-                                      newToken: token,
-                                    }).then(() => setReplacementUrl("")),
-                                  `Card ${card.token} replaced.`,
+                          {claimCodes[card._id]
+                            ? (() => {
+                                const generated = claimCodes[card._id]!;
+                                return (
+                                  <>
+                                    <code className="inline-flex min-h-11 items-center rounded-control bg-tapit-accent-soft px-4 font-semibold text-tapit-accent-strong">
+                                      {generated.code}
+                                    </code>
+                                    <Button
+                                      aria-label={`Copy claim code for ${card.token}`}
+                                      onClick={() =>
+                                        void navigator.clipboard?.writeText(generated.code)
+                                      }
+                                      type="button"
+                                      variant="secondary"
+                                    >
+                                      <Icon name="link" size={16} />
+                                      Copy
+                                    </Button>
+                                    <Button
+                                      onClick={() =>
+                                        void run(
+                                          () => invalidateClaimCode({ cardId: card._id }),
+                                          `Claim code for ${card.token} invalidated.`,
+                                        )
+                                      }
+                                      type="button"
+                                      variant="quiet"
+                                    >
+                                      Invalidate
+                                    </Button>
+                                  </>
                                 );
-                              }}
-                              type="button"
-                              variant="secondary"
-                            >
-                              <ArrowsClockwiseIcon aria-hidden="true" className="mr-2" size={18} />
-                              Replace
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
+                              })()
+                            : null}
+                        </div>
+                      ) : null}
+                      {card.status === "active" ? (
+                        <Button
+                          disabled={pending}
+                          onClick={() =>
+                            void run(
+                              () => deactivate({ cardId: card._id }),
+                              `Card ${card.token} deactivated.`,
+                            )
+                          }
+                          type="button"
+                          variant="danger-soft"
+                        >
+                          Deactivate
+                        </Button>
+                      ) : null}
+                      {card.status === "active" ? (
+                        <>
+                          <input
+                            aria-label={`Replacement URL for ${card.token}`}
+                            className="min-h-11 min-w-0 flex-1 basis-56 rounded-control bg-tapit-soft-surface px-4 text-sm text-tapit-ink placeholder:text-tapit-muted"
+                            onChange={(event) => setReplacementUrl(event.target.value)}
+                            placeholder="/c/replacement-token"
+                            value={replacementUrl}
+                          />
+                          <Button
+                            disabled={pending}
+                            onClick={() => {
+                              const token = cardTokenFromUrl(replacementUrl);
+                              if (!token)
+                                return setMessage({
+                                  tone: "error",
+                                  text: "Enter a valid replacement card URL.",
+                                });
+                              void run(
+                                () =>
+                                  replace({
+                                    oldCardId: card._id,
+                                    newCardUrl: new URL(
+                                      replacementUrl.trim(),
+                                      window.location.origin,
+                                    ).toString(),
+                                    newToken: token,
+                                  }).then(() => setReplacementUrl("")),
+                                `Card ${card.token} replaced.`,
+                              );
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Replace
+                          </Button>
+                        </>
+                      ) : null}
                     </div>
-                  </details>
-                </article>
-              );
-            })
+                  </CardRow>
+                );
+              })}
+            </CardTable>
           )}
+          {cardsStatus === "CanLoadMore" || cardsStatus === "LoadingMore" ? (
+            <Button
+              className="self-start"
+              disabled={cardsStatus === "LoadingMore"}
+              onClick={() => loadMoreCards(50)}
+              type="button"
+              variant="secondary"
+            >
+              {cardsStatus === "LoadingMore" ? "Loading cards…" : "Load more cards"}
+            </Button>
+          ) : null}
+        </Card>
+
+        <div className="flex min-w-0 flex-col gap-4">
+          {detailCard ? (
+            <CardDetail status={detailCard.status} token={detailCard.token}>
+              <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
+              <DetailRow label="Profile" value={detailLabel} />
+            </CardDetail>
+          ) : null}
         </div>
-        {cardsStatus === "CanLoadMore" || cardsStatus === "LoadingMore" ? (
-          <Button
-            className="mt-4"
-            disabled={cardsStatus === "LoadingMore"}
-            onClick={() => loadMoreCards(50)}
-            type="button"
-            variant="secondary"
-          >
-            {cardsStatus === "LoadingMore" ? "Loading cards…" : "Load more cards"}
-          </Button>
-        ) : null}
-      </Card>
+      </div>
       <ConfirmDialog
         confirmLabel="Confirm attachment"
         description={

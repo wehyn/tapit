@@ -3,13 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
-import { PaintBrushIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import { CardPreviewDialog } from "@/components/card-builder/CardPreviewDialog";
 import { PublicHeader } from "@/components/layout/PublicHeader";
 import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Chip } from "@/components/ui/Chip";
 import { CARD_DESIGN_ACCEPT, validateCardDesignFile } from "@/lib/card-design";
@@ -108,7 +108,7 @@ function DesignOptions({
           aria-hidden="true"
           className={`grid size-11 shrink-0 place-items-center rounded-control text-tapit-accent ${iconBox}`}
         >
-          <PaintBrushIcon size={21} weight="bold" />
+          <Icon name="paintBrush" size={21} weight="bold" />
         </span>
         <span className="flex min-w-0 flex-col gap-1">
           <span className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
@@ -129,7 +129,7 @@ function DesignOptions({
           aria-hidden="true"
           className={`grid size-11 shrink-0 place-items-center rounded-control text-tapit-accent ${iconBox}`}
         >
-          <UploadSimpleIcon size={21} weight="bold" />
+          <Icon name="upload" size={21} weight="bold" />
         </span>
         <span className="flex min-w-0 flex-col gap-1">
           <span className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
@@ -244,7 +244,7 @@ export function BuildCardWorkspace({
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
               <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
                 <Chip tone="accent">Custom ordering coming soon</Chip>
-                <h1 className="tapit-display text-2xl font-medium tracking-tight sm:text-3xl">
+                <h1 className="tapit-display text-2xl font-medium tracking-tight sm:text-2xl">
                   Bring your card to life
                 </h1>
                 <p className="max-w-xl text-base text-tapit-muted sm:text-lg">

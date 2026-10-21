@@ -736,9 +736,9 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   const slugAudit = page.locator("details").filter({ hasText: "Profile slug changed" }).first();
   await expect(slugAudit).toBeVisible();
   await slugAudit.locator("summary").click();
-  await expect(
-    slugAudit.getByText("mara-velasquez → mara-renamed-e2e", { exact: true }),
-  ).toBeVisible();
+  const slugChange = slugAudit.getByText("Profile slug", { exact: true }).locator("..");
+  await expect(slugChange.getByText("mara-velasquez", { exact: true })).toBeVisible();
+  await expect(slugChange.getByText("mara-renamed-e2e", { exact: true })).toBeVisible();
 
   await page.goto("/admin/profiles");
   await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
@@ -886,20 +886,25 @@ test("administrator can expand audit entries to read account changes", async ({ 
   await expect(entry.getByText("View details")).toBeVisible();
   await expect(entry).not.toContainText('{"role":"customer","status":"pending"}');
   await entry.getByText("View details").click();
-  await expect(entry.getByText(/Account role/)).toBeVisible();
-  await expect(entry.getByText(/Not recorded → Customer/)).toBeVisible();
-  await expect(entry.getByText(/Account status/)).toBeVisible();
-  await expect(entry.getByText(/Not recorded → Pending/)).toBeVisible();
+  const createdRole = entry.getByText("Account role", { exact: true }).locator("..");
+  await expect(createdRole.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(createdRole.getByText("Customer", { exact: true })).toBeVisible();
+  const createdStatus = entry.getByText("Account status", { exact: true }).locator("..");
+  await expect(createdStatus.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(createdStatus.getByText("Pending", { exact: true })).toBeVisible();
 
   const onboarding = page.locator("details").filter({ hasText: "Customer onboarding completed" });
   await onboarding.getByText("View details").click();
-  await expect(onboarding.getByText(/Profile slug/)).toBeVisible();
-  await expect(onboarding.getByText(/Not recorded → harley-albert-buendia/)).toBeVisible();
+  const onboardingSlug = onboarding.getByText("Profile slug", { exact: true }).locator("..");
+  await expect(onboardingSlug.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(onboardingSlug.getByText("harley-albert-buendia", { exact: true })).toBeVisible();
 
   const roleChange = page.locator("details").filter({ hasText: "Customer role changed" });
   await expect(
     roleChange.getByText("By admin@example.test · Account: harley@example.test"),
   ).toBeVisible();
   await roleChange.getByText("View details").click();
-  await expect(roleChange.getByText(/Customer → Administrator/)).toBeVisible();
+  const changedRole = roleChange.getByText("Account role", { exact: true }).locator("..");
+  await expect(changedRole.getByText("Customer", { exact: true })).toBeVisible();
+  await expect(changedRole.getByText("Administrator", { exact: true })).toBeVisible();
 });

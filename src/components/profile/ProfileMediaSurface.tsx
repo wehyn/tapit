@@ -41,8 +41,8 @@ export function ProfileMediaSurface({
         fullSurface
           ? ({
               "--tapit-profile-hero-height": `${height}px`,
-              "--tapit-profile-content-offset": `calc(${height}px - 32px)`,
-              "--tapit-profile-content-offset-sm": `calc(${height}px - 48px)`,
+              "--tapit-profile-content-offset": `calc(${height}px - 52px)`,
+              "--tapit-profile-content-offset-sm": `calc(${height}px - 52px)`,
             } as CSSProperties)
           : { height }
       }
@@ -64,7 +64,7 @@ export function ProfileMediaSurface({
             ? ""
             : treatment === "warm"
               ? "bg-gradient-to-b from-[#17120f]/5 via-[#17120f]/15 to-[#17120f]/80"
-              : "bg-[#2c2420]/45"
+              : "bg-tapit-warm-studio-ink/45"
         }`}
         style={{
           height: fadeHeight,

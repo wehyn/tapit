@@ -1,10 +1,10 @@
-import { EnvelopeSimple, Globe, Phone } from "@phosphor-icons/react";
+import { Icon } from "@/components/ui/Icon";
 import {
   getAutomaticContactActions,
   type ProfileContactDisplay,
 } from "@/lib/profile-customization";
 
-const icons = { email: EnvelopeSimple, phone: Phone, website: Globe } as const;
+const icons = { email: "email", phone: "phone", website: "globe" } as const;
 export function ProfileContactStrip({
   email,
   phone,
@@ -25,7 +25,7 @@ export function ProfileContactStrip({
   return (
     <nav aria-label="Contact actions" className={`flex flex-wrap gap-2 ${className}`}>
       {actions.map((action) => {
-        const Icon = icons[action.kind];
+        const iconName = icons[action.kind];
         const external = action.kind === "website";
         return (
           <a
@@ -35,7 +35,7 @@ export function ProfileContactStrip({
             {...(external ? { rel: "noreferrer", target: "_blank" } : {})}
             {...(compact ? { "aria-label": action.label, title: action.label } : {})}
           >
-            <Icon aria-hidden="true" size={17} />
+            <Icon name={iconName} size={17} />
             {compact ? null : <span>{action.label}</span>}
           </a>
         );

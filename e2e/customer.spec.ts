@@ -1049,7 +1049,7 @@ test("standalone card builder keeps its public shell and upload preview usable",
   await expect(preview).toHaveCount(0);
 });
 
-test("active-card QR downloads keep the light surface and remain available", async ({ page }) => {
+test("active-card QR downloads remain available without page overflow", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsAdmin(page);
   await page.goto("/admin/cards");
@@ -1060,7 +1060,7 @@ test("active-card QR downloads keep the light surface and remain available", asy
   const qrPanel = qrTitle.locator("xpath=..");
   await expect
     .poll(() => qrPanel.evaluate((panel) => getComputedStyle(panel).backgroundColor))
-    .toBe("rgb(244, 246, 250)");
+    .toBe("rgb(240, 243, 249)");
   const png = page.getByRole("link", { name: "Download PNG" }).first();
   await expect(qrPanel).toContainText("/c/mara-card-7f2q?source=qr");
   await expect(png).toHaveAttribute("href", /^data:image\/png;base64,/);
@@ -1068,16 +1068,15 @@ test("active-card QR downloads keep the light surface and remain available", asy
   await expect(page.getByRole("button", { name: "Download SVG" }).first()).toBeEnabled();
   await expect
     .poll(() => png.evaluate((anchor) => getComputedStyle(anchor).borderTopLeftRadius))
-    .toBe("20px");
+    .toBe("12px");
   await expect(page.getByRole("img", { name: /QR code for/ }).first()).toBeVisible();
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await png.scrollIntoViewIfNeeded();
     await expect(png).toBeInViewport();
-    const panelBox = await qrPanel.boundingBox();
-    expect(panelBox).not.toBeNull();
-    expect(panelBox!.x).toBeGreaterThanOrEqual(0);
-    expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(width);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
   }
 });
 
@@ -1619,7 +1618,7 @@ test("customer drafts stay private until link and profile publication", async ({
   await destinations.last().fill("https://contact.example.test");
   const privateNoteEnabled = page.getByRole("checkbox", { name: "Enable Private note" });
   await expect(privateNoteEnabled).toBeChecked();
-  await privateNoteEnabled.uncheck({ force: true });
+  await privateNoteEnabled.locator("xpath=..").click();
   await expect(privateNoteEnabled).not.toBeChecked();
   await page.locator('summary[aria-label="Actions for Private note"]').click();
   await expect(page.getByRole("button", { name: "Move up" })).toBeEnabled();
@@ -1798,7 +1797,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   const previewLink = page.getByTestId("profile-preview-device").getByRole("link", {
     name: "LinkedIn",
   });
-  await expect(previewLink).toHaveCSS("border-color", "rgb(29, 78, 216)");
+  await expect(previewLink).toHaveCSS("color", "rgb(29, 78, 216)");
   await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   await previewLink.hover();
@@ -1842,7 +1841,7 @@ test("customer can customize, save, and publish a custom profile palette", async
   ).toBeGreaterThanOrEqual(4.5);
   await accent.fill("#8d3b2f");
   await page.mouse.move(0, 0);
-  await expect(previewLink).toHaveCSS("border-color", "rgb(141, 59, 47)");
+  await expect(previewLink).toHaveCSS("color", "rgb(141, 59, 47)");
   await expect(previewLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await page.screenshot({
     path: "test-results/soft-precision-site/custom-preset-desktop.png",
@@ -1923,7 +1922,7 @@ test("customer can customize, save, and publish a custom profile palette", async
     "rgb(254, 242, 232)",
   );
   const publicLink = page.getByRole("link", { name: "LinkedIn" });
-  await expect(publicLink).toHaveCSS("border-color", "rgb(141, 59, 47)");
+  await expect(publicLink).toHaveCSS("color", "rgb(141, 59, 47)");
   await expect(publicLink).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
 });
 
@@ -1934,9 +1933,13 @@ test("customer customization drafts stay private until the profile is published"
   await signInAsCustomer(page);
 
   await page.goto("/app/customize");
-  await page.getByRole("radio", { name: "Warm Studio" }).check();
+  const warmStudio = page.getByRole("radio", { name: "Warm Studio" });
+  await warmStudio.locator("xpath=..").click();
+  await expect(warmStudio).toBeChecked();
   await openFineTune(page);
-  await page.getByRole("radio", { name: "Editorial" }).check();
+  const editorial = page.getByRole("radio", { name: "Editorial" });
+  await editorial.locator("xpath=..").click();
+  await expect(editorial).toBeChecked();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
   await page.goto("/app/links");
@@ -1946,7 +1949,9 @@ test("customer customization drafts stay private until the profile is published"
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "About or Services", exact: true }).click();
-  await page.getByRole("radio", { name: "About", exact: true }).check();
+  const about = page.getByRole("radio", { name: "About", exact: true });
+  await about.locator("xpath=..").click();
+  await expect(about).toBeChecked();
   await page.getByLabel("About copy").fill("A private draft introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -2044,7 +2049,7 @@ test("legacy profiles can choose Warm Studio before the new presentation is publ
 
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("navigation", { name: "Contact actions" })).toBeVisible();
-  await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+  await expect(page.locator("main")).toHaveCSS("background-color", "rgb(251, 246, 239)");
 });
 
 test("customer can configure bounded profile media and publish an edge-to-edge portrait hero", async ({
@@ -2083,7 +2088,10 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   expect((storedMedia?.url as string).length).toBeLessThan(100_000);
 
   await page.goto("/mara-velasquez");
-  await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  await expect(page.getByText("Warm studio backdrop", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Studio detail one" })).toHaveCount(0);
+  await expect(page.getByRole("img", { name: "Studio detail two" })).toHaveCount(0);
 
   await page.goto("/app/customize");
   await page.getByRole("button", { name: "Publish changes" }).click();
@@ -2152,7 +2160,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
     ).toBeLessThanOrEqual(1);
     await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
     await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
-    await expect(page.locator("main")).toHaveClass(/bg-\[#fbf6ef\]/);
+    await expect(page.locator("main")).toHaveCSS("background-color", "rgb(251, 246, 239)");
 
     if (path === "/mara-velasquez") {
       await page.screenshot({
@@ -3350,13 +3358,13 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
   await expect.soft(page.locator("main h1")).toHaveCount(1);
   const rangeBox = await page.getByLabel("Time range").boundingBox();
-  const summaryBox = await page.getByRole("heading", { name: "Engagement summary" }).boundingBox();
+  const metricsBox = await page.getByText("Profile views", { exact: true }).boundingBox();
   const trendBox = await page.getByRole("heading", { name: "Engagement trend" }).boundingBox();
   expect(rangeBox).not.toBeNull();
-  expect(summaryBox).not.toBeNull();
+  expect(metricsBox).not.toBeNull();
   expect(trendBox).not.toBeNull();
-  expect.soft(rangeBox!.y).toBeLessThan(summaryBox!.y);
-  expect.soft(summaryBox!.y).toBeLessThan(trendBox!.y);
+  expect.soft(rangeBox!.y).toBeLessThan(metricsBox!.y);
+  expect.soft(metricsBox!.y).toBeLessThan(trendBox!.y);
   await expect
     .poll(() =>
       page
@@ -3517,7 +3525,10 @@ test("customer can unpublish from Account", async ({ page }) => {
 
   await page.goto("/app/account");
   await expect(page.getByRole("heading", { name: "Publication", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Unpublish", exact: true }).click();
+  const publicProfile = page.getByRole("switch", { name: "Public profile", exact: true });
+  await expect(publicProfile).toBeChecked();
+  await publicProfile.click();
+  await expect(publicProfile).toHaveCount(0);
   await expect(
     page.getByText("Profile unpublished. Visitors now see the unavailable page.", {
       exact: true,
@@ -3526,7 +3537,7 @@ test("customer can unpublish from Account", async ({ page }) => {
 
   await page.goto("/app/profile");
   await expect(page.getByRole("heading", { name: "Basics", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Unpublish", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Public profile", exact: true })).toHaveCount(0);
   await page.goto("/mara-velasquez");
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),

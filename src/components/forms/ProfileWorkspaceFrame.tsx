@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { CheckCircleIcon, EyeIcon, FloppyDiskIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileCustomizationCategory } from "@/lib/profile-workspace";
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
+import { Segmented } from "@/components/ui/Segmented";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { useDraftSaveLink, type DraftDepartureState } from "@/components/layout/DraftSaveContext";
 
@@ -103,14 +105,9 @@ export function ProfileWorkspaceFrame({
   const focusEditorOnDialogCloseRef = useRef(false);
   const isBusy = saveLoading || publishLoading;
   const shouldShowActions = hasDraftChanges || isBusy;
-  const actionBarVisibility = mobileView === "preview" ? "hidden min-[1280px]:block" : "";
-  const bottomPadding = shouldShowActions
-    ? mobileView === "preview"
-      ? "pb-8 min-[1280px]:pb-28"
-      : "pb-44 sm:pb-28"
-    : "pb-8";
-  const selectedViewClass = "block min-[1280px]:block";
-  const hiddenViewClass = "hidden min-[1280px]:block";
+  const actionBarVisibility = mobileView === "preview" ? "hidden xl:block" : "";
+  // Below xl the draft actions are fixed to the bottom, so the editor needs room to scroll past them.
+  const bottomPadding = shouldShowActions && mobileView === "edit" ? "pb-16 xl:pb-8" : "pb-8";
   const closeRequirementsDialog = useCallback(() => {
     setRequirementsDialogOpen(false);
   }, []);
@@ -152,56 +149,81 @@ export function ProfileWorkspaceFrame({
 
   return (
     <div
-      className={`mx-auto grid min-w-0 w-full max-w-[1480px] gap-6 px-4 pt-6 sm:gap-8 sm:px-8 sm:pt-7 min-[1280px]:grid-cols-[minmax(32rem,1.12fr)_minmax(25rem,0.88fr)] min-[1280px]:gap-10 min-[1280px]:pt-8 ${bottomPadding}`}
+      className={`mx-auto grid w-full min-w-0 max-w-[1480px] gap-4 pt-4 lg:gap-8 lg:pt-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-x-6 ${bottomPadding}`}
     >
-      <div className="col-span-full flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="tapit-display text-xl font-semibold tracking-tight text-tapit-ink sm:text-xl">
-            {title}
-          </h1>
+      <div className="col-span-full flex flex-wrap items-end justify-between gap-4">
+        <div className="flex min-w-0 flex-col gap-2">
+          <h1 className="tapit-display text-xl font-semibold text-tapit-ink">{title}</h1>
           <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-semibold ${hasPublishedProfile ? "bg-tapit-accent-soft text-tapit-accent-strong" : "bg-tapit-paper text-tapit-muted"}`}
-            >
+            <Chip tone={hasPublishedProfile ? "ok" : "neutral"}>
               {hasPublishedProfile ? "Published" : "Draft"}
-            </span>
+            </Chip>
             {draftStatus != null ? (
-              <span aria-live="polite" className="text-sm text-tapit-muted" role="status">
+              <span aria-live="polite" className="text-base text-tapit-muted" role="status">
                 {draftStatus}
               </span>
             ) : null}
           </div>
         </div>
-        <div className="min-[1280px]:hidden">
-          <div
-            aria-label={`${title} view`}
-            className="inline-flex rounded-card border border-tapit-line bg-tapit-surface p-1"
-            role="group"
-          >
-            {(["edit", "preview"] as const).map((view) => (
-              <button
-                aria-pressed={mobileView === view}
-                className={`min-h-9 rounded-[10px] px-3 text-sm font-semibold capitalize transition ${mobileView === view ? "bg-tapit-accent text-white" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
-                key={view}
-                onClick={() => setMobileView(view)}
-                type="button"
-              >
-                {view === "edit" ? (
-                  "Edit"
-                ) : (
-                  <>
-                    <EyeIcon aria-hidden="true" className="mr-1.5 inline" size={16} />
-                    Preview
-                  </>
-                )}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {hasPublishedProfile ? (
+            <ButtonLink href={profileUrl} variant="secondary">
+              <Icon className="size-4" name="eye" />
+              View live
+            </ButtonLink>
+          ) : null}
+          <div className="xl:hidden">
+            <Segmented
+              label={`${title} view`}
+              onChange={setMobileView}
+              options={[
+                { label: "Edit", value: "edit" },
+                {
+                  icon: <Icon className="size-4" name="eye" />,
+                  label: "Preview",
+                  value: "preview",
+                },
+              ]}
+              value={mobileView}
+            />
           </div>
+          {shouldShowActions ? (
+            <div
+              className={`fixed inset-x-0 bottom-0 z-20 px-4 pb-2 sm:px-8 lg:pb-4 xl:static xl:p-0 ${actionBarVisibility}`}
+            >
+              <section
+                aria-label="Draft actions"
+                className="mx-auto flex max-w-md flex-wrap gap-2"
+                role="region"
+              >
+                <Button
+                  className="grow"
+                  disabled={saveDisabled}
+                  loading={saveLoading}
+                  onClick={onSave}
+                  type="button"
+                  variant="secondary"
+                >
+                  Save draft
+                </Button>
+                <Button
+                  aria-haspopup="dialog"
+                  className="grow"
+                  disabled={publishDisabled}
+                  loading={publishLoading}
+                  onClick={handlePublish}
+                  type="button"
+                >
+                  {publishLabel}
+                </Button>
+              </section>
+            </div>
+          ) : null}
         </div>
       </div>
       <section
         aria-label={`${title} editor`}
-        className={`grid min-w-0 self-start gap-6 ${mobileView === "edit" ? selectedViewClass : hiddenViewClass}`}
+        className={`min-w-0 gap-4 self-start ${mobileView === "edit" ? "grid" : "hidden xl:grid"}`}
         ref={editorRef}
         tabIndex={-1}
       >
@@ -222,7 +244,7 @@ export function ProfileWorkspaceFrame({
         {controls}
       </section>
       <div
-        className={`h-fit min-w-0 scroll-mt-24 min-[1280px]:sticky min-[1280px]:top-6 ${mobileView === "preview" ? selectedViewClass : hiddenViewClass}`}
+        className={`h-fit min-w-0 scroll-mt-24 xl:sticky xl:top-20 ${mobileView === "preview" ? "" : "hidden xl:block"}`}
         id="workspace-preview"
       >
         {preview ? (
@@ -235,47 +257,6 @@ export function ProfileWorkspaceFrame({
           <Notice tone="error">Add a name and one valid link to see a preview.</Notice>
         )}
       </div>
-      {shouldShowActions ? (
-        <div
-          className={`fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-surface/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8 xl:right-auto xl:w-[min(calc(50vw_-_122px),48rem)] ${actionBarVisibility}`}
-        >
-          <section aria-label="Draft actions" className="mx-auto max-w-[1440px]" role="region">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2 text-sm">
-                <CheckCircleIcon
-                  aria-hidden="true"
-                  className="shrink-0 text-tapit-accent"
-                  size={21}
-                  weight="fill"
-                />
-                <span className="font-semibold text-tapit-ink">Draft changes</span>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  disabled={saveDisabled}
-                  loading={saveLoading}
-                  onClick={onSave}
-                  type="button"
-                  variant="secondary"
-                >
-                  <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-                  Save draft
-                </Button>
-                <Button
-                  aria-haspopup="dialog"
-                  disabled={publishDisabled}
-                  loading={publishLoading}
-                  onClick={handlePublish}
-                  type="button"
-                >
-                  <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
-                  {publishLabel}
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
       {cropDialog}
       {requirementsDialogOpen ? (
         <PublishRequirementsDialog
@@ -432,12 +413,12 @@ function PublishRequirementsDialog({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-tapit-ink/45 px-5 py-8 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 grid place-items-center bg-tapit-ink/45 px-4 py-8 backdrop-blur-[2px]">
       <div
         aria-describedby="publish-requirements-description"
         aria-labelledby="publish-requirements-title"
         aria-modal="true"
-        className="max-h-[calc(100dvh-4rem)] w-full max-w-lg overflow-y-auto rounded-card border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
+        className="max-h-[calc(100dvh-4rem)] w-full max-w-lg overflow-y-auto rounded-card bg-tapit-surface p-6 shadow-card"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
@@ -455,10 +436,10 @@ function PublishRequirementsDialog({
           Your profile needs attention before it can be published. Choose an action to go straight
           to the right editor.
         </p>
-        <ul className="mt-5 grid gap-4">
+        <ul className="mt-4 grid gap-4">
           {requirements.map((requirement) => (
             <li
-              className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-tapit-line bg-tapit-paper p-4"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-control bg-tapit-soft-surface p-4"
               key={requirement.id}
             >
               <span className="min-w-0 flex-1 text-sm font-medium leading-6 text-tapit-ink">

@@ -1,7 +1,6 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- Published profile media is served from Convex storage URLs and needs native loading/decoding hints. */
-import { ArrowRight, ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { PointerEvent } from "react";
 
@@ -148,7 +147,7 @@ export function ProfileSlideshow({
       role="region"
       ref={rootRef}
       aria-label="Profile slideshow"
-      className="relative overflow-hidden rounded-card bg-[#fffdf9] shadow-card"
+      className="relative overflow-hidden rounded-card bg-tapit-warm-studio-surface shadow-card"
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         setKeyboardFocused(false);
@@ -209,7 +208,7 @@ export function ProfileSlideshow({
             <>
               <button
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex - 1)}
                 style={{ color: "#2c2420" }}
                 type="button"
@@ -218,19 +217,19 @@ export function ProfileSlideshow({
               </button>
               <button
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex + 1)}
                 style={{ color: "#2c2420" }}
                 type="button"
               >
-                <ArrowRight aria-hidden="true" size={20} />
+                <Icon name="arrowRight" size={20} />
               </button>
             </>
           ) : null}
           {total > 1 ? (
             <div
               aria-label="Choose slideshow image"
-              className="absolute bottom-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto rounded-full bg-[#2c2420]/45 p-1"
+              className="absolute bottom-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto rounded-full bg-tapit-warm-studio-ink/45 p-1"
               role="group"
             >
               {images.map((image, index) => (
@@ -252,7 +251,7 @@ export function ProfileSlideshow({
           ) : null}
           <button
             aria-label="View image"
-            className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+            className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
             onClick={() => {
               dialogRef.current?.showModal();
               setFullImageOpen(true);
@@ -261,7 +260,7 @@ export function ProfileSlideshow({
             style={{ color: "#2c2420" }}
             type="button"
           >
-            <ArrowsOut aria-hidden="true" size={24} />
+            <Icon name="arrowsOut" size={24} />
           </button>
         </div>
       </div>
@@ -273,7 +272,7 @@ export function ProfileSlideshow({
       ) : null}
       <dialog
         aria-label="Full slideshow image"
-        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-card bg-[#fffdf9] p-4 shadow-card open:flex backdrop:bg-black/80"
+        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-card bg-tapit-warm-studio-surface p-6 shadow-card open:flex backdrop:bg-black/80"
         onClose={() => {
           setFullImageOpen(false);
           viewImageRef.current?.focus();

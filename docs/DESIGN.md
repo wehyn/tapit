@@ -428,20 +428,22 @@ The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol.
 
 ### Profile theme tokens
 
-Each profile preset defines a page background, accent, ink, and soft surface. Keep preset values together as named tokens.
+Paper uses the shared Soft Precision tokens. Moss and Night keep their existing colors in named tokens so the profile themes do not add colors to shared app surfaces.
 
-| Theme | Page token | Accent token | Ink token | Soft token |
-| --- | --- | --- | --- | --- |
-| Paper | `--profile-paper-page: #fffdf9` | `--profile-paper-accent: #a84431` | `--profile-paper-ink: #2c2420` | `--profile-paper-soft: #eee8e2` |
-| Moss | `--profile-moss-page: #f2f6f1` | `--profile-moss-accent: #3e806d` | `--profile-moss-ink: #17352b` | `--profile-moss-soft: #dcece2` |
-| Night | `--profile-night-page: #17211f` | `--profile-night-accent: #7bc2a9` | `--profile-night-ink: #f7fbf8` | `--profile-night-soft: #2d4239` |
+| Theme | Named tokens |
+| --- | --- |
+| Paper | `--tapit-ink: #1b2433`, `--tapit-muted: #626f82`, `--tapit-surface: #ffffff`, `--tapit-paper: #f4f6fa`, `--tapit-soft-surface: #f0f3f9`, `--tapit-accent: #3f6de8`, `--tapit-accent-strong: #315fe4`, `--tapit-accent-soft: #e8edf9` |
+| Moss | `--tapit-moss-ink: #17352b`, `--tapit-moss-muted: #4f6d5c`, `--tapit-moss-surface: #f7fbf8`, `--tapit-moss-paper: #e8f1eb`, `--tapit-moss-soft-surface: #dcece2`, `--tapit-moss-accent: #176b57`, `--tapit-moss-accent-strong: #105543` |
+| Night | `--tapit-night-ink: #f2f6f1`, `--tapit-night-muted: #b7c9c0`, `--tapit-night-surface: #22302b`, `--tapit-night-paper: #17211f`, `--tapit-night-soft-surface: #2d4239`, `--tapit-night-accent: #7bc2a9`, `--tapit-night-accent-strong: #a0dbc5` |
+
+The existing Warm Studio profile preset keeps its saved colors in named `--tapit-warm-studio-*` tokens. These values stay within profile surfaces.
 
 ### Shape, spacing, and elevation
 
 - Use a `12px` radius for controls and tiles, a `20px` radius for cards and sheets, and a full pill radius for pills and avatars.
 - Use the spacing scale `4, 8, 12, 16, 24, 32, 48, 64px`.
 - Give cards `24px` of padding, use `16px` between cards, and use `32px` between sections.
-- Use one shadow token, `--shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05)`.
+- Use one shadow token, `--tapit-shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05)`.
 - Separate content with tone and spacing. Do not add divider borders or `1px` outlines to cards, inputs, or navigation items.
 - Keep a visible focus indicator for keyboard users. Focus indicators are not decorative component outlines.
 

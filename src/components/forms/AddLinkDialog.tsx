@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { EnvelopeSimpleIcon, GlobeIcon, PhoneIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { validateLinkDestination, type LinkIcon, type ProfileLink } from "@/lib/domain";
 import { formatDestination, type LinkKind } from "./LinkDestination";
@@ -13,15 +13,15 @@ const kinds = [
     value: "link",
     label: "Website or link",
     detail: "A page, portfolio, or social profile",
-    icon: GlobeIcon,
+    icon: "globe",
   },
   {
     value: "email",
     label: "Email address",
     detail: "Let people send you an email",
-    icon: EnvelopeSimpleIcon,
+    icon: "email",
   },
-  { value: "phone", label: "Phone number", detail: "Let people call you", icon: PhoneIcon },
+  { value: "phone", label: "Phone number", detail: "Let people call you", icon: "phone" },
 ] as const;
 
 export function AddLinkDialog({
@@ -106,7 +106,7 @@ export function AddLinkDialog({
         aria-modal="true"
         aria-labelledby="add-link-title"
         tabIndex={-1}
-        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card outline-none sm:p-8"
+        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card outline-none"
       >
         <p className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
           Add link · {kind ? "Step 2 of 2" : "Step 1 of 2"}
@@ -130,7 +130,7 @@ export function AddLinkDialog({
                 className="flex min-h-11 items-center gap-4 rounded-control bg-tapit-soft-surface p-4 text-left transition-colors hover:bg-tapit-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
               >
                 <span className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-surface text-tapit-accent">
-                  <option.icon size={22} />
+                  <Icon name={option.icon} size={22} />
                 </span>
                 <span>
                   <span className="block font-semibold text-tapit-ink">{option.label}</span>

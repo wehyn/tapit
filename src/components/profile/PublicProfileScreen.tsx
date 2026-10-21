@@ -197,11 +197,8 @@ function PublicProfileLoading() {
           <span className="rounded-control bg-tapit-soft-surface" />
           <span className="rounded-control bg-tapit-warm/50" />
         </div>
-        <div
-          aria-hidden="true"
-          className="relative -mt-[52px] flex flex-col items-center gap-4 px-4"
-        >
-          <div className="size-[104px] animate-pulse rounded-full border-4 border-tapit-paper bg-tapit-soft-surface" />
+        <div aria-hidden="true" className="relative -mt-12 flex flex-col items-center gap-4 px-4">
+          <div className="size-[104px] animate-pulse rounded-full bg-tapit-soft-surface ring-4 ring-tapit-paper" />
           <div className="h-8 w-full max-w-64 animate-pulse rounded-control bg-tapit-soft-surface" />
           <div className="h-4 w-full max-w-48 animate-pulse rounded-control bg-tapit-soft-surface" />
           <div className="flex gap-2">
@@ -218,7 +215,7 @@ function PublicProfileLoading() {
           <span className="h-[52px] animate-pulse rounded-control bg-tapit-soft-surface" />
           <span className="h-[52px] animate-pulse rounded-control bg-tapit-soft-surface" />
         </div>
-        <p className="mt-5 px-4 text-center text-sm text-tapit-muted" role="status">
+        <p className="mt-4 px-4 text-center text-sm text-tapit-muted" role="status">
           Loading profile...
         </p>
       </div>

@@ -9,6 +9,7 @@
   --tapit-line: #e0e5ed;
   --tapit-accent: #3f6de8;
   --tapit-accent-strong: #315fe4;
+  --tapit-accent-foreground: #ffffff;
   --tapit-accent-soft: #e8edf9;
   --tapit-warm: #c9a875;
   --tapit-success-soft: #e1f2e9;
@@ -28,6 +29,7 @@
   --tapit-moss-soft-surface: #dcece2;
   --tapit-moss-accent: #176b57;
   --tapit-moss-accent-strong: #105543;
+  --tapit-moss-accent-foreground: #ffffff;
   --tapit-night-ink: #f2f6f1;
   --tapit-night-muted: #b7c9c0;
   --tapit-night-surface: #22302b;
@@ -35,6 +37,26 @@
   --tapit-night-soft-surface: #2d4239;
   --tapit-night-accent: #7bc2a9;
   --tapit-night-accent-strong: #a0dbc5;
+  --tapit-night-accent-foreground: #17211f;
+
+  /* Existing Warm Studio profile colors remain available to saved profiles. */
+  --tapit-warm-studio-page: #fbf6ef;
+  --tapit-warm-studio-ink: #2c2420;
+  --tapit-warm-studio-muted: #74665d;
+  --tapit-warm-studio-surface: #fffdf9;
+  --tapit-warm-studio-identity: #26312c;
+  --tapit-warm-studio-coral: #b24f38;
+  --tapit-warm-studio-coral-strong: #963f2e;
+  --tapit-warm-studio-coral-ink: #a84431;
+  --tapit-warm-studio-coral-soft: #fff8f1;
+  --tapit-warm-studio-coral-hover: #ffede3;
+  --tapit-warm-studio-jade: #3e806d;
+  --tapit-warm-studio-jade-strong: #2e6958;
+  --tapit-warm-studio-jade-soft: #f2faf5;
+  --tapit-warm-studio-jade-hover: #e1f0ea;
+  --tapit-warm-studio-ink-strong: #17120f;
+  --tapit-warm-studio-ink-soft: #f8f4ef;
+  --tapit-warm-studio-ink-hover: #eee8e2;
 }
 
 @theme inline {
@@ -47,6 +69,7 @@
   --color-tapit-accent: var(--tapit-accent);
   --color-tapit-accent-text: var(--tapit-accent-strong);
   --color-tapit-accent-strong: var(--tapit-accent-strong);
+  --color-tapit-accent-foreground: var(--tapit-accent-foreground);
   --color-tapit-accent-soft: var(--tapit-accent-soft);
   --color-tapit-warm: var(--tapit-warm);
   --color-tapit-success-soft: var(--tapit-success-soft);
@@ -63,6 +86,7 @@
   --color-tapit-moss-soft-surface: var(--tapit-moss-soft-surface);
   --color-tapit-moss-accent: var(--tapit-moss-accent);
   --color-tapit-moss-accent-strong: var(--tapit-moss-accent-strong);
+  --color-tapit-moss-accent-foreground: var(--tapit-moss-accent-foreground);
   --color-tapit-night-ink: var(--tapit-night-ink);
   --color-tapit-night-muted: var(--tapit-night-muted);
   --color-tapit-night-surface: var(--tapit-night-surface);
@@ -70,6 +94,24 @@
   --color-tapit-night-soft-surface: var(--tapit-night-soft-surface);
   --color-tapit-night-accent: var(--tapit-night-accent);
   --color-tapit-night-accent-strong: var(--tapit-night-accent-strong);
+  --color-tapit-night-accent-foreground: var(--tapit-night-accent-foreground);
+  --color-tapit-warm-studio-page: var(--tapit-warm-studio-page);
+  --color-tapit-warm-studio-ink: var(--tapit-warm-studio-ink);
+  --color-tapit-warm-studio-muted: var(--tapit-warm-studio-muted);
+  --color-tapit-warm-studio-surface: var(--tapit-warm-studio-surface);
+  --color-tapit-warm-studio-identity: var(--tapit-warm-studio-identity);
+  --color-tapit-warm-studio-coral: var(--tapit-warm-studio-coral);
+  --color-tapit-warm-studio-coral-strong: var(--tapit-warm-studio-coral-strong);
+  --color-tapit-warm-studio-coral-ink: var(--tapit-warm-studio-coral-ink);
+  --color-tapit-warm-studio-coral-soft: var(--tapit-warm-studio-coral-soft);
+  --color-tapit-warm-studio-coral-hover: var(--tapit-warm-studio-coral-hover);
+  --color-tapit-warm-studio-jade: var(--tapit-warm-studio-jade);
+  --color-tapit-warm-studio-jade-strong: var(--tapit-warm-studio-jade-strong);
+  --color-tapit-warm-studio-jade-soft: var(--tapit-warm-studio-jade-soft);
+  --color-tapit-warm-studio-jade-hover: var(--tapit-warm-studio-jade-hover);
+  --color-tapit-warm-studio-ink-strong: var(--tapit-warm-studio-ink-strong);
+  --color-tapit-warm-studio-ink-soft: var(--tapit-warm-studio-ink-soft);
+  --color-tapit-warm-studio-ink-hover: var(--tapit-warm-studio-ink-hover);
 
   /* Radius: 12 for controls and tiles, 20 for cards and sheets, rounded-full for pills. */
   --radius-*: initial;
@@ -239,28 +281,6 @@ body {
   animation-delay: 180ms;
 }
 
-[data-scroll-reveal][data-revealed="false"] {
-  opacity: 0;
-  transform: translateY(12px);
-  transition:
-    opacity 500ms ease-out var(--reveal-delay, 0ms),
-    transform 500ms ease-out var(--reveal-delay, 0ms);
-}
-
-[data-scroll-reveal][data-revealed="true"] {
-  opacity: 1;
-  transform: none;
-  transition:
-    opacity 500ms ease-out var(--reveal-delay, 0ms),
-    transform 500ms ease-out var(--reveal-delay, 0ms);
-}
-
-[data-scroll-reveal][data-revealed="false"]:focus-within {
-  opacity: 1;
-  transform: none;
-  transition: none;
-}
-
 button,
 a,
 input,
@@ -392,12 +412,5 @@ select {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
-  }
-
-  [data-scroll-reveal] {
-    opacity: 1 !important;
-    transform: none !important;
-    animation: none !important;
-    transition: none !important;
   }
 }

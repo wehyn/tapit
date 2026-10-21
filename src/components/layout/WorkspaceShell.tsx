@@ -134,7 +134,7 @@ function DemoWorkspaceShell({
     if (sessionError) {
       return (
         <div className="grid min-h-dvh place-items-center bg-tapit-paper px-4 sm:px-8">
-          <div className="w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
+          <div className="w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card">
             <p className="text-sm text-tapit-danger" role="alert">
               {sessionError}
             </p>

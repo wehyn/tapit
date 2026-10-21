@@ -2,16 +2,6 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  DotsSixVerticalIcon,
-  FloppyDiskIcon,
-  PlusIcon,
-  TrashIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
-
 import type { LinkIcon, ProfileLink, PublicProfileProjection } from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
@@ -248,12 +238,12 @@ export function LinksWorkspace({
                 </span>
                 {!isDirty && hasUnpublishedChanges && pendingAction === null ? (
                   <Button disabled={publishDisabled} onClick={onPublish} type="button">
-                    <UploadSimpleIcon aria-hidden="true" size={18} weight="bold" />
+                    <Icon name="upload" size={18} weight="bold" />
                     {publicationLabel}
                   </Button>
                 ) : null}
                 <Button onClick={() => setAddDialogOpen(true)} type="button" variant="secondary">
-                  <PlusIcon aria-hidden="true" size={18} weight="bold" />
+                  <Icon name="plus" size={18} weight="bold" />
                   Add link
                 </Button>
               </div>
@@ -338,7 +328,7 @@ export function LinksWorkspace({
                       title="Drag to reorder, or press the up and down arrow keys"
                       type="button"
                     >
-                      <DotsSixVerticalIcon aria-hidden="true" size={18} weight="bold" />
+                      <Icon name="dragHandle" size={18} weight="bold" />
                     </button>
                     <LinkPresetIconPicker
                       value={selectedIcon}
@@ -423,7 +413,7 @@ export function LinksWorkspace({
                           type="button"
                           variant="quiet"
                         >
-                          <ArrowUpIcon aria-hidden="true" size={16} />
+                          <Icon name="arrowUp" size={16} />
                           Move up
                         </Button>
                         <Button
@@ -433,7 +423,7 @@ export function LinksWorkspace({
                           type="button"
                           variant="quiet"
                         >
-                          <ArrowDownIcon aria-hidden="true" size={16} />
+                          <Icon name="arrowDown" size={16} />
                           Move down
                         </Button>
                         <Button
@@ -442,7 +432,7 @@ export function LinksWorkspace({
                           type="button"
                           variant="quiet"
                         >
-                          <TrashIcon aria-hidden="true" size={16} />
+                          <Icon name="trash" size={16} />
                           Delete
                         </Button>
                       </div>
@@ -497,7 +487,7 @@ export function LinksWorkspace({
                   type="button"
                   variant="secondary"
                 >
-                  <FloppyDiskIcon aria-hidden="true" size={18} weight="bold" />
+                  <Icon name="save" size={18} weight="bold" />
                   {pendingAction === "save" ? "Saving..." : "Save draft"}
                 </Button>
                 <Button
@@ -506,7 +496,7 @@ export function LinksWorkspace({
                   onClick={onPublish}
                   type="button"
                 >
-                  <UploadSimpleIcon aria-hidden="true" size={18} weight="bold" />
+                  <Icon name="upload" size={18} weight="bold" />
                   {pendingAction === "publish" ? "Publishing..." : publicationLabel}
                 </Button>
               </div>

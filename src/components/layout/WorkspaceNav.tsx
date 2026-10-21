@@ -59,10 +59,31 @@ export function WorkspaceChrome({
   const router = useRouter();
   const draftStatus = useDraftStatus();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [navigationBlocked, setNavigationBlocked] = useState(false);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const sheetId = useId();
   const audienceCopy = navAudiences[audience];
   const currentItem = activeNavItemFor(audience, pathname);
+
+  const closeMore = useCallback(() => {
+    setMoreOpen(false);
+    setNavigationBlocked(false);
+    requestAnimationFrame(() => moreButtonRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const closeOnDesktop = () => {
+      if (!desktop.matches) return;
+      setMoreOpen(false);
+      setNavigationBlocked(false);
+    };
+    closeOnDesktop();
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, [moreOpen]);
 
   const handleNavigation = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -75,29 +96,34 @@ export function WorkspaceChrome({
         event.shiftKey ||
         event.altKey
       ) {
+        if (moreOpen) closeMore();
         return;
       }
 
       const destination = new URL(href, window.location.href);
-      if (destination.origin !== window.location.origin) return;
+      if (destination.origin !== window.location.origin) {
+        if (moreOpen) closeMore();
+        return;
+      }
 
       event.preventDefault();
+      if (moreOpen) setNavigationBlocked(false);
       void beforeNavigate(href).then(
         (shouldNavigate) => {
-          if (shouldNavigate) router.push(href);
+          if (shouldNavigate) {
+            router.push(href);
+            if (moreOpen) closeMore();
+          } else if (moreOpen) {
+            setNavigationBlocked(true);
+          }
         },
         () => {
-          // A failed draft save keeps the user on the current page.
+          if (moreOpen) setNavigationBlocked(true);
         },
       );
     },
-    [beforeNavigate, router],
+    [beforeNavigate, closeMore, moreOpen, router],
   );
-
-  const closeMore = useCallback(() => {
-    setMoreOpen(false);
-    requestAnimationFrame(() => moreButtonRef.current?.focus());
-  }, []);
 
   const sidebarSections = sidebarSectionsFor(audience);
   const pinnedItems = navItemsFor(audience, "sidebar").filter((item) => item.section === "pinned");
@@ -206,7 +232,7 @@ export function WorkspaceChrome({
             return (
               <Link
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold transition-colors ${active ? "bg-tapit-accent-soft text-tapit-accent-strong" : "text-tapit-muted hover:text-tapit-ink"}`}
+                className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold transition-colors ${active ? "bg-tapit-accent-soft text-tapit-accent-strong" : "text-tapit-muted hover:text-tapit-ink"}`}
                 href={item.href}
                 key={item.href}
                 onClick={(event) => handleNavigation(event, item.href)}
@@ -220,8 +246,11 @@ export function WorkspaceChrome({
             aria-controls={sheetId}
             aria-expanded={moreOpen}
             aria-haspopup="dialog"
-            className={`flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold transition-colors ${moreOpen ? "bg-tapit-accent-soft text-tapit-accent-strong" : "text-tapit-muted hover:text-tapit-ink"}`}
-            onClick={() => setMoreOpen(true)}
+            className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold transition-colors ${moreOpen ? "bg-tapit-accent-soft text-tapit-accent-strong" : "text-tapit-muted hover:text-tapit-ink"}`}
+            onClick={() => {
+              setNavigationBlocked(false);
+              setMoreOpen(true);
+            }}
             ref={moreButtonRef}
             type="button"
           >
@@ -238,6 +267,7 @@ export function WorkspaceChrome({
           id={sheetId}
           items={moreItems}
           live={live}
+          navigationBlocked={navigationBlocked}
           onClose={closeMore}
           onNavigate={handleNavigation}
           onSignOut={onSignOut}
@@ -294,7 +324,7 @@ function AudienceSwitch({
         return (
           <Link
             aria-current={on ? "page" : undefined}
-            className={`flex min-h-9 items-center justify-center rounded-control text-xs font-semibold transition-colors ${on ? "bg-tapit-surface text-tapit-ink shadow-card" : "text-tapit-muted hover:text-tapit-ink"}`}
+            className={`flex min-h-11 items-center justify-center rounded-control text-xs font-semibold transition-colors ${on ? "bg-tapit-surface text-tapit-ink shadow-card" : "text-tapit-muted hover:text-tapit-ink"}`}
             href={option.href}
             key={option.audience}
             onClick={(event) => onNavigate(event, option.href)}
@@ -401,7 +431,7 @@ function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => Pro
         aria-controls={menuId}
         aria-expanded={open}
         aria-label={`Account menu for ${email}`}
-        className="flex min-h-12 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
+        className="flex min-h-11 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
         onClick={() => setOpen((current) => !current)}
         ref={triggerRef}
         type="button"
@@ -422,6 +452,7 @@ function MoreSheet({
   id,
   items,
   live,
+  navigationBlocked,
   onClose,
   onNavigate,
   onSignOut,
@@ -433,6 +464,7 @@ function MoreSheet({
   id: string;
   items: NavItem[];
   live: WorkspaceLive | null;
+  navigationBlocked: boolean;
   onClose: () => void;
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
   onSignOut: () => Promise<void>;
@@ -521,7 +553,6 @@ function MoreSheet({
               aria-current={isNavItemActive(item, pathname) ? "page" : undefined}
               onClick={(event) => {
                 onNavigate(event, item.href);
-                onClose();
               }}
             >
               <span className="grid size-10 place-items-center rounded-control bg-tapit-surface">
@@ -538,7 +569,6 @@ function MoreSheet({
               key={option.audience}
               onClick={(event) => {
                 onNavigate(event, option.href);
-                onClose();
               }}
             >
               <span className="grid size-10 place-items-center rounded-control bg-tapit-surface">
@@ -549,6 +579,11 @@ function MoreSheet({
             </Link>
           ))}
         </div>
+        {navigationBlocked ? (
+          <p className="text-sm text-tapit-danger" role="alert">
+            Your draft could not be saved. You are still on this page.
+          </p>
+        ) : null}
         {error ? (
           <p className="text-sm text-tapit-danger" role="alert">
             {error}

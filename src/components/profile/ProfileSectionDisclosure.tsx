@@ -22,7 +22,7 @@ export function ProfileSectionDisclosure({
       <summary
         aria-controls={regionId}
         aria-expanded={open}
-        className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus [&::-webkit-details-marker]:hidden"
+        className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus [&::-webkit-details-marker]:hidden"
       >
         <span>{section.kind === "about" ? "About" : "Services"}</span>
         <Icon className="group-open:rotate-180" name="caretDown" size={18} />

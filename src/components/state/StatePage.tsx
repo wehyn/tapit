@@ -19,7 +19,7 @@ export function StatePage({
     <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-6 sm:px-6 sm:py-8">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card sm:p-8"
+        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card"
       >
         <Brand />
         <div className="mt-8 flex items-start gap-4">

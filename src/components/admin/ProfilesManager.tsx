@@ -12,7 +12,6 @@ import {
 } from "react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import { useConvex, useMutation, usePaginatedQuery, useQuery } from "convex/react";
-import { ArrowRightIcon, CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react";
 
 import {
   normalizeProfileSlug,
@@ -40,9 +39,10 @@ import { prepareDemoMediaDataUrl } from "@/lib/demo/media";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Card } from "@/components/ui/Card";
+import { segmentedClass, segmentedItemClass } from "@/components/ui/Segmented";
 import { ProfileDetails, type AdminProfileDetailsView } from "@/components/admin/ProfileDetails";
 import { AdminProfileContentEditor } from "@/components/admin/AdminProfileContentEditor";
 import { StatusChip } from "@/components/ui/Chip";
@@ -65,41 +65,29 @@ type LiveAdminProfileDetails = NonNullable<
 type AdminDraftForPersistence = ProfileContent & { media?: ProfileMediaPresentation | null };
 
 function ProfileRegistryControls({
-  description,
   message,
   onQueryChange,
   query,
 }: {
-  description: string;
   message?: ReactNode;
   onQueryChange: (value: string) => void;
   query: string;
 }) {
   return (
-    <section className="rounded-card border border-tapit-line bg-tapit-surface p-5 sm:p-7">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between lg:gap-8">
-        <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.16em] text-tapit-accent uppercase">
-            Operations
-          </p>
-          <h2 className="mt-2 text-lg font-semibold tracking-[-0.035em] text-tapit-ink">
-            Profile management
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-tapit-muted">{description}</p>
-        </div>
-        <div className="w-full lg:max-w-sm lg:shrink-0">
-          <Field
-            id="profile-search"
-            label="Search profiles"
-            onChange={(event) => onQueryChange(event.target.value)}
-            placeholder="Search name or slug"
-            type="search"
-            value={query}
-          />
-        </div>
+    <Card title="Profile management">
+      <div className="flex min-h-11 items-center gap-2 rounded-control bg-tapit-soft-surface px-3 focus-within:bg-tapit-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-tapit-accent">
+        <Icon className="text-tapit-muted" name="search" size={18} />
+        <input
+          aria-label="Search profiles"
+          className="min-w-0 flex-1 bg-transparent text-sm text-tapit-ink outline-none placeholder:text-tapit-muted"
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search name or slug"
+          type="search"
+          value={query}
+        />
       </div>
-      {message ? <div className="mt-5">{message}</div> : null}
-    </section>
+      {message}
+    </Card>
   );
 }
 
@@ -114,105 +102,89 @@ function profileInitials(name: string) {
   );
 }
 
+const registryColumns = "grid-cols-[minmax(0,2.4fr)_minmax(0,1.4fr)_110px_9rem]";
+
 function ProfileRegistryTable({ entries }: { entries: ProfileRegistryEntry[] }) {
   return (
-    <div className="hidden overflow-x-auto rounded-[14px] border border-tapit-line min-[1100px]:block">
-      <table
-        aria-label="Profile registry"
-        className="w-full min-w-[700px] border-collapse text-left"
-      >
-        <thead className="bg-tapit-paper/75 text-[11px] font-semibold tracking-[0.12em] text-tapit-muted uppercase">
-          <tr>
-            <th className="px-5 py-3.5" scope="col">
-              Profile
-            </th>
-            <th className="px-5 py-3.5" scope="col">
-              Public URL
-            </th>
-            <th className="px-5 py-3.5" scope="col">
-              Status
-            </th>
-            <th className="px-5 py-3.5 text-right" scope="col">
-              Action
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-tapit-line bg-tapit-surface">
-          {entries.map((entry) => (
-            <tr
-              className={`transition-colors hover:bg-tapit-paper/55 ${entry.selected ? "bg-tapit-accent-soft/45" : ""}`}
-              key={entry.id}
-            >
-              <td className="px-5 py-3.5">
-                <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="grid size-10 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-xs font-semibold tracking-wide text-tapit-accent-strong"
-                  >
-                    {profileInitials(entry.name)}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-tapit-ink">
-                      {entry.name}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-tapit-muted">
-                      /{entry.slug}
-                    </span>
-                  </span>
-                </div>
-              </td>
-              <td className="px-5 py-3.5">
-                <span className="font-mono text-xs text-tapit-muted">tapit.com/{entry.slug}</span>
-              </td>
-              <td className="px-5 py-3.5">
-                <StatusChip status={entry.status} />
-              </td>
-              <td className="px-5 py-3.5 text-right">
-                <button
-                  aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
-                  aria-expanded={entry.selected}
-                  aria-haspopup="dialog"
-                  aria-label={`${entry.name} /${entry.slug}`}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-full border border-tapit-line px-3.5 text-xs font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
-                  onClick={entry.onOpen}
-                  type="button"
-                >
-                  Open profile
-                  <ArrowRightIcon aria-hidden="true" size={15} />
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="hidden overflow-x-auto lg:block">
+      <div aria-label="Profile registry" className="flex min-w-160 flex-col gap-2" role="table">
+        <div
+          className={`grid ${registryColumns} min-h-8 items-center gap-4 px-4 text-xs font-semibold text-tapit-muted`}
+          role="row"
+        >
+          <span role="columnheader">Profile</span>
+          <span role="columnheader">Public URL</span>
+          <span role="columnheader">Status</span>
+          <span className="text-right" role="columnheader">
+            Action
+          </span>
+        </div>
+        {entries.map((entry) => (
+          <div
+            className={`grid ${registryColumns} min-h-14 items-center gap-4 rounded-control px-4 text-sm hover:bg-tapit-accent-soft ${entry.selected ? "bg-tapit-accent-soft" : "bg-tapit-soft-surface"}`}
+            key={entry.id}
+            role="row"
+          >
+            <div className="flex min-w-0 items-center gap-3" role="cell">
+              <span
+                aria-hidden="true"
+                className="grid size-10 shrink-0 place-items-center rounded-full bg-tapit-accent-soft text-xs font-semibold text-tapit-accent-strong"
+              >
+                {profileInitials(entry.name)}
+              </span>
+              <span className="flex min-w-0 flex-col gap-1">
+                <span className="truncate font-semibold text-tapit-ink">{entry.name}</span>
+                <span className="truncate text-xs text-tapit-muted">/{entry.slug}</span>
+              </span>
+            </div>
+            <span className="truncate text-tapit-muted" role="cell">
+              tapit.com/{entry.slug}
+            </span>
+            <span role="cell">
+              <StatusChip status={entry.status} />
+            </span>
+            <span className="flex justify-end" role="cell">
+              <Button
+                aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
+                aria-expanded={entry.selected}
+                aria-haspopup="dialog"
+                aria-label={`${entry.name} /${entry.slug}`}
+                onClick={entry.onOpen}
+                type="button"
+                variant="secondary"
+              >
+                Open profile
+                <Icon name="caretRight" size={16} />
+              </Button>
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
 function ProfileRegistryCards({ entries }: { entries: ProfileRegistryEntry[] }) {
   return (
-    <div className="overflow-hidden rounded-card border border-tapit-line bg-tapit-surface min-[1100px]:hidden">
+    <div className="flex flex-col gap-2 lg:hidden">
       {entries.map((entry) => (
         <button
           aria-controls={entry.selected ? "admin-profile-dialog" : undefined}
           aria-expanded={entry.selected}
           aria-haspopup="dialog"
           aria-label={`Select ${entry.name} profile`}
-          className={`grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-tapit-line p-4 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "bg-tapit-accent-soft/45" : "hover:bg-tapit-paper/60"}`}
+          className={`grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-control px-4 py-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${entry.selected ? "bg-tapit-accent-soft" : "bg-tapit-soft-surface hover:bg-tapit-accent-soft"}`}
           key={entry.id}
           onClick={entry.onOpen}
           type="button"
         >
-          <span className="min-w-0">
-            <span className="block text-[10px] font-semibold tracking-[0.14em] text-tapit-muted uppercase">
-              Profile
-            </span>
-            <span className="block truncate font-semibold text-tapit-ink">{entry.name}</span>
-            <span className="mt-1 block truncate text-sm text-tapit-muted">/{entry.slug}</span>
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="truncate font-semibold text-tapit-ink">{entry.name}</span>
+            <span className="truncate text-sm text-tapit-muted">/{entry.slug}</span>
           </span>
-          <span className="flex shrink-0 flex-col items-end gap-2">
+          <span className="flex shrink-0 items-center gap-3">
             <StatusChip status={entry.status} />
-            <ArrowRightIcon aria-hidden="true" className="text-tapit-muted" size={18} />
+            <Icon className="text-tapit-muted" name="caretRight" size={18} />
           </span>
         </button>
       ))}
@@ -479,94 +451,128 @@ function ProfileDialog({
   }, [active]);
 
   return (
-    <div className="fixed inset-0 z-20 flex items-center justify-center overflow-y-auto overscroll-contain bg-tapit-ink/70 px-3 py-3 sm:px-6 sm:py-6">
+    <div
+      aria-labelledby="admin-profile-dialog-title"
+      aria-hidden={!active}
+      aria-modal={active}
+      className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
+      id="admin-profile-dialog"
+      ref={dialogRef}
+      role="dialog"
+      tabIndex={-1}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold text-tapit-ink" id="admin-profile-dialog-title">
+            {title}
+          </h2>
+          {description ? <p className="mt-1 text-sm text-tapit-muted">{description}</p> : null}
+        </div>
+        <Button
+          aria-label="Close profile details"
+          className="size-11 shrink-0 px-0"
+          disabled={closeDisabled}
+          onClick={onClose}
+          type="button"
+          variant="quiet"
+        >
+          <Icon name="close" size={18} />
+        </Button>
+      </div>
       <div
-        aria-labelledby="admin-profile-dialog-title"
-        aria-hidden={!active}
-        aria-modal={active}
-        className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-6xl flex-col overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-[0_24px_80px_rgba(21,25,24,0.24)] sm:max-h-[calc(100dvh-3rem)]"
-        id="admin-profile-dialog"
-        ref={dialogRef}
-        role="dialog"
-        tabIndex={-1}
+        aria-label="Profile sections"
+        className={`${segmentedClass("soft")} self-start`}
+        role="tablist"
       >
-        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-tapit-line px-5 py-5 sm:px-8 sm:py-6">
-          <div className="min-w-0">
-            <h2
-              className="text-xl font-semibold tracking-tight text-tapit-ink"
-              id="admin-profile-dialog-title"
-            >
-              {title}
-            </h2>
-            {description ? (
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-tapit-muted">{description}</p>
-            ) : null}
-          </div>
-          <Button
-            aria-label="Close profile details"
-            className="h-10 w-10 shrink-0 px-0 text-lg leading-none"
-            disabled={closeDisabled}
-            onClick={onClose}
-            type="button"
-            variant="quiet"
-          >
-            <span aria-hidden="true">×</span>
-          </Button>
-        </div>
-        <div className="shrink-0 border-b border-tapit-line px-5 sm:px-8">
-          <div aria-label="Profile sections" className="flex gap-4 sm:gap-6" role="tablist">
-            <button
-              aria-controls="admin-profile-editor-panel"
-              aria-selected={selectedTab === "edit"}
-              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "edit" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
-              id="admin-profile-editor-tab"
-              onClick={() => setSelectedTab("edit")}
-              onKeyDown={(event) => handleTabKeyDown(event, "edit")}
-              ref={editTabRef}
-              role="tab"
-              tabIndex={selectedTab === "edit" ? 0 : -1}
-              type="button"
-            >
-              Edit profile
-            </button>
-            <button
-              aria-controls="admin-profile-details-panel"
-              aria-selected={selectedTab === "details"}
-              className={`min-h-14 border-b-2 px-1 text-sm font-semibold transition-colors focus-visible:rounded-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent ${selectedTab === "details" ? "border-tapit-accent text-tapit-ink" : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"}`}
-              id="admin-profile-details-tab"
-              onClick={() => setSelectedTab("details")}
-              onKeyDown={(event) => handleTabKeyDown(event, "details")}
-              ref={detailsTabRef}
-              role="tab"
-              tabIndex={selectedTab === "details" ? 0 : -1}
-              type="button"
-            >
-              Details &amp; slug
-            </button>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 sm:px-8 sm:py-8">
-          <div
-            aria-labelledby="admin-profile-editor-tab"
-            hidden={selectedTab !== "edit"}
-            id="admin-profile-editor-panel"
-            role="tabpanel"
-            tabIndex={0}
-          >
-            {editor}
-          </div>
-          <div
-            aria-labelledby="admin-profile-details-tab"
-            hidden={selectedTab !== "details"}
-            id="admin-profile-details-panel"
-            role="tabpanel"
-            tabIndex={0}
-          >
-            {details}
-          </div>
-        </div>
+        <button
+          aria-controls="admin-profile-editor-panel"
+          aria-selected={selectedTab === "edit"}
+          className={`${segmentedItemClass(selectedTab === "edit")} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent`}
+          id="admin-profile-editor-tab"
+          onClick={() => setSelectedTab("edit")}
+          onKeyDown={(event) => handleTabKeyDown(event, "edit")}
+          ref={editTabRef}
+          role="tab"
+          tabIndex={selectedTab === "edit" ? 0 : -1}
+          type="button"
+        >
+          Edit profile
+        </button>
+        <button
+          aria-controls="admin-profile-details-panel"
+          aria-selected={selectedTab === "details"}
+          className={`${segmentedItemClass(selectedTab === "details")} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent`}
+          id="admin-profile-details-tab"
+          onClick={() => setSelectedTab("details")}
+          onKeyDown={(event) => handleTabKeyDown(event, "details")}
+          ref={detailsTabRef}
+          role="tab"
+          tabIndex={selectedTab === "details" ? 0 : -1}
+          type="button"
+        >
+          Details &amp; slug
+        </button>
+      </div>
+      <div
+        aria-labelledby="admin-profile-editor-tab"
+        className="flex flex-col gap-4"
+        hidden={selectedTab !== "edit"}
+        id="admin-profile-editor-panel"
+        role="tabpanel"
+        tabIndex={0}
+      >
+        {editor}
+      </div>
+      <div
+        aria-labelledby="admin-profile-details-tab"
+        className="flex flex-col gap-4"
+        hidden={selectedTab !== "details"}
+        id="admin-profile-details-panel"
+        role="tabpanel"
+        tabIndex={0}
+      >
+        {details}
       </div>
     </div>
+  );
+}
+
+function ProfileModerationCard({
+  busy,
+  onRestore,
+  onSuspend,
+  onUnpublish,
+  status,
+}: {
+  busy: boolean;
+  onRestore: () => void;
+  onSuspend: () => void;
+  onUnpublish: () => void;
+  status: ProfileStatus;
+}) {
+  const canSuspend = status === "published" || status === "draft";
+  return (
+    <Card
+      description="Unpublishing hides the page but keeps the content. Customers see a notice in their workspace."
+      title="Moderation"
+    >
+      <div className="flex flex-wrap gap-2">
+        {canSuspend ? (
+          <>
+            <Button disabled={busy} onClick={onUnpublish} type="button" variant="secondary">
+              Unpublish
+            </Button>
+            <Button disabled={busy} onClick={onSuspend} type="button" variant="danger-soft">
+              Suspend
+            </Button>
+          </>
+        ) : (
+          <Button disabled={busy} onClick={onRestore} type="button" variant="secondary">
+            Restore profile
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 
@@ -823,150 +829,131 @@ function DemoProfilesManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review publication state and open a profile to inspect, edit, or moderate it."
+        description="Review public profiles, edit content for a customer, and moderate. Every action is logged."
         title="Profiles"
       />
-      <ProfileRegistryControls
-        description="Moderation actions affect the public state immediately and are recorded with the administrator and before/after status."
-        message={
-          message && profile === undefined ? (
-            <Notice tone={message.tone}>{message.text}</Notice>
-          ) : null
-        }
-        onQueryChange={setQuery}
-        query={query}
-      />
-
-      <Card className="p-3 sm:p-4" title="Profile registry">
-        <div className="mt-4">
-          <ProfileRegistry
-            emptyMessage="No profiles match this search."
-            entries={registryEntries}
+      <div
+        className={`grid items-start gap-6 ${profile ? "xl:grid-cols-[minmax(0,1fr)_384px]" : ""}`}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
+          <ProfileRegistryControls
+            message={
+              message && profile === undefined ? (
+                <Notice tone={message.tone}>{message.text}</Notice>
+              ) : null
+            }
+            onQueryChange={setQuery}
+            query={query}
           />
+          <Card title="Profile registry">
+            <ProfileRegistry
+              emptyMessage="No profiles match this search."
+              entries={registryEntries}
+            />
+          </Card>
         </div>
-      </Card>
 
-      {profile ? (
-        <ProfileDialog
-          active={confirmation === null}
-          description={`${profile.draft.name || "Unnamed profile"} · owned by ${state.customers.find((customer) => customer.profileId === profile.id)?.email ?? "unassigned"}`}
-          onClose={() => {
-            if (
-              hasUnsavedChanges &&
-              !window.confirm("Discard unsaved changes to this profile draft?")
-            )
-              return;
-            setSelectedProfileId(null);
-            setSlugValue("");
-            setSlugError(null);
-            setSlugSuccess(null);
-          }}
-          title={`${profile.draft.name || "Unnamed"} profile`}
-          editor={
-            <>
-              {message ? (
-                <div className="mt-5">
-                  <Notice tone={message.tone}>{message.text}</Notice>
-                </div>
-              ) : null}
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <StatusChip status={profile.status} />
-                {profile.status === "published" ? (
-                  <span className="inline-flex items-center gap-1 text-sm text-tapit-accent-strong">
-                    <CheckCircleIcon aria-hidden="true" size={17} weight="fill" /> Public
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-sm text-tapit-muted">
-                    <WarningCircleIcon aria-hidden="true" size={17} /> Needs review
-                  </span>
-                )}
-                <span className="text-sm text-tapit-muted">
-                  Current slug: <code>{profile.draft.slug}</code>
-                </span>
-              </div>
-              <AdminProfileContentEditor
-                draft={profile.draft}
-                onBusyChange={setEditorBusy}
-                onChange={updateDraft}
-                onRemovePhoto={async () => Promise.resolve()}
-                onUploadMedia={uploadDemoMedia}
-                onUploadPhoto={uploadDemoPhoto}
-                profileId={profile.id}
-              />
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button disabled={editorBusy} onClick={saveDraft} type="button" variant="secondary">
-                  Save admin draft
-                </Button>
-                <Button
-                  disabled={editorBusy || profile.status === "suspended"}
-                  onClick={publish}
-                  type="button"
-                >
-                  Publish
-                </Button>
-                {profile.status === "published" || profile.status === "draft" ? (
-                  <Button
-                    onClick={() => setConfirmation("unpublish")}
-                    type="button"
-                    variant="quiet"
-                  >
-                    Unpublish
-                  </Button>
-                ) : null}
-                {profile.status === "unpublished" ? (
-                  <Button
-                    onClick={() => updateStatus("published", "profile.restored")}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Restore profile
-                  </Button>
-                ) : profile.status !== "suspended" ? (
-                  <Button onClick={() => setConfirmation("suspend")} type="button" variant="danger">
-                    Suspend
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={() =>
-                      updateStatus(profile.published ? "published" : "draft", "profile.restored")
-                    }
-                    type="button"
-                    variant="secondary"
-                  >
-                    Restore profile
-                  </Button>
-                )}
-              </div>
-            </>
-          }
-          details={
-            <>
-              {detailsView ? (
-                <ProfileDetails
-                  isSubmitting={false}
-                  onSlugChange={(value) => {
-                    setSlugValue(value);
-                    setSlugError(null);
-                    setSlugSuccess(null);
-                  }}
-                  onSlugSubmit={saveSlug}
-                  slugError={slugError}
-                  slugSuccess={slugSuccess}
-                  slugValue={slugValue}
-                  view={detailsView}
-                />
-              ) : null}
-              <div className="mt-8 border-t border-tapit-line pt-6">
-                <ButtonLink href="/admin/audit-log" variant="quiet">
-                  View audit history
-                </ButtonLink>
-              </div>
-            </>
-          }
-        />
-      ) : null}
+        {profile ? (
+          <div className="flex min-w-0 flex-col gap-4">
+            <ProfileDialog
+              active={confirmation === null}
+              description={`${profile.draft.name || "Unnamed profile"} · owned by ${state.customers.find((customer) => customer.profileId === profile.id)?.email ?? "unassigned"}`}
+              onClose={() => {
+                if (
+                  hasUnsavedChanges &&
+                  !window.confirm("Discard unsaved changes to this profile draft?")
+                )
+                  return;
+                setSelectedProfileId(null);
+                setSlugValue("");
+                setSlugError(null);
+                setSlugSuccess(null);
+              }}
+              title={`${profile.draft.name || "Unnamed"} profile`}
+              editor={
+                <>
+                  {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusChip status={profile.status} />
+                    {profile.status === "published" ? (
+                      <span className="inline-flex items-center gap-1 text-sm text-tapit-accent-strong">
+                        <Icon name="check" size={16} /> Public
+                      </span>
+                    ) : (
+                      <span className="text-sm text-tapit-muted">Needs review</span>
+                    )}
+                    <span className="text-sm text-tapit-muted">
+                      Current slug: <code className="text-tapit-ink">{profile.draft.slug}</code>
+                    </span>
+                  </div>
+                  <AdminProfileContentEditor
+                    draft={profile.draft}
+                    onBusyChange={setEditorBusy}
+                    onChange={updateDraft}
+                    onRemovePhoto={async () => Promise.resolve()}
+                    onUploadMedia={uploadDemoMedia}
+                    onUploadPhoto={uploadDemoPhoto}
+                    profileId={profile.id}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={editorBusy}
+                      onClick={saveDraft}
+                      type="button"
+                      variant="secondary"
+                    >
+                      Save admin draft
+                    </Button>
+                    <Button
+                      disabled={editorBusy || profile.status === "suspended"}
+                      onClick={publish}
+                      type="button"
+                    >
+                      Publish
+                    </Button>
+                  </div>
+                </>
+              }
+              details={
+                <>
+                  {detailsView ? (
+                    <ProfileDetails
+                      isSubmitting={false}
+                      onSlugChange={(value) => {
+                        setSlugValue(value);
+                        setSlugError(null);
+                        setSlugSuccess(null);
+                      }}
+                      onSlugSubmit={saveSlug}
+                      slugError={slugError}
+                      slugSuccess={slugSuccess}
+                      slugValue={slugValue}
+                      view={detailsView}
+                    />
+                  ) : null}
+                  <ButtonLink className="self-start" href="/admin/audit-log" variant="quiet">
+                    View audit history
+                  </ButtonLink>
+                </>
+              }
+            />
+            <ProfileModerationCard
+              busy={false}
+              onRestore={() =>
+                updateStatus(
+                  profile.status === "unpublished" || profile.published ? "published" : "draft",
+                  "profile.restored",
+                )
+              }
+              onSuspend={() => setConfirmation("suspend")}
+              onUnpublish={() => setConfirmation("unpublish")}
+              status={profile.status}
+            />
+          </div>
+        ) : null}
+      </div>
 
       <ConfirmDialog
         confirmLabel={confirmation === "suspend" ? "Suspend profile" : "Unpublish profile"}
@@ -1160,9 +1147,9 @@ function LiveProfilesManager() {
 
   if (paginationStatus === "LoadingFirstPage")
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
-          description="Review publication state and open a profile to inspect, edit, or moderate it."
+          description="Review public profiles, edit content for a customer, and moderate. Every action is logged."
           title="Profiles"
         />
         <Notice>Loading profiles…</Notice>
@@ -1400,170 +1387,149 @@ function LiveProfilesManager() {
     setMessage(null);
   }
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review publication state and open a profile to inspect, edit, or moderate it."
+        description="Review public profiles, edit content for a customer, and moderate. Every action is logged."
         title="Profiles"
       />
-      <ProfileRegistryControls
-        description="Moderation actions are authorized and audited by Convex."
-        message={
-          message && profile === undefined ? (
-            <Notice tone={message.tone}>{message.text}</Notice>
-          ) : null
-        }
-        onQueryChange={setQuery}
-        query={query}
-      />
-      <Card className="p-3 sm:p-4" title="Profile registry">
-        <div className="mt-4">
-          <ProfileRegistry
-            emptyMessage={
-              query.trim() !== "" && paginationStatus === "CanLoadMore"
-                ? "No profiles on the loaded pages match. Load more profiles to continue searching."
-                : "No profiles match this search."
+      <div
+        className={`grid items-start gap-6 ${profile ? "xl:grid-cols-[minmax(0,1fr)_384px]" : ""}`}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
+          <ProfileRegistryControls
+            message={
+              message && profile === undefined ? (
+                <Notice tone={message.tone}>{message.text}</Notice>
+              ) : null
             }
-            entries={registryEntries}
+            onQueryChange={setQuery}
+            query={query}
           />
+          <Card title="Profile registry">
+            <ProfileRegistry
+              emptyMessage={
+                query.trim() !== "" && paginationStatus === "CanLoadMore"
+                  ? "No profiles on the loaded pages match. Load more profiles to continue searching."
+                  : "No profiles match this search."
+              }
+              entries={registryEntries}
+            />
+            {paginationStatus !== "Exhausted" ? (
+              <Button
+                className="self-start"
+                disabled={paginationStatus !== "CanLoadMore"}
+                onClick={() => loadMore(25)}
+                type="button"
+                variant="secondary"
+              >
+                {paginationStatus === "LoadingMore"
+                  ? "Loading more profiles…"
+                  : "Load more profiles"}
+              </Button>
+            ) : null}
+          </Card>
         </div>
-        {paginationStatus !== "Exhausted" ? (
-          <div className="mt-4">
-            <Button
-              disabled={paginationStatus !== "CanLoadMore"}
-              onClick={() => loadMore(25)}
-              type="button"
-              variant="secondary"
-            >
-              {paginationStatus === "LoadingMore" ? "Loading more profiles…" : "Load more profiles"}
-            </Button>
+
+        {profile ? (
+          <div className="flex min-w-0 flex-col gap-4">
+            <ProfileDialog
+              active={confirmation === null}
+              closeDisabled={pendingAction !== null || editorBusy}
+              onClose={() => {
+                closeSelectedProfile();
+              }}
+              title={`${currentDraft?.name || profile.draft.name || "Unnamed"} profile`}
+              editor={
+                <>
+                  {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+                  {currentDraft ? (
+                    <fieldset className="min-w-0" disabled={pendingAction !== null}>
+                      <AdminProfileContentEditor
+                        draft={currentDraft}
+                        onBusyChange={setEditorBusy}
+                        onChange={updateDraft}
+                        onRemovePhoto={removePhoto}
+                        onUploadMedia={uploadMedia}
+                        onUploadPhoto={uploadPhoto}
+                        profileId={profile._id}
+                      />
+                    </fieldset>
+                  ) : (
+                    <Notice>{detailsError ?? "Loading profile details…"}</Notice>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      disabled={
+                        editorBusy ||
+                        pendingAction !== null ||
+                        currentDraft === null ||
+                        !hasUnsavedChanges
+                      }
+                      loading={pendingAction === "save"}
+                      onClick={saveDraft}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {pendingAction === "save" ? "Saving…" : "Save admin draft"}
+                    </Button>
+                    <Button
+                      disabled={
+                        profile.status === "suspended" ||
+                        editorBusy ||
+                        pendingAction !== null ||
+                        currentDraft === null
+                      }
+                      loading={pendingAction === "publish"}
+                      onClick={publishProfile}
+                      type="button"
+                    >
+                      {pendingAction === "publish" ? "Publishing…" : "Publish"}
+                    </Button>
+                  </div>
+                </>
+              }
+              details={
+                <>
+                  {detailsLoading ? (
+                    <Notice>Loading profile details…</Notice>
+                  ) : detailsError !== null ? (
+                    <Notice tone="error">{detailsError}</Notice>
+                  ) : detailsView !== null ? (
+                    <ProfileDetails
+                      isSubmitting={slugSubmittingFor === selectedId || pendingAction !== null}
+                      onSlugChange={(value) => {
+                        setSlugValue(value);
+                        setSlugError(null);
+                        setSlugSuccess(null);
+                      }}
+                      onSlugSubmit={saveSlug}
+                      slugError={slugError}
+                      slugSuccess={slugSuccess}
+                      slugValue={slugValue}
+                      view={detailsView}
+                    />
+                  ) : null}
+                  <ButtonLink className="self-start" href="/admin/audit-log" variant="quiet">
+                    View audit history
+                  </ButtonLink>
+                </>
+              }
+            />
+            <ProfileModerationCard
+              busy={pendingAction !== null}
+              onRestore={() =>
+                void changeStatus(
+                  profile.status === "unpublished" || profile.published ? "published" : "draft",
+                )
+              }
+              onSuspend={() => setConfirmation("suspend")}
+              onUnpublish={() => setConfirmation("unpublish")}
+              status={profile.status}
+            />
           </div>
         ) : null}
-      </Card>
+      </div>
 
-      {profile ? (
-        <ProfileDialog
-          active={confirmation === null}
-          closeDisabled={pendingAction !== null || editorBusy}
-          onClose={() => {
-            closeSelectedProfile();
-          }}
-          title={`${currentDraft?.name || profile.draft.name || "Unnamed"} profile`}
-          editor={
-            <>
-              {message ? (
-                <div className="mt-5">
-                  <Notice tone={message.tone}>{message.text}</Notice>
-                </div>
-              ) : null}
-              {currentDraft ? (
-                <fieldset className="min-w-0" disabled={pendingAction !== null}>
-                  <AdminProfileContentEditor
-                    draft={currentDraft}
-                    onBusyChange={setEditorBusy}
-                    onChange={updateDraft}
-                    onRemovePhoto={removePhoto}
-                    onUploadMedia={uploadMedia}
-                    onUploadPhoto={uploadPhoto}
-                    profileId={profile._id}
-                  />
-                </fieldset>
-              ) : (
-                <Notice>{detailsError ?? "Loading profile details…"}</Notice>
-              )}
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Button
-                  disabled={
-                    editorBusy ||
-                    pendingAction !== null ||
-                    currentDraft === null ||
-                    !hasUnsavedChanges
-                  }
-                  loading={pendingAction === "save"}
-                  onClick={saveDraft}
-                  type="button"
-                  variant="secondary"
-                >
-                  {pendingAction === "save" ? "Saving…" : "Save admin draft"}
-                </Button>
-                <Button
-                  disabled={
-                    profile.status === "suspended" ||
-                    editorBusy ||
-                    pendingAction !== null ||
-                    currentDraft === null
-                  }
-                  loading={pendingAction === "publish"}
-                  onClick={publishProfile}
-                  type="button"
-                >
-                  {pendingAction === "publish" ? "Publishing…" : "Publish"}
-                </Button>
-                {profile.status === "published" || profile.status === "draft" ? (
-                  <Button
-                    disabled={pendingAction !== null}
-                    onClick={() => setConfirmation("unpublish")}
-                    type="button"
-                    variant="quiet"
-                  >
-                    Unpublish
-                  </Button>
-                ) : null}
-                {profile.status === "unpublished" ? (
-                  <Button
-                    disabled={pendingAction !== null}
-                    onClick={() => void changeStatus("published")}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Restore profile
-                  </Button>
-                ) : (
-                  <Button
-                    disabled={pendingAction !== null}
-                    onClick={() =>
-                      profile.status === "suspended"
-                        ? changeStatus(profile.published ? "published" : "draft")
-                        : setConfirmation("suspend")
-                    }
-                    type="button"
-                    variant={profile.status === "suspended" ? "secondary" : "danger"}
-                  >
-                    {profile.status === "suspended" ? "Restore profile" : "Suspend"}
-                  </Button>
-                )}
-              </div>
-            </>
-          }
-          details={
-            <>
-              {detailsLoading ? (
-                <Notice>Loading profile details…</Notice>
-              ) : detailsError !== null ? (
-                <Notice tone="error">{detailsError}</Notice>
-              ) : detailsView !== null ? (
-                <ProfileDetails
-                  isSubmitting={slugSubmittingFor === selectedId || pendingAction !== null}
-                  onSlugChange={(value) => {
-                    setSlugValue(value);
-                    setSlugError(null);
-                    setSlugSuccess(null);
-                  }}
-                  onSlugSubmit={saveSlug}
-                  slugError={slugError}
-                  slugSuccess={slugSuccess}
-                  slugValue={slugValue}
-                  view={detailsView}
-                />
-              ) : null}
-              <div className="mt-8 border-t border-tapit-line pt-6">
-                <ButtonLink href="/admin/audit-log" variant="quiet">
-                  View audit history
-                </ButtonLink>
-              </div>
-            </>
-          }
-        />
-      ) : null}
       <ConfirmDialog
         confirmLabel={confirmation === "suspend" ? "Suspend profile" : "Unpublish profile"}
         description={

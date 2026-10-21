@@ -44,11 +44,11 @@ export function AuthShell({
   return (
     <div className="flex min-h-dvh flex-col gap-4 bg-tapit-paper p-4 lg:flex-row">
       <div className="flex min-w-0 flex-1 flex-col gap-6 px-2 py-2 sm:px-6 lg:px-8">
-        <div className="flex">
+        <header className="flex">
           <Brand />
-        </div>
+        </header>
         <main className="flex flex-1 items-center justify-center py-6">
-          <div className="flex w-full max-w-md flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
+          <div className="flex w-full max-w-md flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card">
             <div className="flex flex-col gap-2">
               <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">
                 {mode === "signup" ? "Create your Tapit profile" : "Welcome back"}
@@ -106,10 +106,10 @@ export function AuthShell({
       </div>
       <div
         aria-hidden="true"
-        className="flex flex-1 flex-col items-center justify-center gap-8 rounded-card bg-tapit-accent p-6 text-center text-white sm:p-12"
+        className="flex flex-1 flex-col items-center justify-center gap-8 rounded-card bg-tapit-accent p-6 text-center text-white"
       >
-        <div className="flex w-full max-w-72 flex-col items-center gap-4 rounded-card bg-tapit-surface p-3 shadow-card">
-          <div className="flex w-full flex-col items-center gap-4 rounded-card bg-tapit-paper px-4 pt-6 pb-4">
+        <div className="flex w-full max-w-72 flex-col items-center gap-4 rounded-card bg-tapit-surface p-6 shadow-card">
+          <div className="flex w-full flex-col items-center gap-4 rounded-card bg-tapit-paper p-6">
             <span className="grid size-22 place-items-center rounded-full bg-tapit-accent text-xl font-semibold text-white">
               MV
             </span>
@@ -125,10 +125,10 @@ export function AuthShell({
             </span>
           </div>
         </div>
-        <p className="text-xs text-tapit-accent-soft">Illustrative example</p>
+        <p className="text-xs text-white">Illustrative example</p>
         <div className="flex max-w-sm flex-col gap-2">
           <p className="text-lg font-semibold">One profile for every introduction</p>
-          <p className="text-sm text-tapit-accent-soft">
+          <p className="text-sm text-white">
             Your card, your QR code and your link all open the same page.
           </p>
         </div>

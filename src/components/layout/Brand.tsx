@@ -6,15 +6,15 @@ export function Brand({ href = "/", showMark = true }: { href?: string; showMark
   return (
     <Link
       aria-label="Tapit home"
-      className={`tapit-display inline-flex min-h-11 items-center text-tapit-ink ${showMark ? "gap-2 text-[1.05rem] font-semibold tracking-[-0.04em]" : "text-[1.7rem] font-semibold tracking-[-0.04em]"}`}
+      className={`tapit-display inline-flex min-h-11 items-center font-semibold tracking-tight text-tapit-ink ${showMark ? "gap-2 text-lg" : "text-xl"}`}
       href={href}
     >
       {showMark ? (
         <span
           aria-hidden="true"
-          className="grid size-8 place-items-center rounded-[12px] bg-gradient-to-br from-tapit-accent to-[#6184e8] text-white shadow-[0_5px_12px_rgba(49,95,228,0.18)]"
+          className="grid size-8 place-items-center rounded-control bg-tapit-accent text-white"
         >
-          <Icon name="fingerprint" size={17} weight="bold" />
+          <Icon name="fingerprint" size={18} weight="bold" />
         </span>
       ) : null}
       tapit

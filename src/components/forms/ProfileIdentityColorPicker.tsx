@@ -1,6 +1,5 @@
 "use client";
 
-import { PlusIcon } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import {
@@ -14,6 +13,7 @@ import {
   type ProfileIdentityColorPreset,
   type ProfileIdentityField,
 } from "@/lib/profile-customization";
+import { Icon } from "@/components/ui/Icon";
 
 const fieldLabels: Record<ProfileIdentityField, string> = {
   name: "Name",
@@ -100,7 +100,6 @@ export function ProfileIdentityColorPicker({
   value,
   error,
   allowWhite = false,
-  barePanels = false,
   onChange,
 }: {
   field: ProfileIdentityField;
@@ -210,7 +209,7 @@ export function ProfileIdentityColorPicker({
                 <button
                   aria-label={`${presetLabel} ${label.toLowerCase()} color`}
                   aria-pressed={selected}
-                  className={`size-9 min-h-0 shrink-0 rounded-full border border-[#2c2420]/15 shadow-card transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${barePanels ? "focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2" : ""} ${selected ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
+                  className="grid size-11 shrink-0 place-items-center rounded-full shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
                   onClick={() => {
                     setPickerError(undefined);
                     onChange(preset === "default" ? undefined : { kind: "preset", value: preset });
@@ -218,10 +217,16 @@ export function ProfileIdentityColorPicker({
                   style={{ backgroundColor: colorForPreset(field, preset) }}
                   title={`${presetLabel} ${label.toLowerCase()} color`}
                   type="button"
-                />
+                >
+                  {selected ? (
+                    <span className="grid size-5 place-items-center rounded-full bg-tapit-surface text-tapit-ink">
+                      <Icon className="size-3" name="check" weight="bold" />
+                    </span>
+                  ) : null}
+                </button>
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-tapit-ink px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
+                  className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-tapit-ink px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
                 >
                   {presetLabel}
                 </span>
@@ -233,23 +238,24 @@ export function ProfileIdentityColorPicker({
               aria-label={`Choose custom ${label.toLowerCase()} color`}
               aria-expanded={open}
               aria-haspopup="dialog"
-              className={`grid size-9 min-h-0 shrink-0 place-items-center rounded-full border border-[#2c2420]/15 shadow-card transition-colors duration-150 hover:border-[#2c2420]/40 focus-visible:outline-none ${barePanels ? "focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2" : ""} ${value?.kind === "custom" ? "ring-2 ring-tapit-accent ring-offset-2" : ""}`}
+              className={`grid size-11 shrink-0 place-items-center rounded-full shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2 ${value?.kind === "custom" ? "" : "bg-tapit-soft-surface text-tapit-muted"}`}
               onClick={() => (open ? closePicker() : openPicker())}
               ref={triggerRef}
-              style={{
-                background:
-                  "conic-gradient(from 30deg, #a84431, #e0a43a, #3e806d, #4d74b6, #a84431)",
-              }}
+              style={value?.kind === "custom" ? { backgroundColor: value.hex } : undefined}
               title={`Choose custom ${label.toLowerCase()} color`}
               type="button"
             >
-              <span className="grid size-5 place-items-center rounded-full bg-[#fffdf9]/90 text-tapit-ink">
-                <PlusIcon aria-hidden="true" size={13} weight="bold" />
-              </span>
+              {value?.kind === "custom" ? (
+                <span className="grid size-5 place-items-center rounded-full bg-tapit-surface text-tapit-ink">
+                  <Icon className="size-3" name="check" weight="bold" />
+                </span>
+              ) : (
+                <Icon className="size-4" name="plus" weight="bold" />
+              )}
             </button>
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-tapit-ink px-2.5 py-1 text-[11px] font-semibold text-white opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
+              className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 -translate-x-1/2 whitespace-nowrap rounded-full bg-tapit-ink px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-card transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none"
             >
               Custom
             </span>
@@ -265,13 +271,13 @@ export function ProfileIdentityColorPicker({
       {open ? (
         <div
           aria-label={`${label} custom color picker`}
-          className="z-20 grid gap-4 rounded-card border border-tapit-line bg-tapit-surface p-4 shadow-[0_18px_42px_rgba(27,36,51,0.12)]"
+          className="z-20 grid gap-4 rounded-card bg-tapit-soft-surface p-6"
           role="dialog"
         >
           <div className="flex items-stretch gap-3">
             <div
               aria-label={`${label} saturation and value area`}
-              className="relative min-h-40 flex-1 cursor-crosshair overflow-hidden rounded-card border border-[#2c2420]/15"
+              className="relative min-h-40 flex-1 cursor-crosshair overflow-hidden rounded-control"
               onPointerDown={(event) => {
                 event.currentTarget.setPointerCapture(event.pointerId);
                 updatePad(event);
@@ -286,7 +292,7 @@ export function ProfileIdentityColorPicker({
             >
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(44,36,32,0.7)]"
+                className="pointer-events-none absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white"
                 style={{
                   left: `${hsv.saturation}%`,
                   top: `${100 - hsv.value}%`,
@@ -298,7 +304,7 @@ export function ProfileIdentityColorPicker({
               <span className="sr-only">{label} hue</span>
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 rounded-full border border-[#2c2420]/15"
+                className="pointer-events-none absolute inset-0 rounded-full"
                 style={{
                   background:
                     "linear-gradient(to bottom, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%)",
@@ -317,7 +323,7 @@ export function ProfileIdentityColorPicker({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <label className="grid gap-1.5 text-xs font-semibold text-tapit-muted">
+            <label className="grid gap-2 text-xs font-semibold text-tapit-muted">
               <span>Saturation</span>
               <input
                 aria-label={`${label} saturation`}
@@ -331,7 +337,7 @@ export function ProfileIdentityColorPicker({
                 value={hsv.saturation}
               />
             </label>
-            <label className="grid gap-1.5 text-xs font-semibold text-tapit-muted">
+            <label className="grid gap-2 text-xs font-semibold text-tapit-muted">
               <span>Value</span>
               <input
                 aria-label={`${label} value`}
@@ -349,16 +355,16 @@ export function ProfileIdentityColorPicker({
             <label className="sr-only" htmlFor={`${errorId}-hex`}>
               {label} custom hex color
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <span
                 aria-hidden="true"
-                className="size-10 shrink-0 rounded-full border border-[#2c2420]/15 shadow-inner"
+                className="size-11 shrink-0 rounded-full shadow-card"
                 style={{ backgroundColor: safeDraftHex }}
               />
               <input
                 aria-describedby={visibleError ? pickerErrorId : undefined}
                 aria-invalid={Boolean(visibleError)}
-                className="min-h-11 min-w-0 flex-1 rounded-card border border-tapit-line bg-tapit-paper px-3 text-sm font-semibold uppercase tracking-[0.08em] text-tapit-ink outline-none transition focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20"
+                className="min-h-11 min-w-0 flex-1 rounded-control bg-tapit-surface px-4 text-sm font-semibold uppercase tracking-[0.08em] text-tapit-ink transition-colors focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent aria-invalid:bg-tapit-danger-soft"
                 id={`${errorId}-hex`}
                 inputMode="text"
                 onBlur={() => commitCustomHex(draftHex)}

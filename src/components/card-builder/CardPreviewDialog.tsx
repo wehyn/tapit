@@ -82,7 +82,7 @@ export function CardPreviewDialog({
       <div
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card sm:p-8"
+        className="relative w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}

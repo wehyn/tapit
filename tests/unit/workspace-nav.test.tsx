@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DraftSaveProvider,
@@ -36,7 +36,17 @@ vi.mock("next/link", () => ({
 beforeEach(() => {
   push.mockClear();
   usePathname.mockReturnValue("/app/profile");
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    })),
+  );
 });
+
+afterEach(() => vi.unstubAllGlobals());
 
 function renderChrome(props: Partial<WorkspaceChromeProps> = {}, status?: DraftStatus) {
   function StatusReporter() {

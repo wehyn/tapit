@@ -3,7 +3,7 @@ export default function PublicProfileLoading() {
     <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-8 sm:px-6 sm:py-12">
       <div
         aria-label="Loading profile"
-        className="w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card sm:p-8"
+        className="w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card"
         role="status"
       >
         <div className="size-20 animate-pulse rounded-full bg-tapit-soft-surface" />

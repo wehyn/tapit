@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { DownloadSimpleIcon, QrCodeIcon } from "@phosphor-icons/react";
 
 import { generateQrPng, generateQrSvg } from "@/lib/qr";
 
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { Icon } from "@/components/ui/Icon";
 
 export function QrControls({ cardUrl, label }: { cardUrl: string; label: string }) {
   const [svg, setSvg] = useState("");
@@ -50,9 +50,9 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
   }
 
   return (
-    <div className="mt-4 rounded-card bg-tapit-soft-surface p-4 sm:p-6">
+    <div className="mt-4 rounded-card bg-tapit-soft-surface p-6">
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-        <QrCodeIcon aria-hidden="true" size={18} /> QR fallback
+        <Icon name="qrCode" size={18} /> QR fallback
       </p>
       {error ? (
         <div className="mt-3">
@@ -77,7 +77,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
           download={`${label}.png`}
           href={png || undefined}
         >
-          <DownloadSimpleIcon aria-hidden="true" size={18} />
+          <Icon name="download" size={18} />
           Download PNG
         </a>
         <Button
@@ -87,7 +87,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
           type="button"
           variant="secondary"
         >
-          <DownloadSimpleIcon aria-hidden="true" size={18} />
+          <Icon name="download" size={18} />
           Download SVG
         </Button>
       </div>

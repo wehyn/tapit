@@ -176,7 +176,7 @@ export function OnboardingForm() {
         </ol>
       </div>
       <div className="flex flex-1 flex-col items-center justify-center gap-12 lg:flex-row">
-        <section className="flex w-full max-w-xl flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
+        <section className="flex w-full max-w-xl flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card">
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold tracking-widest text-tapit-accent-strong uppercase">
               Finish your profile
@@ -281,9 +281,9 @@ export function OnboardingForm() {
         </section>
         <div
           aria-hidden="true"
-          className="flex w-full max-w-72 flex-col gap-3 rounded-card bg-tapit-surface p-3 shadow-card"
+          className="flex w-full max-w-72 flex-col gap-3 rounded-card bg-tapit-surface p-6 shadow-card"
         >
-          <div className="flex flex-col items-center gap-4 rounded-card bg-tapit-paper px-4 pt-6 pb-4 text-center">
+          <div className="flex flex-col items-center gap-4 rounded-card bg-tapit-paper p-6 text-center">
             <span className="grid size-22 place-items-center rounded-full bg-tapit-accent text-xl font-semibold text-white">
               {previewInitials}
             </span>

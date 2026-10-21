@@ -5,7 +5,6 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ShieldCheckIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -18,6 +17,7 @@ import {
 import { Card } from "@/components/ui/Card";
 import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { Icon } from "@/components/ui/Icon";
 
 const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "lifetime", label: "Lifetime" },
@@ -314,12 +314,7 @@ function AnalyticsReport({
         </Card>
         <Card description={privacyDescription} tone="soft" title="Privacy note">
           <p className="flex items-start gap-3 text-sm text-tapit-muted">
-            <ShieldCheckIcon
-              aria-hidden="true"
-              className="shrink-0 text-tapit-accent"
-              size={21}
-              weight="bold"
-            />
+            <Icon className="shrink-0 text-tapit-accent" name="shield" size={21} weight="bold" />
             {privacyBody}
           </p>
         </Card>

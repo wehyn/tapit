@@ -1,7 +1,6 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowUpRightIcon, DeviceMobileIcon, GlobeSimpleIcon } from "@phosphor-icons/react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
@@ -192,7 +191,7 @@ export function WorkspacePreview({
           ) : null}
         </div>
         <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-control bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
-          <DeviceMobileIcon aria-hidden="true" size={17} />
+          <Icon name="deviceMobile" size={17} />
           Mobile
         </span>
       </div>
@@ -210,11 +209,11 @@ export function WorkspacePreview({
             : "min-[1400px]:flex-1 min-[1400px]:overflow-hidden"
         } ${
           preview.customization?.preset === "warm-studio"
-            ? "bg-[#fbf6ef]"
+            ? "bg-tapit-warm-studio-page"
             : preview.theme === "night"
-              ? "bg-[#17211f]"
+              ? "bg-tapit-night-paper"
               : preview.theme === "moss"
-                ? "bg-[#e8f1eb]"
+                ? "bg-tapit-moss-paper"
                 : "bg-tapit-paper"
         }`}
       >
@@ -235,11 +234,7 @@ export function WorkspacePreview({
               <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-control bg-tapit-surface">
                 <div className="flex h-10 shrink-0 items-center justify-center bg-tapit-soft-surface px-4">
                   <div className="flex h-6 w-full items-center justify-center gap-2 rounded-control bg-tapit-surface px-2 text-xs text-tapit-muted">
-                    <GlobeSimpleIcon
-                      aria-hidden="true"
-                      className="shrink-0 text-tapit-muted"
-                      size={12}
-                    />
+                    <Icon className="shrink-0 text-tapit-muted" name="globeSimple" size={12} />
                     <span className="truncate">{`tapit.app${profilePath}`}</span>
                   </div>
                 </div>
@@ -289,7 +284,7 @@ export function WorkspacePreview({
           </div>
           <ButtonLink className="scroll-mb-44" href={profileUrl} variant="secondary">
             View published profile
-            <ArrowUpRightIcon aria-hidden="true" size={17} />
+            <Icon name="arrowUpRight" size={17} />
           </ButtonLink>
           <Button
             aria-label="Copy URL"

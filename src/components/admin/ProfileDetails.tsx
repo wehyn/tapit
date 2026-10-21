@@ -1,7 +1,10 @@
 import type { ProfileContent, ProfileStatus, PublishedProfileSnapshot } from "@/lib/domain";
 
-import { Button } from "@/components/ui/Button";
+import Image from "next/image";
+
+import { Button, ButtonLink } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { StatusChip } from "@/components/ui/Chip";
 
@@ -33,13 +36,53 @@ export interface ProfileDetailsProps {
 function Definition({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted">
-        {label}
-      </dt>
-      <dd className="mt-2 break-words text-base leading-7 text-tapit-ink">
-        {value || "Not provided"}
-      </dd>
+      <dt className="text-xs font-semibold text-tapit-muted">{label}</dt>
+      <dd className="mt-1 break-words text-sm text-tapit-ink">{value || "Not provided"}</dd>
     </div>
+  );
+}
+
+function ProfileIdentity({ view }: { view: AdminProfileDetailsView }) {
+  const { draft } = view;
+  return (
+    <section aria-label="Profile identity" className="flex flex-col items-center gap-4 text-center">
+      {draft.imageUrl ? (
+        <Image
+          alt=""
+          className="tapit-image-outline size-16 rounded-full bg-tapit-surface object-cover"
+          height={64}
+          src={draft.imageUrl}
+          unoptimized
+          width={64}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="grid size-16 place-items-center rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent-strong"
+        >
+          {draft.name.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+      <div className="flex flex-col items-center gap-2">
+        <p className="text-lg font-semibold text-tapit-ink">{draft.name || "Unnamed profile"}</p>
+        {draft.bio ? <p className="text-sm text-tapit-muted">{draft.bio}</p> : null}
+        <StatusChip status={view.status} />
+      </div>
+      <div className="grid w-full gap-2 sm:grid-cols-2">
+        <div className="flex min-h-14 items-center justify-between gap-3 rounded-control bg-tapit-soft-surface px-4 py-3">
+          <span className="text-sm text-tapit-muted">Published</span>
+          <span className="text-sm text-tapit-ink">{view.publishedAt ?? "Not recorded"}</span>
+        </div>
+        <div className="flex min-h-14 items-center justify-between gap-3 rounded-control bg-tapit-soft-surface px-4 py-3">
+          <span className="text-sm text-tapit-muted">Theme</span>
+          <span className="text-sm capitalize text-tapit-ink">{draft.theme ?? "paper"}</span>
+        </div>
+      </div>
+      <ButtonLink href={`/${view.currentSlug}`} variant="secondary">
+        Open public page
+        <Icon name="link" size={16} />
+      </ButtonLink>
+    </section>
   );
 }
 
@@ -51,25 +94,25 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
     ? content.links.find((link) => link.id === customization.featuredLinkId)
     : undefined;
   const media = content.media;
+  const backgroundImageUrl = media?.background?.previewUrl || media?.background?.url;
   return (
     <section
       aria-label={heading}
-      className="rounded-card border border-tapit-line bg-tapit-surface p-5 sm:p-7"
+      className="flex min-w-0 flex-col gap-6 rounded-card bg-tapit-soft-surface p-6"
     >
       <h3 className="text-base font-semibold text-tapit-ink">{heading}</h3>
-      <dl className="mt-6 grid min-w-0 gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+      <dl className="grid min-w-0 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="sm:col-span-2 lg:col-span-3">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-tapit-muted">
-            Image preview
-          </dt>
+          <dt className="text-xs font-semibold text-tapit-muted">Image preview</dt>
           <dd className="mt-2">
             {content.imageUrl ? (
-              // The projection supplies a public preview URL; storage identifiers are never rendered.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 alt={`${content.name || "Profile"} profile image`}
                 className="tapit-image-outline size-28 rounded-card bg-tapit-surface object-cover"
+                height={112}
                 src={content.imageUrl}
+                unoptimized
+                width={112}
               />
             ) : (
               <span className="text-sm text-tapit-muted">No image</span>
@@ -90,10 +133,10 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {customization ? (
         <section
           aria-label="Appearance details"
-          className="mt-8 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="flex flex-col gap-4 rounded-control bg-tapit-surface p-4 shadow-card"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Appearance and layout</h4>
-          <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
+          <dl className="grid min-w-0 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Definition label="Preset" value={customization.preset} />
             <Definition label="Accent" value={customization.accent} />
             <Definition label="Type scale" value={customization.typeScale} />
@@ -126,16 +169,16 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {section ? (
         <section
           aria-label={section.kind === "about" ? "About section" : "Services section"}
-          className="mt-5 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="flex flex-col gap-3 rounded-control bg-tapit-surface p-4 shadow-card"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">
             {section.kind === "about" ? "About" : "Services"}
           </h4>
-          <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-tapit-muted">
+          <p className="whitespace-pre-wrap text-sm text-tapit-muted">
             {section.body || "No section copy saved."}
           </p>
           {section.kind === "services" && section.items?.length ? (
-            <ul className="mt-3 list-inside list-disc text-sm leading-6 text-tapit-ink">
+            <ul className="list-inside list-disc text-sm text-tapit-ink">
               {section.items.map((item, index) => (
                 <li key={`${item}-${index}`}>{item}</li>
               ))}
@@ -146,10 +189,10 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
       {media ? (
         <section
           aria-label="Profile media"
-          className="mt-5 rounded-card border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+          className="flex flex-col gap-4 rounded-control bg-tapit-surface p-4 shadow-card"
         >
           <h4 className="text-sm font-semibold text-tapit-ink">Media</h4>
-          <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
+          <dl className="grid min-w-0 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Definition label="Hero height" value={`${media.heroHeight}px`} />
             <Definition
               label="Slideshow autoplay"
@@ -158,19 +201,20 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
             <Definition label="Slideshow images" value={String(media.slideshow.length)} />
           </dl>
           {media.background ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center">
-              {media.background.previewUrl || media.background.url ? (
-                // The projection supplies a preview URL; storage identifiers are never rendered.
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+            <div className="grid gap-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-center">
+              {backgroundImageUrl ? (
+                <Image
                   alt={media.background.altText}
                   className="tapit-image-outline h-24 w-full rounded-card object-cover"
-                  src={media.background.previewUrl ?? media.background.url}
+                  height={96}
+                  src={backgroundImageUrl}
+                  unoptimized
+                  width={160}
                 />
               ) : null}
-              <div>
+              <div className="flex flex-col gap-2">
                 <Definition label="Background description" value={media.background.altText} />
-                <p className="mt-2 text-xs text-tapit-muted">
+                <p className="text-xs text-tapit-muted">
                   Crop position {media.background.positionX}% horizontal,{" "}
                   {media.background.positionY}% vertical
                 </p>
@@ -178,31 +222,35 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
             </div>
           ) : null}
           {media.slideshow.length > 0 ? (
-            <ol className="mt-5 grid gap-3 sm:grid-cols-2">
-              {media.slideshow.map((image, index) => (
-                <li
-                  className="flex items-center gap-3 rounded-card border border-tapit-line p-3"
-                  key={`${image.assetId}-${index}`}
-                >
-                  {image.previewUrl || image.url ? (
-                    // The projection supplies a preview URL; storage identifiers are never rendered.
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt={image.altText}
-                      className="tapit-image-outline size-14 shrink-0 rounded-card object-cover"
-                      src={image.previewUrl ?? image.url}
-                    />
-                  ) : null}
-                  <span className="text-sm text-tapit-ink">
-                    {image.altText || `Image ${index + 1}`}
-                  </span>
-                </li>
-              ))}
+            <ol className="grid gap-2 sm:grid-cols-2">
+              {media.slideshow.map((image, index) => {
+                const imageUrl = image.previewUrl || image.url;
+                return (
+                  <li
+                    className="flex items-center gap-3 rounded-control bg-tapit-soft-surface p-3"
+                    key={`${image.assetId}-${index}`}
+                  >
+                    {imageUrl ? (
+                      <Image
+                        alt={image.altText}
+                        className="tapit-image-outline size-14 shrink-0 rounded-card object-cover"
+                        height={56}
+                        src={imageUrl}
+                        unoptimized
+                        width={56}
+                      />
+                    ) : null}
+                    <span className="text-sm text-tapit-ink">
+                      {image.altText || `Image ${index + 1}`}
+                    </span>
+                  </li>
+                );
+              })}
             </ol>
           ) : null}
         </section>
       ) : null}
-      <div className="mt-8 border-t border-tapit-line pt-6">
+      <div className="flex flex-col gap-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h4 className="text-sm font-semibold text-tapit-ink">Links</h4>
           <p className="text-sm text-tapit-muted">
@@ -210,15 +258,16 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
           </p>
         </div>
         {content.links.length === 0 ? (
-          <p className="mt-2 text-sm text-tapit-muted">No links saved.</p>
+          <p className="text-sm text-tapit-muted">No links saved.</p>
         ) : (
-          <ol className="mt-4 divide-y divide-tapit-line rounded-card border border-tapit-line bg-tapit-surface">
+          <ol className="flex flex-col gap-2">
             {content.links.map((link, index) => (
-              <li className="p-4 sm:p-5" key={`${link.id}-${index}`}>
-                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-tapit-muted">
-                  Link {index + 1}
-                </p>
-                <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-5 sm:grid-cols-2">
+              <li
+                className="rounded-control bg-tapit-surface p-4 shadow-card"
+                key={`${link.id}-${index}`}
+              >
+                <p className="text-xs font-semibold text-tapit-muted">Link {index + 1}</p>
+                <dl className="mt-4 grid min-w-0 gap-x-8 gap-y-4 sm:grid-cols-2">
                   <Definition label="Label" value={link.label} />
                   <Definition label="Destination" value={link.destination} />
                   <Definition label="Icon" value={link.icon ?? "None"} />
@@ -254,36 +303,27 @@ export function ProfileDetails({
   ] as const;
 
   return (
-    <div className="grid min-w-0 gap-8">
+    <div className="grid min-w-0 gap-6">
+      <ProfileIdentity view={view} />
+
       <section
         aria-labelledby="admin-profile-overview-heading"
-        className="rounded-card border border-tapit-line bg-tapit-paper p-5 sm:p-7"
+        className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-soft-surface p-6"
       >
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-              Profile overview
-            </p>
-            <h2
-              className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
-              id="admin-profile-overview-heading"
-            >
-              Account and lifecycle
-            </h2>
-          </div>
-          <StatusChip status={view.status} />
-        </div>
-        <dl className="mt-6 grid min-w-0 gap-4 sm:grid-cols-2">
-          <div className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5">
+        <h2 className="text-lg font-semibold text-tapit-ink" id="admin-profile-overview-heading">
+          Account and lifecycle
+        </h2>
+        <dl className="grid min-w-0 gap-2 sm:grid-cols-2">
+          <div className="rounded-control bg-tapit-surface p-4 shadow-card">
             <Definition label="Customer email" value={view.customerEmail} />
           </div>
-          <div className="rounded-card border border-tapit-line bg-tapit-surface p-4 sm:p-5">
+          <div className="rounded-control bg-tapit-surface p-4 shadow-card">
             <Definition label="Assigned cards" value={cardCount} />
           </div>
         </dl>
-        <div className="mt-7 border-t border-tapit-line pt-6">
+        <div className="flex flex-col gap-4">
           <h3 className="text-sm font-semibold text-tapit-ink">Lifecycle</h3>
-          <dl className="mt-5 grid min-w-0 gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
+          <dl className="grid min-w-0 gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             {timestamps.map(([label, value]) => (
               <Definition key={label} label={`${label} at`} value={value} />
             ))}
@@ -293,30 +333,24 @@ export function ProfileDetails({
 
       <section
         aria-labelledby="admin-profile-slug-heading"
-        className="rounded-card border border-tapit-accent/20 bg-tapit-accent-soft/30 p-5 sm:p-7"
+        className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-soft-surface p-6"
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-3xl">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-accent-strong">
-              Public address
-            </p>
-            <h2
-              className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
-              id="admin-profile-slug-heading"
-            >
+          <div className="flex max-w-3xl flex-col gap-2">
+            <h2 className="text-lg font-semibold text-tapit-ink" id="admin-profile-slug-heading">
               Administrator slug
             </h2>
-            <p className="mt-3 text-sm leading-7 text-tapit-muted">
+            <p className="text-sm text-tapit-muted">
               Changing the slug does not publish draft content. The old direct URL will stop
               resolving, and the former slug may later be assigned to another profile.
             </p>
           </div>
-          <code className="max-w-full break-all rounded-card border border-tapit-accent/20 bg-tapit-surface px-3 py-2 text-sm text-tapit-ink">
+          <code className="max-w-full break-all rounded-control bg-tapit-surface px-3 py-2 text-sm text-tapit-ink shadow-card">
             /{view.currentSlug}
           </code>
         </div>
         <form
-          className="mt-6 grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
+          className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
           onSubmit={onSlugSubmit}
         >
           <Field
@@ -330,7 +364,7 @@ export function ProfileDetails({
             value={slugValue}
           />
           <Button
-            className="min-h-12 sm:min-w-36"
+            className="min-h-11 sm:min-w-36"
             disabled={isSubmitting || slugValue.trim() === view.currentSlug}
             loading={isSubmitting}
             type="submit"
@@ -341,33 +375,17 @@ export function ProfileDetails({
         {slugSuccess ? <Notice tone="success">{slugSuccess}</Notice> : null}
       </section>
 
-      <section aria-labelledby="admin-profile-draft-heading" className="grid gap-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-            Working copy
-          </p>
-          <h2
-            className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
-            id="admin-profile-draft-heading"
-          >
-            Saved draft
-          </h2>
-        </div>
+      <section aria-labelledby="admin-profile-draft-heading" className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-tapit-ink" id="admin-profile-draft-heading">
+          Saved draft
+        </h2>
         <ContentSection content={view.draft} heading="Saved draft content" />
       </section>
 
-      <section aria-labelledby="admin-profile-published-heading" className="grid gap-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-            Visitor-facing version
-          </p>
-          <h2
-            className="mt-2 text-lg font-semibold tracking-tight text-tapit-ink"
-            id="admin-profile-published-heading"
-          >
-            Published snapshot
-          </h2>
-        </div>
+      <section aria-labelledby="admin-profile-published-heading" className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-tapit-ink" id="admin-profile-published-heading">
+          Published snapshot
+        </h2>
         {view.published ? (
           <ContentSection content={view.published} heading="Published snapshot content" />
         ) : (
