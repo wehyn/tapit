@@ -403,45 +403,63 @@ Inactive-card and unavailable-profile are separate states. A card can be inactiv
 
 ### Overall character
 
-Tapit uses the approved **Soft Precision** direction: a cool, quiet canvas, white surfaces, deep ink type, a clear blue accent, rounded controls, and generous Apple-like spacing with restrained, Linear-inspired precision. Shadows add light separation to major surfaces without turning every workspace row into a floating card. The public site, authentication, customer workspace, and admin tools share the same foundations while keeping role-specific hierarchy.
+Tapit uses the **Soft Precision** direction: a cool canvas, white surfaces, deep ink text, a blue accent, rounded controls, and generous spacing. The public site, authentication, customer workspace, and admin tools share the same visual foundations while keeping role-specific hierarchy.
 
 The existing `/app` redirect and navigation destinations remain authoritative. No external fonts, animation packages, or new visual dependencies were added.
 
-The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. The default Paper profile theme uses Soft Precision. Explicitly selected Moss, Night, and Warm Studio themes override that default and keep their own visual treatment.
+The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. Paper, Moss, and Night use named profile theme tokens. The default Paper profile theme uses Soft Precision. Explicitly selected Moss, Night, Warm Studio, and Custom themes keep their own visual treatment.
 
-### Implemented tokens
+### Core palette
 
-| Role | CSS token | Value |
+| Token | Value | Use |
 | --- | --- | --- |
-| Main text | `--tapit-ink` | `#1b2433` |
-| Secondary text | `--tapit-muted` | `#626f82` |
-| Main surface | `--tapit-surface` | `#ffffff` |
-| Page canvas | `--tapit-paper` | `#f4f6fa` |
-| Soft surface | `--tapit-soft-surface` | `#f0f3f9` |
-| Borders | `--tapit-line` | `#e0e5ed` |
-| Primary accent | `--tapit-accent` | `#3f6de8` |
-| Strong/text accent | `--tapit-accent-strong` | `#315fe4` |
-| Accent surface | `--tapit-accent-soft` | `#e8edf9` |
-| Warm accent | `--tapit-warm` | `#c9a875` |
-| Focus ring | `--tapit-focus` | `--tapit-accent` |
-| Shared panel radius | `--tapit-radius` | `18px` |
+| `--ink` | `#1b2433` | Primary text |
+| `--muted` | `#626f82` | Secondary text |
+| `--surface` | `#ffffff` | Cards and raised surfaces |
+| `--paper` | `#f4f6fa` | Application canvas |
+| `--soft` | `#f0f3f9` | Inputs and tonal tiles |
+| `--accent` | `#3f6de8` | Primary actions and emphasis |
+| `--accent-strong` | `#315fe4` | Accent hover and text links |
+| `--accent-soft` | `#e8edf9` | Selected and active surfaces |
+| `--warm` | `#c9a875` | Warm highlights |
+| `--ok-bg` / `--ok` | `#e1f2e9` / `#10543f` | Success fill and text |
+| `--warn-bg` / `--warn` | `#fff4df` / `#784b13` | Warning fill and text |
+| `--danger-bg` / `--danger` | `#fff1f0` / `#a33c38` | Danger fill and text |
 
-The muted and text-accent values are darker than the initial mockup values to keep small text readable on the selected canvas. Status colors use paired fills and text: success `#e1f2e9` / `#10543f`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Controls use smaller corners than prominent panels. Soft and raised shadows use the ink hue at low opacity and remain limited to elevated surfaces.
+### Profile theme tokens
+
+Each profile preset defines a page background, accent, ink, and soft surface. Keep preset values together as named tokens.
+
+| Theme | Page token | Accent token | Ink token | Soft token |
+| --- | --- | --- | --- | --- |
+| Paper | `--profile-paper-page: #fffdf9` | `--profile-paper-accent: #a84431` | `--profile-paper-ink: #2c2420` | `--profile-paper-soft: #eee8e2` |
+| Moss | `--profile-moss-page: #f2f6f1` | `--profile-moss-accent: #3e806d` | `--profile-moss-ink: #17352b` | `--profile-moss-soft: #dcece2` |
+| Night | `--profile-night-page: #17211f` | `--profile-night-accent: #7bc2a9` | `--profile-night-ink: #f7fbf8` | `--profile-night-soft: #2d4239` |
+
+### Shape, spacing, and elevation
+
+- Use a `12px` radius for controls and tiles, a `20px` radius for cards and sheets, and a full pill radius for pills and avatars.
+- Use the spacing scale `4, 8, 12, 16, 24, 32, 48, 64px`.
+- Give cards `24px` of padding, use `16px` between cards, and use `32px` between sections.
+- Use one shadow token, `--shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05)`.
+- Separate content with tone and spacing. Do not add divider borders or `1px` outlines to cards, inputs, or navigation items.
+- Keep a visible focus indicator for keyboard users. Focus indicators are not decorative component outlines.
 
 ### Layout and spacing
 
 - Use a centered, single-column public profile with a 448px maximum width and generous breathing room.
 - Keep link buttons visually consistent and easy to scan. Identity appears before links; Save contact stays visually distinct from external destinations.
-- Reuse the Tailwind spacing scale across form groups, rows, cards, and sections.
-- Use rounded panels and calm, repeated spacing for the marketing specimen and workspace; reserve larger gaps for section changes and page edges.
+- Use the documented spacing scale across form groups, rows, cards, and sections.
+- Use rounded panels and tonal surfaces. Reserve larger gaps for section changes and page edges.
 - Keep one clear primary action per context: Publish, Add link, Register/Assign, or Save contact.
-- Use a full sidebar at 1280px and above, a compact icon rail from 1024px, and the existing sticky mobile header plus accessible drawer below 1024px. Customer and administrator navigation remain distinct.
+- Use the shared workspace shell for customer and administrator pages. Show a labelled 248px sidebar on desktop, and use mobile bottom tabs with a More sheet on phones.
+- Keep save status visible in the shared workspace shell. Use `DraftSaveContext` to save registered dirty drafts before navigation.
 - Keep page headers, forms, previews, tables, and dialogs usable from 320 CSS pixels upward. Collapse administrative records into readable cards where needed; avoid page-level horizontal scrolling.
 
 ### Color
 
 - Use the cool neutral application base and blue accent tokens above for shared controls and navigation.
-- Use Soft Precision tokens for the default Paper profile theme; keep Moss, Night, and Warm Studio overrides scoped to the profile surface.
+- Use Soft Precision tokens for shared app screens. Apply Paper, Moss, and Night tokens to profile surfaces.
 - Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
 - Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
 
@@ -449,6 +467,7 @@ The muted and text-accent values are darker than the initial mockup values to ke
 
 - Use the system stack `ui-sans-serif`, `-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, and `sans-serif` for body text, fields, navigation, statuses, and buttons.
 - Use the same system sans-serif stack for `.tapit-display`, application page headings, and marketing display text.
+- Use only `12px`, `14px`, `16px`, `20px`, `28px`, `40px`, and `56px` text sizes. Reserve `56px` for the landing page hero.
 - Use compact uppercase tracking for small section labels, clear heading levels for page context, and comfortable line height for body copy and legal content.
 - Keep public identity and link labels readable; use small metadata only for secondary status and timestamps.
 
@@ -463,7 +482,9 @@ Scroll reveals and staggered entrances progressively enhance the home page while
 ### Components and interaction
 
 - Build Tapit-owned components with Tailwind CSS.
+- Use the existing `Icon` component for interface icons.
 - Use accessible behavior for dialogs, menus, tabs, toggles, and reordering without adopting an opinionated visual library.
+- Use `44px`-tall buttons. Hover states change color only; they do not lift or scale.
 - Prefer direct manipulation with explicit save/publish semantics.
 - Keep draft and published states visible in editing contexts.
 - Confirm deactivation, replacement, deletion, and suspension.
