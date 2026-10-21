@@ -426,7 +426,7 @@ describe("public profile preview behavior", () => {
 
     expect(screen.getByRole("region", { name: "Profile hero" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
   it("integrates identity into a themed profile background", () => {
@@ -558,7 +558,7 @@ describe("public profile preview behavior", () => {
       />,
     );
     expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(
       "text-xl",
       "sm:text-2xl",
@@ -587,7 +587,7 @@ describe("public profile preview behavior", () => {
       "tel:+63 917 555 0184",
     );
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
   it("keeps links outlined while the Save contact button uses its filled treatment", () => {
@@ -640,7 +640,7 @@ describe("public profile preview behavior", () => {
       />,
     );
     expect(screen.queryByText("Services")).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
   it("exports validated phone contact data while omitting unsafe email and website values", async () => {

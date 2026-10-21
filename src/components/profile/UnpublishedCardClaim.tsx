@@ -2,12 +2,15 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useEffect, useState } from "react";
+import { ContactlessPayment } from "@phosphor-icons/react";
+import { useEffect, useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation } from "convex/react";
 
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Brand } from "@/components/layout/Brand";
+import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { normalizeClaimCode } from "@/lib/auth/claim-code";
@@ -30,44 +33,100 @@ type ClaimScreenProps = {
   error: string;
   onChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  signInHref?: string;
   submitting: boolean;
 };
 
-function ClaimScreen({ challenge, code, error, onChange, onSubmit, submitting }: ClaimScreenProps) {
+function ClaimPageShell({
+  busy = false,
+  children,
+  signInHref,
+}: {
+  busy?: boolean;
+  children: ReactNode;
+  signInHref?: string;
+}) {
   return (
-    <main className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10">
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
-        <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-          Card setup
-        </p>
-        <h1 className="tapit-display mt-3 text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
-          Are you the owner of this card?
+    <main
+      aria-busy={busy || undefined}
+      aria-live={busy ? "polite" : undefined}
+      className="flex min-h-[100dvh] flex-col bg-tapit-paper"
+    >
+      <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 py-4">
+        <Brand />
+        {signInHref ? (
+          <Link
+            aria-label="Sign in to continue"
+            className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+            href={signInHref}
+          >
+            Sign in
+          </Link>
+        ) : null}
+      </header>
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 py-6 sm:py-8">
+        <div
+          aria-hidden="true"
+          className="mx-auto flex aspect-[1.586] w-60 flex-col justify-between rounded-card bg-tapit-ink p-5 text-white shadow-card"
+        >
+          <ContactlessPayment aria-hidden="true" className="self-end text-tapit-warm" size={24} />
+          <p className="text-sm font-semibold">Your Tapit card</p>
+        </div>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function ClaimScreen({
+  challenge,
+  code,
+  error,
+  onChange,
+  onSubmit,
+  signInHref,
+  submitting,
+}: ClaimScreenProps) {
+  return (
+    <ClaimPageShell signInHref={signInHref}>
+      <div className="flex flex-col items-center gap-2 text-center">
+        <p className="tapit-eyebrow">New card</p>
+        <h1 className="tapit-display text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
+          This card is ready to set up
         </h1>
-        <p className="mt-4 text-sm leading-6 text-tapit-muted">
-          This card is not activated yet. Enter the private claim code to continue.
+        <p className="text-sm leading-5 text-tapit-muted">
+          Enter the claim code that came with it. The card will open your profile from now on.
         </p>
-        <form className="mt-8 grid gap-5" onSubmit={onSubmit}>
+      </div>
+      <section className="grid gap-4 rounded-card bg-tapit-surface p-4 shadow-card">
+        <form className="grid gap-4" onSubmit={onSubmit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {challenge ? (
             <Notice tone="success">Code verified. Continue to your profile workspace.</Notice>
           ) : null}
-          <Field
-            autoComplete="one-time-code"
-            autoFocus
-            id="card-claim-code"
-            inputMode="text"
-            label="Claim code"
-            maxLength={8}
-            onChange={(event) => onChange(event.target.value.toUpperCase())}
-            pattern="[A-Z0-9]{8}"
-            value={code}
-          />
-          <Button disabled={submitting || challenge !== undefined} type="submit">
+          <div className="[&_input]:text-center [&_input]:font-mono [&_input]:font-semibold [&_input]:tracking-widest">
+            <Field
+              autoComplete="one-time-code"
+              autoFocus
+              id="card-claim-code"
+              inputMode="text"
+              label="Claim code"
+              maxLength={8}
+              onChange={(event) => onChange(event.target.value.toUpperCase())}
+              pattern="[A-Z0-9]{8}"
+              value={code}
+            />
+          </div>
+          <Button
+            className="min-h-13 text-base"
+            disabled={submitting || challenge !== undefined}
+            type="submit"
+          >
             {submitting ? "Checking code" : "Claim this card"}
           </Button>
         </form>
       </section>
-    </main>
+    </ClaimPageShell>
   );
 }
 
@@ -137,6 +196,7 @@ function DemoUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
       error={error}
       onChange={setCode}
       onSubmit={submit}
+      signInHref={session ? undefined : `/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}
       submitting={submitting}
     />
   );
@@ -206,25 +266,20 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
   if (authLoading) return <ClaimLoading />;
   if (!isAuthenticated) {
     return (
-      <main className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10">
-        <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+      <ClaimPageShell signInHref={`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}>
+        <section className="flex flex-col items-center gap-4 text-center">
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
             Card setup
           </p>
-          <h1 className="tapit-display mt-3 text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
+          <h1 className="tapit-display text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
             Are you the owner of this card?
           </h1>
-          <p className="mt-4 max-w-md text-sm leading-6 text-tapit-muted">
+          <p className="text-sm leading-6 text-tapit-muted">
             Sign in to your Tapit account first. Then enter the private claim code supplied with
             your card to activate it and confirm ownership.
           </p>
-          <div className="mt-8">
-            <ButtonLink href={`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}>
-              Sign in to continue
-            </ButtonLink>
-          </div>
         </section>
-      </main>
+      </ClaimPageShell>
     );
   }
   return (
@@ -241,16 +296,10 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
 
 function ClaimLoading() {
   return (
-    <main
-      aria-busy="true"
-      aria-live="polite"
-      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10"
-    >
-      <section className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
-        <p className="text-sm text-tapit-muted" role="status">
-          Checking your sign-in status...
-        </p>
-      </section>
-    </main>
+    <ClaimPageShell busy>
+      <p className="text-center text-sm text-tapit-muted" role="status">
+        Checking your sign-in status...
+      </p>
+    </ClaimPageShell>
   );
 }

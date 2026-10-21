@@ -9,6 +9,7 @@ import {
   Code,
   DownloadSimple,
   EnvelopeSimple,
+  Fingerprint,
   Globe,
   GithubLogo,
   Images,
@@ -17,6 +18,7 @@ import {
   LinkSimple,
   Phone,
   Palette,
+  PencilSimple,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -51,28 +53,28 @@ const profileThemeStyles: Record<
   ProfileThemeCSSProperties
 > = {
   moss: {
-    "--tapit-ink": "#17352b",
-    "--tapit-muted": "#4f6d5c",
-    "--tapit-surface": "#f7fbf8",
-    "--tapit-paper": "#e8f1eb",
-    "--tapit-soft-surface": "#dcece2",
-    "--tapit-line": "#b9d1c0",
-    "--tapit-accent": "#176b57",
-    "--tapit-accent-strong": "#105543",
-    "--tapit-accent-soft": "#dcece2",
-    "--tapit-focus": "#176b57",
+    "--tapit-ink": "var(--tapit-moss-ink)",
+    "--tapit-muted": "var(--tapit-moss-muted)",
+    "--tapit-surface": "var(--tapit-moss-surface)",
+    "--tapit-paper": "var(--tapit-moss-paper)",
+    "--tapit-soft-surface": "var(--tapit-moss-soft-surface)",
+    "--tapit-line": "var(--tapit-moss-soft-surface)",
+    "--tapit-accent": "var(--tapit-moss-accent)",
+    "--tapit-accent-strong": "var(--tapit-moss-accent-strong)",
+    "--tapit-accent-soft": "var(--tapit-moss-soft-surface)",
+    "--tapit-focus": "var(--tapit-moss-accent)",
   },
   night: {
-    "--tapit-ink": "#f2f6f1",
-    "--tapit-muted": "#b7c9c0",
-    "--tapit-surface": "#22302b",
-    "--tapit-paper": "#17211f",
-    "--tapit-soft-surface": "#2d4239",
-    "--tapit-line": "#40534d",
-    "--tapit-accent": "#7bc2a9",
-    "--tapit-accent-strong": "#a0dbc5",
-    "--tapit-accent-soft": "#2d4239",
-    "--tapit-focus": "#a0dbc5",
+    "--tapit-ink": "var(--tapit-night-ink)",
+    "--tapit-muted": "var(--tapit-night-muted)",
+    "--tapit-surface": "var(--tapit-night-surface)",
+    "--tapit-paper": "var(--tapit-night-paper)",
+    "--tapit-soft-surface": "var(--tapit-night-soft-surface)",
+    "--tapit-line": "var(--tapit-night-soft-surface)",
+    "--tapit-accent": "var(--tapit-night-accent)",
+    "--tapit-accent-strong": "var(--tapit-night-accent-strong)",
+    "--tapit-accent-soft": "var(--tapit-night-soft-surface)",
+    "--tapit-focus": "var(--tapit-night-accent-strong)",
   },
 };
 
@@ -258,6 +260,7 @@ export function PublicProfile({
   const media = profile.media;
   const background = media?.background;
   const phonePreview = preview || mobileLayout;
+  const publicMobileLayout = mobileLayout && !preview;
   const compactPhonePreview = phonePreview && fitPhonePreviewContent;
   const wideProfile = !phonePreview;
   const centerIdentity = phonePreview;
@@ -290,16 +293,16 @@ export function PublicProfile({
       muted: "text-tapit-muted",
     },
     moss: {
-      page: "bg-[#e8f1eb] text-[#17352b]",
-      panel: "border-[#b9d1c0] bg-[#f7fbf8]",
-      link: "border-[#b9d1c0] bg-transparent hover:border-[#176b57] hover:bg-[#dcece2]",
-      muted: "text-[#4f6d5c]",
+      page: "bg-tapit-paper text-tapit-ink",
+      panel: "border-tapit-line bg-tapit-surface",
+      link: "border-tapit-line bg-transparent hover:border-tapit-accent hover:bg-tapit-accent-soft",
+      muted: "text-tapit-muted",
     },
     night: {
-      page: "bg-[#17211f] text-[#f2f6f1]",
-      panel: "border-[#40534d] bg-[#22302b]",
-      link: "border-[#40534d] bg-transparent hover:border-[#7bc2a9] hover:bg-[#2d4239]",
-      muted: "text-[#b7c9c0]",
+      page: "bg-tapit-paper text-tapit-ink",
+      panel: "border-tapit-line bg-tapit-surface",
+      link: "border-tapit-line bg-transparent hover:border-tapit-accent hover:bg-tapit-accent-soft",
+      muted: "text-tapit-muted",
     },
     custom: {
       page: "bg-tapit-paper text-tapit-ink",
@@ -310,8 +313,8 @@ export function PublicProfile({
   }[theme];
   const previewPageClasses = {
     paper: "bg-transparent text-tapit-ink",
-    moss: "bg-transparent text-[#17352b]",
-    night: "bg-transparent text-[#f2f6f1]",
+    moss: "bg-transparent text-tapit-ink",
+    night: "bg-transparent text-tapit-ink",
     custom: "bg-transparent text-tapit-ink",
   }[theme];
   const warmAccent = {
@@ -346,7 +349,12 @@ export function PublicProfile({
         : "sm:border-[#e5d6c5] sm:bg-[#fffdf9]"
     : themeClasses.panel;
   const mutedClasses = warmStudio ? "text-[#74665d]" : themeClasses.muted;
-  const linkClasses = warmStudio ? warmAccent.outlined : themeClasses.link;
+  const linkClasses =
+    publicMobileLayout && !warmStudio
+      ? "bg-tapit-surface text-tapit-ink hover:bg-tapit-soft-surface"
+      : warmStudio
+        ? warmAccent.outlined
+        : themeClasses.link;
   const typeScaleClasses =
     configured && appearance.typeScale === "compact"
       ? phonePreview
@@ -369,23 +377,25 @@ export function PublicProfile({
           : phonePreview
             ? "text-xl"
             : "text-xl sm:text-2xl";
-  const profileContentMargin = phonePreview
-    ? warmStudio
-      ? compactPhonePreview
-        ? "mt-3"
-        : "mt-6"
-      : compactPhonePreview
-        ? "mt-5"
-        : "mt-9"
-    : preview
+  const profileContentMargin = publicMobileLayout
+    ? "mt-0"
+    : phonePreview
       ? warmStudio
-        ? "mt-4"
-        : "mt-6"
-      : warmStudio
-        ? "mt-6"
-        : "mt-9";
+        ? compactPhonePreview
+          ? "mt-3"
+          : "mt-6"
+        : compactPhonePreview
+          ? "mt-5"
+          : "mt-9"
+      : preview
+        ? warmStudio
+          ? "mt-4"
+          : "mt-6"
+        : warmStudio
+          ? "mt-6"
+          : "mt-9";
   const profileLinkGap = phonePreview
-    ? compactPhonePreview
+    ? compactPhonePreview || publicMobileLayout
       ? "gap-2"
       : "gap-3"
     : !preview
@@ -436,11 +446,34 @@ export function PublicProfile({
     const LinkIcon = linkIcons[iconKey];
     const arrowClasses = warmStudio
       ? `${warmAccent.arrow} text-current/80`
-      : `group-hover:text-tapit-accent ${mutedClasses}`;
+      : publicMobileLayout
+        ? "text-current/80"
+        : `group-hover:text-tapit-accent ${mutedClasses}`;
+    const publicMobileLink = publicMobileLayout && !warmStudio;
+    const sizeClasses = featured
+      ? publicMobileLink
+        ? "min-h-14 px-3 py-3 text-sm"
+        : compactPhonePreview
+          ? "min-h-12 px-4 py-3"
+          : "min-h-16 px-5 py-4"
+      : publicMobileLink
+        ? "min-h-[52px] px-4 py-2 text-sm"
+        : compactPhonePreview
+          ? "min-h-11 px-3.5 py-2 text-xs"
+          : phonePreview
+            ? "min-h-14 px-5 py-4 text-sm"
+            : preview
+              ? "min-h-12 px-3.5 py-3 text-sm"
+              : "min-h-14 px-5 py-4 text-sm";
+    const toneClasses = publicMobileLink
+      ? featured
+        ? "bg-tapit-accent-soft text-tapit-accent-strong hover:bg-tapit-accent-soft"
+        : "bg-tapit-surface text-tapit-ink shadow-card hover:bg-tapit-soft-surface"
+      : linkClasses;
     return (
       <li key={link.id}>
         <a
-          className={`group flex items-center justify-between rounded-full border font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${featured ? `${compactPhonePreview ? "min-h-12 px-4 py-3" : "min-h-16 px-5 py-4"}` : compactPhonePreview ? "min-h-11 px-3.5 py-2 text-xs" : phonePreview ? "min-h-14 px-5 py-4 text-sm" : preview ? "min-h-12 px-3.5 py-3 text-sm" : "min-h-14 px-5 py-4 text-sm"} ${linkClasses}`}
+          className={`group flex items-center justify-between ${publicMobileLink ? "rounded-control border-0" : "rounded-full border"} font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${sizeClasses} ${toneClasses}`}
           data-featured={featured ? "true" : undefined}
           data-icon={iconKey}
           href={link.destination}
@@ -450,11 +483,19 @@ export function PublicProfile({
           rel="noreferrer"
           target="_blank"
         >
-          <span className="flex min-w-0 items-center gap-2.5">
-            <LinkIcon
-              aria-hidden="true"
-              size={compactPhonePreview ? 16 : phonePreview || !preview ? 20 : 18}
-            />
+          <span className={`flex min-w-0 items-center ${publicMobileLink ? "gap-3" : "gap-2.5"}`}>
+            <span
+              className={
+                publicMobileLink && !featured
+                  ? "grid size-9 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent-strong"
+                  : ""
+              }
+            >
+              <LinkIcon
+                aria-hidden="true"
+                size={compactPhonePreview ? 16 : phonePreview || !preview ? 20 : 18}
+              />
+            </span>
             <span className="break-words text-left">{link.label}</span>
           </span>
           <ArrowUpRight
@@ -467,7 +508,23 @@ export function PublicProfile({
     );
   }
   const disclosure = section ? (
-    <ProfileSectionDisclosure section={section} className={`border-current/15 ${mutedClasses}`} />
+    <ProfileSectionDisclosure section={section} className={mutedClasses} />
+  ) : null;
+  const saveContactAction = canSaveContact ? (
+    <button
+      className={`${publicMobileLayout ? "min-h-14 px-3 py-3" : compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 ${publicMobileLayout ? "rounded-control" : "rounded-full"} border font-semibold transition-colors duration-150 ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
+      style={
+        configured && !warmStudio && appearance.linkTreatment === "filled"
+          ? { color: readableTextOn(activeAccent) }
+          : undefined
+      }
+      onClick={saveContact}
+      disabled={savingContact}
+      type="button"
+    >
+      <DownloadSimple aria-hidden="true" size={compactPhonePreview ? 16 : 19} />
+      {savingContact ? "Preparing contact..." : "Save contact"}
+    </button>
   ) : null;
   const whiteIdentityText =
     "box-decoration-clone rounded-control bg-[#26312c] px-2 py-1 shadow-card";
@@ -483,7 +540,7 @@ export function PublicProfile({
         {profile.imageUrl ? (
           <img
             alt={`${profile.name} profile`}
-            className={`${compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover tapit-image-outline`}
+            className={`${publicMobileLayout ? "size-[104px] border-4 border-tapit-paper shadow-card" : compactPhonePreview ? "size-16 border-[3px] border-white shadow-[0_3px_12px_rgba(16,33,28,0.18)]" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover tapit-image-outline`}
             height={96}
             src={profile.imageUrl}
             srcSet={profile.imageSrcSet}
@@ -493,7 +550,9 @@ export function PublicProfile({
                 ? compactPhonePreview
                   ? "64px"
                   : phonePreview
-                    ? "80px"
+                    ? publicMobileLayout
+                      ? "104px"
+                      : "80px"
                     : "(min-width: 640px) 96px, 80px"
                 : undefined
             }
@@ -502,13 +561,13 @@ export function PublicProfile({
         ) : (
           <div
             aria-hidden="true"
-            className={`${compactPhonePreview ? "size-16 text-xl" : phonePreview ? "size-20 text-xl" : "size-20 text-xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : "bg-tapit-accent-soft text-tapit-accent"}`}
+            className={`${publicMobileLayout ? "size-[104px] border-4 border-tapit-paper text-3xl shadow-card" : compactPhonePreview ? "size-16 text-xl" : phonePreview ? "size-20 text-xl" : "size-20 text-xl sm:size-24"} grid place-items-center rounded-full font-semibold ${warmStudio ? warmAccent.avatar : publicMobileLayout ? "bg-tapit-accent text-white" : "bg-tapit-accent-soft text-tapit-accent"}`}
           >
             {profile.name.slice(0, 1).toUpperCase()}
           </div>
         )}
         <div
-          className={`min-w-0 max-w-full ${compactPhonePreview ? "mt-3" : phonePreview ? "mt-5" : preview ? "mt-4" : "mt-5 sm:mt-0"}`}
+          className={`min-w-0 max-w-full ${compactPhonePreview ? "mt-3" : publicMobileLayout ? "mt-4" : phonePreview ? "mt-5" : preview ? "mt-4" : "mt-5 sm:mt-0"}`}
         >
           {preview ? (
             <h2
@@ -552,24 +611,28 @@ export function PublicProfile({
         </div>
       </div>
       <ProfileContactStrip
-        display={customization?.contactDisplay ?? "labels"}
+        display={
+          customization?.contactDisplay ?? (publicMobileLayout ? "icons-soft-square" : "labels")
+        }
         email={profile.email}
         phone={profile.phone}
         website={profile.website}
-        className={`${compactPhonePreview ? "mt-4 justify-center" : phonePreview ? "mt-7 justify-center" : preview ? "mt-5 justify-start" : "mt-7 justify-center sm:justify-start"} ${mutedClasses}`}
+        className={`${compactPhonePreview || publicMobileLayout ? "mt-4 justify-center" : phonePreview ? "mt-7 justify-center" : preview ? "mt-5 justify-start" : "mt-7 justify-center sm:justify-start"} ${mutedClasses}`}
       />
     </div>
   );
   const layoutOrder =
     customization?.layoutOrder ??
     defaultProfileLayoutOrder(customization?.contentOrder ?? "links-first");
-  const contentBlockGap = compactPhonePreview
-    ? "gap-3"
-    : phonePreview
-      ? "gap-5"
-      : preview
-        ? "gap-4"
-        : "gap-6";
+  const contentBlockGap = publicMobileLayout
+    ? "gap-4"
+    : compactPhonePreview
+      ? "gap-3"
+      : phonePreview
+        ? "gap-5"
+        : preview
+          ? "gap-4"
+          : "gap-6";
   const orderedBlocks: Record<ProfileLayoutBlock, ReactNode> = {
     slideshow:
       media && media.slideshow.length > 0 ? (
@@ -580,16 +643,40 @@ export function PublicProfile({
         />
       ) : null,
     links:
-      featuredLink || links.length > 0 ? (
-        <div className={`grid ${compactPhonePreview ? "gap-3" : phonePreview ? "gap-5" : "gap-6"}`}>
-          {featuredLink ? (
+      featuredLink || links.length > 0 || (publicMobileLayout && canSaveContact) ? (
+        <div
+          className={`grid ${publicMobileLayout ? "gap-2" : compactPhonePreview ? "gap-3" : phonePreview ? "gap-5" : "gap-6"}`}
+        >
+          {publicMobileLayout && (canSaveContact || featuredLink) ? (
+            <div
+              className={`grid ${canSaveContact && featuredLink ? "grid-cols-2" : "grid-cols-1"} gap-2`}
+            >
+              {saveContactAction}
+              {featuredLink ? (
+                <ul className="grid min-w-0" aria-label="Featured profile link">
+                  {renderLink(featuredLink, true)}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
+          {!publicMobileLayout && featuredLink ? (
             <ul className="tapit-profile-stagger grid gap-3" aria-label="Featured profile link">
               {renderLink(featuredLink, true)}
             </ul>
           ) : null}
-          <ul className={`tapit-profile-stagger ${profileLinkGap} grid`} aria-label="Profile links">
-            {links.map((link) => renderLink(link))}
-          </ul>
+          {links.length > 0 ? (
+            <ul
+              className={`tapit-profile-stagger ${profileLinkGap} grid`}
+              aria-label="Profile links"
+            >
+              {links.map((link) => renderLink(link))}
+            </ul>
+          ) : null}
+          {publicMobileLayout && contactError ? (
+            <p className="text-center text-sm text-tapit-danger" role="alert">
+              {contactError}
+            </p>
+          ) : null}
         </div>
       ) : null,
     section: section ? disclosure : null,
@@ -602,23 +689,8 @@ export function PublicProfile({
           return content ? <div key={block}>{content}</div> : null;
         })}
       </div>
-      {canSaveContact ? (
-        <button
-          className={`${compactPhonePreview ? "mt-4 min-h-11 px-4 py-2 text-xs scroll-mb-24" : phonePreview ? "mt-5 min-h-14 px-5 py-4 text-sm" : preview ? "mt-4 min-h-12 px-4 py-3 text-sm" : "mt-5 min-h-14 px-5 py-4 text-sm"} inline-flex w-full items-center justify-center gap-2 rounded-full border font-semibold transition-colors duration-150 ${warmStudio ? (appearance.linkTreatment === "outlined" ? warmAccent.outlined : warmAccent.solid) : (configured && appearance.linkTreatment === "outlined") || (!configured && customTheme) ? "border-tapit-accent bg-transparent text-tapit-accent hover:bg-tapit-accent-soft" : "border-transparent bg-tapit-accent text-white hover:bg-tapit-accent-strong"}`}
-          style={
-            configured && !warmStudio && appearance.linkTreatment === "filled"
-              ? { color: readableTextOn(activeAccent) }
-              : undefined
-          }
-          onClick={saveContact}
-          disabled={savingContact}
-          type="button"
-        >
-          <DownloadSimple aria-hidden="true" size={compactPhonePreview ? 16 : 19} />
-          {savingContact ? "Preparing contact..." : "Save contact"}
-        </button>
-      ) : null}
-      {contactError ? (
+      {!publicMobileLayout ? saveContactAction : null}
+      {!publicMobileLayout && contactError ? (
         <p className="mt-3 text-center text-sm text-tapit-danger" role="alert">
           {contactError}
         </p>
@@ -632,15 +704,16 @@ export function PublicProfile({
       ) : null}
     </>
   );
-  const profileFrameClasses = compactPhonePreview
-    ? "rounded-none border-0 shadow-none"
-    : !warmStudio
-      ? "overflow-hidden rounded-card border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-      : phonePreview
-        ? "overflow-hidden rounded-none border-0 shadow-none"
-        : preview
-          ? "overflow-hidden rounded-card border shadow-[0_20px_60px_rgba(21,25,24,0.12)]"
-          : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-card sm:border sm:shadow-[0_20px_60px_rgba(21,25,24,0.12)]";
+  const profileFrameClasses =
+    compactPhonePreview || publicMobileLayout
+      ? "overflow-hidden rounded-none border-0 shadow-none"
+      : !warmStudio
+        ? "overflow-hidden rounded-card border shadow-card"
+        : phonePreview
+          ? "overflow-hidden rounded-none border-0 shadow-none"
+          : preview
+            ? "overflow-hidden rounded-card border shadow-card"
+            : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-card sm:border sm:shadow-card";
   const showEditProfileLink = showOwnerShortcut && !preview;
   const identityColumnSpacing = phonePreview
     ? compactPhonePreview
@@ -663,8 +736,20 @@ export function PublicProfile({
       ? "min-[480px]:grid min-[480px]:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]"
       : "lg:grid lg:grid-cols-[minmax(18rem,0.84fr)_minmax(0,1.16fr)]"
     : "";
+  const ownerShortcut = showEditProfileLink ? (
+    <nav aria-label="Profile owner actions" className="absolute right-4 top-4 z-20">
+      <Link
+        aria-label="Edit profile"
+        className="inline-flex min-h-11 items-center gap-2 rounded-control bg-tapit-surface px-3 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+        href="/app/profile"
+      >
+        <PencilSimple aria-hidden="true" size={16} />
+        Edit
+      </Link>
+    </nav>
+  ) : null;
   const identityColumn = background ? (
-    <div className="min-w-0">
+    <div className="relative min-w-0">
       <ProfileMediaSurface
         background={background}
         heroHeight={media?.heroHeight ?? 320}
@@ -674,15 +759,34 @@ export function PublicProfile({
         responsivePortrait={phonePreview}
         className="rounded-none border-0"
       >
+        {ownerShortcut}
         {identity}
       </ProfileMediaSurface>
     </div>
+  ) : publicMobileLayout ? (
+    <div className="relative min-w-0">
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 grid h-[180px] grid-cols-3 gap-1 p-1"
+      >
+        <span className="rounded-control bg-tapit-accent-soft" />
+        <span className="rounded-control bg-tapit-soft-surface" />
+        <span className="rounded-control bg-tapit-warm/50" />
+      </div>
+      {ownerShortcut}
+      <div className="relative z-10 -mt-[52px] px-4 pb-4 pt-[180px]">{identity}</div>
+    </div>
   ) : (
-    <div className={`${identityColumnSpacing} min-w-0`}>{identity}</div>
+    <div className={`${identityColumnSpacing} relative min-w-0`}>
+      {ownerShortcut}
+      {identity}
+    </div>
   );
-  const pageFrameClasses = warmStudio
-    ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
-    : "min-h-[100dvh] px-4 py-8 sm:px-6 sm:py-12";
+  const pageFrameClasses = publicMobileLayout
+    ? "min-h-[100dvh] px-0 py-0"
+    : warmStudio
+      ? "min-h-[100dvh] px-0 py-0 sm:px-5 sm:py-12"
+      : "min-h-[100dvh] px-4 py-8 sm:px-6 sm:py-12";
   const profileContentMaxWidth = preview ? "max-w-none" : wideProfile ? "max-w-6xl" : "max-w-md";
   const Container = preview ? "div" : "main";
   const activeProfileStyles: ProfileThemeCSSProperties = {
@@ -703,42 +807,39 @@ export function PublicProfile({
     <>
       <Container
         style={activeProfileStyles}
-        className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${showEditProfileLink ? "pb-24 sm:pb-24" : ""} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
+        className={`tapit-profile-entry ${preview ? "h-full p-0" : pageFrameClasses} ${preview ? (warmStudio ? "bg-transparent text-[#2c2420]" : previewPageClasses) : pageClasses}`}
       >
         <div
-          className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "h-full" : "min-h-[calc(100dvh-4rem)]"}`}
+          className={`mx-auto flex w-full ${profileContentMaxWidth} flex-col justify-between ${preview ? "h-full" : publicMobileLayout ? "min-h-[100dvh]" : "min-h-[calc(100dvh-4rem)]"}`}
         >
           <section
-            className={`${profileFrameClasses} ${profileGrid} ${panelClasses} ${warmStudio ? "" : "text-tapit-ink"} ${preview ? "flex min-h-full flex-1 flex-col" : ""}`}
+            className={`${profileFrameClasses} ${profileGrid} ${publicMobileLayout ? "bg-transparent" : panelClasses} ${warmStudio ? "" : "text-tapit-ink"} ${preview ? "flex min-h-full flex-1 flex-col" : ""}`}
           >
             {identityColumn}
             <div
-              className={`min-w-0 ${preview ? "flex flex-1 flex-col" : ""} ${compactPhonePreview ? "" : "border-t border-current/10"} ${contentColumnSpacing} ${wideProfile ? `lg:border-t-0 lg:border-l ${preview ? "min-[480px]:border-t-0 min-[480px]:border-l" : ""}` : ""}`}
+              className={`min-w-0 ${preview ? "flex flex-1 flex-col" : ""} ${contentColumnSpacing}`}
             >
               {profileContent}
             </div>
           </section>
           {!preview ? (
             <footer
-              className={`py-8 text-center text-xs font-semibold tracking-[0.18em] uppercase ${warmStudio ? mutedClasses : "text-tapit-muted"}`}
+              className={`py-6 text-center text-xs ${warmStudio ? mutedClasses : "text-tapit-muted"}`}
             >
-              Tapit
+              <Link
+                aria-label="Made with Tapit"
+                className="mx-auto inline-flex min-h-11 items-center gap-2 rounded-control px-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                href="/"
+              >
+                <span className="grid size-5 place-items-center rounded-control bg-tapit-accent text-white">
+                  <Fingerprint aria-hidden="true" size={12} />
+                </span>
+                Made with Tapit
+              </Link>
             </footer>
           ) : null}
         </div>
       </Container>
-      {showEditProfileLink ? (
-        <nav aria-label="Profile owner actions">
-          <Link
-            aria-label="Edit profile"
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-1/2 z-50 inline-flex min-h-11 max-w-[calc(100vw-2rem)] -translate-x-1/2 items-center justify-center whitespace-nowrap rounded-full border border-tapit-line bg-tapit-surface px-4 py-2 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus sm:bottom-6 sm:left-auto sm:right-6 sm:translate-x-0"
-            href="/app/profile"
-            style={activeProfileStyles}
-          >
-            Edit profile
-          </Link>
-        </nav>
-      ) : null}
     </>
   );
 }
