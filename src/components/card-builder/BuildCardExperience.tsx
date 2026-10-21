@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import { CardPreviewDialog } from "@/components/card-builder/CardPreviewDialog";
 import { PublicHeader } from "@/components/layout/PublicHeader";
+import { Card } from "@/components/ui/Card";
 import { Notice } from "@/components/ui/Notice";
 import { Chip } from "@/components/ui/Chip";
 import { CARD_DESIGN_ACCEPT, validateCardDesignFile } from "@/lib/card-design";
@@ -78,6 +79,81 @@ function LiveBuildCardExperience({
   );
 }
 
+function DesignOptions({
+  inputRef,
+  onFileChange,
+  tone,
+  uploadError,
+}: {
+  inputRef: React.RefObject<HTMLInputElement | null>;
+  onFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  tone: "card" | "tile";
+  uploadError: boolean;
+}) {
+  const option =
+    tone === "card"
+      ? "bg-tapit-surface shadow-card hover:bg-tapit-accent-soft"
+      : "bg-tapit-soft-surface hover:bg-tapit-accent-soft";
+  const iconBox = tone === "card" ? "bg-tapit-accent-soft" : "bg-tapit-surface";
+  return (
+    <div className="grid gap-2 sm:grid-cols-2">
+      <a
+        aria-label="Build your own with Canva"
+        className={`group flex min-h-14 items-center gap-4 rounded-control p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${option}`}
+        href={BUILD_CARD_CANVA_URL}
+        rel="noopener noreferrer"
+        target="_blank"
+      >
+        <span
+          aria-hidden="true"
+          className={`grid size-11 shrink-0 place-items-center rounded-control text-tapit-accent ${iconBox}`}
+        >
+          <PaintBrushIcon size={21} weight="bold" />
+        </span>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
+            Start fresh
+          </span>
+          <span className="text-sm font-semibold text-tapit-ink">Build your own with Canva</span>
+          <span className="text-xs text-tapit-muted">
+            Open our templates and create a design that feels like you.
+          </span>
+        </span>
+      </a>
+
+      <label
+        className={`group flex min-h-14 cursor-pointer items-center gap-4 rounded-control p-4 transition-colors focus-within:ring-2 focus-within:ring-tapit-focus ${option}`}
+        htmlFor="card-design-upload"
+      >
+        <span
+          aria-hidden="true"
+          className={`grid size-11 shrink-0 place-items-center rounded-control text-tapit-accent ${iconBox}`}
+        >
+          <UploadSimpleIcon size={21} weight="bold" />
+        </span>
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
+            Already got your design?
+          </span>
+          <span className="text-sm font-semibold text-tapit-ink">Upload your design</span>
+          <span className="text-xs text-tapit-muted">PNG or JPG, up to 10 MB.</span>
+        </span>
+        <input
+          accept={CARD_DESIGN_ACCEPT}
+          aria-label="Upload your design"
+          aria-describedby={uploadError ? CARD_DESIGN_UPLOAD_ERROR_ID : undefined}
+          aria-invalid={uploadError ? true : undefined}
+          className="sr-only"
+          id="card-design-upload"
+          onChange={onFileChange}
+          ref={inputRef}
+          type="file"
+        />
+      </label>
+    </div>
+  );
+}
+
 export function BuildCardWorkspace({
   authLoading,
   isAuthenticated,
@@ -143,96 +219,70 @@ export function BuildCardWorkspace({
   }
 
   const Root = showPublicHeader ? "main" : "div";
+  const uploadError = error !== null;
+  const errorNotice =
+    error !== null ? (
+      <div id={CARD_DESIGN_UPLOAD_ERROR_ID}>
+        <Notice tone="error">{error}</Notice>
+      </div>
+    ) : null;
+  const designOptions = (tone: "card" | "tile") => (
+    <DesignOptions
+      inputRef={inputRef}
+      onFileChange={handleFileChange}
+      tone={tone}
+      uploadError={uploadError}
+    />
+  );
 
   return (
-    <Root className="min-h-[100dvh] bg-tapit-paper text-tapit-ink">
+    <Root className={showPublicHeader ? "min-h-dvh bg-tapit-paper text-tapit-ink" : undefined}>
       {showPublicHeader ? <PublicHeader activeHref="/build-card" /> : null}
-      <div className="mx-auto flex min-h-[100dvh] w-full max-w-[95rem] flex-col px-[clamp(1.25rem,5vw,5.25rem)] xl:max-w-none xl:pr-[6vw]">
-        <section className="flex flex-1 items-center py-14 sm:py-20">
-          <div className="mx-auto w-full max-w-4xl">
-            <div className="mx-auto max-w-2xl text-center">
-              <Chip tone="accent">Custom ordering coming soon</Chip>
-              <h1 className="tapit-display mt-5 text-2xl font-medium tracking-[-0.055em] sm:text-3xl">
-                Bring your card to life
-              </h1>
-              <p className="mx-auto mt-5 max-w-xl text-center text-base leading-7 text-tapit-muted sm:text-lg sm:leading-8">
-                Design preparation is available now. Custom ordering is not open yet.
-              </p>
+      {showPublicHeader ? (
+        <div className="mx-auto flex min-h-dvh w-full max-w-5xl flex-col px-4 sm:px-8">
+          <section className="flex flex-1 items-center py-12">
+            <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
+              <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
+                <Chip tone="accent">Custom ordering coming soon</Chip>
+                <h1 className="tapit-display text-2xl font-medium tracking-tight sm:text-3xl">
+                  Bring your card to life
+                </h1>
+                <p className="max-w-xl text-base text-tapit-muted sm:text-lg">
+                  Design preparation is available now. Custom ordering is not open yet.
+                </p>
+              </div>
+              {designOptions("card")}
+              {errorNotice}
             </div>
-
-            <div className="mx-auto mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-2">
-              <a
-                aria-label="Build your own with Canva"
-                className="group flex min-h-56 flex-col items-center justify-center gap-5 rounded-card border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent sm:p-7"
-                href={BUILD_CARD_CANVA_URL}
-                rel="noopener noreferrer"
-                target="_blank"
-              >
-                <span
-                  aria-hidden="true"
-                  className="grid size-11 place-items-center rounded-full bg-tapit-accent-soft text-tapit-accent transition-colors group-hover:bg-tapit-accent group-hover:text-white"
-                >
-                  <PaintBrushIcon size={21} weight="bold" />
-                </span>
-                <span className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-                  Start fresh
-                </span>
-                <span>
-                  <span className="block text-lg font-semibold tracking-tight">
-                    Build your own with Canva
-                  </span>
-                  <span className="mt-2 block text-sm leading-6 text-tapit-muted">
-                    Open our templates and create a design that feels like you.
-                  </span>
-                </span>
-              </a>
-
-              <label
-                className="group flex min-h-56 cursor-pointer flex-col items-center justify-center gap-5 rounded-card border border-tapit-line bg-tapit-surface p-6 text-center shadow-[0_8px_24px_rgba(27,36,51,0.05)] transition-[translate,border-color] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:border-tapit-accent focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-paper sm:p-7"
-                htmlFor="card-design-upload"
-              >
-                <span
-                  aria-hidden="true"
-                  className="grid size-11 place-items-center rounded-full bg-tapit-paper text-tapit-accent transition-colors group-hover:bg-tapit-accent-soft"
-                >
-                  <UploadSimpleIcon size={21} weight="bold" />
-                </span>
-                <span className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-                  Already got your design?
-                </span>
-                <span>
-                  <span className="block text-lg font-semibold tracking-tight">
-                    Upload your design
-                  </span>
-                  <span className="mt-2 block text-sm leading-6 text-tapit-muted">
-                    PNG or JPG, up to 10 MB.
-                  </span>
-                </span>
-                <input
-                  accept={CARD_DESIGN_ACCEPT}
-                  aria-label="Upload your design"
-                  aria-describedby={error !== null ? CARD_DESIGN_UPLOAD_ERROR_ID : undefined}
-                  aria-invalid={error !== null ? true : undefined}
-                  className="sr-only"
-                  id="card-design-upload"
-                  onChange={handleFileChange}
-                  ref={inputRef}
-                  type="file"
-                />
-              </label>
-            </div>
+          </section>
+          <footer className="py-4 text-xs text-tapit-muted">
+            A focused workspace for a more memorable introduction.
+          </footer>
+        </div>
+      ) : (
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="tapit-display text-xl font-semibold text-tapit-ink">
+              Bring your card to life
+            </h1>
+            <p className="text-base text-tapit-muted">
+              Design preparation is available now. Custom ordering is not open yet.
+            </p>
           </div>
-        </section>
-
-        {error !== null ? (
-          <div id={CARD_DESIGN_UPLOAD_ERROR_ID}>
-            <Notice tone="error">{error}</Notice>
+          <div className="grid gap-4 xl:grid-cols-3">
+            <Card className="xl:col-span-2" title="Card design">
+              {designOptions("tile")}
+              {errorNotice}
+            </Card>
+            <Card
+              description="Custom ordering is coming soon. Upload a design now and we will use it."
+              title="Order printed cards"
+            >
+              <Chip>Coming soon</Chip>
+            </Card>
           </div>
-        ) : null}
-        <footer className="border-t border-tapit-line py-5 text-xs text-tapit-muted sm:py-6">
-          A focused workspace for a more memorable introduction.
-        </footer>
-      </div>
+        </div>
+      )}
 
       {preview !== null ? (
         <CardPreviewDialog
