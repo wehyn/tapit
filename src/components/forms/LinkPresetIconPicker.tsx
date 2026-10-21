@@ -5,7 +5,6 @@ import {
   BriefcaseIcon,
   CalendarDotsIcon,
   CameraIcon,
-  CheckIcon,
   CodeIcon,
   EnvelopeSimpleIcon,
   GithubLogoIcon,
@@ -18,6 +17,7 @@ import {
   PhoneIcon,
 } from "@phosphor-icons/react";
 import type { LinkIcon } from "@/lib/domain";
+import { Icon } from "@/components/ui/Icon";
 
 const options = [
   { value: "link", label: "Generic link", icon: LinkSimpleIcon },
@@ -73,7 +73,7 @@ export function LinkPresetIconPicker({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen(!open)}
-        className="grid size-11 shrink-0 place-items-center rounded-card bg-tapit-accent-soft text-tapit-accent transition hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+        className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent transition-colors hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
       >
         <selected.icon aria-hidden="true" size={19} weight="bold" className="shrink-0" />
       </button>
@@ -81,7 +81,7 @@ export function LinkPresetIconPicker({
         <div
           role="listbox"
           aria-label={`Preset icon for ${label || "link"}`}
-          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-card border border-tapit-line bg-white p-1 shadow-card"
+          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-card bg-tapit-surface p-1 shadow-card"
         >
           {options.map((option) => (
             <button
@@ -94,11 +94,11 @@ export function LinkPresetIconPicker({
                 setOpen(false);
                 root.current?.querySelector("button")?.focus();
               }}
-              className="flex min-h-10 w-full items-center gap-3 rounded-card px-3 text-left text-sm text-tapit-ink hover:bg-tapit-accent-soft focus-visible:bg-tapit-accent-soft focus-visible:outline-none"
+              className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-sm text-tapit-ink hover:bg-tapit-accent-soft focus-visible:bg-tapit-accent-soft focus-visible:outline-none"
             >
               <option.icon aria-hidden="true" size={18} className="text-tapit-accent" />
               <span className="flex-1">{option.label}</span>
-              {option.value === selected.value ? <CheckIcon aria-hidden="true" size={16} /> : null}
+              {option.value === selected.value ? <Icon name="check" size={16} /> : null}
             </button>
           ))}
         </div>
