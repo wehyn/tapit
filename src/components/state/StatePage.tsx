@@ -41,7 +41,7 @@ export function StatePage({
         </div>
         {actionHref && actionLabel ? (
           <ButtonLink
-            className="mt-8 max-w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
+            className="mt-8 max-w-full transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
             href={actionHref}
           >
             <Icon name={actionHref === "/" ? "arrowLeft" : "fingerprint"} size={17} />

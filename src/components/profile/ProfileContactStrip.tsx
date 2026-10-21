@@ -29,7 +29,7 @@ export function ProfileContactStrip({
         const external = action.kind === "website";
         return (
           <a
-            className={`inline-flex min-h-11 items-center ${compact ? "min-w-11 justify-center" : "gap-2"} ${compact ? shapeClass : "rounded-full"} border border-current/20 ${compact ? "px-2" : "px-3.5"} py-2 text-sm font-semibold transition-colors duration-150 hover:border-current/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus`}
+            className={`inline-flex min-h-11 items-center bg-tapit-surface shadow-card hover:bg-tapit-soft-surface ${compact ? "min-w-11 justify-center" : "gap-2"} ${compact ? shapeClass : "rounded-control"} ${compact ? "px-2" : "px-3"} py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus`}
             href={action.href}
             key={action.kind}
             {...(external ? { rel: "noreferrer", target: "_blank" } : {})}

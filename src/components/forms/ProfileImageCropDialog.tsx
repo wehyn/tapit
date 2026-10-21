@@ -191,6 +191,7 @@ export function ProfileImageCropDialog({
           <button
             type="button"
             aria-label="Zoom out"
+            className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-soft-surface text-lg font-semibold text-tapit-ink hover:bg-tapit-accent-soft"
             onClick={() => updateZoom(Math.max(1, zoom - 0.25))}
           >
             −
@@ -208,6 +209,7 @@ export function ProfileImageCropDialog({
           <button
             type="button"
             aria-label="Zoom in"
+            className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-soft-surface text-lg font-semibold text-tapit-ink hover:bg-tapit-accent-soft"
             onClick={() => updateZoom(Math.min(2, zoom + 0.25))}
           >
             +
@@ -220,10 +222,17 @@ export function ProfileImageCropDialog({
           </p>
         ) : null}
         <div className="mt-6 flex justify-end gap-3">
-          <Button disabled={busy} onClick={onCancel} type="button" variant="secondary">
+          <Button
+            className="transition-none"
+            disabled={busy}
+            onClick={onCancel}
+            type="button"
+            variant="secondary"
+          >
             Cancel
           </Button>
           <Button
+            className="transition-none"
             disabled={!canApply}
             loading={busy}
             onClick={() => {

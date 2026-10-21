@@ -55,11 +55,11 @@ export function ProfileRedirectingPage({
     <main
       aria-busy="true"
       aria-live="polite"
-      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10"
+      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-12"
     >
-      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
         <div className="grid h-24 w-24 place-items-center rounded-full bg-tapit-accent-soft">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-tapit-line border-t-tapit-accent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-current/20 border-r-tapit-accent text-tapit-muted" />
         </div>
         <h1 className="tapit-display mt-8 text-xl font-semibold tracking-tight text-tapit-ink">
           Redirecting

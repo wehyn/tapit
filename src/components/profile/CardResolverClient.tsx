@@ -190,12 +190,12 @@ function CardResolverLoading() {
     <main
       aria-busy="true"
       aria-live="polite"
-      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10"
+      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-12"
     >
-      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card border border-tapit-line bg-tapit-surface p-6 sm:p-9">
+      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-card bg-tapit-surface p-6 shadow-card sm:p-8">
         <div className="h-24 w-24 animate-pulse rounded-full bg-tapit-soft-surface" />
         <div className="mt-8 h-10 w-full max-w-64 animate-pulse rounded-card bg-tapit-soft-surface" />
-        <p className="mt-5 text-sm text-tapit-muted" role="status">
+        <p className="mt-6 text-sm text-tapit-muted" role="status">
           Loading card...
         </p>
       </div>
