@@ -172,6 +172,7 @@ function DemoCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
+      canReplayNavigationTour={access.account.role === "admin"}
       navigationTourStorageKey={
         access.account.role === "customer"
           ? `tapit:customer-navigation-tour:${access.profile.id}`
@@ -243,6 +244,7 @@ function LiveCustomerShell({ children }: { children: React.ReactNode }) {
     <AppShell
       beforeNavigate={beforeNavigate}
       eyebrow=""
+      canReplayNavigationTour={access.role === "admin"}
       navigationTourStorageKey={
         access.role === "customer"
           ? `tapit:customer-navigation-tour:${access.profileId}`
