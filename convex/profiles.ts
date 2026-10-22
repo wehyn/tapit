@@ -167,7 +167,7 @@ export const adminListPaginated = query({
 export const adminDetails = query({
   args: { profileId: v.id("profiles") },
   returns: v.object({
-    profile: schema.doc("profiles"),
+    profile: ownedProfileValidator,
     customerEmail: v.union(v.string(), v.null()),
     assignedCardCount: v.number(),
     assignedCardCountIsCapped: v.boolean(),
