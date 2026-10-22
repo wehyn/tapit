@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ListIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useState, type MouseEventHandler } from "react";
 
 import { PublicAccountAction } from "./PublicAccountAction";
 import { Brand } from "./Brand";
 import { isDemoMode } from "@/lib/demo/mode";
+import { Icon } from "@/components/ui/Icon";
 
 type PublicNavItem = {
   href: string;
@@ -15,25 +15,23 @@ type PublicNavItem = {
 };
 
 const landingNavItems: PublicNavItem[] = [
-  { href: "#product", label: "Product" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#faq", label: "FAQ" },
 ];
 
 const utilityNavItems: PublicNavItem[] = [
-  { href: "#product", label: "Product" },
   { href: "#how-it-works", label: "How it works" },
   { href: "/build-card", label: "Build card" },
 ];
 
 const demoProfileNavItem: PublicNavItem = {
   href: "/mara-velasquez",
-  label: "Demo Profile",
+  label: "See a profile",
 };
 
 function getPublicNavItems(pathname: string) {
-  if (pathname === "/") return landingNavItems;
-  return isDemoMode() ? [...utilityNavItems, demoProfileNavItem] : utilityNavItems;
+  const items = pathname === "/" ? landingNavItems : utilityNavItems;
+  return isDemoMode() ? [...items, demoProfileNavItem] : items;
 }
 
 export function PublicBrand() {
@@ -86,12 +84,12 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
   }, [menuOpen]);
 
   return (
-    <header className="tapit-glass sticky top-0 z-40 w-full border-b border-tapit-line/80 shadow-[0_4px_24px_rgba(27,36,51,0.045)]">
-      <div className="mx-auto flex w-full max-w-[95rem] items-center gap-3 px-[clamp(1rem,5vw,5.25rem)] py-2.5 sm:gap-5 sm:py-3 xl:max-w-none xl:pr-[6vw]">
+    <header className="tapit-glass sticky top-0 z-40 w-full shadow-card">
+      <div className="mx-auto flex w-full max-w-[95rem] items-center gap-3 px-4 py-2 sm:gap-4 sm:px-6 sm:py-3 lg:px-8">
         <PublicBrand />
         <nav
           aria-label="Primary navigation"
-          className="mr-auto hidden items-center gap-8 lg:ml-14 lg:flex xl:gap-10"
+          className="mr-auto hidden items-center gap-2 lg:ml-6 lg:flex xl:gap-4"
         >
           {navItems.map((item) => {
             const href =
@@ -99,7 +97,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
             return (
               <PublicNavLink
                 activeHref={activeHref}
-                className="inline-flex min-h-11 items-center text-sm font-medium text-tapit-muted transition-colors hover:text-tapit-accent"
+                className="inline-flex min-h-11 items-center rounded-control px-4 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
                 href={href}
                 item={item}
                 key={item.href}
@@ -116,23 +114,19 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
             aria-controls="public-mobile-menu"
             aria-expanded={menuOpen}
             aria-label={menuOpen ? "Close menu" : "Open menu"}
-            className="inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-tapit-line bg-tapit-surface/80 text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent focus-visible:outline-offset-2 lg:hidden"
+            className="inline-flex size-11 shrink-0 items-center justify-center rounded-control bg-tapit-surface text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface lg:hidden"
             onClick={() => setMenuPathname(menuOpen ? null : pathname)}
             type="button"
           >
-            {menuOpen ? (
-              <XIcon aria-hidden="true" size={20} weight="bold" />
-            ) : (
-              <ListIcon aria-hidden="true" size={20} weight="bold" />
-            )}
+            <Icon name={menuOpen ? "close" : "menu"} size={20} weight="bold" />
           </button>
         </div>
       </div>
       {menuOpen ? (
-        <div className="border-t border-tapit-line lg:hidden" id="public-mobile-menu">
+        <div className="bg-tapit-surface lg:hidden" id="public-mobile-menu">
           <nav
             aria-label="Mobile navigation"
-            className="mx-auto grid w-full max-w-[95rem] px-[clamp(1.25rem,5vw,5.25rem)] pb-2"
+            className="mx-auto grid w-full max-w-[95rem] gap-1 px-4 pb-2 sm:px-6 lg:px-8"
           >
             {navItems.map((item) => {
               const href =
@@ -140,7 +134,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
               return (
                 <PublicNavLink
                   activeHref={activeHref}
-                  className="flex min-h-12 items-center border-b border-tapit-line py-3 text-sm font-medium text-tapit-ink last:border-b-0"
+                  className="flex min-h-11 items-center rounded-control px-4 text-sm font-semibold text-tapit-ink transition-colors hover:bg-tapit-soft-surface"
                   href={href}
                   item={item}
                   key={item.href}
@@ -149,7 +143,7 @@ export function PublicHeader({ activeHref }: { activeHref?: string }) {
               );
             })}
           </nav>
-          <div className="mx-auto flex w-full max-w-[95rem] items-center justify-between px-[clamp(1rem,5vw,5.25rem)] pb-4 pt-2 sm:hidden">
+          <div className="mx-auto flex w-full max-w-[95rem] items-center justify-between px-4 pb-4 pt-2 sm:hidden sm:px-6">
             <PublicAccountAction hideWhenPrimaryVisible={showProfileAction} placement="account" />
           </div>
         </div>

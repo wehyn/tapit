@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tapit · Share with a tap</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div style="background: #f4f6fa; min-height: 2400px; padding: 16px;">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 64px;">
+
+  <header style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap; background: #fff; border-radius: 20px; padding: 8px 8px 8px 16px; box-shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05);">
+    <a class="brand" href="Landing.dc.html" style="padding: 0;"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <nav class="row-2" aria-label="Site" style="margin-left: 24px; flex-wrap: wrap;">
+      <a class="btn btn-quiet" href="#how">How it works</a>
+      <a class="btn btn-quiet" href="PublicProfile.dc.html">See a profile</a>
+      <a class="btn btn-quiet" href="#faq">FAQ</a>
+    </nav>
+    <div class="row-2" style="margin-left: auto;">
+      <a class="btn btn-quiet" href="Login.dc.html">Sign in</a>
+      <a class="btn btn-primary" href="Login.dc.html">Get started</a>
+    </div>
+  </header>
+
+  <section style="display: flex; flex-wrap: wrap; gap: 48px; align-items: center;">
+    <div class="col" style="flex: 1 1 480px; gap: 24px;">
+      <p class="eyebrow">NFC cards · QR · one profile</p>
+      <h1 class="t-3xl">Share with a tap.<br><span style="color: #3f6de8;">Follow up with ease.</span></h1>
+      <p class="t-md muted" style="max-width: 520px; font-size: 18px; line-height: 28px;">Tapit puts your links, contact details and work on one profile. Tap your card on any phone and it opens in the browser. No app required.</p>
+      <div class="row wrap" style="gap: 8px;">
+        <a class="btn btn-primary btn-lg" href="Login.dc.html">Create your profile</a>
+        <a class="btn btn-secondary btn-lg" href="PublicProfile.dc.html">See an example</a>
+      </div>
+      <div class="row wrap" style="gap: 8px;">
+        <span class="chip"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>No app required</span>
+        <span class="chip"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Opens in a browser</span>
+        <span class="chip"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>Update details anytime</span>
+      </div>
+    </div>
+    <div style="flex: 1 1 380px; display: flex; justify-content: center; position: relative; padding: 24px 0;">
+      <div style="position: absolute; left: 4%; bottom: 48px; width: 240px; aspect-ratio: 1.586; border-radius: 20px; background: #1b2433; color: #fff; padding: 20px; display: flex; flex-direction: column; justify-content: space-between; transform: rotate(-8deg); box-shadow: 0 20px 56px rgb(27 36 51 / .2);">
+        <svg class="i i-lg" viewBox="0 0 24 24" aria-hidden="true" style="color: #c9a875; align-self: flex-end;"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg>
+        <p class="t-sm strong">Mara Velasquez</p>
+      </div>
+      <div class="phone" style="width: 320px; position: relative;">
+        <div class="phone-in">
+          <span class="avatar avatar-xl">MV</span>
+          <div class="col-1" style="align-items: center;"><p class="t-lg">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+          <span class="btn btn-primary btn-block">Save contact</span>
+          <div class="list" style="width: 100%;">
+            <span class="plink">LinkedIn<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            <span class="plink">Portfolio<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            <span class="plink">Book a conversation<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="section" style="gap: 24px;">
+    <div class="col-2" style="max-width: 640px;"><p class="eyebrow">How it works</p><h2 class="t-2xl">From your card to a better connection.</h2></div>
+    <div class="grid-3">
+      <div class="card"><span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></span><p class="label">Step 1</p><h3 class="t-lg">Shape your profile</h3><p class="t-sm muted">Add a short introduction, your work, and the links you want to bring into the conversation.</p></div>
+      <div class="card"><span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></span><p class="label">Step 2</p><h3 class="t-lg">Choose what to share</h3><p class="t-sm muted">Arrange your social profiles and contact details. Change them whenever your priorities do.</p></div>
+      <div class="card"><span class="ico"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><p class="label">Step 3</p><h3 class="t-lg">Tap or scan to connect</h3><p class="t-sm muted">Your NFC card opens the profile. A QR code gives people another easy way to get there.</p></div>
+    </div>
+  </section>
+
+  <section class="card-accent" style="padding: 48px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center;">
+    <div class="col-2" style="flex: 1 1 420px;"><h2 class="t-2xl">Your profile, all together.</h2><p class="t-md" style="color: #e8edf9;">Everything they need for what comes next: contact details, your work and a way to book time.</p></div>
+    <div class="grid-2" style="flex: 1 1 420px; gap: 12px;">
+      <div style="background: rgb(255 255 255 / .12); border-radius: 12px; padding: 16px;"><p class="t-sm strong">Save contact</p><p class="t-xs" style="color: #e8edf9;">One tap adds you to their phone.</p></div>
+      <div style="background: rgb(255 255 255 / .12); border-radius: 12px; padding: 16px;"><p class="t-sm strong">Featured link</p><p class="t-xs" style="color: #e8edf9;">Point people to what matters now.</p></div>
+      <div style="background: rgb(255 255 255 / .12); border-radius: 12px; padding: 16px;"><p class="t-sm strong">Simple analytics</p><p class="t-xs" style="color: #e8edf9;">Views and clicks, no tracking of people.</p></div>
+      <div style="background: rgb(255 255 255 / .12); border-radius: 12px; padding: 16px;"><p class="t-sm strong">Your look</p><p class="t-xs" style="color: #e8edf9;">Presets, colour and type that fit you.</p></div>
+    </div>
+  </section>
+
+  <section id="faq" style="display: flex; flex-wrap: wrap; gap: 48px;">
+    <div class="col-2" style="flex: 1 1 320px;"><p class="eyebrow">FAQ</p><h2 class="t-2xl">A few things people ask.</h2><p class="t-md muted">Still curious? <a href="Account.dc.html">Contact support</a>.</p></div>
+    <div class="list" style="flex: 2 1 560px;">
+      <div class="card" style="padding: 20px 24px; gap: 8px;"><div class="spread"><h3 class="t-md strong">What happens when someone taps my Tapit card?</h3><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></div><p class="t-sm muted">Their phone opens your Tapit profile in a browser. They can explore the links and contact options you choose to share.</p></div>
+      <div class="card" style="padding: 20px 24px;"><div class="spread"><h3 class="t-md strong">Does the person I meet need an app?</h3><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></div>
+      <div class="card" style="padding: 20px 24px;"><div class="spread"><h3 class="t-md strong">What if their phone cannot read NFC?</h3><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></div>
+      <div class="card" style="padding: 20px 24px;"><div class="spread"><h3 class="t-md strong">Can I update my profile after I make my card?</h3><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></div>
+      <div class="card" style="padding: 20px 24px;"><div class="spread"><h3 class="t-md strong">Can I order a physical Tapit card today?</h3><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></div></div>
+    </div>
+  </section>
+
+  <section class="card" style="padding: 48px; align-items: center; text-align: center; gap: 24px;">
+    <h2 class="t-2xl">Make every introduction easier to follow up on.</h2>
+    <div class="row-2"><a class="btn btn-primary btn-lg" href="Login.dc.html">Create your profile</a><a class="btn btn-quiet btn-lg" href="Login.dc.html">Sign in</a></div>
+  </section>
+
+  <footer class="spread" style="padding: 0 8px 32px;">
+    <span class="t-sm muted">© 2026 Tapit</span>
+    <div class="row-2"><a class="btn btn-quiet" href="Legal.dc.html">Privacy</a><a class="btn btn-quiet" href="Legal.dc.html">Terms</a><a class="btn btn-quiet" href="Account.dc.html">Support</a></div>
+  </footer>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2400}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

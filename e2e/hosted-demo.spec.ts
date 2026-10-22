@@ -122,7 +122,7 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     // profile draft before authentication or claim completion.
     await customerPage.goto(cardUrl);
     await expect(
-      customerPage.getByRole("heading", { name: "Are you the owner of this card?" }),
+      customerPage.getByRole("heading", { name: "This card is ready to set up" }),
     ).toBeVisible();
     await expect(customerPage.getByText("Hosted E2E owner")).toHaveCount(0);
     await expect(customerPage).toHaveURL(new RegExp(`/c/${token}$`));

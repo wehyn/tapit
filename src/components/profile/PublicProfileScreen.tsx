@@ -190,15 +190,32 @@ function LivePublicProfileScreen({
 
 function PublicProfileLoading() {
   return (
-    <main
-      aria-busy="true"
-      aria-live="polite"
-      className="min-h-[100dvh] bg-tapit-paper px-4 py-6 sm:px-8 sm:py-10"
-    >
-      <div className="mx-auto flex min-h-[calc(100dvh-3rem)] w-full max-w-md flex-col justify-center rounded-tapit border border-tapit-line bg-tapit-surface p-6 sm:p-9">
-        <div className="h-24 w-24 animate-pulse rounded-full bg-tapit-soft-surface" />
-        <div className="mt-8 h-10 w-full max-w-64 animate-pulse rounded-tapit bg-tapit-soft-surface" />
-        <p className="mt-5 text-sm text-tapit-muted" role="status">
+    <main aria-busy="true" aria-live="polite" className="min-h-[100dvh] bg-tapit-paper">
+      <div className="mx-auto flex min-h-[100dvh] w-full max-w-md flex-col">
+        <div aria-hidden="true" className="grid h-[180px] grid-cols-3 gap-1 p-1">
+          <span className="rounded-control bg-tapit-accent-soft" />
+          <span className="rounded-control bg-tapit-soft-surface" />
+          <span className="rounded-control bg-tapit-warm/50" />
+        </div>
+        <div aria-hidden="true" className="relative -mt-12 flex flex-col items-center gap-4 px-4">
+          <div className="size-[104px] animate-pulse rounded-full bg-tapit-soft-surface ring-4 ring-tapit-paper" />
+          <div className="h-8 w-full max-w-64 animate-pulse rounded-control bg-tapit-soft-surface" />
+          <div className="h-4 w-full max-w-48 animate-pulse rounded-control bg-tapit-soft-surface" />
+          <div className="flex gap-2">
+            <span className="size-11 animate-pulse rounded-control bg-tapit-soft-surface" />
+            <span className="size-11 animate-pulse rounded-control bg-tapit-soft-surface" />
+            <span className="size-11 animate-pulse rounded-control bg-tapit-soft-surface" />
+          </div>
+        </div>
+        <div aria-hidden="true" className="mt-4 grid gap-3 px-4">
+          <div className="grid grid-cols-2 gap-2">
+            <span className="h-14 animate-pulse rounded-control bg-tapit-soft-surface" />
+            <span className="h-14 animate-pulse rounded-control bg-tapit-soft-surface" />
+          </div>
+          <span className="h-[52px] animate-pulse rounded-control bg-tapit-soft-surface" />
+          <span className="h-[52px] animate-pulse rounded-control bg-tapit-soft-surface" />
+        </div>
+        <p className="mt-4 px-4 text-center text-sm text-tapit-muted" role="status">
           Loading profile...
         </p>
       </div>

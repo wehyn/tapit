@@ -5,14 +5,14 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useMemo, useState } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 
 import { useDemoState } from "@/lib/demo/store";
 
 import { Field } from "@/components/ui/Field";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 type AuditEntry = {
@@ -92,6 +92,14 @@ export function readableAuditAction(action: string): string {
     readableActions[action] ??
     action.replaceAll(/[._]/g, " ").replace(/^\w/, (letter) => letter.toUpperCase())
   );
+}
+
+function auditIconFor(action: string): IconName {
+  const area = action.split(".")[0];
+  if (area === "card") return "card";
+  if (area === "profile") return "profiles";
+  if (area === "settings") return "settings";
+  return "users";
 }
 
 function displayFieldName(key: string): string {
@@ -197,47 +205,52 @@ function AuditHistoryEntry({ entry }: { entry: AuditEntry }) {
   const changes = getAuditChanges(entry.action, entry.before, entry.after);
   return (
     <details
-      className="px-2 py-4 sm:px-3 sm:py-5"
+      className="rounded-control bg-tapit-soft-surface"
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
     >
-      <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-tapit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <span className="min-w-0">
-          <span className="block font-semibold text-tapit-ink">
-            {readableAuditAction(entry.action)}
+      <summary className="grid cursor-pointer list-none grid-cols-1 gap-3 rounded-control p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+        <span className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-control bg-tapit-surface text-tapit-ink">
+            <Icon name={auditIconFor(entry.action)} size={20} />
           </span>
-          <span className="mt-1 block text-sm text-tapit-muted">
-            By {entry.actor}
-            {entry.targetAccountEmail
-              ? ` · Account: ${entry.targetAccountEmail}`
-              : entry.target
-                ? ` · ${entry.target}`
-                : ""}
+          <span className="flex min-w-0 flex-col gap-1">
+            <span className="font-semibold text-tapit-ink">
+              {readableAuditAction(entry.action)}
+            </span>
+            <span className="text-sm text-tapit-muted">
+              By {entry.actor}
+              {entry.targetAccountEmail
+                ? ` · Account: ${entry.targetAccountEmail}`
+                : entry.target
+                  ? ` · ${entry.target}`
+                  : ""}
+            </span>
           </span>
         </span>
         <span className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
-          <time
-            className="rounded-full bg-tapit-paper px-3 py-1.5 text-xs font-medium text-tapit-muted"
-            dateTime={occurredAt.toISOString()}
-          >
+          <time className="text-xs text-tapit-muted" dateTime={occurredAt.toISOString()}>
             {occurredAt.toLocaleString()}
           </time>
-          <span className="text-xs font-semibold text-tapit-accent">
+          <span className="text-xs font-semibold text-tapit-accent-strong">
             {isOpen ? "Hide details" : "View details"}
           </span>
         </span>
       </summary>
-      <div className="mt-4 border-t border-tapit-line pt-4">
+      <div className="px-4 pb-4">
         {changes.length === 0 ? (
           <p className="text-sm text-tapit-muted">No additional details were recorded.</p>
         ) : (
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <dl className="grid gap-2 text-sm sm:grid-cols-2">
             {changes.map((change) => (
-              <div key={change.field}>
-                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-                  {change.field}
-                </dt>
-                <dd className="mt-1 break-words text-tapit-ink">
-                  {change.before} <span className="px-1 text-tapit-muted">→</span> {change.after}
+              <div
+                className="flex flex-col gap-1 rounded-control bg-tapit-surface p-4"
+                key={change.field}
+              >
+                <dt className="text-xs font-semibold text-tapit-muted">{change.field}</dt>
+                <dd className="flex flex-wrap items-center gap-2 break-words text-tapit-ink">
+                  <span>{change.before}</span>
+                  <Icon className="text-tapit-muted" name="caretRight" size={14} />
+                  <span>{change.after}</span>
                 </dd>
               </div>
             ))}
@@ -260,8 +273,8 @@ function AuditHistory({
   loadMoreStatus?: "CanLoadMore" | "LoadingMore" | "Exhausted";
 }) {
   return (
-    <Panel title="History">
-      <div className="mt-5 divide-y divide-tapit-line rounded-tapit border border-tapit-line bg-tapit-surface px-3 sm:px-4">
+    <>
+      <div className="flex flex-col gap-2">
         {entries.length === 0 ? (
           <Notice>{emptyMessage}</Notice>
         ) : (
@@ -270,7 +283,6 @@ function AuditHistory({
       </div>
       {loadMore && loadMoreStatus !== undefined && loadMoreStatus !== "Exhausted" ? (
         <Button
-          className="mt-4"
           disabled={loadMoreStatus === "LoadingMore"}
           onClick={loadMore}
           type="button"
@@ -279,7 +291,7 @@ function AuditHistory({
           {loadMoreStatus === "LoadingMore" ? "Loading older entries…" : "Load older entries"}
         </Button>
       ) : null}
-    </Panel>
+    </>
   );
 }
 
@@ -311,34 +323,27 @@ function DemoAuditLog() {
   }));
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review who changed account, profile, card, and operational settings."
+        description="Who changed accounts, profiles, cards and settings, and when."
         title="Audit log"
       />
-      <Panel
+      <Card
         description="See who made each change and which account it affected. Open an entry for details."
-        title="Audit log"
+        title="History"
       >
-        <div className="mt-6 flex items-end gap-3">
-          <MagnifyingGlassIcon
-            aria-hidden="true"
-            className="mb-3 hidden text-tapit-muted sm:block"
-            size={22}
+        <div className="max-w-lg">
+          <Field
+            id="audit-search"
+            label="Search audit entries"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search actor, action, or target"
+            type="search"
+            value={query}
           />
-          <div className="max-w-lg flex-1">
-            <Field
-              id="audit-search"
-              label="Search audit entries"
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search actor, action, or target"
-              type="search"
-              value={query}
-            />
-          </div>
         </div>
-      </Panel>
-      <AuditHistory entries={entries} />
+        <AuditHistory entries={entries} />
+      </Card>
     </div>
   );
 }
@@ -352,9 +357,9 @@ function LiveAuditLog() {
   );
   if (audits.status === "LoadingFirstPage")
     return (
-      <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 py-6 sm:px-8">
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
-          description="Review who changed account, profile, card, and operational settings."
+          description="Who changed accounts, profiles, cards and settings, and when."
           title="Audit log"
         />
         <Notice>Loading audit history…</Notice>
@@ -372,16 +377,16 @@ function LiveAuditLog() {
   }));
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
-        description="Review who changed account, profile, card, and operational settings."
+        description="Who changed accounts, profiles, cards and settings, and when."
         title="Audit log"
       />
-      <Panel
+      <Card
         description="See who made each change and which account it affected. Open an entry for details."
-        title="Audit log"
+        title="History"
       >
-        <div className="mt-6 max-w-lg">
+        <div className="max-w-lg">
           <Field
             id="audit-search"
             label="Search audit entries"
@@ -391,17 +396,17 @@ function LiveAuditLog() {
             value={search}
           />
         </div>
-      </Panel>
-      <AuditHistory
-        emptyMessage={
-          audits.status === "CanLoadMore"
-            ? "No matching entries in the loaded pages. Load older entries to continue searching."
-            : "No audit actions match this filter."
-        }
-        entries={entries}
-        loadMore={() => audits.loadMore(50)}
-        loadMoreStatus={audits.status}
-      />
+        <AuditHistory
+          emptyMessage={
+            audits.status === "CanLoadMore"
+              ? "No matching entries in the loaded pages. Load older entries to continue searching."
+              : "No audit actions match this filter."
+          }
+          entries={entries}
+          loadMore={() => audits.loadMore(50)}
+          loadMoreStatus={audits.status}
+        />
+      </Card>
     </div>
   );
 }

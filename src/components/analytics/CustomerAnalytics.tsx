@@ -2,10 +2,9 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { ShieldCheckIcon } from "@phosphor-icons/react";
 
 import {
   aggregateAnalytics,
@@ -15,9 +14,10 @@ import {
   useDemoState,
 } from "@/lib/demo/store";
 
+import { Card } from "@/components/ui/Card";
 import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Icon } from "@/components/ui/Icon";
 
 const ranges: Array<{ value: AnalyticsRange; label: string }> = [
   { value: "lifetime", label: "Lifetime" },
@@ -142,29 +142,183 @@ function SourceBreakdown({ totals }: { totals: SourceTotals }) {
     ["direct", "Direct profile"],
     ["unknown", "Unknown / legacy"],
   ];
+  const sum = labels.reduce((total, [source]) => total + totals[source], 0);
   return (
-    <div className="mt-6 grid gap-2 sm:grid-cols-4" aria-label="Traffic source breakdown">
-      {labels.map(([source, label]) => (
-        <div className="rounded-tapit border border-tapit-line bg-tapit-paper p-4" key={source}>
-          <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-            {label}
-          </dt>
-          <dd className="mt-2 text-xl font-semibold text-tapit-ink">
-            {totals[source].toLocaleString()}
-          </dd>
-        </div>
-      ))}
+    <div aria-label="Traffic source breakdown" className="flex flex-col gap-2">
+      {labels.map(([source, label]) => {
+        const share = sum === 0 ? 0 : (totals[source] / sum) * 100;
+        return (
+          <div
+            className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-4"
+            key={source}
+          >
+            <div className="flex items-center justify-between gap-4 text-sm">
+              <p className="font-semibold text-tapit-ink">{label}</p>
+              <p className="font-semibold text-tapit-ink">{totals[source].toLocaleString()}</p>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-tapit-surface">
+              <span
+                className={`block h-full rounded-full ${source === "unknown" ? "bg-tapit-muted" : "bg-tapit-accent"}`}
+                style={{ width: `${share}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="min-w-0 rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:p-5">
-      <dt className="text-xs font-semibold text-tapit-muted sm:text-sm">{label}</dt>
-      <dd className="mt-2 text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
-        {value.toLocaleString()}
-      </dd>
+    <div className="flex min-w-0 flex-col gap-2 rounded-card bg-tapit-surface p-6 shadow-card">
+      <dt className="text-xs font-semibold text-tapit-muted">{label}</dt>
+      <dd className="text-xl font-semibold text-tapit-ink">{value.toLocaleString()}</dd>
+    </div>
+  );
+}
+
+type AnalyticsReportProps = {
+  range: AnalyticsRange;
+  onRangeChange: (range: AnalyticsRange) => void;
+  totals: { views: number; uniqueViews: number; clicks: number };
+  trend: EngagementPeriod[];
+  trendEmptyText: string;
+  sourceTotals: SourceTotals;
+  linkResults: Array<{ id: string; label: string; destination: string; clicks: number }>;
+  partialNotice: ReactNode;
+  activityNotice: ReactNode;
+  privacyDescription?: string;
+  privacyBody: string;
+};
+
+function AnalyticsReport({
+  range,
+  onRangeChange,
+  totals,
+  trend,
+  trendEmptyText,
+  sourceTotals,
+  linkResults,
+  partialNotice,
+  activityNotice,
+  privacyDescription,
+  privacyBody,
+}: AnalyticsReportProps) {
+  const peak = Math.max(1, ...trend.map((period) => period.views + period.clicks));
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h1 className="tapit-display text-xl font-semibold text-tapit-ink">Profile analytics</h1>
+          <p className="text-base text-tapit-muted">
+            How people reach your profile and what they open. Counts only, no visitor identities.
+          </p>
+        </div>
+        <div className="w-full max-w-xs">
+          <SelectField
+            id="analytics-range"
+            label="Time range"
+            onChange={(event) => onRangeChange(event.target.value as AnalyticsRange)}
+            value={range}
+          >
+            {ranges.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </SelectField>
+        </div>
+      </div>
+      {partialNotice}
+      <dl className="grid gap-4 sm:grid-cols-3">
+        <Metric label="Profile views" value={totals.views} />
+        <Metric label="Unique views" value={totals.uniqueViews} />
+        <Metric label="Link clicks" value={totals.clicks} />
+      </dl>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2" title="Engagement trend">
+          <div
+            aria-label="Aggregate engagement trend"
+            className="overflow-x-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
+            role="region"
+            tabIndex={0}
+          >
+            <div
+              className="flex h-44 items-end gap-2 px-1 sm:gap-3"
+              style={{ minWidth: `${Math.max(100, trend.length * 56)}px` }}
+            >
+              {trend.length > 0 ? (
+                trend.map((period) => {
+                  const total = period.views + period.clicks;
+                  const label = formatTrendPeriod(period);
+                  return (
+                    <div
+                      aria-label={`${label}: ${total} total, ${period.views} views, ${period.clicks} clicks`}
+                      className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                      key={period.start}
+                      role="group"
+                    >
+                      <span className="text-xs font-semibold text-tapit-muted">
+                        {total.toLocaleString()}
+                      </span>
+                      <div
+                        className="w-full max-w-10 rounded-t-control bg-tapit-accent"
+                        style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
+                        title={`${period.views} views, ${period.clicks} clicks`}
+                      />
+                      <span className="text-xs text-tapit-muted">{label}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="mb-6 w-full text-center text-sm text-tapit-muted">{trendEmptyText}</p>
+              )}
+            </div>
+          </div>
+        </Card>
+        <Card
+          description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
+          title="Views and clicks by source"
+        >
+          <SourceBreakdown totals={sourceTotals} />
+        </Card>
+      </div>
+      {activityNotice}
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2" title="Link results">
+          <div className="flex flex-col gap-2">
+            {linkResults.length === 0 ? (
+              <div className="rounded-control bg-tapit-soft-surface p-4 text-sm text-tapit-muted">
+                Add links to see destination results.
+              </div>
+            ) : (
+              linkResults.map((link) => (
+                <div
+                  className="flex flex-wrap items-center justify-between gap-4 rounded-control bg-tapit-soft-surface p-4"
+                  key={link.id}
+                >
+                  <div className="min-w-0">
+                    <p className="font-semibold text-tapit-ink">{link.label || "Untitled link"}</p>
+                    <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
+                      {link.destination || "No destination yet"}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-tapit-accent">
+                    {link.clicks.toLocaleString()} clicks
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        </Card>
+        <Card description={privacyDescription} tone="soft" title="Privacy note">
+          <p className="flex items-start gap-3 text-sm text-tapit-muted">
+            <Icon className="shrink-0 text-tapit-accent" name="shield" size={21} weight="bold" />
+            {privacyBody}
+          </p>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -199,139 +353,31 @@ function DemoCustomerAnalytics() {
       ),
     [now, profile.id, range, state.analytics],
   );
-  const peak = Math.max(1, ...trend.map((period) => period.views + period.clicks));
   const linkResults = profile.draft.links
     .map((link) => ({ ...link, clicks: totals.linkClicks[link.id] ?? 0 }))
     .sort((left, right) => right.clicks - left.clicks);
 
   return (
-    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel>
-        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
-          Profile analytics
-        </h1>
-        <div className="mt-6 max-w-xs">
-          <SelectField
-            id="analytics-range"
-            label="Time range"
-            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-            value={range}
-          >
-            {ranges.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
-        </div>
-      </Panel>
-
-      <Panel title="Engagement summary">
-        <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
-          <Metric label="Profile views" value={totals.views} />
-          <Metric label="Unique views" value={totals.uniqueViews} />
-          <Metric label="Link clicks" value={totals.clicks} />
-        </dl>
-      </Panel>
-
-      <Panel title="Engagement trend">
-        <div
-          aria-label="Aggregate engagement trend"
-          className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
-          role="region"
-          tabIndex={0}
-        >
-          <div
-            className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
-            style={{ minWidth: `${Math.max(100, trend.length * 56)}px` }}
-          >
-            {trend.length > 0 ? (
-              trend.map((period) => {
-                const total = period.views + period.clicks;
-                const label = formatTrendPeriod(period);
-                return (
-                  <div
-                    aria-label={`${label}: ${total} total, ${period.views} views, ${period.clicks} clicks`}
-                    className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                    key={period.start}
-                    role="group"
-                  >
-                    <span className="text-[0.65rem] font-semibold text-tapit-muted">
-                      {total.toLocaleString()}
-                    </span>
-                    <div
-                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
-                      style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
-                      title={`${period.views} views, ${period.clicks} clicks`}
-                    />
-                    <span className="text-[0.6rem] text-tapit-muted">{label}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="mb-6 w-full text-center text-sm text-tapit-muted">
-                Share your profile to start a trend.
-              </p>
-            )}
-          </div>
-        </div>
-      </Panel>
-      {totals.views === 0 && totals.clicks === 0 ? (
-        <Notice>
-          No activity in this range yet. Share your profile or active card to begin collecting
-          aggregate results.
-        </Notice>
-      ) : null}
-
-      <Panel
-        description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
-        title="Views and clicks by source"
-      >
-        <SourceBreakdown totals={sourceTotals} />
-      </Panel>
-
-      <Panel title="Link results">
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
-          {linkResults.length === 0 ? (
-            <div className="p-5 text-sm text-tapit-muted">
-              Add links to see destination results.
-            </div>
-          ) : null}
-          {linkResults.map((link) => (
-            <div
-              className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-4 last:border-b-0 sm:px-5"
-              key={link.id}
-            >
-              <div>
-                <p className="font-semibold text-tapit-ink">{link.label || "Untitled link"}</p>
-                <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
-                  {link.destination || "No destination yet"}
-                </p>
-              </div>
-              <p className="text-sm font-semibold text-tapit-accent">
-                {link.clicks.toLocaleString()} clicks
-              </p>
-            </div>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel
-        description="Views and clicks are stored as aggregate time buckets. There is no visitor-level history to inspect or export."
-        title="Privacy note"
-      >
-        <p className="mt-5 flex items-start gap-3 text-sm leading-6 text-tapit-muted">
-          <ShieldCheckIcon
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-tapit-accent"
-            size={21}
-            weight="bold"
-          />
-          These metrics are designed to answer how a profile is performing without identifying the
-          people who viewed it.
-        </p>
-      </Panel>
-    </div>
+    <AnalyticsReport
+      activityNotice={
+        totals.views === 0 && totals.clicks === 0 ? (
+          <Notice>
+            No activity in this range yet. Share your profile or active card to begin collecting
+            aggregate results.
+          </Notice>
+        ) : null
+      }
+      linkResults={linkResults}
+      onRangeChange={setRange}
+      partialNotice={null}
+      privacyBody="These metrics are designed to answer how a profile is performing without identifying the people who viewed it."
+      privacyDescription="Views and clicks are stored as aggregate time buckets. There is no visitor-level history to inspect or export."
+      range={range}
+      sourceTotals={sourceTotals}
+      totals={totals}
+      trend={trend}
+      trendEmptyText="Share your profile to start a trend."
+    />
   );
 }
 
@@ -399,7 +445,6 @@ function LiveCustomerAnalytics() {
     return groupEngagementTrend([...dailyBuckets.values()], range, now);
   }, [buckets, now, range]);
   const loading = profile === undefined || pages.status === "LoadingFirstPage";
-  const peak = Math.max(1, ...trend.map((period) => period.views + period.clicks));
   const linkResults = (profile?.draft.links ?? [])
     .map((link) => ({ ...link, clicks: totals?.linkClicks[link.id] ?? 0 }))
     .sort((left, right) => right.clicks - left.clicks);
@@ -409,127 +454,28 @@ function LiveCustomerAnalytics() {
     return <Notice tone="error">Your profile analytics are unavailable.</Notice>;
 
   return (
-    <div className="mx-auto grid w-full max-w-[1200px] gap-6 px-4 pb-12 pt-5 sm:px-8 lg:gap-8 lg:px-10 lg:pt-8">
-      <Panel>
-        <h1 className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink sm:text-3xl">
-          Profile analytics
-        </h1>
-        <div className="mt-6 max-w-xs">
-          <SelectField
-            id="analytics-range"
-            label="Time range"
-            onChange={(event) => setRange(event.target.value as AnalyticsRange)}
-            value={range}
-          >
-            {ranges.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </SelectField>
-        </div>
-      </Panel>
-      {pages.status !== "Exhausted" ? (
-        <Notice>Analytics totals are partial while the complete range loads.</Notice>
-      ) : null}
-      <Panel title="Engagement summary">
-        <dl className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
-          <Metric label="Profile views" value={totals.views} />
-          <Metric label="Unique views" value={totals.uniqueViews} />
-          <Metric label="Link clicks" value={totals.clicks} />
-        </dl>
-      </Panel>
-      <Panel title="Engagement trend">
-        <div
-          aria-label="Aggregate engagement trend"
-          className="mt-5 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tapit-accent"
-          role="region"
-          tabIndex={0}
-        >
-          <div
-            className="flex h-44 items-end gap-2 border-b border-tapit-line px-1 sm:gap-3"
-            style={{ minWidth: `${Math.max(100, trend.length * 56)}px` }}
-          >
-            {trend.length > 0 ? (
-              trend.map((period) => {
-                const total = period.views + period.clicks;
-                const label = formatTrendPeriod(period);
-                return (
-                  <div
-                    aria-label={`${label}: ${total} total, ${period.views} views, ${period.clicks} clicks`}
-                    className="flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
-                    key={period.start}
-                    role="group"
-                  >
-                    <span className="text-[0.65rem] font-semibold text-tapit-muted">
-                      {total.toLocaleString()}
-                    </span>
-                    <div
-                      className="w-full max-w-10 rounded-t-lg bg-tapit-accent"
-                      style={{ height: `${Math.max(10, (total / peak) * 125)}px` }}
-                      title={`${period.views} views, ${period.clicks} clicks`}
-                    />
-                    <span className="text-[0.6rem] text-tapit-muted">{label}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="mb-6 w-full text-center text-sm text-tapit-muted">
-                {pages.status === "Exhausted"
-                  ? "Share your profile to start a trend."
-                  : "Loading trend…"}
-              </p>
-            )}
-          </div>
-        </div>
-      </Panel>
-      {pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
-        <Notice>No activity in this range yet.</Notice>
-      ) : null}
-      <Panel
-        description="Sources include profile views and link clicks. Unknown / legacy means events without recorded attribution."
-        title="Views and clicks by source"
-      >
-        <SourceBreakdown totals={sourceTotals} />
-      </Panel>
-      <Panel title="Link results">
-        <div className="mt-6 overflow-hidden rounded-tapit border border-tapit-line">
-          {linkResults.length === 0 ? (
-            <div className="p-5 text-sm text-tapit-muted">
-              Add links to see destination results.
-            </div>
-          ) : (
-            linkResults.map((link) => (
-              <div
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-4 last:border-b-0 sm:px-5"
-                key={link.id}
-              >
-                <div>
-                  <p className="font-semibold text-tapit-ink">{link.label || "Untitled link"}</p>
-                  <p className="mt-1 max-w-xl truncate text-xs text-tapit-muted">
-                    {link.destination || "No destination yet"}
-                  </p>
-                </div>
-                <p className="text-sm font-semibold text-tapit-accent">
-                  {link.clicks.toLocaleString()} clicks
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      </Panel>
-      <Panel title="Privacy note">
-        <p className="mt-5 flex items-start gap-3 text-sm leading-6 text-tapit-muted">
-          <ShieldCheckIcon
-            aria-hidden="true"
-            className="mt-0.5 shrink-0 text-tapit-accent"
-            size={21}
-            weight="bold"
-          />
-          Aggregate metrics contain no visitor-level history.
-        </p>
-      </Panel>
-    </div>
+    <AnalyticsReport
+      activityNotice={
+        pages.status === "Exhausted" && totals.views === 0 && totals.clicks === 0 ? (
+          <Notice>No activity in this range yet.</Notice>
+        ) : null
+      }
+      linkResults={linkResults}
+      onRangeChange={setRange}
+      partialNotice={
+        pages.status !== "Exhausted" ? (
+          <Notice>Analytics totals are partial while the complete range loads.</Notice>
+        ) : null
+      }
+      privacyBody="Aggregate metrics contain no visitor-level history."
+      range={range}
+      sourceTotals={sourceTotals}
+      totals={totals}
+      trend={trend}
+      trendEmptyText={
+        pages.status === "Exhausted" ? "Share your profile to start a trend." : "Loading trend…"
+      }
+    />
   );
 }
 export function CustomerAnalytics() {

@@ -9,9 +9,13 @@ async function publishWarmStudioProfile(page: Page) {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("radio", { name: "Warm Studio" }).check();
+  const warmStudio = page.getByRole("radio", { name: "Warm Studio" });
+  await warmStudio.locator("xpath=..").click();
+  await expect(warmStudio).toBeChecked();
   await page.getByText("Fine tune", { exact: true }).click();
-  await page.getByRole("radio", { name: "Editorial" }).check();
+  const editorial = page.getByRole("radio", { name: "Editorial" });
+  await editorial.locator("xpath=..").click();
+  await expect(editorial).toBeChecked();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
   await page.goto("/app/links");
@@ -20,7 +24,9 @@ async function publishWarmStudioProfile(page: Page) {
   await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "About or Services" }).click();
-  await page.getByRole("radio", { name: "About", exact: true }).check();
+  const about = page.getByRole("radio", { name: "About", exact: true });
+  await about.locator("xpath=..").click();
+  await expect(about).toBeChecked();
   await page.getByLabel("About copy").fill("A published studio introduction.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -221,18 +227,18 @@ test("owner shortcut is hidden when signed out and links Mara to profile editor"
   const editProfile = page.getByRole("link", { name: "Edit profile", exact: true });
   await expect(editProfile).toBeVisible();
   await expect(editProfile).toHaveAttribute("href", "/app/profile");
-  await expect(editProfile).toHaveCSS("position", "fixed");
-  expect(
-    await editProfile.evaluate((element) => element.closest(".tapit-profile-entry")),
-  ).toBeNull();
-  const bottom = await editProfile.evaluate((element) => element.getBoundingClientRect().bottom);
-  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-  expect(
-    Math.abs(
-      bottom - (await editProfile.evaluate((element) => element.getBoundingClientRect().bottom)),
-    ),
-  ).toBeLessThan(1);
+  const ownerActions = page.getByRole("navigation", { name: "Profile owner actions" });
+  await expect(ownerActions).toHaveCSS("position", "absolute");
+  const [ownerBox, heroBox] = await Promise.all([
+    ownerActions.boundingBox(),
+    page.getByRole("region", { name: "Profile hero" }).boundingBox(),
+  ]);
+  expect(ownerBox).not.toBeNull();
+  expect(heroBox).not.toBeNull();
+  expect(ownerBox!.x).toBeGreaterThanOrEqual(heroBox!.x);
+  expect(ownerBox!.y).toBeGreaterThanOrEqual(heroBox!.y);
+  expect(ownerBox!.x + ownerBox!.width).toBeLessThanOrEqual(heroBox!.x + heroBox!.width);
+  expect(ownerBox!.y + ownerBox!.height).toBeLessThanOrEqual(heroBox!.y + heroBox!.height);
 
   await page.goto("/c/mara-card-7f2q");
   const cardEditProfile = page.getByRole("link", { name: "Edit profile", exact: true });
@@ -387,7 +393,9 @@ test("direct and active card profiles stay phone-width on desktop", async ({ pag
   }
 });
 
-test("desktop public profile routes match the mobile preview presentation", async ({ page }) => {
+test("desktop public profile routes match the preview with the prototype avatar size", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -395,13 +403,36 @@ test("desktop public profile routes match the mobile preview presentation", asyn
 
   const previewProfile = page.getByTestId("profile-preview-device").locator(".tapit-profile-entry");
   await expect(previewProfile.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
-  const previewPresentation = await readProfilePresentation(previewProfile);
+  const {
+    avatar: previewAvatar,
+    heroContent: previewHeroContent,
+    panel: previewPanel,
+    ...previewPresentation
+  } = await readProfilePresentation(previewProfile);
+  expect(previewAvatar).toMatchObject({ width: "80px", height: "80px" });
+  expect(previewHeroContent).toBeNull();
+  expect(previewPanel).toMatchObject({
+    backgroundColor: "rgb(255, 255, 255)",
+    borderRadius: "20px",
+  });
 
   for (const path of ["/mara-velasquez", "/c/mara-card-7f2q"]) {
     await page.goto(path);
     const profile = page.locator("main.tapit-profile-entry");
     await expect(profile.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
-    expect(await readProfilePresentation(profile)).toEqual(previewPresentation);
+    const {
+      avatar: publicAvatar,
+      heroContent: publicHeroContent,
+      panel: publicPanel,
+      ...publicPresentation
+    } = await readProfilePresentation(profile);
+    expect(publicAvatar).toMatchObject({ width: "104px", height: "104px" });
+    expect(publicHeroContent).toMatchObject({ paddingTop: "0px", paddingBottom: "16px" });
+    expect(publicPanel).toMatchObject({
+      backgroundColor: "rgba(0, 0, 0, 0)",
+      borderRadius: "0px",
+    });
+    expect(publicPresentation).toEqual(previewPresentation);
   }
 });
 
@@ -456,7 +487,6 @@ test("customized direct and active card paths preserve presentation parity", asy
         body: "A published studio introduction.",
         expanded: "false",
       },
-      pageClass: expect.stringContaining("bg-[#fbf6ef]"),
       pageBackground: "rgb(251, 246, 239)",
     });
   }
@@ -488,7 +518,7 @@ test("legacy Paper theme uses Soft Precision by default on preview and slug rout
   await expect(slugProfile).toHaveCSS("background-color", "rgb(244, 246, 250)");
   await expect(slugProfile.locator(":scope > div > section")).toHaveCSS(
     "background-color",
-    "rgb(255, 255, 255)",
+    "rgba(0, 0, 0, 0)",
   );
   await page.screenshot({
     path: "test-results/soft-precision-site/slug-profile-default-paper.png",
@@ -526,6 +556,10 @@ test("legacy customer typography and selected theme remain intact after publishi
   await expect(directHeading).toHaveCSS("font-size", previewFontSize);
   await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
   await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
+  await expect(page.locator("main img").first()).toHaveCSS(
+    "box-shadow",
+    /rgba\(255, 255, 255, 0\.1\) 0px 0px 0px 1px/,
+  );
   const directProfile = await readPublicProfileSnapshot(page);
 
   await page.goto("/c/mara-card-7f2q");
@@ -539,9 +573,8 @@ test("legacy customer typography and selected theme remain intact after publishi
   expect(directProfile).toEqual(cardProfile);
   expect(directProfile.headingFontFamily).toBe(previewFontFamily);
   expect(directProfile.pageBackground).toBe("rgb(23, 33, 31)");
-  expect(directProfile.panelBackground).toBe("rgb(34, 48, 43)");
-  expect(directProfile.panelRadius).toBe("18px");
-  expect(directProfile.pageClass).toContain("bg-[#17211f]");
+  expect(directProfile.panelBackground).toBe("rgba(0, 0, 0, 0)");
+  expect(directProfile.panelRadius).toBe("0px");
 });
 
 test("tagged profile activity appears by source and aggregates into the current monthly period", async ({
@@ -577,12 +610,10 @@ test("tagged profile activity appears by source and aggregates into the current 
   await page.goto("/app/analytics");
 
   const trafficSources = page.getByLabel("Traffic source breakdown");
-  await expect(
-    trafficSources.getByText("NFC", { exact: true }).locator("xpath=following-sibling::dd"),
-  ).toHaveText("1");
-  await expect(
-    trafficSources.getByText("QR code", { exact: true }).locator("xpath=following-sibling::dd"),
-  ).toHaveText("1");
+  const nfcRow = trafficSources.getByText("NFC", { exact: true }).locator("..");
+  const qrRow = trafficSources.getByText("QR code", { exact: true }).locator("..");
+  await expect(nfcRow.getByText("1", { exact: true })).toBeVisible();
+  await expect(qrRow.getByText("1", { exact: true })).toBeVisible();
 
   const trend = page.getByLabel("Aggregate engagement trend");
   const currentPeriod = await page.evaluate(() => {
@@ -827,9 +858,7 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await page.goto("/c/claimable-card-demo");
-  await expect(
-    page.getByRole("heading", { name: "Are you the owner of this card?" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "This card is ready to set up" })).toBeVisible();
   await page.getByLabel("Claim code").fill("MARA2Q8K");
   await page.getByRole("button", { name: "Claim this card" }).click();
   await expect(page).toHaveURL(/\/login\?next=%2Fc%2Fclaimable-card-demo$/);

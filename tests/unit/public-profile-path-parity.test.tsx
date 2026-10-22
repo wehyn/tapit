@@ -123,7 +123,7 @@ describe("published demo profile paths", () => {
       slide: "Published demo slide",
       disclosure: "false",
     });
-    expect(paths[0]?.marker).toContain("bg-[#fbf6ef]");
+    expect(paths[0]?.marker).toContain("bg-tapit-warm-studio-page");
   });
 
   it("does not record profile-link analytics for contact actions on either path", () => {
@@ -175,29 +175,33 @@ describe("published demo profile paths", () => {
         const main = screen.getByRole("main");
         const panel = main.querySelector("section");
         const links = screen.getByRole("list", { name: "Profile links" });
-        const paperColor = theme === "moss" ? "#e8f1eb" : "#17211f";
-        const inkColor = theme === "moss" ? "#17352b" : "#f2f6f1";
+        const paperToken =
+          theme === "moss" ? "var(--tapit-moss-paper)" : "var(--tapit-night-paper)";
+        const inkToken = theme === "moss" ? "var(--tapit-moss-ink)" : "var(--tapit-night-ink)";
 
-        expect(main).toHaveClass(
-          theme === "moss" ? "bg-[#e8f1eb]" : "bg-[#17211f]",
-          "px-4",
-          "py-8",
-          "sm:px-6",
-          "sm:py-12",
-        );
-        expect(main.style.getPropertyValue("--tapit-paper")).toBe(paperColor);
-        expect(main.style.getPropertyValue("--tapit-ink")).toBe(inkColor);
+        expect(main).toHaveClass("bg-tapit-paper", "text-tapit-ink", "px-0", "py-0");
+        expect(main.style.getPropertyValue("--tapit-paper")).toBe(paperToken);
+        expect(main.style.getPropertyValue("--tapit-ink")).toBe(inkToken);
         expect(panel).toHaveClass(
-          theme === "moss" ? "border-[#b9d1c0]" : "border-[#40534d]",
-          theme === "moss" ? "bg-[#f7fbf8]" : "bg-[#22302b]",
-        );
-        expect(links).toHaveClass("gap-3");
-        expect(links.parentElement?.parentElement?.parentElement).toHaveClass("mt-9", "gap-5");
-        expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
-          theme === "moss" ? "border-[#b9d1c0]" : "border-[#40534d]",
+          "overflow-hidden",
+          "rounded-none",
+          "border-0",
+          "shadow-none",
           "bg-transparent",
         );
-        expect(screen.getByRole("button", { name: "Save contact" })).toHaveClass("mt-5");
+        expect(links).toHaveClass("gap-2");
+        expect(links.parentElement?.parentElement?.parentElement).toHaveClass("mt-0", "gap-4");
+        expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
+          "rounded-control",
+          "bg-tapit-surface",
+          "shadow-card",
+        );
+        expect(screen.getByRole("link", { name: "LinkedIn" })).not.toHaveClass("border");
+        expect(screen.getByRole("button", { name: "Save contact" })).toHaveClass(
+          "h-11",
+          "rounded-control",
+          "bg-tapit-accent",
+        );
         expect(screen.getByRole("button", { name: "Save contact" })).toBeVisible();
         const contactActions = screen.getByRole("navigation", { name: "Contact actions" });
         expect(contactActions).toBeVisible();

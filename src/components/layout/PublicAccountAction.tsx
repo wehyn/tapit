@@ -1,7 +1,6 @@
 "use client";
 
 import { useConvexAuth } from "@convex-dev/auth/react";
-import { ArrowRightIcon } from "@phosphor-icons/react";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import Link from "next/link";
@@ -160,15 +159,12 @@ function resolvePublicAction(
 
 function classNameForPlacement(placement: Placement): string {
   if (placement === "account") {
-    return "inline-flex min-h-11 items-center text-sm font-semibold text-tapit-muted transition hover:text-tapit-ink";
+    return "inline-flex min-h-11 items-center rounded-control px-4 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink";
   }
   if (placement === "header") {
-    return "inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-tapit-accent px-4 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(49,95,228,0.18)] transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-px hover:bg-tapit-accent-strong focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:text-sm";
+    return "inline-flex min-h-11 shrink-0 items-center justify-center rounded-control bg-tapit-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-tapit-accent-strong";
   }
-  if (placement === "hero") {
-    return "group inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-tapit-accent px-5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(49,95,228,0.18)] transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-tapit-accent-strong focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6";
-  }
-  return "group inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-5 text-sm font-semibold text-tapit-accent transition-[color,background-color,border-color,box-shadow,translate,scale] duration-150 ease-out motion-safe:hover:-translate-y-0.5 hover:bg-[#e5f3eb] focus-visible:outline-offset-4 motion-safe:active:translate-y-0 motion-safe:active:scale-[0.96] sm:px-6";
+  return "inline-flex min-h-11 shrink-0 items-center justify-center rounded-control bg-tapit-accent px-6 text-base font-semibold text-white transition-colors hover:bg-tapit-accent-strong";
 }
 
 function visibleLabel(placement: Placement, label: ActionLabel) {
@@ -200,7 +196,6 @@ function PublicAccountActionLink({
   placement: Placement;
 }) {
   const loading = action.kind === "loading";
-  const showArrow = placement === "hero" || placement === "closing";
 
   return (
     <Link
@@ -213,14 +208,6 @@ function PublicAccountActionLink({
       }
     >
       {visibleLabel(placement, action.label)}
-      {showArrow ? (
-        <ArrowRightIcon
-          aria-hidden="true"
-          className="transition-transform duration-150 motion-safe:group-hover:translate-x-1"
-          size={18}
-          weight="bold"
-        />
-      ) : null}
     </Link>
   );
 }

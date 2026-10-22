@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import type { CardDesignPreview } from "@/lib/card-design";
 
 import { Button } from "../ui/Button";
+import { Icon } from "../ui/Icon";
 import { Notice } from "../ui/Notice";
 
 const titleId = "card-preview-title";
@@ -77,31 +78,31 @@ export function CardPreviewDialog({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-tapit-ink/70 px-5 py-8 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain bg-tapit-ink/70 px-4 py-8 sm:px-8">
       <div
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative w-full max-w-md rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_48px_rgba(27,36,51,0.14)] sm:p-8"
+        className="relative w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
         <h2
-          className="tapit-display text-2xl font-semibold tracking-tight text-tapit-ink"
+          className="tapit-display text-xl font-semibold tracking-tight text-tapit-ink"
           id={titleId}
         >
           Looks good?
         </h2>
         <Button
           aria-label="Close card preview"
-          className="absolute right-4 top-4 min-h-10 px-3 text-xl leading-none"
+          className="absolute top-4 right-4"
           onClick={onClose}
           type="button"
           variant="quiet"
         >
-          <span aria-hidden="true">×</span>
+          <Icon name="close" size={20} />
         </Button>
-        <div className="mt-6 flex max-h-[55vh] min-h-48 items-center justify-center overflow-hidden rounded-tapit border border-tapit-line bg-tapit-paper p-3 sm:max-h-[60vh]">
+        <div className="mt-6 flex max-h-[55vh] min-h-48 items-center justify-center overflow-hidden rounded-control bg-tapit-soft-surface p-3 sm:max-h-[60vh]">
           {/* Blob previews are already local and cannot benefit from Next image optimization. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -112,7 +113,7 @@ export function CardPreviewDialog({
         </div>
         <div className="mt-6 flex flex-col gap-3">
           <Button className="w-full" onClick={onOrder} type="button">
-            Ordering is not open yet <span aria-hidden="true">→</span>
+            Ordering is not open yet <Icon name="caretRight" size={16} />
           </Button>
           <Button className="w-full" onClick={onChooseAnother} type="button" variant="secondary">
             Choose another design

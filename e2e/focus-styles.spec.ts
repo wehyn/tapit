@@ -128,7 +128,8 @@ test("form focus indicators stay within the Soft Precision theme", async ({ page
   const redirectModeFocus = await readFocusStyles(redirectMode.locator("xpath=.."));
   expect(redirectModeFocus.hasVisibleIndicator, "redirect mode").toBe(true);
   expect(redirectModeFocus.colors, "redirect mode").not.toMatch(ORANGE_FOCUS);
-  await redirectMode.check();
+  await redirectMode.locator("xpath=..").click();
+  await expect(redirectMode).toBeChecked();
 
   const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
   await redirectInput.focus();

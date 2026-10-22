@@ -37,17 +37,6 @@ export default defineConfig({
       testIgnore: /live\.spec\.ts$/,
       use: {
         ...devices["Desktop Chrome"],
-        storageState: {
-          cookies: [],
-          origins: [
-            {
-              origin: localBaseURL,
-              localStorage: [
-                { name: "tapit:customer-navigation-tour:profile-mara", value: "done" },
-              ],
-            },
-          ],
-        },
       },
     },
     {

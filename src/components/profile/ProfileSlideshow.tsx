@@ -1,11 +1,11 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- Published profile media is served from Convex storage URLs and needs native loading/decoding hints. */
-import { ArrowLeft, ArrowRight, ArrowsOut } from "@phosphor-icons/react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { PointerEvent } from "react";
 
 import type { PublicProfileMediaImage } from "@/lib/profile-media";
+import { Icon } from "@/components/ui/Icon";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const CONTROLS_IDLE_DELAY_MS = 2800;
@@ -29,11 +29,9 @@ function getReducedMotionSnapshot() {
 export function ProfileSlideshow({
   images,
   autoplay,
-  imageOutlineColor = "oklch(0 0 0 / 0.1)",
 }: {
   images: PublicProfileMediaImage[];
   autoplay: boolean;
-  imageOutlineColor?: string;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -147,7 +145,7 @@ export function ProfileSlideshow({
       role="region"
       ref={rootRef}
       aria-label="Profile slideshow"
-      className="relative overflow-hidden rounded-tapit border border-[#e5d6c5] bg-[#fffdf9]"
+      className="relative overflow-hidden rounded-card bg-tapit-warm-studio-surface shadow-card"
       onBlur={(event) => {
         if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
         setKeyboardFocused(false);
@@ -199,49 +197,48 @@ export function ProfileSlideshow({
           key={safeActiveIndex}
           loading={safeActiveIndex === 0 ? "eager" : "lazy"}
           src={current.src}
-          style={{ outlineColor: imageOutlineColor }}
         />
         <div
-          className={`absolute inset-0 transition-opacity duration-200 motion-reduce:transition-none ${controlsShouldBeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+          className={`absolute inset-0 ${controlsShouldBeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
         >
           {total > 1 ? (
             <>
               <button
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex - 1)}
                 type="button"
               >
-                <ArrowLeft aria-hidden="true" size={20} />
+                <Icon name="arrowLeft" size={20} />
               </button>
               <button
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex + 1)}
                 type="button"
               >
-                <ArrowRight aria-hidden="true" size={20} />
+                <Icon name="arrowRight" size={20} />
               </button>
             </>
           ) : null}
           {total > 1 ? (
             <div
               aria-label="Choose slideshow image"
-              className="absolute bottom-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto rounded-full bg-[#2c2420]/45 p-1"
+              className="absolute bottom-3 left-1/2 flex w-max max-w-[calc(100%-1.5rem)] -translate-x-1/2 overflow-x-auto rounded-full bg-tapit-warm-studio-ink/45 p-1"
               role="group"
             >
               {images.map((image, index) => (
                 <button
                   aria-current={index === safeActiveIndex ? "true" : undefined}
                   aria-label={`Image ${index + 1} of ${total}`}
-                  className="grid min-h-8 min-w-8 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                  className="grid min-h-11 min-w-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                   key={index}
                   onClick={() => goTo(index)}
                   type="button"
                 >
                   <span
                     aria-hidden="true"
-                    className={`size-2.5 rounded-full ${index === safeActiveIndex ? "bg-white" : "bg-white/55"}`}
+                    className={`size-2 rounded-full ${index === safeActiveIndex ? "bg-white" : "bg-white/55"}`}
                   />
                 </button>
               ))}
@@ -249,7 +246,7 @@ export function ProfileSlideshow({
           ) : null}
           <button
             aria-label="View image"
-            className="absolute left-1/2 top-1/2 grid size-12 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-[#fffdf9]/90 text-[#2c2420] shadow-sm transition hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transition-none"
+            className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
             onClick={() => {
               dialogRef.current?.showModal();
               setFullImageOpen(true);
@@ -257,19 +254,19 @@ export function ProfileSlideshow({
             ref={viewImageRef}
             type="button"
           >
-            <ArrowsOut aria-hidden="true" size={24} />
+            <Icon name="arrowsOut" size={24} />
           </button>
         </div>
       </div>
       {showReducedMotionNotice ? (
-        <p className="border-t border-[#e5d6c5] px-4 py-3 text-sm text-[#594c43]" role="status">
+        <p className="px-4 py-3 text-sm text-tapit-warm-studio-muted" role="status">
           Your reduced-motion preference disables autoplay. Use Previous image, Next image, or the
           image picker to browse manually.
         </p>
       ) : null}
       <dialog
         aria-label="Full slideshow image"
-        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-tapit border border-[#e5d6c5] bg-[#fffdf9] p-4 shadow-xl open:flex backdrop:bg-black/80"
+        className="fixed inset-0 m-auto h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col rounded-card bg-tapit-warm-studio-surface p-6 shadow-card open:flex backdrop:bg-black/80"
         onClose={() => {
           setFullImageOpen(false);
           viewImageRef.current?.focus();
@@ -277,7 +274,7 @@ export function ProfileSlideshow({
         ref={dialogRef}
       >
         <button
-          className="ml-auto mb-2 block min-h-11 shrink-0 rounded-full px-3 py-2 text-sm font-semibold text-[#2c2420] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          className="ml-auto mb-2 block min-h-11 shrink-0 rounded-control px-3 py-2 text-sm font-semibold text-tapit-warm-studio-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
           onClick={() => dialogRef.current?.close()}
           type="button"
         >

@@ -121,14 +121,17 @@ describe("public profile preview behavior", () => {
       "true",
     );
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
-      "border-[#a84431]",
+      "rounded-control",
       "bg-transparent",
+      "text-tapit-warm-studio-coral-ink",
     );
+    expect(screen.getByRole("link", { name: "Portfolio" })).not.toHaveClass("border");
     expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
-      "border-[#a84431]",
+      "rounded-control",
       "bg-transparent",
-      "text-[#a84431]",
+      "text-tapit-warm-studio-coral-ink",
     );
+    expect(screen.getByRole("link", { name: "LinkedIn" })).not.toHaveClass("border");
     expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
       color: "#3e806d",
     });
@@ -166,14 +169,15 @@ describe("public profile preview behavior", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: projection.name })).toHaveClass("text-4xl");
+    expect(screen.getByRole("heading", { name: projection.name })).toHaveClass("text-2xl");
     expect(screen.getByRole("heading", { name: projection.name })).toHaveStyle({
       color: "#ffffff",
     });
     expect(screen.getByRole("button", { name: /save contact/i })).toHaveClass(
-      "border-tapit-accent",
       "bg-transparent",
+      "text-tapit-accent",
     );
+    expect(screen.getByRole("button", { name: /save contact/i })).not.toHaveClass("border");
   });
 
   it("keeps Warm Studio while an About or Services section is still empty", () => {
@@ -197,7 +201,7 @@ describe("public profile preview behavior", () => {
       />,
     );
 
-    expect(screen.getByRole("main")).toHaveClass("bg-[#fbf6ef]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-warm-studio-page");
     expect(screen.queryByText("About")).not.toBeInTheDocument();
   });
 
@@ -394,8 +398,8 @@ describe("public profile preview behavior", () => {
     });
     expect(hero).toContainElement(heading);
     expect(hero).toHaveAttribute("data-hero-height", "220");
-    expect(heading).toHaveClass("text-3xl");
-    expect(heading).not.toHaveClass("sm:text-4xl");
+    expect(heading).toHaveClass("text-xl");
+    expect(heading).not.toHaveClass("sm:text-2xl");
   });
 
   it("renders projected media for a legacy themed profile", () => {
@@ -426,7 +430,7 @@ describe("public profile preview behavior", () => {
 
     expect(screen.getByRole("region", { name: "Profile hero" })).toBeVisible();
     expect(screen.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
   it("integrates identity into a themed profile background", () => {
@@ -466,12 +470,33 @@ describe("public profile preview behavior", () => {
   });
 
   it.each([
-    ["compact", "jade", "text-2xl", "bg-[#e1f0ea]", "text-[#3e806d]", "border-[#3e806d]"],
-    ["editorial", "ink", "text-4xl", "bg-[#eee8e2]", "text-[#2c2420]", "border-[#2c2420]"],
-    ["comfortable", "coral", "text-3xl", "bg-[#ffede3]", "text-[#a84431]", "border-[#a84431]"],
+    [
+      "compact",
+      "jade",
+      "text-xl",
+      "bg-tapit-warm-studio-jade-hover",
+      "text-tapit-warm-studio-jade",
+      "text-tapit-warm-studio-jade-strong",
+    ],
+    [
+      "editorial",
+      "ink",
+      "text-2xl",
+      "bg-tapit-warm-studio-ink-hover",
+      "text-tapit-warm-studio-ink",
+      "text-tapit-warm-studio-ink",
+    ],
+    [
+      "comfortable",
+      "coral",
+      "text-xl",
+      "bg-tapit-warm-studio-coral-hover",
+      "text-tapit-warm-studio-coral-ink",
+      "text-tapit-warm-studio-coral-ink",
+    ],
   ] as const)(
     "applies the %s type scale and finite %s accent in preview",
-    (typeScale, accent, headingClass, avatarBackground, avatarText, linkBorder) => {
+    (typeScale, accent, headingClass, avatarBackground, avatarText, linkText) => {
       if (projection === null) throw new Error("The demo profile fixture is missing.");
       render(
         <PublicProfile
@@ -497,10 +522,11 @@ describe("public profile preview behavior", () => {
       expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(headingClass);
       expect(screen.getByText("M")).toHaveClass(avatarBackground, avatarText);
       expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
-        linkBorder,
+        "rounded-control",
         "bg-transparent",
-        avatarText,
+        linkText,
       );
+      expect(screen.getByRole("link", { name: "Portfolio" })).not.toHaveClass("border");
     },
   );
 
@@ -558,10 +584,10 @@ describe("public profile preview behavior", () => {
       />,
     );
     expect(screen.queryByRole("navigation", { name: "Contact actions" })).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass(
-      "text-3xl",
-      "sm:text-4xl",
+      "text-xl",
+      "sm:text-2xl",
     );
   });
 
@@ -587,10 +613,10 @@ describe("public profile preview behavior", () => {
       "tel:+63 917 555 0184",
     );
     expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
-  it("keeps links outlined while the Save contact button uses its filled treatment", () => {
+  it("keeps links borderless while the Save contact button uses its filled treatment", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");
     render(
       <PublicProfile
@@ -611,12 +637,13 @@ describe("public profile preview behavior", () => {
     );
 
     expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
-      "border-[#a84431]",
+      "rounded-control",
       "bg-transparent",
-      "text-[#a84431]",
+      "text-tapit-warm-studio-coral-ink",
     );
+    expect(screen.getByRole("link", { name: "Portfolio" })).not.toHaveClass("border");
     expect(screen.getByRole("button", { name: "Save contact" })).toHaveClass(
-      "bg-[#b24f38]",
+      "bg-tapit-warm-studio-coral",
       "text-white",
     );
   });
@@ -640,7 +667,7 @@ describe("public profile preview behavior", () => {
       />,
     );
     expect(screen.queryByText("Services")).not.toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("bg-[#17211f]");
+    expect(screen.getByRole("main")).toHaveClass("bg-tapit-paper");
   });
 
   it("exports validated phone contact data while omitting unsafe email and website values", async () => {

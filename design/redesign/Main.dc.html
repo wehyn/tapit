@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tapit UI audit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div style="background: #f4f6fa; padding: 64px 48px; min-height: 2000px;">
+<div style="max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px;">
+
+  <div class="col" style="gap: 16px; max-width: 820px;">
+    <p class="eyebrow">Tapit · UI audit · Oct 2026</p>
+    <h1 class="t-3xl">Every screen, one system.</h1>
+    <p class="t-md muted">I audited 26 screens across the public site, sign-in, the customer workspace and the admin workspace. The current palette stays. What changes is structure: one shell for every role, one spacing scale, three radii, seven text sizes, and separation by space and tone instead of divider lines.</p>
+    <div class="row wrap" style="gap: 8px;">
+      <a class="btn btn-primary" href="Profile.dc.html">Open customer prototype</a>
+      <a class="btn btn-secondary" href="AdminCustomers.dc.html">Open admin prototype</a>
+      <a class="btn btn-quiet" href="Foundations.dc.html">See foundations</a>
+    </div>
+  </div>
+
+  <div class="grid-4">
+    <div class="card">
+      <p class="label">Corner radius values</p>
+      <div class="row" style="align-items: baseline; gap: 8px;"><span class="t-2xl" style="color: #a33c38;">12</span><span class="t-md muted">→</span><span class="t-2xl" style="color: #315fe4;">3</span></div>
+      <p class="t-sm muted">12px, 20px and pill. Everything else snaps to one of them.</p>
+    </div>
+    <div class="card">
+      <p class="label">Text sizes in use</p>
+      <div class="row" style="align-items: baseline; gap: 8px;"><span class="t-2xl" style="color: #a33c38;">27</span><span class="t-md muted">→</span><span class="t-2xl" style="color: #315fe4;">7</span></div>
+      <p class="t-sm muted">16 of the 27 are one-off rem values, some as small as 0.36rem.</p>
+    </div>
+    <div class="card">
+      <p class="label">Divider lines</p>
+      <div class="row" style="align-items: baseline; gap: 8px;"><span class="t-2xl" style="color: #a33c38;">71</span><span class="t-md muted">→</span><span class="t-2xl" style="color: #315fe4;">0</span></div>
+      <p class="t-sm muted">Rows become spaced tiles; sections are split by 32px gaps.</p>
+    </div>
+    <div class="card">
+      <p class="label">Padding &amp; gap steps</p>
+      <div class="row" style="align-items: baseline; gap: 8px;"><span class="t-2xl" style="color: #a33c38;">20</span><span class="t-md muted">→</span><span class="t-2xl" style="color: #315fe4;">8</span></div>
+      <p class="t-sm muted">4, 8, 12, 16, 24, 32, 48, 64. Cards always pad 24.</p>
+    </div>
+  </div>
+
+  <div class="section" style="gap: 24px;">
+    <div class="col-2">
+      <h2 class="t-xl">Where the drift is</h2>
+      <p class="t-md muted">Counted across every component in src/components and src/app.</p>
+    </div>
+    <div class="grid-3" style="gap: 16px;">
+      <div class="card">
+        <div class="spread"><h3 class="t-lg">Radius classes</h3><span class="chip b-danger">12 values</span></div>
+        <div class="col-2" style="gap: 10px;">
+          <div class="col-1"><div class="spread t-xs"><span>rounded-tapit · 18px</span><span class="muted">98</span></div><div class="progress"><span style="width: 100%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>rounded-full</span><span class="muted">50</span></div><div class="progress"><span style="width: 51%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>rounded-2xl · 16px</span><span class="muted">8</span></div><div class="progress"><span style="width: 8%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>rounded-[14px]</span><span class="muted">7</span></div><div class="progress"><span style="width: 7%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>rounded-xl · 12px</span><span class="muted">6</span></div><div class="progress"><span style="width: 6%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>1px, 2px, 10px, 12px, 18px, sm, md</span><span class="muted">12</span></div><div class="progress"><span style="width: 12%; background: #a33c38;"></span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="spread"><h3 class="t-lg">Text size classes</h3><span class="chip b-danger">27 values</span></div>
+        <div class="col-2" style="gap: 10px;">
+          <div class="col-1"><div class="spread t-xs"><span>text-sm · 14px</span><span class="muted">194</span></div><div class="progress"><span style="width: 100%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>text-xs · 12px</span><span class="muted">83</span></div><div class="progress"><span style="width: 43%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>text-3xl · 30px</span><span class="muted">30</span></div><div class="progress"><span style="width: 15%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>text-xl / base / lg / 2xl</span><span class="muted">66</span></div><div class="progress"><span style="width: 34%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>text-4xl / 5xl</span><span class="muted">16</span></div><div class="progress"><span style="width: 8%;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>16 arbitrary rem / px sizes</span><span class="muted">38</span></div><div class="progress"><span style="width: 20%; background: #a33c38;"></span></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="spread"><h3 class="t-lg">Divider lines</h3><span class="chip b-danger">71 uses</span></div>
+        <div class="col-2" style="gap: 10px;">
+          <div class="col-1"><div class="spread t-xs"><span>border-b</span><span class="muted">38</span></div><div class="progress"><span style="width: 100%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>border-t</span><span class="muted">21</span></div><div class="progress"><span style="width: 55%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>border-y</span><span class="muted">5</span></div><div class="progress"><span style="width: 13%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>border-l</span><span class="muted">4</span></div><div class="progress"><span style="width: 11%; background: #a33c38;"></span></div></div>
+          <div class="col-1"><div class="spread t-xs"><span>divide-y</span><span class="muted">3</span></div><div class="progress"><span style="width: 8%; background: #a33c38;"></span></div></div>
+          <p class="hint">Plus a 1px outline on every card, input and nav item, which this redesign also removes.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="gap: 24px;">
+    <div class="col-2">
+      <h2 class="t-xl">Findings</h2>
+      <p class="t-md muted">Ranked by how much each one gets in the way of moving around the app.</p>
+    </div>
+    <div class="grid-2">
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-danger">Navigation</span><span class="t-xs muted">SidebarNav, CustomerShell, AdminShell</span></div>
+        <h3 class="t-lg">Two shells, two mental models</h3>
+        <p class="t-sm muted">Customers get an account menu; admins get a sign-out button. Admin access is a single "Admin workspace" link at the bottom, and going back means finding "My profile" in a third group. Fix: one shell with a Customer / Admin switch at the top.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-danger">Navigation</span><span class="t-xs muted">1024–1279px</span></div>
+        <h3 class="t-lg">The icon-only rail hides where you are</h3>
+        <p class="t-sm muted">Between 1024 and 1279px the sidebar collapses to 72px; labels and group names go screen-reader-only. Fix: keep a 248px labelled sidebar on desktop; on phones use a bottom tab bar.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-danger">Mobile</span><span class="t-xs muted">Hamburger drawer</span></div>
+        <h3 class="t-lg">Every destination is two taps away</h3>
+        <p class="t-sm muted">The phone header shows only a ☰ glyph. Profile, Links and Analytics, the three things people do daily, hide in a drawer. Fix: a four-tab bar plus a More sheet.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-warn">IA</span><span class="t-xs muted">/app/account/build-card</span></div>
+        <h3 class="t-lg">Build card lives under Account</h3>
+        <p class="t-sm muted">It shows in the Workspace group but the URL nests it under Account, so the breadcrumb and back button disagree with the sidebar. Fix: move it to /app/card under "Share".</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-warn">Status</span><span class="t-xs muted">DraftSaveContext</span></div>
+        <h3 class="t-lg">Draft and live state are easy to miss</h3>
+        <p class="t-sm muted">Saving happens on navigation, but nothing on screen says whether changes are saved or whether the profile is live. Fix: a save pill in the top bar and a Live card in the sidebar.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip b-warn">Visual</span><span class="t-xs muted">Panel, Button, tables</span></div>
+        <h3 class="t-lg">Lines, outlines and lift everywhere</h3>
+        <p class="t-sm muted">Each card has a border and a shadow; every button lifts 3px and scales 2.5% on hover; admin tables split rows with lines. Fix: tonal tiles, a single soft shadow, colour-only hover.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip">Tokens</span><span class="t-xs muted">Profile themes</span></div>
+        <h3 class="t-lg">About 30 colours live outside the tokens</h3>
+        <p class="t-sm muted">The Paper, Moss and Night profile themes hard-code hex values (#2c2420, #3e806d, #176b57…). Fix: keep them, but move them into named theme tokens next to the core palette.</p>
+      </div>
+      <div class="card" style="gap: 12px;">
+        <div class="row"><span class="chip">Onboarding</span><span class="t-xs muted">Navigation tour</span></div>
+        <h3 class="t-lg">A coach-mark tour instead of a checklist</h3>
+        <p class="t-sm muted">The first-visit spotlight tour explains the menu but not what to do. Fix: a "Finish your profile" checklist on the Profile page that links to each step.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="gap: 24px;">
+    <div class="col-2">
+      <h2 class="t-xl">Navigation map</h2>
+      <p class="t-md muted">Every screen in the redesign. Each tile opens its prototype.</p>
+    </div>
+    <div class="card" style="padding: 32px;">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr) 32px minmax(0, 1fr) 32px minmax(0, 1fr); gap: 8px; align-items: stretch;">
+        <div class="card-flat" style="gap: 8px; padding: 16px;">
+          <p class="eyebrow">Public</p>
+          <a class="tile-w t-sm strong" href="Landing.dc.html" style="min-height: 48px;">Landing</a>
+          <a class="tile-w t-sm strong" href="PublicProfile.dc.html" style="min-height: 48px;">Public profile</a>
+          <a class="tile-w t-sm strong" href="CardClaim.dc.html" style="min-height: 48px;">Card tap / claim</a>
+          <a class="tile-w t-sm strong" href="Legal.dc.html" style="min-height: 48px;">Privacy &amp; terms</a>
+          <a class="tile-w t-sm strong" href="States.dc.html" style="min-height: 48px;">System states</a>
+        </div>
+        <div style="display: grid; place-items: center; color: #626f82;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="card-flat" style="gap: 8px; padding: 16px;">
+          <p class="eyebrow">Sign in</p>
+          <a class="tile-w t-sm strong" href="Login.dc.html" style="min-height: 48px;">Sign in / sign up</a>
+          <a class="tile-w t-sm strong" href="Setup.dc.html" style="min-height: 48px;">Invite setup</a>
+          <a class="tile-w t-sm strong" href="Onboarding.dc.html" style="min-height: 48px;">Onboarding</a>
+        </div>
+        <div style="display: grid; place-items: center; color: #626f82;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        <div class="card-flat" style="gap: 8px; padding: 16px; background: #e8edf9;">
+          <p class="eyebrow">Customer</p>
+          <a class="tile-w t-sm strong" href="Profile.dc.html" style="min-height: 48px;">Profile</a>
+          <a class="tile-w t-sm strong" href="Links.dc.html" style="min-height: 48px;">Links</a>
+          <a class="tile-w t-sm strong" href="Customize.dc.html" style="min-height: 48px;">Customize</a>
+          <a class="tile-w t-sm strong" href="BuildCard.dc.html" style="min-height: 48px;">Card</a>
+          <a class="tile-w t-sm strong" href="Analytics.dc.html" style="min-height: 48px;">Analytics</a>
+          <a class="tile-w t-sm strong" href="Account.dc.html" style="min-height: 48px;">Account</a>
+        </div>
+        <div style="display: grid; place-items: center; color: #626f82;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h16M16 5l4 4-4 4M20 15H4M8 11l-4 4 4 4"/></svg></div>
+        <div class="card-flat" style="gap: 8px; padding: 16px;">
+          <p class="eyebrow">Admin</p>
+          <a class="tile-w t-sm strong" href="AdminCustomers.dc.html" style="min-height: 48px;">Customers</a>
+          <a class="tile-w t-sm strong" href="AdminProfiles.dc.html" style="min-height: 48px;">Profiles</a>
+          <a class="tile-w t-sm strong" href="AdminCards.dc.html" style="min-height: 48px;">Cards</a>
+          <a class="tile-w t-sm strong" href="AdminAnalytics.dc.html" style="min-height: 48px;">Analytics</a>
+          <a class="tile-w t-sm strong" href="AdminAudit.dc.html" style="min-height: 48px;">Audit log</a>
+          <a class="tile-w t-sm strong" href="AdminSettings.dc.html" style="min-height: 48px;">Settings</a>
+        </div>
+      </div>
+      <p class="hint">Customer ⇄ Admin is one switch at the top of the sidebar, visible only to administrators. Mobile uses the same destinations through the tab bar.</p>
+    </div>
+  </div>
+
+  <div class="section" style="gap: 24px;">
+    <div class="col-2">
+      <h2 class="t-xl">Sidebar, before and after</h2>
+      <p class="t-md muted">Same destinations, grouped by the job instead of by who owns them.</p>
+    </div>
+    <div class="grid-3">
+      <div class="card">
+        <span class="chip" style="align-self: flex-start;">Before · customer</span>
+        <div class="col-2">
+          <p class="label">Workspace</p>
+          <div class="tile t-sm">Profile</div><div class="tile t-sm">Customize</div><div class="tile t-sm">Links</div><div class="tile t-sm">Build card</div><div class="tile t-sm">Analytics</div>
+          <p class="label" style="padding-top: 8px;">Personal</p>
+          <div class="tile t-sm">Account</div>
+          <p class="label" style="padding-top: 8px;">Administration</p>
+          <div class="tile t-sm">Admin workspace</div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="chip b-accent" style="align-self: flex-start;">After · desktop</span>
+        <div class="col-2">
+          <div class="ws"><a class="on" href="Profile.dc.html">Customer</a><a href="AdminCustomers.dc.html">Admin</a></div>
+          <p class="label" style="padding-top: 8px;">Your profile</p>
+          <div class="tile t-sm strong" style="background: #e8edf9; color: #315fe4;">Profile</div><div class="tile t-sm">Links</div><div class="tile t-sm">Customize</div>
+          <p class="label" style="padding-top: 8px;">Share &amp; grow</p>
+          <div class="tile t-sm">Card</div><div class="tile t-sm">Analytics</div>
+          <p class="label" style="padding-top: 8px;">Pinned to the bottom</p>
+          <div class="tile t-sm">Live status · Account · Help</div>
+        </div>
+      </div>
+      <div class="card">
+        <span class="chip b-accent" style="align-self: flex-start;">After · phone</span>
+        <p class="t-sm muted">Four tabs for daily work, everything else one tap away in More.</p>
+        <div class="tabbar" style="margin: 0;">
+          <a class="tab on" href="MProfile.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
+          <a class="tab" href="MLinks.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Links</a>
+          <a class="tab" href="MAnalytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Stats</a>
+          <a class="tab" href="MMore.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>More</a>
+        </div>
+        <p class="hint">More holds Customize, Card, Account, Help and Sign out.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

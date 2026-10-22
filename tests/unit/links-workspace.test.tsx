@@ -66,7 +66,7 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("button", { name: "Add link" })).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveValue("LinkedIn");
     expect(screen.getByRole("region", { name: "Live profile preview" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-4xl");
+    expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-2xl");
     expect(screen.getByRole("link", { name: "Featured" })).toHaveAttribute("data-featured", "true");
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
     expect(screen.queryByText("Last saved just now")).not.toBeInTheDocument();

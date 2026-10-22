@@ -1,5 +1,5 @@
-import { AdminShell } from "@/components/layout/AdminShell";
+import { WorkspaceShell } from "@/components/layout/WorkspaceShell";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+  return <WorkspaceShell audience="admin">{children}</WorkspaceShell>;
 }

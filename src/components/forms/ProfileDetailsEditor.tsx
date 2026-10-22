@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import { CaretDownIcon, CaretUpIcon, CopyIcon } from "@phosphor-icons/react";
 import Link from "next/link";
 
 import type { ProfileContent, ProfileLink } from "@/lib/domain";
@@ -12,8 +11,9 @@ import {
 } from "@/lib/profile-customization";
 import { Button } from "@/components/ui/Button";
 import { Field, TextareaField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 
 export type ProfileFieldChange = <K extends keyof ProfileContent>(
   field: K,
@@ -44,7 +44,9 @@ const sectionLabels: Record<DetailsSectionName, string> = {
 };
 
 const radioClass =
-  "flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+  "flex min-h-11 cursor-pointer items-center gap-3 rounded-control px-4 py-3 text-sm transition-colors focus-within:ring-2 focus-within:ring-tapit-focus";
+
+const bioMaxLength = 140;
 
 function RadioChoice({
   ariaDescribedBy,
@@ -63,18 +65,19 @@ function RadioChoice({
 }) {
   return (
     <label
-      className={`${radioClass} ${checked ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+      className={`${radioClass} ${checked ? "bg-tapit-accent-soft text-tapit-accent-strong" : "bg-tapit-soft-surface text-tapit-ink hover:text-tapit-accent-strong"}`}
     >
       <input
         checked={checked}
         aria-describedby={ariaDescribedBy}
-        className="size-4 accent-tapit-accent"
+        className="sr-only"
         name={name}
         onChange={onChange}
         type="radio"
         value={value}
       />
-      <span className="font-medium text-tapit-ink">{children}</span>
+      <span className="flex-1 font-medium">{children}</span>
+      {checked ? <Icon className="size-4" name="check" weight="bold" /> : null}
     </label>
   );
 }
@@ -94,31 +97,22 @@ function SectionRow({
 }) {
   const panelId = `${id}-panel`;
   return (
-    <section className="overflow-hidden rounded-tapit border border-tapit-line bg-tapit-surface">
+    <section className="rounded-card bg-tapit-surface shadow-card">
       <h2>
         <button
           aria-controls={panelId}
           aria-expanded={open}
-          className="flex min-h-14 w-full items-center justify-between gap-4 px-4 text-left text-sm font-semibold text-tapit-ink outline-none transition hover:bg-tapit-paper focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent sm:px-5"
+          className="flex w-full items-center justify-between gap-4 rounded-card p-6 text-left text-lg font-semibold text-tapit-ink outline-none transition-colors hover:text-tapit-accent-strong focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent"
           onClick={onToggle}
           type="button"
         >
           <span>{sectionLabels[name]}</span>
-          <span aria-hidden="true" className="text-xl font-normal text-tapit-muted">
-            {open ? (
-              <CaretUpIcon size={18} weight="bold" />
-            ) : (
-              <CaretDownIcon size={18} weight="bold" />
-            )}
+          <span aria-hidden="true" className="text-tapit-muted">
+            <Icon className="size-4" name={open ? "caretUp" : "caretDown"} weight="bold" />
           </span>
         </button>
       </h2>
-      <div
-        aria-hidden={!open}
-        className="border-t border-tapit-line/70 px-4 py-5 sm:px-5"
-        hidden={!open}
-        id={panelId}
-      >
+      <div aria-hidden={!open} className="px-6 pb-6" hidden={!open} id={panelId}>
         {children}
       </div>
     </section>
@@ -161,32 +155,30 @@ function ProfileIdentityForm({
   onChange: ProfileFieldChange;
 }) {
   return (
-    <Panel className="shadow-none" title="Basics">
-      <div className="mt-6 grid grid-cols-1 gap-5">
-        {message}
-        {onboarding}
-        {imageContent}
-        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-          <Field
-            id="profile-name"
-            label="Name"
-            onChange={(event) => onChange("name", event.target.value)}
-            placeholder="e.g. Alex Morgan"
-            value={draft.name}
-          />
-          <TextareaField
-            compact
-            id="profile-bio"
-            label="Bio or role"
-            help="A short introduction people can scan quickly."
-            maxLength={140}
-            onChange={(event) => onChange("bio", event.target.value || undefined)}
-            placeholder="e.g. Designer helping small teams"
-            value={draft.bio ?? ""}
-          />
-        </div>
+    <Card title="Basics">
+      {message}
+      {onboarding}
+      {imageContent}
+      <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+        <Field
+          id="profile-name"
+          label="Name"
+          onChange={(event) => onChange("name", event.target.value)}
+          placeholder="e.g. Alex Morgan"
+          value={draft.name}
+        />
+        <TextareaField
+          compact
+          id="profile-bio"
+          label="Bio or role"
+          help={`${(draft.bio ?? "").length} of ${bioMaxLength} characters`}
+          maxLength={bioMaxLength}
+          onChange={(event) => onChange("bio", event.target.value || undefined)}
+          placeholder="e.g. Designer helping small teams"
+          value={draft.bio ?? ""}
+        />
       </div>
-    </Panel>
+    </Card>
   );
 }
 
@@ -257,7 +249,7 @@ export function ProfileDetailsEditor({
   }
 
   return (
-    <div className="grid gap-4 sm:gap-5">
+    <div className="grid gap-4">
       {errors.length > 0 ? (
         <Notice tone="error">
           <ul className="grid gap-2">
@@ -281,11 +273,11 @@ export function ProfileDetailsEditor({
         onboarding={onboarding}
       />
 
-      <Panel className="shadow-none" title="Contact">
-        <p className="mt-4 text-sm leading-6 text-tapit-muted">
-          These details appear as contact options on your published profile.
-        </p>
-        <div className="mt-4 grid min-w-0 gap-5 sm:grid-cols-2">
+      <Card
+        description="These details appear as contact options on your published profile."
+        title="Contact"
+      >
+        <div className="grid min-w-0 gap-4 sm:grid-cols-3">
           <Field
             id="profile-email"
             label="Email"
@@ -311,9 +303,9 @@ export function ProfileDetailsEditor({
             value={draft.website ?? ""}
           />
         </div>
-      </Panel>
+      </Card>
 
-      <Panel className="shadow-none" title="Profile link">
+      <Card title="Profile link">
         <Field
           disabled={slugLocked}
           help={
@@ -327,11 +319,11 @@ export function ProfileDetailsEditor({
           placeholder="alex-morgan"
           value={draft.slug}
         />
-        <div className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-tapit border border-tapit-line/70 bg-tapit-paper px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
           <span className="font-semibold text-tapit-ink">Public URL</span>
           <Link
             aria-label={`Open public profile /${draft.slug}`}
-            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-sm sm:flex-1"
+            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-control sm:flex-1"
             href={`/${draft.slug}`}
           >
             <code className="break-all">
@@ -341,14 +333,14 @@ export function ProfileDetailsEditor({
             </code>
           </Link>
           <Button onClick={onCopyUrl} type="button" variant="secondary">
-            <CopyIcon aria-hidden="true" className="mr-2" size={17} weight="bold" />
+            <Icon className="size-4" name="copy" weight="bold" />
             {copyMessage || "Copy"}
           </Button>
         </div>
-        <p className="mt-4 text-sm leading-6 text-tapit-muted">
+        <p className="text-sm leading-6 text-tapit-muted">
           Choose what visitors see when they open your profile link or tap or scan your card.
         </p>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2 sm:grid-cols-2">
           <RadioChoice
             checked={!redirect.enabled}
             name={`${baseId}-profile-destination`}
@@ -367,26 +359,24 @@ export function ProfileDetailsEditor({
           </RadioChoice>
         </div>
         {redirect.enabled ? (
-          <div className="mt-4">
-            <Field
-              error={redirectError}
-              help="When published, your Tapit profile link and card taps or scans will send visitors here."
-              id="profile-redirect-destination"
-              label="HTTPS destination URL"
-              onChange={(event) =>
-                onChange("redirect", { ...redirect, destination: event.target.value })
-              }
-              placeholder="https://www.yourwebsite.com"
-              type="url"
-              value={redirect.destination}
-            />
-          </div>
+          <Field
+            error={redirectError}
+            help="When published, your Tapit profile link and card taps or scans will send visitors here."
+            id="profile-redirect-destination"
+            label="HTTPS destination URL"
+            onChange={(event) =>
+              onChange("redirect", { ...redirect, destination: event.target.value })
+            }
+            placeholder="https://www.yourwebsite.com"
+            type="url"
+            value={redirect.destination}
+          />
         ) : (
-          <p className="mt-4 text-sm leading-6 text-tapit-muted">
+          <p className="text-sm leading-6 text-tapit-muted">
             Visitors see your contact details and profile links.
           </p>
         )}
-      </Panel>
+      </Card>
 
       <SectionRow
         id={`${baseId}-about`}
@@ -394,7 +384,7 @@ export function ProfileDetailsEditor({
         onToggle={() => toggle("about")}
         open={openSections.about}
       >
-        <div className="grid gap-5">
+        <div className="grid gap-4">
           <fieldset className="grid gap-2">
             <legend className="text-sm font-semibold text-tapit-ink">Section kind</legend>
             {kindError ? (

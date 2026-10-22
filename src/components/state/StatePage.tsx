@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, Fingerprint, WarningCircle } from "@phosphor-icons/react";
-
 import { Brand } from "@/components/layout/Brand";
+import { ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 
 export function StatePage({
   actionHref,
@@ -17,22 +16,22 @@ export function StatePage({
   title: string;
 }) {
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-6 sm:px-6 sm:py-10">
+    <main className="grid min-h-[100dvh] place-items-center bg-tapit-paper px-4 py-6 sm:px-6 sm:py-8">
       <section
         aria-labelledby="state-title"
-        className="w-full max-w-lg rounded-[1.5rem] border border-tapit-line bg-tapit-surface p-6 shadow-[var(--tapit-shadow-soft)] sm:p-9"
+        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card"
       >
         <Brand />
-        <div className="mt-8 flex items-start gap-4 sm:mt-10">
+        <div className="mt-8 flex items-start gap-4">
           <div
             aria-hidden="true"
-            className="grid size-11 shrink-0 place-items-center rounded-full border border-tapit-line bg-tapit-soft-surface text-tapit-accent"
+            className="grid size-10 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent-strong"
           >
-            <WarningCircle size={24} weight="bold" />
+            <Icon name="warning" size={24} weight="bold" />
           </div>
           <div>
             <h1
-              className="tapit-display break-words text-2xl font-semibold leading-tight tracking-tight text-tapit-ink"
+              className="tapit-display break-words text-lg font-semibold leading-tight tracking-tight text-tapit-ink"
               id="state-title"
             >
               {title}
@@ -41,17 +40,13 @@ export function StatePage({
           </div>
         </div>
         {actionHref && actionLabel ? (
-          <Link
-            className="mt-8 inline-flex min-h-12 max-w-full items-center gap-2 rounded-full bg-tapit-accent px-5 py-3 text-sm font-semibold text-white hover:bg-tapit-accent-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
+          <ButtonLink
+            className="mt-8 max-w-full transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
             href={actionHref}
           >
-            {actionHref === "/" ? (
-              <ArrowLeft aria-hidden="true" size={17} />
-            ) : (
-              <Fingerprint aria-hidden="true" size={17} />
-            )}
+            <Icon name={actionHref === "/" ? "arrowLeft" : "fingerprint"} size={17} />
             {actionLabel}
-          </Link>
+          </ButtonLink>
         ) : null}
       </section>
     </main>

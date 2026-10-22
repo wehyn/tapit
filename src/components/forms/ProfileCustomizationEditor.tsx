@@ -7,12 +7,12 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
-import { WarningCircleIcon } from "@phosphor-icons/react";
 
 import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_CUSTOM_PROFILE_COLORS,
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  IDENTITY_COLOR_PALETTE,
   defaultProfileLayoutOrder,
   isProfileIdentityHex,
   type ProfileCustomization,
@@ -32,7 +32,9 @@ import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
 import { ProfileIdentityColorPicker } from "@/components/forms/ProfileIdentityColorPicker";
 import { ProfileMediaEditor } from "@/components/forms/ProfileMediaEditor";
 import { ProfileLayoutOrderEditor } from "@/components/forms/ProfileLayoutOrderEditor";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
+import { segmentedClass, segmentedItemClass } from "@/components/ui/Segmented";
 
 export type ProfileCustomizationEditorProps = {
   barePanels?: boolean;
@@ -64,8 +66,25 @@ const PROFILE_CUSTOMIZATION_PANEL_CATEGORIES = PROFILE_CUSTOMIZATION_CATEGORIES.
   (category) => category !== "slideshow",
 );
 
-const radioClass =
-  "relative flex min-h-12 cursor-pointer items-center gap-3 rounded-tapit border px-3.5 py-3 text-sm transition focus-within:ring-2 focus-within:ring-tapit-accent/30";
+function groupClass(barePanels: boolean) {
+  return barePanels
+    ? "flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
+    : "flex min-w-0 flex-col gap-4";
+}
+
+const groupLegendClass = "pb-4 text-lg font-semibold text-tapit-ink";
+const groupDescriptionClass = "-mt-2 text-sm text-tapit-muted";
+const hintClass = "text-xs text-tapit-muted";
+const keyboardFocusRingClass =
+  "has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-tapit-focus has-[:focus-visible]:ring-offset-2";
+
+function SelectedCheck() {
+  return (
+    <span className="grid size-5 place-items-center rounded-full bg-tapit-surface text-tapit-ink">
+      <Icon className="size-3" name="check" weight="bold" />
+    </span>
+  );
+}
 
 type ProfileAppearancePreset = ProfileTheme | "warm-studio";
 
@@ -73,14 +92,7 @@ const appearancePresets: readonly {
   value: ProfileAppearancePreset;
   label: string;
   description: string;
-  colors: {
-    canvas: string;
-    surface: string;
-    border: string;
-    ink: string;
-    muted: string;
-    accent: string;
-  };
+  colors: ProfileThemeColors;
 }[] = [
   {
     value: "paper",
@@ -89,9 +101,7 @@ const appearancePresets: readonly {
     colors: {
       canvas: "#f4f6fa",
       surface: "#ffffff",
-      border: "#e0e5ed",
       ink: "#1b2433",
-      muted: "#687487",
       accent: "#3f6de8",
     },
   },
@@ -102,9 +112,7 @@ const appearancePresets: readonly {
     colors: {
       canvas: "#e8f1eb",
       surface: "#f7fbf8",
-      border: "#b9d1c0",
       ink: "#17352b",
-      muted: "#4f6d5c",
       accent: "#176b57",
     },
   },
@@ -115,9 +123,7 @@ const appearancePresets: readonly {
     colors: {
       canvas: "#17211f",
       surface: "#22302b",
-      border: "#40534d",
       ink: "#f2f6f1",
-      muted: "#b7c9c0",
       accent: "#7bc2a9",
     },
   },
@@ -128,9 +134,7 @@ const appearancePresets: readonly {
     colors: {
       canvas: "#fbf6ef",
       surface: "#fffdf9",
-      border: "#e5d6c5",
       ink: "#2c2420",
-      muted: "#74665d",
       accent: "#3e806d",
     },
   },
@@ -138,14 +142,7 @@ const appearancePresets: readonly {
     value: "custom",
     label: "Custom",
     description: "Choose your own page, surface, text, and link colors, plus profile settings.",
-    colors: {
-      canvas: DEFAULT_CUSTOM_PROFILE_COLORS.canvas,
-      surface: DEFAULT_CUSTOM_PROFILE_COLORS.surface,
-      border: "#e0e5ed",
-      ink: DEFAULT_CUSTOM_PROFILE_COLORS.ink,
-      muted: "#687487",
-      accent: DEFAULT_CUSTOM_PROFILE_COLORS.accent,
-    },
+    colors: DEFAULT_CUSTOM_PROFILE_COLORS,
   },
 ];
 
@@ -172,133 +169,106 @@ function PresetRadio({
 }) {
   return (
     <label
-      className={`relative grid cursor-pointer gap-2.5 rounded-tapit border p-3.5 transition focus-within:ring-2 focus-within:ring-tapit-accent/30 ${
+      className={`relative flex cursor-pointer flex-col gap-3 rounded-control p-3 transition-colors ${keyboardFocusRingClass} ${
         disabled ? "cursor-not-allowed opacity-55" : ""
-      } ${
-        checked
-          ? "border-tapit-accent bg-tapit-accent-soft/50"
-          : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"
-      }`}
-    >
-      <span className="flex items-start gap-3">
-        <input
-          aria-describedby={ariaDescribedBy}
-          aria-label={label}
-          checked={checked}
-          className="absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-          disabled={disabled}
-          name={name}
-          onChange={() => onChange(value)}
-          type="radio"
-          value={value}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-tapit-ink">{label}</span>
-            {checked ? (
-              <span className="shrink-0 text-xs font-semibold text-tapit-accent-strong">
-                Selected
-              </span>
-            ) : null}
-          </span>
-          <span className="mt-1 block text-xs leading-5 text-tapit-muted">{description}</span>
-        </span>
-      </span>
-      <span aria-hidden="true" className="flex items-center gap-2.5 px-1 py-1.5">
-        <span className="flex shrink-0 gap-1">
-          <span className="size-3 rounded-full" style={{ backgroundColor: colors.canvas }} />
-          <span
-            className="size-3 rounded-full border"
-            style={{ backgroundColor: colors.surface, borderColor: colors.border }}
-          />
-        </span>
-        <span className="size-5 shrink-0 rounded-full" style={{ backgroundColor: colors.accent }} />
-        <span className="min-w-0 flex-1">
-          <span className="block h-1.5 w-16 rounded-full" style={{ backgroundColor: colors.ink }} />
-          <span
-            className="mt-2 block h-1 w-24 max-w-full rounded-full"
-            style={{ backgroundColor: colors.muted }}
-          />
-        </span>
-        <span className="shrink-0 text-[10px] font-semibold" style={{ color: colors.accent }}>
-          Profile link
-        </span>
-      </span>
-    </label>
-  );
-}
-
-function RadioChoice({
-  checked,
-  children,
-  name,
-  onChange,
-  value,
-  ariaDescribedBy,
-}: {
-  checked: boolean;
-  children: React.ReactNode;
-  name: string;
-  onChange: () => void;
-  value: string;
-  ariaDescribedBy?: string;
-}) {
-  return (
-    <label
-      className={`${radioClass} ${checked ? "border-tapit-accent bg-tapit-accent-soft" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent"}`}
+      } ${checked ? "bg-tapit-accent-soft text-tapit-accent-strong" : "bg-tapit-soft-surface text-tapit-ink"}`}
     >
       <input
-        checked={checked}
         aria-describedby={ariaDescribedBy}
-        className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+        aria-label={label}
+        checked={checked}
+        className="absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+        disabled={disabled}
         name={name}
-        onChange={onChange}
+        onChange={() => onChange(value)}
         type="radio"
         value={value}
       />
-      <span className="font-medium text-tapit-ink">{children}</span>
+      <span
+        aria-hidden="true"
+        className="flex h-24 flex-col items-center justify-center gap-2 rounded-control"
+        style={{ backgroundColor: colors.canvas }}
+      >
+        <span className="size-7 rounded-full" style={{ backgroundColor: colors.accent }} />
+        <span className="h-2 w-14 rounded-full" style={{ backgroundColor: colors.ink }} />
+        <span className="h-3 w-18 rounded-full" style={{ backgroundColor: colors.surface }} />
+      </span>
+      <span className="flex flex-col gap-1">
+        <span className="flex items-start justify-between gap-2">
+          <span className="text-sm font-semibold">{label}</span>
+          {checked ? <Icon className="size-4 shrink-0" name="check" weight="bold" /> : null}
+        </span>
+        <span className="text-xs text-tapit-muted">{description}</span>
+      </span>
     </label>
   );
 }
 
 function ChoiceGroup<T extends string>({
+  barePanels,
+  error,
+  hint,
   label,
   name,
+  onChange,
   options,
   value,
-  onChange,
-  error,
 }: {
+  barePanels: boolean;
+  error?: string;
+  hint?: string;
   label: string;
   name: string;
-  options: readonly (readonly [T, string])[];
-  value: T;
   onChange: (value: T) => void;
-  error?: string;
+  options: readonly (readonly [value: T, label: string, swatch?: string])[];
+  value: T;
 }) {
+  const swatches = options.some(([, , swatch]) => swatch !== undefined);
   return (
-    <fieldset className="grid gap-2">
-      <legend className="text-sm font-semibold text-tapit-ink">{label}</legend>
-      {error ? (
-        <p className="text-sm font-medium text-tapit-danger" id={`${name}-error`} role="alert">
-          {error}
-        </p>
-      ) : null}
-      <div className="grid gap-2 sm:grid-cols-3">
-        {options.map(([option, text]) => (
-          <RadioChoice
-            checked={value === option}
-            ariaDescribedBy={error ? `${name}-error` : undefined}
-            key={option}
-            name={name}
-            onChange={() => onChange(option)}
-            value={option}
-          >
-            {text}
-          </RadioChoice>
-        ))}
-      </div>
-    </fieldset>
+    <div className={groupClass(barePanels)}>
+      <fieldset className="flex min-w-0 flex-col gap-4">
+        <legend className={groupLegendClass}>{label}</legend>
+        {error ? (
+          <p className="text-sm font-medium text-tapit-danger" id={`${name}-error`} role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div
+          className={
+            swatches ? "flex flex-wrap gap-3" : `${segmentedClass("soft")} flex-wrap self-start`
+          }
+        >
+          {options.map(([option, text, swatch]) => {
+            const checked = value === option;
+            return (
+              <label
+                className={`relative cursor-pointer ${keyboardFocusRingClass} ${
+                  swatches
+                    ? "grid size-11 place-items-center rounded-full shadow-card"
+                    : segmentedItemClass(checked)
+                }`}
+                key={option}
+                style={swatch ? { backgroundColor: swatch } : undefined}
+                title={swatches ? text : undefined}
+              >
+                <input
+                  aria-describedby={error ? `${name}-error` : undefined}
+                  checked={checked}
+                  className="absolute inset-0 z-10 size-full cursor-pointer opacity-0"
+                  name={name}
+                  onChange={() => onChange(option)}
+                  type="radio"
+                  value={option}
+                />
+                <span className={swatches ? "sr-only" : undefined}>{text}</span>
+                {swatches && checked ? <SelectedCheck /> : null}
+              </label>
+            );
+          })}
+        </div>
+        {hint ? <p className={hintClass}>{hint}</p> : null}
+      </fieldset>
+    </div>
   );
 }
 
@@ -349,18 +319,12 @@ function IdentityColorControls({
   }
 
   return (
-    <fieldset className="grid gap-3">
-      <legend className="text-sm font-semibold text-tapit-ink">Identity colors</legend>
-      <p className="text-sm leading-6 text-tapit-muted">
-        Set the name and bio / role independently for this profile preset.
-      </p>
-      <div
-        className={
-          barePanels
-            ? "grid gap-4"
-            : "grid gap-4 rounded-tapit border border-tapit-line bg-tapit-surface p-3.5 sm:p-4"
-        }
-      >
+    <div className={groupClass(barePanels)}>
+      <fieldset className="flex min-w-0 flex-col gap-4">
+        <legend className={groupLegendClass}>Identity colors</legend>
+        <p className={groupDescriptionClass}>
+          Set the name and bio / role independently for this profile preset.
+        </p>
         {(["name", "bio"] as const).map((field) => (
           <ProfileIdentityColorPicker
             allowWhite={allowWhite}
@@ -372,8 +336,8 @@ function IdentityColorControls({
             value={customization.identityColors?.[field]}
           />
         ))}
-      </div>
-    </fieldset>
+      </fieldset>
+    </div>
   );
 }
 
@@ -413,8 +377,8 @@ function CustomPaletteColorField({
     <label
       className={
         barePanels
-          ? "grid min-w-0 gap-2 py-1"
-          : "grid gap-2 rounded-tapit border border-tapit-line/70 bg-tapit-surface p-3.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          ? "grid min-w-0 gap-2"
+          : "grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
       }
     >
       <span className="text-sm font-semibold text-tapit-ink">{label}</span>
@@ -430,14 +394,14 @@ function CustomPaletteColorField({
             />
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-0 rounded-full border border-tapit-line shadow-sm peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus peer-focus-visible:ring-offset-2"
+              className="pointer-events-none absolute inset-0 rounded-full shadow-card peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus peer-focus-visible:ring-offset-2"
               style={{ backgroundColor: color }}
             />
           </span>
         ) : (
           <input
             aria-label={`${label} color`}
-            className="size-11 shrink-0 cursor-pointer rounded-xl border border-tapit-line bg-tapit-surface p-1"
+            className="size-11 shrink-0 cursor-pointer rounded-control bg-tapit-soft-surface p-1"
             onChange={(event) => commit(event.target.value)}
             type="color"
             value={color}
@@ -447,7 +411,7 @@ function CustomPaletteColorField({
           aria-label={`${label} hex`}
           autoCapitalize="characters"
           autoComplete="off"
-          className="min-h-11 w-32 rounded-tapit border border-tapit-line bg-tapit-surface px-3 font-mono text-sm uppercase text-tapit-ink outline-none transition focus:border-tapit-accent focus:ring-2 focus:ring-tapit-accent/20"
+          className="min-h-11 w-32 rounded-control bg-tapit-soft-surface px-4 font-mono text-sm uppercase text-tapit-ink transition-colors focus:bg-tapit-surface focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent"
           maxLength={7}
           onChange={(event) => commit(event.target.value)}
           pattern="^#[0-9a-fA-F]{6}$"
@@ -483,30 +447,32 @@ function CustomPaletteControls({
   }
 
   return (
-    <fieldset className="grid gap-3">
-      <legend className="text-sm font-semibold text-tapit-ink">Custom palette</legend>
-      <p className="text-sm leading-6 text-tapit-muted">
-        Choose the page, profile card, text, and outlined link colors. Text and links must stay
-        readable against their surfaces.
-      </p>
-      <div className={barePanels ? "grid gap-3" : "grid gap-3 sm:grid-cols-2"}>
-        {customColorFields.map(([field, label]) => (
-          <CustomPaletteColorField
-            barePanels={barePanels}
-            field={field}
-            key={field}
-            label={label}
-            onChange={updateColor}
-            value={colors[field]}
-          />
-        ))}
-      </div>
-      {error ? (
-        <p className="text-sm font-medium text-tapit-danger" role="alert">
-          {error}
+    <div className={`${groupClass(barePanels)} @2xl:col-span-2`}>
+      <fieldset className="flex min-w-0 flex-col gap-4">
+        <legend className={groupLegendClass}>Custom palette</legend>
+        <p className={groupDescriptionClass}>
+          Choose the page, profile card, text, and outlined link colors. Text and links must stay
+          readable against their surfaces.
         </p>
-      ) : null}
-    </fieldset>
+        <div className={barePanels ? "grid gap-4" : "grid gap-4 sm:grid-cols-2"}>
+          {customColorFields.map(([field, label]) => (
+            <CustomPaletteColorField
+              barePanels={barePanels}
+              field={field}
+              key={field}
+              label={label}
+              onChange={updateColor}
+              value={colors[field]}
+            />
+          ))}
+        </div>
+        {error ? (
+          <p className="text-sm font-medium text-tapit-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </fieldset>
+    </div>
   );
 }
 
@@ -518,8 +484,8 @@ function CategoryErrorIndicator({
   errorId: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-tapit-danger">
-      <WarningCircleIcon aria-hidden="true" size={16} weight="bold" />
+    <span className="inline-flex items-center gap-1 text-xs font-semibold text-tapit-danger">
+      <Icon className="size-4" name="warning" weight="bold" />
       <span id={errorId}>Needs attention</span>
       <span className="sr-only"> in {categoryLabels[category]}</span>
     </span>
@@ -530,7 +496,7 @@ function CategoryErrorList({ errors }: { errors: readonly string[] }) {
   if (errors.length === 0) return null;
   return (
     <ul
-      className="grid gap-2 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] px-4 py-3 text-sm text-tapit-danger"
+      className="grid gap-2 rounded-control bg-tapit-danger-soft p-4 text-sm text-tapit-danger"
       role="alert"
     >
       {errors.map((error) => (
@@ -738,30 +704,31 @@ export function ProfileCustomizationEditor({
     applyPreset(preset);
   }
 
+  const panelStackClass = barePanels ? "grid min-w-0 gap-4" : "grid min-w-0 gap-8";
+  const selectedPresetColors =
+    selectedPreset === "custom" && customization?.customColors
+      ? customization.customColors
+      : appearancePresets.find((preset) => preset.value === selectedPreset)?.colors;
+  const { coral, ink, jade } = IDENTITY_COLOR_PALETTE;
+
   return (
-    <div className="grid min-w-0 gap-5">
+    <div className="grid min-w-0 gap-6">
       <nav
         aria-label="Customization categories"
         aria-orientation="horizontal"
-        className="flex min-w-0 gap-4 overflow-x-auto border-b border-tapit-line"
+        className={`${segmentedClass(barePanels ? "white" : "soft")} min-w-0 max-w-full justify-self-start overflow-x-auto`}
         role="tablist"
       >
         {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
           const selected = activeCategory === category;
           const tabStatusId = `${baseId}-tab-${category}-status`;
-          const disabled = false;
           return (
             <button
               aria-controls={`${baseId}-panel-${category === "slideshow" ? "media" : category}`}
               aria-describedby={categoryHasErrors[category] ? tabStatusId : undefined}
               aria-label={categoryLabels[category]}
               aria-selected={selected}
-              className={`flex min-h-12 shrink-0 items-center justify-between gap-3 border-b-2 px-1 text-left text-sm font-semibold transition-colors focus-visible:rounded-tapit focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-accent focus-visible:outline-none ${
-                selected
-                  ? "border-tapit-accent text-tapit-ink"
-                  : "border-transparent text-tapit-muted hover:border-tapit-line hover:text-tapit-ink"
-              } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-              disabled={disabled}
+              className={`${segmentedItemClass(selected)} shrink-0 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-tapit-focus`}
               id={`${baseId}-tab-${category}`}
               key={category}
               onClick={() => handleTabClick(category)}
@@ -786,11 +753,7 @@ export function ProfileCustomizationEditor({
         <section
           aria-labelledby={`${baseId}-tab-${category === "media" ? mediaPanelCategory : category}`}
           aria-label={`${categoryLabels[category === "media" ? mediaPanelCategory : category]} settings`}
-          className={
-            barePanels
-              ? "outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4"
-              : "rounded-tapit border border-tapit-line bg-tapit-surface p-4 outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 sm:p-5"
-          }
+          className={`min-w-0 rounded-card outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent focus-visible:ring-offset-4 ${barePanels ? "focus-visible:ring-offset-tapit-paper" : ""}`}
           hidden={category === "media" ? !mediaPanelIsActive : activeCategory !== category}
           id={`${baseId}-panel-${category}`}
           key={category}
@@ -802,31 +765,28 @@ export function ProfileCustomizationEditor({
           tabIndex={-1}
         >
           {category === "overview" ? (
-            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
-              <fieldset className="grid gap-3">
-                <legend className="text-sm font-semibold text-tapit-ink">Profile preset</legend>
-                {presetError ? (
-                  <p className="sr-only" id={errorId("preset")} role="alert">
-                    {presetError}
+            <div className={panelStackClass}>
+              <div className={groupClass(barePanels)}>
+                <fieldset className="flex min-w-0 flex-col gap-4">
+                  <legend className={groupLegendClass}>Profile preset</legend>
+                  <p className={groupDescriptionClass}>
+                    Presets set every colour at once. You can change any of them after.
                   </p>
-                ) : null}
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {appearancePresets.map((preset) => {
-                    const colors =
-                      preset.value === "custom" && customization?.customColors
-                        ? {
-                            ...preset.colors,
-                            canvas: customization.customColors.canvas,
-                            surface: customization.customColors.surface,
-                            ink: customization.customColors.ink,
-                            accent: customization.customColors.accent,
-                          }
-                        : preset.colors;
-                    return (
+                  {presetError ? (
+                    <p className="sr-only" id={errorId("preset")} role="alert">
+                      {presetError}
+                    </p>
+                  ) : null}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {appearancePresets.map((preset) => (
                       <PresetRadio
                         ariaDescribedBy={presetError ? errorId("preset") : undefined}
                         checked={selectedPreset === preset.value}
-                        colors={colors}
+                        colors={
+                          preset.value === "custom" && customization?.customColors
+                            ? customization.customColors
+                            : preset.colors
+                        }
                         description={preset.description}
                         disabled={preset.value !== "warm-studio" && onThemeChange === undefined}
                         key={preset.value}
@@ -835,112 +795,125 @@ export function ProfileCustomizationEditor({
                         onChange={choosePreset}
                         value={preset.value}
                       />
-                    );
-                  })}
-                </div>
-              </fieldset>
-              <details className="rounded-tapit border border-tapit-line bg-tapit-paper/60 px-4 py-3">
+                    ))}
+                  </div>
+                </fieldset>
+              </div>
+              <details className="group">
                 <summary
-                  className={
-                    barePanels
-                      ? "flex min-h-11 cursor-pointer items-center rounded-sm text-sm font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus focus-visible:ring-offset-2"
-                      : "min-h-8 cursor-pointer text-sm font-semibold text-tapit-ink focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-accent"
-                  }
+                  className={`flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-card px-6 py-4 text-base font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus [&::-webkit-details-marker]:hidden ${
+                    barePanels ? "bg-tapit-surface shadow-card" : "bg-tapit-soft-surface"
+                  }`}
                 >
                   Fine tune
+                  <Icon
+                    className="size-4 text-tapit-muted transition-transform group-open:rotate-180"
+                    name="caretDown"
+                    weight="bold"
+                  />
                 </summary>
-                <div className={barePanels ? "mt-4 grid gap-4" : "mt-4 grid gap-5"}>
-                  {selectedPreset === "custom" ? (
-                    <CustomPaletteControls
+                <div className="mt-4 @container">
+                  <div className={barePanels ? "grid gap-4 @2xl:grid-cols-2" : "grid gap-8"}>
+                    {selectedPreset === "custom" ? (
+                      <CustomPaletteControls
+                        barePanels={barePanels}
+                        customization={activeCustomization}
+                        error={customColorError}
+                        onChange={onChange}
+                      />
+                    ) : null}
+                    <ChoiceGroup
                       barePanels={barePanels}
-                      customization={activeCustomization}
-                      error={customColorError}
-                      onChange={onChange}
+                      error={accentError}
+                      label="Accent colour"
+                      name={`${baseId}-accent`}
+                      onChange={(value) => update({ accent: value })}
+                      options={
+                        selectedPreset === "custom"
+                          ? [
+                              ["ink", "Palette accent", selectedPresetColors?.accent],
+                              ["coral", "Coral", coral.name],
+                              ["jade", "Jade", jade.name],
+                            ]
+                          : [
+                              [
+                                "jade",
+                                selectedPreset === "warm-studio" ? "Jade" : "Preset accent",
+                                selectedPresetColors?.accent,
+                              ],
+                              ["coral", "Coral", coral.name],
+                              ["ink", "Ink", ink.name],
+                            ]
+                      }
+                      value={activeCustomization.accent}
                     />
-                  ) : null}
-                  <ChoiceGroup
-                    error={accentError}
-                    label="Accent"
-                    name={`${baseId}-accent`}
-                    onChange={(value) => update({ accent: value })}
-                    options={
-                      selectedPreset === "custom"
-                        ? [
-                            ["ink", "Palette accent"],
-                            ["coral", "Coral"],
-                            ["jade", "Jade"],
-                          ]
-                        : [
-                            ["jade", selectedPreset === "warm-studio" ? "Jade" : "Preset accent"],
-                            ["coral", "Coral"],
-                            ["ink", "Ink"],
-                          ]
-                    }
-                    value={activeCustomization.accent}
-                  />
-                  <ChoiceGroup
-                    error={scaleError}
-                    label="Type scale"
-                    name={`${baseId}-scale`}
-                    onChange={(value) => update({ typeScale: value })}
-                    options={[
-                      ["compact", "Compact"],
-                      ["comfortable", "Comfortable"],
-                      ["editorial", "Editorial"],
-                    ]}
-                    value={activeCustomization.typeScale}
-                  />
-                  <ChoiceGroup
-                    error={treatmentError}
-                    label="Save contact button treatment"
-                    name={`${baseId}-treatment`}
-                    onChange={(value) => update({ linkTreatment: value })}
-                    options={[
-                      ["filled", "Filled"],
-                      ["outlined", "Outlined"],
-                    ]}
-                    value={activeCustomization.linkTreatment}
-                  />
+                    <ChoiceGroup
+                      barePanels={barePanels}
+                      error={scaleError}
+                      label="Type scale"
+                      name={`${baseId}-scale`}
+                      onChange={(value) => update({ typeScale: value })}
+                      options={[
+                        ["compact", "Compact"],
+                        ["comfortable", "Comfortable"],
+                        ["editorial", "Editorial"],
+                      ]}
+                      value={activeCustomization.typeScale}
+                    />
+                    <ChoiceGroup
+                      barePanels={barePanels}
+                      error={treatmentError}
+                      hint="Filled uses your accent colour."
+                      label="Save contact button"
+                      name={`${baseId}-treatment`}
+                      onChange={(value) => update({ linkTreatment: value })}
+                      options={[
+                        ["filled", "Filled"],
+                        ["outlined", "Outlined"],
+                      ]}
+                      value={activeCustomization.linkTreatment}
+                    />
+                  </div>
                 </div>
               </details>
             </div>
           ) : null}
 
           {category === "identity" ? (
-            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
-              <IdentityColorControls
-                allowWhite={media?.background !== undefined || selectedPreset === "night"}
-                barePanels={barePanels}
-                customization={activeCustomization}
-                errorFor={identityColorError}
-                onChange={onChange}
-              />
-            </div>
+            <IdentityColorControls
+              allowWhite={media?.background !== undefined || selectedPreset === "night"}
+              barePanels={barePanels}
+              customization={activeCustomization}
+              errorFor={identityColorError}
+              onChange={onChange}
+            />
           ) : null}
 
           {category === "media" ? (
-            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
+            <div className={panelStackClass}>
               <CategoryErrorList
                 errors={
                   activeCategory === "slideshow" ? slideshowCategoryErrors : mediaCategoryErrors
                 }
               />
               {onMediaChange && onMediaUpload ? (
-                <ProfileMediaEditor
-                  barePanels={barePanels}
-                  busy={mediaBusy}
-                  error={visibleMediaError}
-                  media={media}
-                  onChange={onMediaChange}
-                  onMediaErrorClear={onMediaErrorClear}
-                  onPendingPreviewChange={onMediaPendingPreviewChange}
-                  onMediaUploadCancel={onMediaUploadCancel}
-                  onUpload={(file, target) => {
-                    setMediaErrorTarget(target);
-                    return onMediaUpload(file, target);
-                  }}
-                  section={mediaEditorSection}
-                />
+                <div className={groupClass(barePanels)}>
+                  <ProfileMediaEditor
+                    barePanels={barePanels}
+                    busy={mediaBusy}
+                    error={visibleMediaError}
+                    media={media}
+                    onChange={onMediaChange}
+                    onMediaErrorClear={onMediaErrorClear}
+                    onPendingPreviewChange={onMediaPendingPreviewChange}
+                    onMediaUploadCancel={onMediaUploadCancel}
+                    onUpload={(file, target) => {
+                      setMediaErrorTarget(target);
+                      return onMediaUpload(file, target);
+                    }}
+                    section={mediaEditorSection}
+                  />
+                </div>
               ) : (
                 <Notice tone={visibleMediaError ? "error" : "neutral"}>
                   {visibleMediaError ? <span className="block">{visibleMediaError}</span> : null}
@@ -954,27 +927,31 @@ export function ProfileCustomizationEditor({
           ) : null}
 
           {category === "layout" ? (
-            <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
-              <ProfileLayoutOrderEditor
-                barePanels={barePanels}
-                error={orderError}
-                onChange={(layoutOrder) =>
-                  update({
-                    layoutOrder,
-                    contentOrder:
-                      layoutOrder.indexOf("section") < layoutOrder.indexOf("links")
-                        ? "section-first"
-                        : "links-first",
-                  })
-                }
-                value={
-                  activeCustomization.layoutOrder ??
-                  defaultProfileLayoutOrder(activeCustomization.contentOrder)
-                }
-              />
+            <div className={panelStackClass}>
+              <div className={groupClass(barePanels)}>
+                <ProfileLayoutOrderEditor
+                  barePanels={barePanels}
+                  error={orderError}
+                  onChange={(layoutOrder) =>
+                    update({
+                      layoutOrder,
+                      contentOrder:
+                        layoutOrder.indexOf("section") < layoutOrder.indexOf("links")
+                          ? "section-first"
+                          : "links-first",
+                    })
+                  }
+                  value={
+                    activeCustomization.layoutOrder ??
+                    defaultProfileLayoutOrder(activeCustomization.contentOrder)
+                  }
+                />
+              </div>
               <ChoiceGroup<ProfileContactDisplay>
+                barePanels={barePanels}
                 error={contactDisplayError}
-                label="Contact info display"
+                hint="Icons keep the top of your profile short."
+                label="Contact info"
                 name={`${baseId}-contact-display`}
                 onChange={(value) => update({ contactDisplay: value })}
                 options={[

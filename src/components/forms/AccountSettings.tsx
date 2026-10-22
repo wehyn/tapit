@@ -2,9 +2,8 @@
 
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { LifebuoyIcon, TrashIcon } from "@phosphor-icons/react";
 
 import {
   getDemoProfileForSession,
@@ -15,12 +14,145 @@ import {
 } from "@/lib/demo/store";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
 
-import { Button } from "@/components/ui/Button";
+import { Button, ButtonLink } from "@/components/ui/Button";
+import { Chip, StatusChip } from "@/components/ui/Chip";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
+import { Icon, type IconName } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
+import { Switch } from "@/components/ui/Switch";
+import { Tile } from "@/components/ui/Tile";
 import { api } from "../../../convex/_generated/api";
+
+const pageClass = "flex min-w-0 flex-col gap-8 pt-4";
+const gridClass = "grid gap-4 md:grid-cols-2";
+
+function AccountHeader({ email }: { email: string }) {
+  return (
+    <div className="flex max-w-2xl flex-col gap-2">
+      <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">Account</h1>
+      <p className="break-words text-base text-tapit-muted">
+        Sign-in, publishing and support for {email}.
+      </p>
+    </div>
+  );
+}
+
+function TileIcon({ name }: { name: IconName }) {
+  return (
+    <span className="grid size-10 shrink-0 place-items-center rounded-control bg-tapit-surface text-tapit-ink">
+      <Icon className="size-5" name={name} />
+    </span>
+  );
+}
+
+function SignInCard({
+  email,
+  joinedAt,
+  status,
+}: {
+  email: string;
+  joinedAt?: number;
+  status: string;
+}) {
+  // Demo fixtures carry no sign-up date, so the demo shows the account kind instead.
+  const joined =
+    joinedAt === undefined
+      ? null
+      : new Date(joinedAt).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return (
+    <Card title="Sign-in">
+      <div className="flex flex-col gap-2">
+        <Tile>
+          <TileIcon name="user" />
+          <dl className="min-w-0 flex-1">
+            <dt className="text-xs text-tapit-muted">Email</dt>
+            <dd className="break-words text-sm font-semibold text-tapit-ink">{email}</dd>
+          </dl>
+        </Tile>
+        <Tile>
+          <TileIcon name="profiles" />
+          <dl className="min-w-0 flex-1">
+            <dt className="text-xs text-tapit-muted">{joined ? "Member since" : "Account"}</dt>
+            <dd className="text-sm font-semibold text-tapit-ink">{joined ?? "Demo account"}</dd>
+          </dl>
+          <StatusChip status={status} />
+        </Tile>
+      </div>
+    </Card>
+  );
+}
+
+function PublicationCard({ onUnpublish, slug }: { onUnpublish: () => void; slug: string }) {
+  return (
+    <Card>
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="text-lg font-semibold text-tapit-ink">Publication</h2>
+        <Chip tone="ok">
+          <span aria-hidden="true" className="size-2 rounded-full bg-current" />
+          Live
+        </Chip>
+      </div>
+      <Tile>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-tapit-ink">Public profile</p>
+          <p className="break-words text-xs text-tapit-muted">
+            Turn off to pause /{slug}. Visitors see the unavailable profile page.
+          </p>
+        </div>
+        <Switch aria-label="Public profile" checked onCheckedChange={onUnpublish} />
+      </Tile>
+    </Card>
+  );
+}
+
+function SupportCard({ href }: { href: string }) {
+  return (
+    <Card description="Get help with access, publishing or card issues." title="Support">
+      <div className="flex flex-wrap items-center gap-2">
+        <ButtonLink href={href} variant="tonal">
+          Contact support
+        </ButtonLink>
+        <ButtonLink href="/privacy" variant="quiet">
+          Privacy &amp; terms
+        </ButtonLink>
+      </div>
+    </Card>
+  );
+}
+
+function DeleteAccountCard({
+  children,
+  disabled,
+  onRequest,
+}: {
+  children: ReactNode;
+  disabled: boolean;
+  onRequest: () => void;
+}) {
+  return (
+    <section className="flex flex-col gap-4 rounded-card bg-tapit-danger-soft p-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold text-tapit-danger">Delete account</h2>
+        <p className="text-sm text-tapit-ink">
+          We take your profile offline right away and remove your data after an administrator
+          approves the request.
+        </p>
+      </div>
+      {children}
+      <Button
+        className="self-start"
+        disabled={disabled}
+        onClick={onRequest}
+        type="button"
+        variant="danger"
+      >
+        Request deletion
+      </Button>
+    </section>
+  );
+}
 
 function DemoAccountSettings() {
   const state = useDemoState();
@@ -156,123 +288,71 @@ function DemoAccountSettings() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel title="Account">
-        <dl className="mt-6 grid gap-4">
-          <div className="rounded-tapit bg-tapit-paper p-4">
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-              Email
-            </dt>
-            <dd className="mt-2 font-semibold text-tapit-ink">{customer.email}</dd>
-          </div>
-        </dl>
-      </Panel>
-
+    <div className={pageClass}>
+      <AccountHeader email={customer.email} />
       {publicationMessage ? (
         <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
       ) : null}
-      {profile.status === "published" ? (
-        <Panel
-          description="Take your public profile offline when you need to pause public access."
-          title="Publication"
-        >
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={unpublish} type="button" variant="secondary">
-              Unpublish
-            </Button>
-            <span className="text-sm text-tapit-muted">
-              Visitors will see the unavailable profile page.
-            </span>
-          </div>
-        </Panel>
-      ) : null}
-
-      <Panel title="Change password">
-        <form className="mt-6 grid max-w-xl gap-5" onSubmit={savePassword}>
-          {passwordMessage ? (
-            <Notice tone={passwordMessage.tone}>{passwordMessage.text}</Notice>
-          ) : null}
-          <Field
-            autoComplete="current-password"
-            id="current-password"
-            label="Current password"
-            onChange={(event) => setCurrentPassword(event.target.value)}
-            type="password"
-            value={currentPassword}
-          />
-          <Field
-            autoComplete="new-password"
-            help="Use at least 8 characters."
-            id="new-password"
-            label="New password"
-            minLength={8}
-            onChange={(event) => setNewPassword(event.target.value)}
-            type="password"
-            value={newPassword}
-          />
-          <Field
-            autoComplete="new-password"
-            id="confirm-new-password"
-            label="Confirm new password"
-            minLength={8}
-            onChange={(event) => setConfirmation(event.target.value)}
-            type="password"
-            value={confirmation}
-          />
-          <div>
-            <Button disabled={savingPassword} type="submit">
-              {savingPassword ? "Saving password" : "Save password"}
-            </Button>
-          </div>
-        </form>
-      </Panel>
-
-      {state.supportUrl ? (
-        <Panel title="Support">
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
-            <LifebuoyIcon
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={20}
-              weight="bold"
-            />
-            <span>Get help with access, publication, or card issues.</span>
-            <a className="font-semibold text-tapit-accent hover:underline" href={state.supportUrl}>
-              Contact support
-            </a>
-          </div>
-        </Panel>
-      ) : null}
-
-      <Panel className="border-tapit-danger/30 bg-tapit-danger/[0.025]" title="Delete account">
-        <div className="mt-5 flex items-center gap-3 text-sm text-tapit-danger">
-          <TrashIcon aria-hidden="true" size={20} weight="bold" />
-          Confirming this request immediately hides your profile and deactivates active or
-          registered cards. An administrator reviews it before permanent removal.
-        </div>
-        {deletionMessage ? (
-          <div className="mt-5">
-            <Notice tone="success">{deletionMessage}</Notice>
-          </div>
+      <div className={gridClass}>
+        <SignInCard email={customer.email} status={customer.status} />
+        {profile.status === "published" ? (
+          <PublicationCard onUnpublish={unpublish} slug={profile.draft.slug} />
         ) : null}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <Button
+
+        <Card title="Change password">
+          <form className="flex flex-col gap-4" onSubmit={savePassword}>
+            {passwordMessage ? (
+              <Notice tone={passwordMessage.tone}>{passwordMessage.text}</Notice>
+            ) : null}
+            <Field
+              autoComplete="current-password"
+              id="current-password"
+              label="Current password"
+              onChange={(event) => setCurrentPassword(event.target.value)}
+              type="password"
+              value={currentPassword}
+            />
+            <div className="grid gap-4 xl:grid-cols-2">
+              <Field
+                autoComplete="new-password"
+                help="At least 8 characters."
+                id="new-password"
+                label="New password"
+                minLength={8}
+                onChange={(event) => setNewPassword(event.target.value)}
+                type="password"
+                value={newPassword}
+              />
+              <Field
+                autoComplete="new-password"
+                id="confirm-new-password"
+                label="Confirm new password"
+                minLength={8}
+                onChange={(event) => setConfirmation(event.target.value)}
+                type="password"
+                value={confirmation}
+              />
+            </div>
+            <Button className="self-end" disabled={savingPassword} type="submit">
+              {savingPassword ? "Updating password" : "Update password"}
+            </Button>
+          </form>
+        </Card>
+
+        <div className="flex flex-col gap-4">
+          {state.supportUrl ? <SupportCard href={state.supportUrl} /> : null}
+          <DeleteAccountCard
             disabled={
               customer.role !== "customer" ||
               customer.deletionStatus === "requested" ||
               customer.deletionStatus === "deleted"
             }
-            onClick={() => setDeletionOpen(true)}
-            type="button"
-            variant="danger"
+            onRequest={() => setDeletionOpen(true)}
           >
-            Request deletion
-          </Button>
-          <span className="text-sm text-tapit-muted">
-            This cannot be undone from the customer workspace.
-          </span>
+            {deletionMessage ? <Notice tone="success">{deletionMessage}</Notice> : null}
+          </DeleteAccountCard>
         </div>
-      </Panel>
+      </div>
 
       <ConfirmDialog
         confirmLabel="Request deletion"
@@ -330,84 +410,38 @@ function LiveAccountSettings() {
     }
   }
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 lg:gap-7 lg:px-10 lg:pt-8">
-      <Panel title="Account">
-        <dl className="mt-6 grid gap-4">
-          <div className="rounded-tapit bg-tapit-paper p-4">
-            <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-              Email
-            </dt>
-            <dd className="mt-2 font-semibold text-tapit-ink">{account.email}</dd>
-          </div>
-        </dl>
-      </Panel>
+    <div className={pageClass}>
+      <AccountHeader email={account.email} />
       {publicationMessage ? (
         <Notice tone={publicationMessage.tone}>{publicationMessage.text}</Notice>
       ) : null}
-      {profile?.status === "published" ? (
-        <Panel
-          description="Take your public profile offline when you need to pause public access."
-          title="Publication"
-        >
-          <div className="mt-5 flex flex-wrap items-center gap-3">
-            <Button onClick={() => void unpublish()} type="button" variant="secondary">
-              Unpublish
-            </Button>
-            <span className="text-sm text-tapit-muted">
-              Visitors will see the unavailable profile page.
-            </span>
-          </div>
-        </Panel>
-      ) : null}
-      {hostedDemo ? (
-        <Panel
-          description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
-          title="Hosted demo access"
-        >
-          <div className="mt-5">
-            <Notice>Password reset email delivery is disabled in hosted demo mode.</Notice>
-          </div>
-        </Panel>
-      ) : null}
-      {supportUrl ? (
-        <Panel title="Support">
-          <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-tapit-muted">
-            <LifebuoyIcon
-              aria-hidden="true"
-              className="text-tapit-accent"
-              size={20}
-              weight="bold"
-            />
-            <span>Get help with access, publication, or card issues.</span>
-            <a className="font-semibold text-tapit-accent hover:underline" href={supportUrl}>
-              Contact support
-            </a>
-          </div>
-        </Panel>
-      ) : null}
-      <Panel
-        className="border-tapit-danger/30 bg-tapit-danger/[0.025]"
-        description="A confirmed request immediately makes your profile unavailable and deactivates assigned cards. An administrator reviews it before permanent removal."
-        title="Delete account"
-      >
-        {message ? (
-          <div className="mt-5">
-            <Notice tone={message.startsWith("Deletion requested") ? "success" : "error"}>
-              {message}
-            </Notice>
-          </div>
+      <div className={gridClass}>
+        <SignInCard email={account.email} joinedAt={account.createdAt} status={account.status} />
+        {profile?.status === "published" ? (
+          <PublicationCard onUnpublish={() => void unpublish()} slug={profile.draft.slug} />
         ) : null}
-        <div className="mt-5">
-          <Button
-            disabled={account.role !== "customer" || account.deletionStatus !== "active"}
-            onClick={() => setDeletionOpen(true)}
-            type="button"
-            variant="danger"
+        {hostedDemo ? (
+          <Card
+            description="Hosted demo accounts retain their isolated password setup for demonstration purposes."
+            title="Hosted demo access"
           >
-            Request deletion
-          </Button>
+            <Notice>Password reset email delivery is disabled in hosted demo mode.</Notice>
+          </Card>
+        ) : null}
+        <div className="flex flex-col gap-4">
+          {supportUrl ? <SupportCard href={supportUrl} /> : null}
+          <DeleteAccountCard
+            disabled={account.role !== "customer" || account.deletionStatus !== "active"}
+            onRequest={() => setDeletionOpen(true)}
+          >
+            {message ? (
+              <Notice tone={message.startsWith("Deletion requested") ? "success" : "error"}>
+                {message}
+              </Notice>
+            ) : null}
+          </DeleteAccountCard>
         </div>
-      </Panel>
+      </div>
       <ConfirmDialog
         confirmLabel="Request deletion"
         description="Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"

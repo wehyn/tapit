@@ -5,15 +5,23 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { CheckCircleIcon, GearSixIcon, LifebuoyIcon } from "@phosphor-icons/react";
 
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
 
 import { Button } from "@/components/ui/Button";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { Chip } from "@/components/ui/Chip";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
+import { Tile } from "@/components/ui/Tile";
+
+const launchGates = [
+  "Convex deployment and generated bindings",
+  "Password recovery, email verification, and login rate limiting",
+  "Transactional email provider and retention policy",
+  "Real-device NFC and QR verification",
+];
 
 function DemoSettingsManager() {
   // Retained only as an inert compatibility helper for the merged worktree.
@@ -54,54 +62,53 @@ function DemoSettingsManager() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <AdminPageHeader
-        description="Manage support destinations and review current launch readiness notes."
-        title="Settings"
-      />
-      <Panel
-        description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
-        title="Support contact"
-      >
-        <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
-          {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-          <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
-            <GearSixIcon
-              aria-hidden="true"
-              className="mt-0.5 shrink-0 text-tapit-accent"
-              size={22}
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
+      <AdminPageHeader description="Support destination and launch readiness." title="Settings" />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card
+          description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
+          title="Support contact"
+        >
+          <form className="flex flex-col gap-4" onSubmit={save}>
+            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            <Field
+              help="Email address or https link."
+              id="support-url"
+              label="Support destination"
+              onChange={(event) => setSupportUrl(event.target.value)}
+              value={supportUrl}
             />
-            <span>One destination is used for public support states and account help.</span>
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              <Button type="submit">Save settings</Button>
+            </div>
+          </form>
+        </Card>
+        <Card
+          description="Local demo mode keeps customer data and invitation links in this browser only. Production deployment must connect Convex, email delivery, storage, monitoring, and an approved domain before launch."
+          title="Launch gates"
+        >
+          <p className="text-sm font-semibold text-tapit-ink">Operational readiness checklist</p>
+          <ul className="flex flex-col gap-2">
+            {launchGates.map((gate) => (
+              <li key={gate}>
+                <Tile className="text-sm text-tapit-ink">{gate}</Tile>
+              </li>
+            ))}
+          </ul>
+        </Card>
+        <Card title="Environment">
+          <div className="flex flex-col gap-2">
+            <Tile tone="white">
+              <span className="grow text-sm text-tapit-muted">Mode</span>
+              <Chip tone="accent">Demo</Chip>
+            </Tile>
+            <Tile tone="white">
+              <span className="grow text-sm text-tapit-muted">Data</span>
+              <span className="text-sm text-tapit-ink">Browser-local fixtures</span>
+            </Tile>
           </div>
-          <Field
-            id="support-url"
-            label="Support destination"
-            onChange={(event) => setSupportUrl(event.target.value)}
-            value={supportUrl}
-          />
-          <div>
-            <Button type="submit">
-              <CheckCircleIcon aria-hidden="true" className="mr-2" size={18} />
-              Save settings
-            </Button>
-          </div>
-        </form>
-      </Panel>
-      <Panel
-        description="Local demo mode keeps customer data and invitation links in this browser only. Production deployment must connect Convex, email delivery, storage, monitoring, and an approved domain before launch."
-        title="Launch gates"
-      >
-        <p className="mt-4 flex items-center gap-2 text-sm text-tapit-muted">
-          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} />
-          Operational readiness checklist
-        </p>
-        <ul className="mt-5 grid gap-3 text-sm leading-6 text-tapit-muted">
-          <li>Convex deployment and generated bindings</li>
-          <li>Password recovery, email verification, and login rate limiting</li>
-          <li>Transactional email provider and retention policy</li>
-          <li>Real-device NFC and QR verification</li>
-        </ul>
-      </Panel>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -129,48 +136,54 @@ function LiveSettingsManager() {
   }
   if (configured === undefined)
     return (
-      <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 py-6 sm:px-8">
-        <AdminPageHeader
-          description="Manage support destinations and review current launch readiness notes."
-          title="Settings"
-        />
+      <div className="flex min-w-0 flex-col gap-8 pt-2">
+        <AdminPageHeader description="Support destination and launch readiness." title="Settings" />
         <Notice>Loading settings…</Notice>
       </div>
     );
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
-      <AdminPageHeader
-        description="Manage support destinations and review current launch readiness notes."
-        title="Settings"
-      />
-      <Panel
-        description="This destination is used for generic support states and account help."
-        title="Support contact"
-      >
-        <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
-          {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-          <Field
-            id="support-url"
-            label="Support destination"
-            onChange={(event) => setSupportUrl(event.target.value)}
-            value={value}
-          />
-          <div>
-            <Button disabled={saveSupport === undefined} type="submit">
-              Save settings
-            </Button>
+    <div className="flex min-w-0 flex-col gap-8 pt-2">
+      <AdminPageHeader description="Support destination and launch readiness." title="Settings" />
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card
+          description="This destination is used for generic support states and account help."
+          title="Support contact"
+        >
+          <form className="flex flex-col gap-4" onSubmit={save}>
+            {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+            <Field
+              help="Email address or https link."
+              id="support-url"
+              label="Support destination"
+              onChange={(event) => setSupportUrl(event.target.value)}
+              value={value}
+            />
+            <div className="flex flex-wrap items-center justify-end gap-4">
+              <Button disabled={saveSupport === undefined} type="submit">
+                Save settings
+              </Button>
+            </div>
+          </form>
+        </Card>
+        <Card
+          description="Live mode stores settings in Convex and records sensitive administrator changes in the audit log."
+          title="Launch gates"
+        >
+          <p className="text-sm font-semibold text-tapit-ink">Operational readiness checklist</p>
+        </Card>
+        <Card title="Environment">
+          <div className="flex flex-col gap-2">
+            <Tile tone="white">
+              <span className="grow text-sm text-tapit-muted">Mode</span>
+              <Chip tone="accent">Live</Chip>
+            </Tile>
+            <Tile tone="white">
+              <span className="grow text-sm text-tapit-muted">Data</span>
+              <span className="text-sm text-tapit-ink">Convex</span>
+            </Tile>
           </div>
-        </form>
-      </Panel>
-      <Panel
-        description="Live mode stores settings in Convex and records sensitive administrator changes in the audit log."
-        title="Launch gates"
-      >
-        <p className="mt-4 flex items-center gap-2 text-sm text-tapit-muted">
-          <LifebuoyIcon aria-hidden="true" className="text-tapit-accent" size={20} />
-          Operational readiness checklist
-        </p>
-      </Panel>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { CustomerShell } from "@/components/layout/CustomerShell";
+import { WorkspaceShell } from "@/components/layout/WorkspaceShell";
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
-  return <CustomerShell>{children}</CustomerShell>;
+  return <WorkspaceShell audience="customer">{children}</WorkspaceShell>;
 }

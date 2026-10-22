@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Crop } from "@/lib/profile-image";
 
+import { Button } from "@/components/ui/Button";
+
 type ProfileImageCropDialogProps = {
   busy?: boolean;
   error?: string;
@@ -112,13 +114,13 @@ export function ProfileImageCropDialog({
         ref={dialogRef}
         aria-labelledby="profile-image-crop-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_16px_48px_rgba(27,36,51,0.14)]"
+        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card"
         role="dialog"
         tabIndex={-1}
       >
         <h2
           id="profile-image-crop-title"
-          className="tapit-display text-xl font-semibold text-tapit-ink"
+          className="tapit-display text-lg font-semibold text-tapit-ink"
         >
           Adjust profile photo
         </h2>
@@ -128,7 +130,7 @@ export function ProfileImageCropDialog({
 
         <div
           aria-label="Crop profile photo"
-          className="relative mx-auto mt-5 grid aspect-square w-[min(280px,calc(100vw-5rem))] place-items-center overflow-hidden border-4 border-white bg-[length:16px_16px] [background-image:linear-gradient(45deg,#e7e4dc_25%,transparent_25%),linear-gradient(-45deg,#e7e4dc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e4dc_75%),linear-gradient(-45deg,transparent_75%,#e7e4dc_75%)] [background-position:0_0,0_8px,8px_-8px,-8px_0] focus:outline-2 focus:outline-offset-4 focus:outline-tapit-accent"
+          className="relative mx-auto mt-4 grid aspect-square w-[min(280px,calc(100vw-5rem))] place-items-center overflow-hidden bg-[length:16px_16px] [background-image:linear-gradient(45deg,#e7e4dc_25%,transparent_25%),linear-gradient(-45deg,#e7e4dc_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#e7e4dc_75%),linear-gradient(-45deg,transparent_75%,#e7e4dc_75%)] [background-position:0_0,0_8px,8px_-8px,-8px_0] focus:outline-2 focus:outline-offset-4 focus:outline-tapit-accent"
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft") moveCrop("x", -1);
             if (event.key === "ArrowRight") moveCrop("x", 1);
@@ -163,7 +165,7 @@ export function ProfileImageCropDialog({
           {sourceUrl ? (
             <img
               alt="Profile photo crop preview"
-              className="tapit-image-outline pointer-events-none absolute max-w-none rounded-full"
+              className="pointer-events-none absolute max-w-none rounded-full"
               onError={() => setError("That image could not be decoded. Choose another file.")}
               onLoad={(event) => {
                 const image = event.currentTarget;
@@ -185,10 +187,11 @@ export function ProfileImageCropDialog({
           ) : null}
         </div>
 
-        <div className="mt-5 flex items-center gap-3">
+        <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
             aria-label="Zoom out"
+            className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-soft-surface text-lg font-semibold text-tapit-ink hover:bg-tapit-accent-soft"
             onClick={() => updateZoom(Math.max(1, zoom - 0.25))}
           >
             −
@@ -206,6 +209,7 @@ export function ProfileImageCropDialog({
           <button
             type="button"
             aria-label="Zoom in"
+            className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-soft-surface text-lg font-semibold text-tapit-ink hover:bg-tapit-accent-soft"
             onClick={() => updateZoom(Math.min(2, zoom + 0.25))}
           >
             +
@@ -218,17 +222,19 @@ export function ProfileImageCropDialog({
           </p>
         ) : null}
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            className="rounded-tapit border border-tapit-line px-4 py-2.5 text-sm font-semibold text-tapit-ink"
+          <Button
+            className="transition-none"
             disabled={busy}
             onClick={onCancel}
             type="button"
+            variant="secondary"
           >
             Cancel
-          </button>
-          <button
-            className="rounded-tapit bg-tapit-accent px-4 py-2.5 text-sm font-semibold text-white"
-            disabled={!canApply || busy}
+          </Button>
+          <Button
+            className="transition-none"
+            disabled={!canApply}
+            loading={busy}
             onClick={() => {
               if (!canApply) {
                 setError("Choose a valid square crop before applying.");
@@ -238,18 +244,8 @@ export function ProfileImageCropDialog({
             }}
             type="button"
           >
-            {busy ? (
-              <span className="inline-flex items-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className="size-4 animate-spin rounded-full border-2 border-white/40 border-t-white motion-reduce:animate-none"
-                />
-                Applying...
-              </span>
-            ) : (
-              "Apply"
-            )}
-          </button>
+            {busy ? "Applying..." : "Apply"}
+          </Button>
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ async function createInvitation(page: Page, email: string): Promise<string> {
   const href = await setupLink.getAttribute("href");
   if (!href) throw new Error("Expected the invited customer setup link.");
 
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
 

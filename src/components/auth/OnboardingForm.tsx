@@ -6,10 +6,14 @@ import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
+import { Brand } from "@/components/layout/Brand";
 import { Button } from "@/components/ui/Button";
+import { Chip } from "@/components/ui/Chip";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field, TextareaField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
+import { Tile } from "@/components/ui/Tile";
 
 type OnboardingProfileDetails = {
   name: string;
@@ -118,7 +122,7 @@ export function OnboardingForm() {
 
   if (authLoading || access === undefined) {
     return (
-      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10 text-sm text-tapit-muted">
+      <main className="grid min-h-dvh place-items-center bg-tapit-paper px-4 text-sm text-tapit-muted">
         Loading your account…
       </main>
     );
@@ -126,118 +130,175 @@ export function OnboardingForm() {
 
   if (access.accountStatus === "invited") {
     return (
-      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10">
-        <Notice tone="error">Use your invitation link to finish setting up this account.</Notice>
+      <main className="grid min-h-dvh place-items-center bg-tapit-paper px-4">
+        <div className="w-full max-w-md">
+          <Notice tone="error">Use your invitation link to finish setting up this account.</Notice>
+        </div>
       </main>
     );
   }
 
   if (access.accountStatus !== "pending" && slug === undefined) {
     return (
-      <main className="mx-auto grid min-h-[100dvh] max-w-2xl place-items-center px-4 py-10">
-        <Notice tone="error">This account cannot be onboarded in its current state.</Notice>
+      <main className="grid min-h-dvh place-items-center bg-tapit-paper px-4">
+        <div className="w-full max-w-md">
+          <Notice tone="error">This account cannot be onboarded in its current state.</Notice>
+        </div>
       </main>
     );
   }
 
+  const previewName = details.name.trim() || "Your name";
+  const previewInitials = previewName
+    .split(/\s+/)
+    .map((part) => part.charAt(0))
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
   return (
-    <main className="grid min-h-[100dvh] place-items-center bg-[radial-gradient(ellipse_at_86%_0%,#e8edf9_0%,transparent_42%),#f4f6fa] px-4 py-8 sm:px-10 sm:py-10">
-      <section className="mx-auto grid w-full max-w-2xl gap-8 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_16px_44px_rgba(27,36,51,0.06)] sm:p-9">
-        <div>
-          <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-            Finish your profile
-          </p>
-          <h1 className="tapit-display mt-3 text-4xl font-semibold tracking-[-0.055em] text-tapit-ink">
-            Choose your display name
-          </h1>
-          <p className="mt-4 text-sm leading-6 text-tapit-muted">
-            Display name is required. Bio and website are optional. Your profile starts as a private
-            draft that you can publish when you are ready.
-          </p>
-        </div>
-        <form className="grid gap-5" onSubmit={complete}>
-          {error ? <Notice tone="error">{error}</Notice> : null}
-          {slug && !profileCreatedDialogOpen ? (
-            <Notice tone="success">
-              Profile created. Your private profile is ready at /{slug}.
-            </Notice>
-          ) : null}
-          <Field
-            id="onboarding-name"
-            label="Display name (required)"
-            maxLength={120}
-            onChange={(event) =>
-              setDetails((current) => ({ ...current, name: event.target.value }))
-            }
-            required
-            value={details.name}
-          />
-          <TextareaField
-            compact
-            id="onboarding-bio"
-            label="Bio or role (optional)"
-            help="A short introduction people can scan quickly."
-            maxLength={140}
-            onChange={(event) => setDetails((current) => ({ ...current, bio: event.target.value }))}
-            placeholder="e.g. Designer helping small teams"
-            value={details.bio}
-          />
-          <Field
-            id="onboarding-website"
-            label="Website (optional)"
-            help="Use an HTTPS address, such as https://yourwebsite.com."
-            maxLength={320}
-            onChange={(event) =>
-              setDetails((current) => ({ ...current, website: event.target.value }))
-            }
-            placeholder="https://yourwebsite.com"
-            type="url"
-            value={details.website}
-          />
-          <Button disabled={submitting || slug !== undefined} type="submit">
-            {submitting
-              ? "Creating your profile"
-              : slug
-                ? "Profile created"
-                : "Complete onboarding"}
-          </Button>
-          {slug ? (
-            <Button onClick={continueToCustomization} type="button">
-              Customize your profile
-            </Button>
-          ) : null}
-        </form>
-        {slug !== undefined ? null : confirmingDelete ? (
-          <div className="grid gap-3 rounded-tapit border border-tapit-line p-4">
-            <p className="text-sm text-tapit-muted">
-              Delete this pending account? Your Google identity will remain available to start again
-              later.
+    <main className="flex min-h-dvh flex-col gap-12 bg-tapit-paper px-4 py-6 sm:px-12 sm:py-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <Brand />
+        <ol aria-label="Onboarding progress" className="flex flex-wrap gap-2">
+          <li>
+            <Chip tone="ok">
+              <Icon name="check" size={14} weight="bold" />
+              Account
+            </Chip>
+          </li>
+          <li>
+            <Chip tone="accent">2 · Profile</Chip>
+          </li>
+          <li>
+            <Chip>3 · Done</Chip>
+          </li>
+        </ol>
+      </div>
+      <div className="flex flex-1 flex-col items-center justify-center gap-12 lg:flex-row">
+        <section className="flex w-full max-w-xl flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-semibold tracking-widest text-tapit-accent-strong uppercase">
+              Finish your profile
             </p>
-            <div className="flex gap-3">
-              <Button disabled={submitting} onClick={deleteAccount} type="button" variant="quiet">
-                Confirm delete account
-              </Button>
-              <Button
-                disabled={submitting}
-                onClick={() => setConfirmingDelete(false)}
-                type="button"
-                variant="quiet"
-              >
-                Keep account
-              </Button>
-            </div>
+            <h1 className="text-xl font-semibold tracking-tight text-tapit-ink">
+              Choose your display name
+            </h1>
+            <p className="text-sm text-tapit-muted">
+              Display name is required. Bio and website are optional. Your profile starts as a
+              private draft that you can publish when you are ready.
+            </p>
           </div>
-        ) : (
-          <Button
-            disabled={submitting}
-            onClick={() => setConfirmingDelete(true)}
-            type="button"
-            variant="quiet"
-          >
-            Delete pending account
-          </Button>
-        )}
-      </section>
+          <form className="grid gap-6" onSubmit={complete}>
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            {slug && !profileCreatedDialogOpen ? (
+              <Notice tone="success">
+                Profile created. Your private profile is ready at /{slug}.
+              </Notice>
+            ) : null}
+            <Field
+              id="onboarding-name"
+              label="Display name (required)"
+              maxLength={120}
+              onChange={(event) =>
+                setDetails((current) => ({ ...current, name: event.target.value }))
+              }
+              required
+              value={details.name}
+            />
+            <TextareaField
+              compact
+              id="onboarding-bio"
+              label="Bio or role (optional)"
+              help="A short introduction people can scan quickly."
+              maxLength={140}
+              onChange={(event) =>
+                setDetails((current) => ({ ...current, bio: event.target.value }))
+              }
+              placeholder="e.g. Designer helping small teams"
+              value={details.bio}
+            />
+            <Field
+              id="onboarding-website"
+              label="Website (optional)"
+              help="Use an HTTPS address, such as https://yourwebsite.com."
+              maxLength={320}
+              onChange={(event) =>
+                setDetails((current) => ({ ...current, website: event.target.value }))
+              }
+              placeholder="https://yourwebsite.com"
+              type="url"
+              value={details.website}
+            />
+            <Button disabled={submitting || slug !== undefined} type="submit">
+              {submitting
+                ? "Creating your profile"
+                : slug
+                  ? "Profile created"
+                  : "Complete onboarding"}
+            </Button>
+            {slug ? (
+              <Button onClick={continueToCustomization} type="button">
+                Customize your profile
+              </Button>
+            ) : null}
+          </form>
+          {slug !== undefined ? null : confirmingDelete ? (
+            <div className="flex flex-col gap-3 rounded-control bg-tapit-soft-surface p-4">
+              <p className="text-sm text-tapit-muted">
+                Delete this pending account? Your Google identity will remain available to start
+                again later.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  disabled={submitting}
+                  onClick={deleteAccount}
+                  type="button"
+                  variant="danger-soft"
+                >
+                  Confirm delete account
+                </Button>
+                <Button
+                  disabled={submitting}
+                  onClick={() => setConfirmingDelete(false)}
+                  type="button"
+                  variant="quiet"
+                >
+                  Keep account
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button
+              disabled={submitting}
+              onClick={() => setConfirmingDelete(true)}
+              type="button"
+              variant="quiet"
+            >
+              Delete pending account
+            </Button>
+          )}
+        </section>
+        <div
+          aria-hidden="true"
+          className="flex w-full max-w-72 flex-col gap-3 rounded-card bg-tapit-surface p-6 shadow-card"
+        >
+          <div className="flex flex-col items-center gap-4 rounded-card bg-tapit-paper p-6 text-center">
+            <span className="grid size-22 place-items-center rounded-full bg-tapit-accent text-xl font-semibold text-white">
+              {previewInitials}
+            </span>
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-lg font-semibold text-tapit-ink">{previewName}</p>
+              {details.bio.trim() ? (
+                <p className="text-sm text-tapit-muted">{details.bio.trim()}</p>
+              ) : null}
+            </div>
+            <Tile className="w-full justify-center text-sm text-tapit-muted" tone="white">
+              Add links after this step
+            </Tile>
+          </div>
+        </div>
+      </div>
       <ConfirmDialog
         cancelLabel="Continue later"
         confirmLabel="Customize your profile"

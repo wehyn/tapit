@@ -103,7 +103,6 @@ describe("BuildCardWorkspace", () => {
 
     expect(screen.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
     expect(screen.getByRole("navigation", { name: "Primary navigation" })).toBeVisible();
-    expect(screen.getByRole("link", { name: "Product" })).toHaveAttribute("href", "/#product");
     expect(screen.getByRole("link", { name: "How it works" })).toHaveAttribute(
       "href",
       "/#how-it-works",
@@ -254,7 +253,7 @@ describe("PublicHeader responsive navigation", () => {
       within(mobileNavigation)
         .getAllByRole("link")
         .map((link) => link.textContent),
-    ).toEqual(["Product", "How it works", "Build card", "Demo Profile"]);
+    ).toEqual(["How it works", "Build card", "See a profile"]);
     expect(within(mobileNavigation).queryByText("For teams")).not.toBeInTheDocument();
 
     await user.keyboard("{Escape}");

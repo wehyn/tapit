@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { DownloadSimpleIcon, QrCodeIcon } from "@phosphor-icons/react";
 
 import { generateQrPng, generateQrSvg } from "@/lib/qr";
 
 import { Button } from "@/components/ui/Button";
 import { Notice } from "@/components/ui/Notice";
+import { Icon } from "@/components/ui/Icon";
 
 export function QrControls({ cardUrl, label }: { cardUrl: string; label: string }) {
   const [svg, setSvg] = useState("");
@@ -50,9 +50,9 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
   }
 
   return (
-    <div className="mt-5 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5">
+    <div className="mt-4 rounded-card bg-tapit-soft-surface p-6">
       <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-tapit-muted">
-        <QrCodeIcon aria-hidden="true" size={18} /> QR fallback
+        <Icon name="qrCode" size={18} /> QR fallback
       </p>
       {error ? (
         <div className="mt-3">
@@ -62,7 +62,7 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
       {png ? (
         <Image
           alt={`QR code for ${label}`}
-          className="mt-4 size-44 rounded-tapit bg-white p-2"
+          className="mt-4 size-44 rounded-control bg-white p-2 shadow-card"
           height={176}
           src={png}
           unoptimized
@@ -73,15 +73,21 @@ export function QrControls({ cardUrl, label }: { cardUrl: string; label: string 
       )}
       <div className="mt-4 flex flex-wrap gap-2">
         <a
-          className={`inline-flex min-h-11 items-center justify-center rounded-tapit px-4 py-2.5 text-sm font-semibold transition ${png ? "bg-tapit-accent text-white hover:bg-tapit-accent-strong" : "pointer-events-none bg-tapit-line text-tapit-muted"}`}
+          className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold ${png ? "bg-tapit-accent text-white hover:bg-tapit-accent-strong" : "pointer-events-none bg-tapit-line text-tapit-muted"}`}
           download={`${label}.png`}
           href={png || undefined}
         >
-          <DownloadSimpleIcon aria-hidden="true" className="mr-2" size={18} />
+          <Icon name="download" size={18} />
           Download PNG
         </a>
-        <Button disabled={!svg} onClick={downloadSvg} type="button" variant="secondary">
-          <DownloadSimpleIcon aria-hidden="true" className="mr-2" size={18} />
+        <Button
+          className="transition-none"
+          disabled={!svg}
+          onClick={downloadSvg}
+          type="button"
+          variant="secondary"
+        >
+          <Icon name="download" size={18} />
           Download SVG
         </Button>
       </div>

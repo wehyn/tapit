@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { CaretDownIcon, CaretUpIcon, DotsSixVerticalIcon, TrashIcon } from "@phosphor-icons/react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { SlideshowPreviewDialog } from "@/components/forms/SlideshowPreviewDialog";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
+import { tileClass } from "@/components/ui/Tile";
 import {
   DEFAULT_PROFILE_MEDIA,
   MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH,
@@ -54,7 +55,6 @@ function imageSource(image: ProfileMediaImage): string | undefined {
 }
 
 export function ProfileMediaEditor({
-  barePanels = false,
   media,
   section,
   onChange,
@@ -479,38 +479,29 @@ export function ProfileMediaEditor({
   }
 
   return (
-    <div className={barePanels ? "grid min-w-0 gap-4" : "grid gap-5"}>
+    <div className="grid min-w-0 gap-4">
       <section
         hidden={!showBackground}
         style={!showBackground ? { display: "none" } : undefined}
-        className={
-          barePanels
-            ? "grid min-w-0 gap-4"
-            : "grid gap-5 rounded-tapit border border-tapit-line bg-tapit-paper/50 p-4 sm:p-5"
-        }
+        className="grid min-w-0 gap-4"
         aria-labelledby={`${baseId}-background-heading`}
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
+          <div className="grid gap-1">
             <h3
-              className="text-base font-semibold text-tapit-ink"
+              className="text-lg font-semibold text-tapit-ink"
               id={`${baseId}-background-heading`}
             >
               Background image
             </h3>
-            <p className="mt-1 text-xs leading-5 text-tapit-muted">
+            <p className="text-sm text-tapit-muted">
               Add a wide image to the top of your profile. JPEG, PNG, or WebP.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {value.background ? (
               <Button disabled={busy} onClick={removeBackground} type="button" variant="quiet">
-                <TrashIcon
-                  aria-hidden="true"
-                  className="mr-2"
-                  size={16}
-                  weight={barePanels ? "bold" : "regular"}
-                />
+                <Icon className="size-4" name="trash" />
                 Remove background
               </Button>
             ) : null}
@@ -520,8 +511,9 @@ export function ProfileMediaEditor({
               disabled={busy || slideshowQueue.length > 0}
               onClick={() => backgroundInput.current?.click()}
               type="button"
-              variant="secondary"
+              variant="tonal"
             >
+              <Icon className="size-4" name="upload" />
               {value.background ? "Replace background" : "Upload background"}
             </Button>
           </div>
@@ -541,11 +533,11 @@ export function ProfileMediaEditor({
           />
         </div>
         {value.background ? (
-          <div className={barePanels ? "grid gap-4" : "grid gap-5"}>
+          <>
             {imageSource(value.background) ? (
               <div
                 aria-label={value.background.altText}
-                className="h-40 rounded-tapit border border-tapit-line bg-cover bg-center"
+                className="h-40 rounded-control bg-cover bg-center"
                 role="img"
                 style={{
                   backgroundImage: `url(${JSON.stringify(imageSource(value.background))})`,
@@ -563,8 +555,8 @@ export function ProfileMediaEditor({
               }
               value={value.background.altText}
             />
-            <fieldset className="grid gap-4 border-t border-tapit-line pt-4 sm:grid-cols-2">
-              <legend className="text-sm font-semibold text-tapit-ink">Image position</legend>
+            <fieldset className="grid gap-4 sm:grid-cols-2">
+              <legend className="mb-2 text-sm font-semibold text-tapit-ink">Image position</legend>
               <label
                 className="grid gap-2 text-sm font-medium text-tapit-ink"
                 htmlFor={`${baseId}-crop-x`}
@@ -602,43 +594,26 @@ export function ProfileMediaEditor({
                 />
               </label>
             </fieldset>
-          </div>
+          </>
         ) : null}
-        <div className="border-t border-tapit-line pt-4">
-          <Field
-            id={`${baseId}-hero-height`}
-            label={`Hero height: ${value.heroHeight}px`}
-            max={MAX_PROFILE_HERO_HEIGHT}
-            min={MIN_PROFILE_HERO_HEIGHT}
-            onChange={(event) => update({ heroHeight: Number(event.target.value) })}
-            type="range"
-            value={value.heroHeight}
-          />
-        </div>
+        <Field
+          id={`${baseId}-hero-height`}
+          label={`Hero height: ${value.heroHeight}px`}
+          max={MAX_PROFILE_HERO_HEIGHT}
+          min={MIN_PROFILE_HERO_HEIGHT}
+          onChange={(event) => update({ heroHeight: Number(event.target.value) })}
+          type="range"
+          value={value.heroHeight}
+        />
       </section>
 
       <div
         hidden={!showSlideshow}
         style={!showSlideshow ? { display: "none" } : undefined}
-        className={
-          barePanels
-            ? "grid min-w-0 gap-3 border-t border-tapit-line pt-4"
-            : "grid gap-3 rounded-tapit border border-tapit-line/80 bg-tapit-paper/60 p-4 sm:p-5"
-        }
+        className="grid min-w-0 gap-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-tapit-ink">Slideshow</h3>
-            <p className="mt-1 text-xs leading-5 text-tapit-muted">
-              {value.slideshow.length + slideshowQueue.length} of {MAX_PROFILE_SLIDESHOW_IMAGES}{" "}
-              images. Reorder uploaded images in the list below.
-            </p>
-            {value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES ? (
-              <p className="mt-1 text-xs leading-5 text-tapit-muted">
-                Maximum of 10 images. Remove an image to add another.
-              </p>
-            ) : null}
-          </div>
+          <h3 className="text-lg font-semibold text-tapit-ink">Slideshow</h3>
           <div className="flex flex-wrap gap-2">
             <Button
               disabled={!canPreviewSlideshow}
@@ -646,26 +621,24 @@ export function ProfileMediaEditor({
               type="button"
               variant="secondary"
             >
+              <Icon className="size-4" name="eye" />
               Preview slideshow
             </Button>
             <Button
               aria-describedby={uploadDescription("slideshow")}
               aria-invalid={uploadError("slideshow") ? true : undefined}
+              aria-label="Add slideshow image"
               disabled={
                 value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
               }
               onClick={() => slideshowInput.current?.click()}
               type="button"
-              variant="secondary"
+              variant="tonal"
             >
-              Upload slideshow image
+              <Icon className="size-4" name="plus" />
+              Add
             </Button>
           </div>
-          {missingSlideshowImageCount > 0 ? (
-            <p className="basis-full text-xs leading-5 text-tapit-muted">
-              Some slideshow images are unavailable for preview.
-            </p>
-          ) : null}
           <input
             accept={imageAccept}
             aria-label="Upload slideshow images"
@@ -685,30 +658,15 @@ export function ProfileMediaEditor({
           />
         </div>
         {slideshowQueue.map((entry, index) => (
-          <div
-            className={
-              barePanels
-                ? "grid min-w-0 gap-3 rounded-tapit border border-dashed border-tapit-line bg-tapit-surface p-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center"
-                : "grid gap-3 rounded-tapit border border-dashed border-tapit-line p-3 sm:grid-cols-[5rem_1fr_auto] sm:items-center"
-            }
-            key={entry.clientKey}
-          >
+          <div className={`${tileClass()} min-w-0 flex-wrap`} key={entry.clientKey}>
             <div
               aria-label={entry.altText}
-              className="h-16 w-20 rounded-tapit bg-cover bg-center"
+              className="size-16 shrink-0 rounded-control bg-cover bg-center"
               role="img"
               style={{ backgroundImage: `url(${JSON.stringify(entry.previewUrl)})` }}
             />
-            <div className={barePanels ? "grid min-w-0 gap-1" : "grid gap-1"}>
-              <p
-                className={
-                  barePanels
-                    ? "break-all text-sm font-medium text-tapit-ink"
-                    : "text-sm font-medium text-tapit-ink"
-                }
-              >
-                {entry.file.name}
-              </p>
+            <div className="grid min-w-0 flex-1 basis-40 gap-1">
+              <p className="break-all text-sm font-medium text-tapit-ink">{entry.file.name}</p>
               <p className="text-xs text-tapit-muted">Upload position {index + 1}</p>
               <p aria-live="polite" className="text-sm text-tapit-muted" role="status">
                 {entry.status === "uploading"
@@ -718,7 +676,7 @@ export function ProfileMediaEditor({
                     : "Waiting"}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2 sm:flex-col">
+            <div className="flex flex-wrap gap-2">
               {entry.status === "failed" ? (
                 <Button
                   aria-label="Retry upload"
@@ -741,122 +699,119 @@ export function ProfileMediaEditor({
             </div>
           </div>
         ))}
-        <ol aria-label="Uploaded slideshow image order" className="grid min-w-0 gap-3">
+        <ol
+          aria-label="Uploaded slideshow image order"
+          className="grid min-w-0 grid-cols-[repeat(auto-fill,minmax(min(11rem,100%),1fr))] gap-4 empty:hidden"
+        >
           {value.slideshow.map((image, index) => (
             <li
               aria-posinset={index + 1}
               aria-setsize={value.slideshow.length}
-              className={`grid min-w-0 gap-3 rounded-tapit border p-3 motion-safe:transition-colors ${barePanels ? "border-tapit-line/70 bg-tapit-surface" : "border-tapit-line"} ${draggingSlide === index ? "border-tapit-accent bg-tapit-accent/5" : ""}`}
+              className={`grid min-w-0 content-start gap-3 motion-safe:transition-opacity ${draggingSlide === index ? "opacity-60" : ""}`}
               data-slideshow-order-index={index}
               key={image.assetId}
             >
-              <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-tapit-line pb-3">
-                <span
-                  className={`min-w-0 flex-1 text-sm font-semibold text-tapit-ink ${barePanels ? "" : "whitespace-nowrap"}`}
-                >
+              {imageSource(image) ? (
+                <div
+                  aria-label={image.altText}
+                  className="aspect-square w-full rounded-control bg-cover bg-center"
+                  role="img"
+                  style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
+                />
+              ) : (
+                <div
+                  aria-hidden="true"
+                  className="aspect-square w-full rounded-control bg-tapit-soft-surface"
+                />
+              )}
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-1">
+                <span className="text-sm font-semibold text-tapit-ink">
                   Image {index + 1} of {value.slideshow.length}
                 </span>
-                <button
-                  aria-label={`Reorder slideshow image ${index + 1}`}
-                  className="grid size-12 shrink-0 touch-none cursor-grab place-items-center rounded-lg text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
-                  onPointerCancel={(event) => finishSlidePointerDrag(event, false)}
-                  onPointerDown={(event) => handleSlidePointerDown(event, index)}
-                  onPointerMove={handleSlidePointerMove}
-                  onPointerUp={finishSlidePointerDrag}
-                  title="Drag to reorder"
-                  type="button"
-                >
-                  <DotsSixVerticalIcon aria-hidden="true" size={20} weight="bold" />
-                </button>
                 <div className="flex shrink-0 gap-1">
+                  <button
+                    aria-label={`Reorder slideshow image ${index + 1}`}
+                    className="grid size-11 shrink-0 touch-none cursor-grab place-items-center rounded-control text-tapit-muted active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                    onPointerCancel={(event) => finishSlidePointerDrag(event, false)}
+                    onPointerDown={(event) => handleSlidePointerDown(event, index)}
+                    onPointerMove={handleSlidePointerMove}
+                    onPointerUp={finishSlidePointerDrag}
+                    title="Drag to reorder"
+                    type="button"
+                  >
+                    <Icon className="size-5" name="dragHandle" weight="bold" />
+                  </button>
                   <Button
                     aria-label={`Move slideshow image ${index + 1} up`}
-                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    className="size-11 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
                     disabled={index === 0}
                     onClick={() => reorderSlide(index, index - 1)}
                     type="button"
                     variant="quiet"
                   >
-                    <CaretUpIcon
-                      aria-hidden="true"
-                      size={barePanels ? 16 : 18}
-                      weight={barePanels ? "bold" : "regular"}
-                    />
+                    <Icon className="size-4" name="caretUp" weight="bold" />
                   </Button>
                   <Button
                     aria-label={`Move slideshow image ${index + 1} down`}
-                    className="size-12 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
+                    className="size-11 p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus motion-reduce:transform-none motion-reduce:transition-none"
                     disabled={index === value.slideshow.length - 1}
                     onClick={() => reorderSlide(index, index + 1)}
                     type="button"
                     variant="quiet"
                   >
-                    <CaretDownIcon
-                      aria-hidden="true"
-                      size={barePanels ? 16 : 18}
-                      weight={barePanels ? "bold" : "regular"}
-                    />
+                    <Icon className="size-4" name="caretDown" weight="bold" />
                   </Button>
                 </div>
               </div>
-              <div className="grid min-w-0 gap-3 sm:grid-cols-[5rem_minmax(0,1fr)_auto] sm:items-center">
-                {imageSource(image) ? (
-                  <div
-                    aria-label={image.altText}
-                    className="h-16 w-20 rounded-tapit bg-cover bg-center"
-                    role="img"
-                    style={{ backgroundImage: `url(${JSON.stringify(imageSource(image))})` }}
-                  />
-                ) : (
-                  <div
-                    aria-hidden="true"
-                    className="h-16 w-20 rounded-tapit bg-tapit-soft-surface"
-                  />
-                )}
-                <Field
-                  id={`${baseId}-slide-${index}-alt`}
-                  label={`Slideshow image ${index + 1} description`}
-                  help="Optional. Add a description if it helps explain the image."
-                  maxLength={160}
-                  onChange={(event) => updateSlide(index, { altText: event.target.value })}
-                  value={image.altText}
-                />
-                <div className="flex min-w-0 flex-wrap gap-2 sm:flex-col">
-                  <Button
-                    aria-label={`Use slideshow image ${index + 1} as background`}
-                    onClick={() =>
-                      update({ background: { ...image, positionX: 50, positionY: 50 } })
-                    }
-                    type="button"
-                    variant="quiet"
-                  >
-                    Use as background
-                  </Button>
-                  <Button
-                    aria-label={`Remove slideshow image ${index + 1}`}
-                    onClick={() => removeSlide(index)}
-                    type="button"
-                    variant="quiet"
-                  >
-                    <TrashIcon
-                      aria-hidden="true"
-                      size={16}
-                      weight={barePanels ? "bold" : "regular"}
-                    />
-                    Remove
-                  </Button>
-                </div>
+              <Field
+                id={`${baseId}-slide-${index}-alt`}
+                label={`Slideshow image ${index + 1} description`}
+                help="Optional. Add a description if it helps explain the image."
+                maxLength={160}
+                onChange={(event) => updateSlide(index, { altText: event.target.value })}
+                value={image.altText}
+              />
+              <div className="flex min-w-0 flex-wrap gap-2">
+                <Button
+                  aria-label={`Use slideshow image ${index + 1} as background`}
+                  onClick={() => update({ background: { ...image, positionX: 50, positionY: 50 } })}
+                  type="button"
+                  variant="quiet"
+                >
+                  Use as background
+                </Button>
+                <Button
+                  aria-label={`Remove slideshow image ${index + 1}`}
+                  onClick={() => removeSlide(index)}
+                  type="button"
+                  variant="quiet"
+                >
+                  <Icon className="size-4" name="trash" />
+                  Remove
+                </Button>
               </div>
             </li>
           ))}
         </ol>
+        <div className="grid gap-1 text-xs text-tapit-muted">
+          <p>
+            Shown as a slideshow under your name. {value.slideshow.length + slideshowQueue.length}{" "}
+            of {MAX_PROFILE_SLIDESHOW_IMAGES} images.
+          </p>
+          {value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES ? (
+            <p>Maximum of 10 images. Remove an image to add another.</p>
+          ) : null}
+          {missingSlideshowImageCount > 0 ? (
+            <p>Some slideshow images are unavailable for preview.</p>
+          ) : null}
+        </div>
         <p aria-atomic="true" aria-live="polite" className="sr-only" role="status">
           {slideshowAnnouncement}
         </p>
       </div>
 
       <label
-        className="flex min-h-12 items-center gap-3 text-sm font-semibold text-tapit-ink"
+        className="flex min-h-11 items-center gap-3 text-sm font-semibold text-tapit-ink"
         hidden={!showSlideshow}
         style={!showSlideshow ? { display: "none" } : undefined}
       >
@@ -890,7 +845,7 @@ export function ProfileMediaEditor({
         <div
           className={
             activeUploadFailure
-              ? "grid gap-3 rounded-tapit border border-tapit-danger/30 bg-[#fff1f0] p-3 sm:flex sm:items-center sm:justify-between"
+              ? "grid gap-3 rounded-control bg-tapit-danger-soft px-4 py-3 sm:flex sm:items-center sm:justify-between"
               : undefined
           }
         >

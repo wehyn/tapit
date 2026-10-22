@@ -1,38 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  BriefcaseIcon,
-  CalendarDotsIcon,
-  CameraIcon,
-  CheckIcon,
-  CodeIcon,
-  EnvelopeSimpleIcon,
-  GithubLogoIcon,
-  GlobeIcon,
-  ImagesIcon,
-  InstagramLogoIcon,
-  LinkSimpleIcon,
-  LinkedinLogoIcon,
-  PaletteIcon,
-  PhoneIcon,
-} from "@phosphor-icons/react";
 import type { LinkIcon } from "@/lib/domain";
+import { Icon } from "@/components/ui/Icon";
 
 const options = [
-  { value: "link", label: "Generic link", icon: LinkSimpleIcon },
-  { value: "globe", label: "Website / globe", icon: GlobeIcon },
-  { value: "mail", label: "Email", icon: EnvelopeSimpleIcon },
-  { value: "phone", label: "Phone", icon: PhoneIcon },
-  { value: "calendar", label: "Booking / calendar", icon: CalendarDotsIcon },
-  { value: "linkedin", label: "LinkedIn", icon: LinkedinLogoIcon },
-  { value: "instagram", label: "Instagram", icon: InstagramLogoIcon },
-  { value: "briefcase", label: "Portfolio / briefcase", icon: BriefcaseIcon },
-  { value: "images", label: "Gallery / images", icon: ImagesIcon },
-  { value: "palette", label: "Design / palette", icon: PaletteIcon },
-  { value: "code", label: "Development / code", icon: CodeIcon },
-  { value: "camera", label: "Photography / camera", icon: CameraIcon },
-  { value: "github", label: "GitHub", icon: GithubLogoIcon },
+  { value: "link", label: "Generic link", icon: "linkSimple" },
+  { value: "globe", label: "Website / globe", icon: "globe" },
+  { value: "mail", label: "Email", icon: "email" },
+  { value: "phone", label: "Phone", icon: "phone" },
+  { value: "calendar", label: "Booking / calendar", icon: "calendar" },
+  { value: "linkedin", label: "LinkedIn", icon: "linkedin" },
+  { value: "instagram", label: "Instagram", icon: "instagram" },
+  { value: "briefcase", label: "Portfolio / briefcase", icon: "briefcase" },
+  { value: "images", label: "Gallery / images", icon: "images" },
+  { value: "palette", label: "Design / palette", icon: "palette" },
+  { value: "code", label: "Development / code", icon: "code" },
+  { value: "camera", label: "Photography / camera", icon: "camera" },
+  { value: "github", label: "GitHub", icon: "github" },
 ] as const;
 
 export function LinkPresetIconPicker({
@@ -73,15 +58,15 @@ export function LinkPresetIconPicker({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen(!open)}
-        className="grid size-11 shrink-0 place-items-center rounded-tapit bg-tapit-accent-soft text-tapit-accent transition hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+        className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent transition-colors hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
       >
-        <selected.icon aria-hidden="true" size={19} weight="bold" className="shrink-0" />
+        <Icon name={selected.icon} size={19} weight="bold" className="shrink-0" />
       </button>
       {open ? (
         <div
           role="listbox"
           aria-label={`Preset icon for ${label || "link"}`}
-          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-tapit border border-tapit-line bg-white p-1 shadow-xl"
+          className="absolute left-0 top-full z-40 mt-1 max-h-64 w-60 overflow-y-auto overscroll-contain rounded-card bg-tapit-surface p-1 shadow-card"
         >
           {options.map((option) => (
             <button
@@ -94,11 +79,11 @@ export function LinkPresetIconPicker({
                 setOpen(false);
                 root.current?.querySelector("button")?.focus();
               }}
-              className="flex min-h-10 w-full items-center gap-3 rounded-tapit px-3 text-left text-sm text-tapit-ink hover:bg-tapit-accent-soft focus-visible:bg-tapit-accent-soft focus-visible:outline-none"
+              className="flex min-h-11 w-full items-center gap-3 rounded-control px-3 text-left text-sm text-tapit-ink hover:bg-tapit-accent-soft focus-visible:bg-tapit-accent-soft focus-visible:outline-none"
             >
-              <option.icon aria-hidden="true" size={18} className="text-tapit-accent" />
+              <Icon name={option.icon} size={18} className="text-tapit-accent" />
               <span className="flex-1">{option.label}</span>
-              {option.value === selected.value ? <CheckIcon aria-hidden="true" size={16} /> : null}
+              {option.value === selected.value ? <Icon name="check" size={16} /> : null}
             </button>
           ))}
         </div>

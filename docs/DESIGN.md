@@ -403,72 +403,100 @@ Inactive-card and unavailable-profile are separate states. A card can be inactiv
 
 ### Overall character
 
-Tapit uses the approved **Soft Precision** direction: a cool, quiet canvas, white surfaces, deep ink type, a clear blue accent, rounded controls, and generous Apple-like spacing with restrained, Linear-inspired precision. Shadows add light separation to major surfaces without turning every workspace row into a floating card. The public site, authentication, customer workspace, and admin tools share the same foundations while keeping role-specific hierarchy.
+Tapit uses the **Soft Precision** direction: a cool canvas, white surfaces, deep ink text, a blue accent, rounded controls, and generous spacing. The public site, authentication, customer workspace, and admin tools share the same visual foundations while keeping role-specific hierarchy.
 
 The existing `/app` redirect and navigation destinations remain authoritative. No external fonts, animation packages, or new visual dependencies were added.
 
-The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. The default Paper profile theme uses Soft Precision. Explicitly selected Moss, Night, and Warm Studio themes override that default and keep their own visual treatment.
+The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol. Body copy, controls, and display headings use the platform system sans-serif stack. Paper, Moss, and Night use named profile theme tokens. The default Paper profile theme uses Soft Precision. Explicitly selected Moss, Night, Warm Studio, and Custom themes keep their own visual treatment.
 
-### Implemented tokens
+### Core palette
 
-| Role | CSS token | Value |
+| Token | Value | Use |
 | --- | --- | --- |
-| Main text | `--tapit-ink` | `#1b2433` |
-| Secondary text | `--tapit-muted` | `#626f82` |
-| Main surface | `--tapit-surface` | `#ffffff` |
-| Page canvas | `--tapit-paper` | `#f4f6fa` |
-| Soft surface | `--tapit-soft-surface` | `#f0f3f9` |
-| Borders | `--tapit-line` | `#e0e5ed` |
-| Primary accent | `--tapit-accent` | `#3f6de8` |
-| Strong/text accent | `--tapit-accent-strong` | `#315fe4` |
-| Accent surface | `--tapit-accent-soft` | `#e8edf9` |
-| Warm accent | `--tapit-warm` | `#c9a875` |
-| Focus ring | `--tapit-focus` | `--tapit-accent` |
-| Shared panel radius | `--tapit-radius` | `18px` |
+| `--tapit-ink` | `#1b2433` | Primary text |
+| `--tapit-muted` | `#626f82` | Secondary text |
+| `--tapit-surface` | `#ffffff` | Cards and raised surfaces |
+| `--tapit-paper` | `#f4f6fa` | Application canvas |
+| `--tapit-soft-surface` | `#f0f3f9` | Inputs and tonal tiles |
+| `--tapit-accent` | `#3f6de8` | Primary actions and emphasis |
+| `--tapit-accent-strong` | `#315fe4` | Accent hover and text links |
+| `--tapit-accent-soft` | `#e8edf9` | Selected and active surfaces |
+| `--tapit-warm` | `#c9a875` | Warm highlights |
+| `--tapit-success-soft` / `--tapit-success-ink` | `#e1f2e9` / `#10543f` | Success fill and text |
+| `--tapit-warning-soft` / `--tapit-warning-ink` | `#fff4df` / `#784b13` | Warning fill and text |
+| `--tapit-danger-soft` / `--tapit-danger` | `#fff1f0` / `#a33c38` | Danger fill and text |
 
-The muted and text-accent values are darker than the initial mockup values to keep small text readable on the selected canvas. Status colors use paired fills and text: success `#e1f2e9` / `#10543f`, warning `#fff4df` / `#784b13`, and danger `#fff1f0` / `#a33c38`. Controls use smaller corners than prominent panels. Soft and raised shadows use the ink hue at low opacity and remain limited to elevated surfaces.
+### Profile theme tokens
+
+Paper uses the shared Soft Precision tokens. Moss and Night keep their existing colors in named tokens so the profile themes do not add colors to shared app surfaces.
+
+| Theme | Named tokens |
+| --- | --- |
+| Paper | `--tapit-ink: #1b2433`, `--tapit-muted: #626f82`, `--tapit-surface: #ffffff`, `--tapit-paper: #f4f6fa`, `--tapit-soft-surface: #f0f3f9`, `--tapit-accent: #3f6de8`, `--tapit-accent-strong: #315fe4`, `--tapit-accent-soft: #e8edf9` |
+| Moss | `--tapit-moss-ink: #17352b`, `--tapit-moss-muted: #4f6d5c`, `--tapit-moss-surface: #f7fbf8`, `--tapit-moss-paper: #e8f1eb`, `--tapit-moss-soft-surface: #dcece2`, `--tapit-moss-accent: #176b57`, `--tapit-moss-accent-strong: #105543` |
+| Night | `--tapit-night-ink: #f2f6f1`, `--tapit-night-muted: #b7c9c0`, `--tapit-night-surface: #22302b`, `--tapit-night-paper: #17211f`, `--tapit-night-soft-surface: #2d4239`, `--tapit-night-accent: #7bc2a9`, `--tapit-night-accent-strong: #a0dbc5` |
+
+The existing Warm Studio profile preset keeps its saved colors in named `--tapit-warm-studio-*` tokens. These values stay within profile surfaces.
+
+### Shape, spacing, and elevation
+
+- Use a `12px` radius for controls and tiles, a `20px` radius for cards and sheets, and a full pill radius for pills and avatars.
+- The one exception is square corners (`rounded-none`) on the public profile's phone layouts: the full-surface preview and the live public profile below the `sm` breakpoint, where the profile runs edge to edge. Do not use square corners anywhere else.
+- Use the spacing scale `4, 8, 12, 16, 24, 32, 48, 64px`.
+- Give cards `24px` of padding, use `16px` between cards, and use `32px` between sections.
+- Use one shadow token, `--tapit-shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05)`.
+- Separate content with tone and spacing. Do not add divider borders or `1px` outlines to cards, inputs, or navigation items.
+- Keep a visible focus indicator for keyboard users. Focus indicators are not decorative component outlines.
 
 ### Layout and spacing
 
 - Use a centered, single-column public profile with a 448px maximum width and generous breathing room.
 - Keep link buttons visually consistent and easy to scan. Identity appears before links; Save contact stays visually distinct from external destinations.
-- Reuse the Tailwind spacing scale across form groups, rows, cards, and sections.
-- Use rounded panels and calm, repeated spacing for the marketing specimen and workspace; reserve larger gaps for section changes and page edges.
+- Use the documented spacing scale across form groups, rows, cards, and sections.
+- Use rounded panels and tonal surfaces. Reserve larger gaps for section changes and page edges.
 - Keep one clear primary action per context: Publish, Add link, Register/Assign, or Save contact.
-- Use a full sidebar at 1280px and above, a compact icon rail from 1024px, and the existing sticky mobile header plus accessible drawer below 1024px. Customer and administrator navigation remain distinct.
+- Use the shared workspace shell for customer and administrator pages. Show a labelled 248px sidebar on desktop, and use mobile bottom tabs with a More sheet on phones.
+- Keep save status visible in the shared workspace shell. Use `DraftSaveContext` to save registered dirty drafts before navigation.
 - Keep page headers, forms, previews, tables, and dialogs usable from 320 CSS pixels upward. Collapse administrative records into readable cards where needed; avoid page-level horizontal scrolling.
 
 ### Color
 
 - Use the cool neutral application base and blue accent tokens above for shared controls and navigation.
-- Use Soft Precision tokens for the default Paper profile theme; keep Moss, Night, and Warm Studio overrides scoped to the profile surface.
+- Use Soft Precision tokens for shared app screens. Apply Paper, Moss, and Night tokens to profile surfaces.
 - Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
 - Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
+- The slideshow reduced-motion notice uses warm-studio muted (about 5.4:1 on the warm studio surface), replacing the one-off #594c43.
 
 ### Typography
 
 - Use the system stack `ui-sans-serif`, `-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, and `sans-serif` for body text, fields, navigation, statuses, and buttons.
 - Use the same system sans-serif stack for `.tapit-display`, application page headings, and marketing display text.
+- Use only `12px`, `14px`, `16px`, `20px`, `28px`, `40px`, and `56px` text sizes. Reserve `56px` for the landing page hero.
 - Use compact uppercase tracking for small section labels, clear heading levels for page context, and comfortable line height for body copy and legal content.
 - Keep public identity and link labels readable; use small metadata only for secondary status and timestamps.
 
 ### Marketing landing page
 
-The home page order is sticky public navigation, hero, factual product facts, features, card/profile showcase, benefits, three-step explanation, FAQ, closing CTA, and footer. The hero message is “A better introduction, in one tap.” The capability band explains NFC, QR fallback, no-app access, and editable profile details; it does not invent customer counts, endorsements, or logos. Pricing and testimonial sections are intentionally omitted.
+The home page order is sticky public navigation, hero, features, card/profile showcase, benefits, three-step explanation, FAQ, closing CTA, and footer. The hero message is “Share with a tap.” The page does not invent customer counts, endorsements, or logos. Pricing and testimonial sections are intentionally omitted.
 
-The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. “Explore card designs” and the footer’s “Design a card” link remain secondary paths to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
+The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. The footer’s “Design a card” link remains a secondary path to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
 
-Scroll reveals and staggered entrances progressively enhance the home page while preserving immediately available hero content and a visible no-JavaScript state. Reduced-motion mode disables reveal, ambient, and entry motion. Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
+Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
 
 ### Components and interaction
 
 - Build Tapit-owned components with Tailwind CSS.
+- Use the existing `Icon` component for interface icons.
+- Images use `--tapit-shadow` via `.tapit-image-outline`, or `shadow-image` on the public profile avatar. On dark profile surfaces (Night, and custom colours whose surface is dark) the profile sets `--tapit-image-shadow` to a 10% white hairline plus the standard shadow, because the shadow alone disappears. Full-bleed images inside a clipped frame rely on the frame for their edge.
 - Use accessible behavior for dialogs, menus, tabs, toggles, and reordering without adopting an opinionated visual library.
+- Use `44px`-tall buttons. Hover states change color only; they do not lift or scale.
 - Prefer direct manipulation with explicit save/publish semantics.
 - Keep draft and published states visible in editing contexts.
 - Confirm deactivation, replacement, deletion, and suspension.
 - Provide immediate, specific feedback for validation and server outcomes.
 - Avoid automatic publication, hidden destructive behavior, and hover-only interactions.
+
+The customer workspace shell subscribes to `api.profiles.mine` in read-only mode, and only for customers who own a profile. It uses the result to show the Live or Draft status chip and the `/slug` link. This shares the subscription already open on customer profile pages.
 
 ### Applied screen families
 
