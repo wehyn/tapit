@@ -248,9 +248,10 @@ body {
   animation-duration: 430ms;
 }
 
-.tapit-image-outline {
-  outline: 1px solid oklch(0 0 0 / 0.1);
-  outline-offset: -1px;
+@layer components {
+  .tapit-image-outline {
+    box-shadow: var(--tapit-shadow);
+  }
 }
 
 .tapit-preview-entry {

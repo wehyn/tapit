@@ -1,9 +1,3 @@
-import {
-  CalendarDotsIcon,
-  ContactlessPaymentIcon,
-  GlobeIcon,
-  LinkedinLogoIcon,
-} from "@phosphor-icons/react/dist/ssr";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -54,7 +48,7 @@ const steps = [
       "Arrange your social profiles and contact details. Change them whenever your priorities do.",
   },
   {
-    icon: <ContactlessPaymentIcon size={20} />,
+    icon: <Icon name="contactless" size={20} />,
     title: "Tap or scan to connect",
     description:
       "Your NFC card opens the profile. A QR code gives people another easy way to get there.",
@@ -116,7 +110,7 @@ export default function HomePage() {
 
           <div className="relative flex justify-center py-6">
             <div className="absolute bottom-6 left-0 z-20 flex aspect-[16/10] w-60 -rotate-6 flex-col justify-between rounded-card bg-tapit-ink p-6 text-white shadow-card sm:bottom-12 sm:left-4">
-              <ContactlessPaymentIcon className="self-end text-tapit-warm" size={24} />
+              <Icon className="self-end text-tapit-warm" name="contactless" size={24} />
               <p className="text-sm font-semibold">Mara Velasquez</p>
             </div>
             <div
@@ -147,21 +141,21 @@ export default function HomePage() {
                 <ul className="flex w-full flex-col gap-2">
                   <li className="flex min-h-13 items-center gap-3 rounded-control bg-tapit-surface px-4 text-left text-sm font-semibold text-tapit-ink shadow-card">
                     <span className="grid size-9 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent">
-                      <LinkedinLogoIcon size={16} />
+                      <Icon name="linkedin" size={16} />
                     </span>
                     LinkedIn
                     <Icon className="ml-auto text-tapit-muted" name="caretRight" size={16} />
                   </li>
                   <li className="flex min-h-13 items-center gap-3 rounded-control bg-tapit-surface px-4 text-left text-sm font-semibold text-tapit-ink shadow-card">
                     <span className="grid size-9 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent">
-                      <GlobeIcon size={16} />
+                      <Icon name="globe" size={16} />
                     </span>
                     Portfolio
                     <Icon className="ml-auto text-tapit-muted" name="caretRight" size={16} />
                   </li>
                   <li className="flex min-h-13 items-center gap-3 rounded-control bg-tapit-surface px-4 text-left text-sm font-semibold text-tapit-ink shadow-card">
                     <span className="grid size-9 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent">
-                      <CalendarDotsIcon size={16} />
+                      <Icon name="calendar" size={16} />
                     </span>
                     Book a conversation
                     <Icon className="ml-auto text-tapit-muted" name="caretRight" size={16} />

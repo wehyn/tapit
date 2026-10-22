@@ -29,11 +29,9 @@ function getReducedMotionSnapshot() {
 export function ProfileSlideshow({
   images,
   autoplay,
-  imageOutlineColor = "oklch(0 0 0 / 0.1)",
 }: {
   images: PublicProfileMediaImage[];
   autoplay: boolean;
-  imageOutlineColor?: string;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [visible, setVisible] = useState(false);
@@ -199,7 +197,6 @@ export function ProfileSlideshow({
           key={safeActiveIndex}
           loading={safeActiveIndex === 0 ? "eager" : "lazy"}
           src={current.src}
-          style={{ outlineColor: imageOutlineColor }}
         />
         <div
           className={`absolute inset-0 ${controlsShouldBeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
@@ -208,18 +205,16 @@ export function ProfileSlideshow({
             <>
               <button
                 aria-label="Previous image"
-                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="absolute left-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex - 1)}
-                style={{ color: "#2c2420" }}
                 type="button"
               >
                 <Icon name="arrowLeft" size={20} />
               </button>
               <button
                 aria-label="Next image"
-                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="absolute right-3 top-1/2 grid min-h-11 min-w-11 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 onClick={() => goTo(safeActiveIndex + 1)}
-                style={{ color: "#2c2420" }}
                 type="button"
               >
                 <Icon name="arrowRight" size={20} />
@@ -251,13 +246,12 @@ export function ProfileSlideshow({
           ) : null}
           <button
             aria-label="View image"
-            className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+            className="absolute left-1/2 top-1/2 grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-tapit-warm-studio-surface/90 text-tapit-warm-studio-ink shadow-card hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
             onClick={() => {
               dialogRef.current?.showModal();
               setFullImageOpen(true);
             }}
             ref={viewImageRef}
-            style={{ color: "#2c2420" }}
             type="button"
           >
             <Icon name="arrowsOut" size={24} />
@@ -265,7 +259,7 @@ export function ProfileSlideshow({
         </div>
       </div>
       {showReducedMotionNotice ? (
-        <p className="px-4 py-3 text-sm" role="status" style={{ color: "#594c43" }}>
+        <p className="px-4 py-3 text-sm text-tapit-warm-studio-muted" role="status">
           Your reduced-motion preference disables autoplay. Use Previous image, Next image, or the
           image picker to browse manually.
         </p>
@@ -280,9 +274,8 @@ export function ProfileSlideshow({
         ref={dialogRef}
       >
         <button
-          className="ml-auto mb-2 block min-h-11 shrink-0 rounded-control px-3 py-2 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          className="ml-auto mb-2 block min-h-11 shrink-0 rounded-control px-3 py-2 text-sm font-semibold text-tapit-warm-studio-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
           onClick={() => dialogRef.current?.close()}
-          style={{ color: "#2c2420" }}
           type="button"
         >
           Close full image

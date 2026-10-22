@@ -413,18 +413,18 @@ The shared brand mark is a lowercase `tapit` wordmark with a fingerprint symbol.
 
 | Token | Value | Use |
 | --- | --- | --- |
-| `--ink` | `#1b2433` | Primary text |
-| `--muted` | `#626f82` | Secondary text |
-| `--surface` | `#ffffff` | Cards and raised surfaces |
-| `--paper` | `#f4f6fa` | Application canvas |
-| `--soft` | `#f0f3f9` | Inputs and tonal tiles |
-| `--accent` | `#3f6de8` | Primary actions and emphasis |
-| `--accent-strong` | `#315fe4` | Accent hover and text links |
-| `--accent-soft` | `#e8edf9` | Selected and active surfaces |
-| `--warm` | `#c9a875` | Warm highlights |
-| `--ok-bg` / `--ok` | `#e1f2e9` / `#10543f` | Success fill and text |
-| `--warn-bg` / `--warn` | `#fff4df` / `#784b13` | Warning fill and text |
-| `--danger-bg` / `--danger` | `#fff1f0` / `#a33c38` | Danger fill and text |
+| `--tapit-ink` | `#1b2433` | Primary text |
+| `--tapit-muted` | `#626f82` | Secondary text |
+| `--tapit-surface` | `#ffffff` | Cards and raised surfaces |
+| `--tapit-paper` | `#f4f6fa` | Application canvas |
+| `--tapit-soft-surface` | `#f0f3f9` | Inputs and tonal tiles |
+| `--tapit-accent` | `#3f6de8` | Primary actions and emphasis |
+| `--tapit-accent-strong` | `#315fe4` | Accent hover and text links |
+| `--tapit-accent-soft` | `#e8edf9` | Selected and active surfaces |
+| `--tapit-warm` | `#c9a875` | Warm highlights |
+| `--tapit-success-soft` / `--tapit-success-ink` | `#e1f2e9` / `#10543f` | Success fill and text |
+| `--tapit-warning-soft` / `--tapit-warning-ink` | `#fff4df` / `#784b13` | Warning fill and text |
+| `--tapit-danger-soft` / `--tapit-danger` | `#fff1f0` / `#a33c38` | Danger fill and text |
 
 ### Profile theme tokens
 
@@ -441,6 +441,7 @@ The existing Warm Studio profile preset keeps its saved colors in named `--tapit
 ### Shape, spacing, and elevation
 
 - Use a `12px` radius for controls and tiles, a `20px` radius for cards and sheets, and a full pill radius for pills and avatars.
+- The one exception is square corners (`rounded-none`) on the public profile's phone layouts: the full-surface preview and the live public profile below the `sm` breakpoint, where the profile runs edge to edge. Do not use square corners anywhere else.
 - Use the spacing scale `4, 8, 12, 16, 24, 32, 48, 64px`.
 - Give cards `24px` of padding, use `16px` between cards, and use `32px` between sections.
 - Use one shadow token, `--tapit-shadow: 0 1px 2px rgb(27 36 51 / .04), 0 8px 24px rgb(27 36 51 / .05)`.
@@ -475,11 +476,11 @@ The existing Warm Studio profile preset keeps its saved colors in named `--tapit
 
 ### Marketing landing page
 
-The home page order is sticky public navigation, hero, factual product facts, features, card/profile showcase, benefits, three-step explanation, FAQ, closing CTA, and footer. The hero message is “A better introduction, in one tap.” The capability band explains NFC, QR fallback, no-app access, and editable profile details; it does not invent customer counts, endorsements, or logos. Pricing and testimonial sections are intentionally omitted.
+The home page order is sticky public navigation, hero, features, card/profile showcase, benefits, three-step explanation, FAQ, closing CTA, and footer. The hero message is “Share with a tap.” The page does not invent customer counts, endorsements, or logos. Pricing and testimonial sections are intentionally omitted.
 
-The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. “Explore card designs” and the footer’s “Design a card” link remain secondary paths to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
+The primary “Go to your profile” actions open `/app/profile`. Signed-in customers land in the profile editor; signed-out visitors follow the existing login guard and retain `/app/profile` as their return destination. The footer’s “Design a card” link remains a secondary path to `/build-card`, which provides Canva and upload options and says custom card ordering is coming soon. The home page and FAQ preserve this limit and do not imply that physical-card checkout is available.
 
-Scroll reveals and staggered entrances progressively enhance the home page while preserving immediately available hero content and a visible no-JavaScript state. Reduced-motion mode disables reveal, ambient, and entry motion. Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
+Reduced-transparency mode replaces translucent surfaces with solid ones. Blur stays limited to the public navigation and decorative overlays.
 
 ### Components and interaction
 
@@ -492,6 +493,8 @@ Scroll reveals and staggered entrances progressively enhance the home page while
 - Confirm deactivation, replacement, deletion, and suspension.
 - Provide immediate, specific feedback for validation and server outcomes.
 - Avoid automatic publication, hidden destructive behavior, and hover-only interactions.
+
+The customer workspace shell subscribes to `api.profiles.mine` in read-only mode, and only for customers who own a profile. It uses the result to show the Live or Draft status chip and the `/slug` link. This shares the subscription already open on customer profile pages.
 
 ### Applied screen families
 

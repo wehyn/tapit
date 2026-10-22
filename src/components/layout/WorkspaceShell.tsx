@@ -248,6 +248,12 @@ function LiveWorkspaceShell({
       onSignOut={async () => {
         const outcome = await draftSave();
         if (outcome.kind !== "saved") throw new Error(signOutSaveFailureMessage(outcome));
+        if (audience === "admin") {
+          // Admins always leave for /login, even when signOut fails.
+          await signOut().catch(() => undefined);
+          router.replace("/login");
+          return;
+        }
         await signOut();
         router.replace("/login");
       }}

@@ -241,13 +241,6 @@ export function PublicProfile({
   const wideProfile = !phonePreview;
   const centerIdentity = phonePreview;
   const theme = selectedTheme === "custom" && !customTheme ? "paper" : selectedTheme;
-  const imageOutlineColor =
-    theme === "night" ||
-    (theme === "custom" &&
-      readableTextOn(appearance.customColors?.surface ?? DEFAULT_CUSTOM_PROFILE_COLORS.surface) ===
-        "white")
-      ? "oklch(1 0 0 / 0.1)"
-      : "oklch(0 0 0 / 0.1)";
   void profileUrl;
   const automaticContactActions = getAutomaticContactActions(profile);
   const hasVCardContactAction = automaticContactActions.some(
@@ -523,7 +516,6 @@ export function PublicProfile({
             height={96}
             src={profile.imageUrl}
             srcSet={profile.imageSrcSet}
-            style={{ outlineColor: imageOutlineColor }}
             sizes={
               profile.imageSrcSet
                 ? compactPhonePreview
@@ -615,11 +607,7 @@ export function PublicProfile({
   const orderedBlocks: Record<ProfileLayoutBlock, ReactNode> = {
     slideshow:
       media && media.slideshow.length > 0 ? (
-        <ProfileSlideshow
-          autoplay={media.autoplay ?? true}
-          imageOutlineColor={imageOutlineColor}
-          images={media.slideshow}
-        />
+        <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
       ) : null,
     links:
       featuredLink || links.length > 0 || (publicMobileLayout && canSaveContact) ? (
