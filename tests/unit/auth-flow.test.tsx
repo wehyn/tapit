@@ -492,6 +492,36 @@ describe("non-active workspace shells", () => {
     expect(replace).not.toHaveBeenCalled();
   });
 
+  it("admin sign-out failure shows the error and stays signed in", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    signOut.mockRejectedValue(new Error("Sign out failed"));
+    const { AdminShell } = await loadShells();
+
+    render(
+      <AdminShell>
+        <div>admin content</div>
+      </AdminShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign out failed");
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalledWith("/login");
+    expect(screen.getByText("admin content")).toBeInTheDocument();
+  });
+
   it("marks Customize active for an active customer at /app/customize", async () => {
     vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
     currentPath = "/app/customize";

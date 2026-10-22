@@ -465,6 +465,7 @@ The existing Warm Studio profile preset keeps its saved colors in named `--tapit
 - Use Soft Precision tokens for shared app screens. Apply Paper, Moss, and Night tokens to profile surfaces.
 - Pair status colors with visible labels and, where useful, icons. Never communicate state by color alone.
 - Preserve the focus ring, readable contrast, and reduced-motion behavior across themes and responsive layouts.
+- The slideshow reduced-motion notice uses warm-studio muted (about 5.4:1 on the warm studio surface), replacing the one-off #594c43.
 
 ### Typography
 
@@ -486,6 +487,7 @@ Reduced-transparency mode replaces translucent surfaces with solid ones. Blur st
 
 - Build Tapit-owned components with Tailwind CSS.
 - Use the existing `Icon` component for interface icons.
+- Images use `--tapit-shadow` via `.tapit-image-outline`. Full-bleed images inside a clipped frame rely on the frame for their edge.
 - Use accessible behavior for dialogs, menus, tabs, toggles, and reordering without adopting an opinionated visual library.
 - Use `44px`-tall buttons. Hover states change color only; they do not lift or scale.
 - Prefer direct manipulation with explicit save/publish semantics.
