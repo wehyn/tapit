@@ -142,6 +142,7 @@
   /* One shadow. Everything else separates by tone and space. */
   --shadow-*: initial;
   --shadow-card: var(--tapit-shadow);
+  --shadow-image: var(--tapit-image-shadow, var(--tapit-shadow));
 }
 
 @layer base {
@@ -250,7 +251,7 @@ body {
 
 @layer components {
   .tapit-image-outline {
-    box-shadow: var(--tapit-shadow);
+    box-shadow: var(--tapit-image-shadow, var(--tapit-shadow));
   }
 }
 

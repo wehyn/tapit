@@ -487,7 +487,7 @@ Reduced-transparency mode replaces translucent surfaces with solid ones. Blur st
 
 - Build Tapit-owned components with Tailwind CSS.
 - Use the existing `Icon` component for interface icons.
-- Images use `--tapit-shadow` via `.tapit-image-outline`. Full-bleed images inside a clipped frame rely on the frame for their edge.
+- Images use `--tapit-shadow` via `.tapit-image-outline`, or `shadow-image` on the public profile avatar. On dark profile surfaces (Night, and custom colours whose surface is dark) the profile sets `--tapit-image-shadow` to a 10% white hairline plus the standard shadow, because the shadow alone disappears. Full-bleed images inside a clipped frame rely on the frame for their edge.
 - Use accessible behavior for dialogs, menus, tabs, toggles, and reordering without adopting an opinionated visual library.
 - Use `44px`-tall buttons. Hover states change color only; they do not lift or scale.
 - Prefer direct manipulation with explicit save/publish semantics.

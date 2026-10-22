@@ -556,6 +556,10 @@ test("legacy customer typography and selected theme remain intact after publishi
   await expect(directHeading).toHaveCSS("font-size", previewFontSize);
   await expect(page.getByText("Legacy profile migration test.")).toBeVisible();
   await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
+  await expect(page.locator("main img").first()).toHaveCSS(
+    "box-shadow",
+    /rgba\(255, 255, 255, 0\.1\) 0px 0px 0px 1px/,
+  );
   const directProfile = await readPublicProfileSnapshot(page);
 
   await page.goto("/c/mara-card-7f2q");

@@ -30,6 +30,9 @@ const MAX_VCARD_PHOTO_PIXELS = 16_000_000;
 
 type ProfileThemeCSSProperties = CSSProperties & Record<`--tapit-${string}`, string>;
 
+// Shadow-only image edges vanish on dark surfaces, so they get a light hairline.
+const DARK_SURFACE_IMAGE_SHADOW = "0 0 0 1px rgb(255 255 255 / 0.1), var(--tapit-shadow)";
+
 const profileThemeStyles: Record<
   Exclude<ProfileTheme, "paper" | "custom">,
   ProfileThemeCSSProperties
@@ -59,6 +62,7 @@ const profileThemeStyles: Record<
     "--tapit-accent-foreground": "var(--tapit-night-accent-foreground)",
     "--tapit-accent-soft": "var(--tapit-night-soft-surface)",
     "--tapit-focus": "var(--tapit-night-accent-strong)",
+    "--tapit-image-shadow": DARK_SURFACE_IMAGE_SHADOW,
   },
 };
 
@@ -76,6 +80,9 @@ function customProfileThemeStyles(colors: ProfileThemeColors): ProfileThemeCSSPr
     "--tapit-accent-foreground": readableTextOn(colors.accent),
     "--tapit-accent-soft": accentSoftSurface,
     "--tapit-focus": colors.accent,
+    ...(readableTextOn(colors.surface) === "white"
+      ? { "--tapit-image-shadow": DARK_SURFACE_IMAGE_SHADOW }
+      : {}),
   };
 }
 
@@ -512,7 +519,7 @@ export function PublicProfile({
         {profile.imageUrl ? (
           <img
             alt={`${profile.name} profile`}
-            className={`${publicMobileLayout ? "size-[104px] ring-4 ring-tapit-paper shadow-card" : compactPhonePreview ? "size-16 ring-4 ring-white shadow-card" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover tapit-image-outline`}
+            className={`${publicMobileLayout ? "size-[104px] ring-4 ring-tapit-paper shadow-image" : compactPhonePreview ? "size-16 ring-4 ring-white shadow-image" : phonePreview ? "size-20" : "size-20 sm:size-24"} rounded-full object-cover tapit-image-outline`}
             height={96}
             src={profile.imageUrl}
             srcSet={profile.imageSrcSet}

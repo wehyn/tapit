@@ -37,7 +37,7 @@ const rules = [
   {
     name: "non-token shadow",
     pattern: /(?<![\w-])shadow-([\w.[\]#%/-]+)/g,
-    skip: (match) => match[1] === "card" || match[1] === "none",
+    skip: (match) => match[1] === "card" || match[1] === "image" || match[1] === "none",
   },
   {
     name: "hover motion",
