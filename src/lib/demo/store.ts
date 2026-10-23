@@ -3,10 +3,14 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
+import { isCardOrderLaunchEndDate } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
+  type DemoCardOrder,
+  type DemoCardOrderPaymentMethod,
+  type DemoCardOrderReferralCode,
   type DemoCustomer,
   type DemoProfile,
   type DemoState,
@@ -94,6 +98,118 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && typeof value === "number" && value >= 0;
+}
+
+function isHttpsCardDesignUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.username === "" && url.password === "";
+  } catch {
+    return false;
+  }
+}
+
+function isCardOrderPaymentMethod(value: unknown): value is DemoCardOrderPaymentMethod {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.provider === "string" &&
+    typeof value.label === "string" &&
+    typeof value.accountDetails === "string" &&
+    typeof value.instructions === "string" &&
+    typeof value.active === "boolean" &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferralCode {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.code === "string" &&
+    typeof value.referrerLabel === "string" &&
+    typeof value.active === "boolean" &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function isCardOrder(value: unknown): value is DemoCardOrder {
+  if (!isRecord(value) || !isRecord(value.paymentSnapshot) || !isRecord(value.designSource)) {
+    return false;
+  }
+
+  const { designSource, paymentSnapshot, referralSnapshot } = value;
+  const hasValidDesignSource =
+    (designSource.kind === "upload" &&
+      !("url" in designSource) &&
+      typeof designSource.assetKey === "string" &&
+      typeof designSource.fileName === "string" &&
+      (designSource.contentType === "image/jpeg" || designSource.contentType === "image/png") &&
+      isNonNegativeSafeInteger(designSource.byteSize)) ||
+    (designSource.kind === "url" &&
+      !("assetKey" in designSource) &&
+      !("fileName" in designSource) &&
+      !("contentType" in designSource) &&
+      !("byteSize" in designSource) &&
+      isHttpsCardDesignUrl(designSource.url));
+  const hasValidReferralSnapshot =
+    referralSnapshot === undefined ||
+    (isRecord(referralSnapshot) &&
+      typeof referralSnapshot.code === "string" &&
+      typeof referralSnapshot.referrerLabel === "string");
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.customerId === "string" &&
+    value.quantity === 1 &&
+    hasValidDesignSource &&
+    typeof value.deliveryName === "string" &&
+    typeof value.deliveryPhone === "string" &&
+    typeof value.deliveryAddress === "string" &&
+    isNonNegativeSafeInteger(value.cardPriceCentavos) &&
+    isNonNegativeSafeInteger(value.discountCentavos) &&
+    (value.shippingQuoteCentavos === undefined ||
+      isNonNegativeSafeInteger(value.shippingQuoteCentavos)) &&
+    typeof value.paymentMethodId === "string" &&
+    typeof paymentSnapshot.provider === "string" &&
+    typeof paymentSnapshot.label === "string" &&
+    typeof paymentSnapshot.accountDetails === "string" &&
+    typeof paymentSnapshot.instructions === "string" &&
+    (value.referralCodeId === undefined || typeof value.referralCodeId === "string") &&
+    hasValidReferralSnapshot &&
+    (value.paymentStatus === "unpaid" ||
+      value.paymentStatus === "received" ||
+      value.paymentStatus === "refunded") &&
+    (value.fulfillmentStatus === "awaiting_shipping_quote" ||
+      value.fulfillmentStatus === "awaiting_payment" ||
+      value.fulfillmentStatus === "processing" ||
+      value.fulfillmentStatus === "delivered" ||
+      value.fulfillmentStatus === "cancelled") &&
+    (value.commissionStatus === "none" ||
+      value.commissionStatus === "pending" ||
+      value.commissionStatus === "eligible" ||
+      value.commissionStatus === "paid" ||
+      value.commissionStatus === "void") &&
+    isNonNegativeSafeInteger(value.commissionCentavos) &&
+    (value.payoutReference === undefined || typeof value.payoutReference === "string") &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function normalizeCollection<T>(value: unknown, isItem: (item: unknown) => item is T): T[] {
+  return Array.isArray(value) && value.every(isItem) ? value : [];
+}
+
 function normalizeStoredState(raw: string): StateStorageRead {
   let decoded: unknown;
   try {
@@ -145,6 +261,18 @@ function normalizeStoredState(raw: string): StateStorageRead {
     ...fallback,
     ...parsed,
     cards,
+    cardOrderLaunchEndDate: isCardOrderLaunchEndDate(parsed.cardOrderLaunchEndDate)
+      ? parsed.cardOrderLaunchEndDate
+      : null,
+    cardOrderPaymentMethods: normalizeCollection(
+      parsed.cardOrderPaymentMethods,
+      isCardOrderPaymentMethod,
+    ),
+    cardOrderReferralCodes: normalizeCollection(
+      parsed.cardOrderReferralCodes,
+      isCardOrderReferralCode,
+    ),
+    cardOrders: normalizeCollection(parsed.cardOrders, isCardOrder),
     customers,
     profiles,
     themes: { ...fallback.themes, ...themes },
