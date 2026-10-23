@@ -1,10 +1,23 @@
 import { v } from "convex/values";
 
 import { internal } from "./_generated/api";
-import { internalMutation, mutation, type MutationCtx, type QueryCtx } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  query,
+  type MutationCtx,
+  type QueryCtx,
+} from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { customerForAuthUser, isActiveCustomer, requireUser, sameScope } from "./admin";
+import {
+  customerForAuthUser,
+  isActiveCustomer,
+  requireAdministrator,
+  requireUser,
+  sameScope,
+} from "./admin";
 import { inspectProfileStorage } from "./profileStorageReferences";
+import schema from "./schema";
 
 type DesignStorageContext = Pick<QueryCtx | MutationCtx, "db" | "storage">;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -29,33 +42,37 @@ async function storageIsUnreferenced(
   );
 }
 
-async function assertStorageWasUploadedAfterIntent(
+async function assertStorageWasNotCreatedBeforeIntent(
   ctx: MutationCtx,
   storageId: Id<"_storage">,
   intentCreatedAt: number,
 ) {
   const metadata = await ctx.db.system.get("_storage", storageId);
-  if (metadata === null || metadata._creationTime <= intentCreatedAt) {
+  if (metadata === null || metadata._creationTime < intentCreatedAt) {
     throw new Error("This upload was not created for the current upload request.");
   }
 }
 
-export const generateUploadUrl = mutation({
-  args: {},
-  returns: v.string(),
-  handler: async (ctx) => {
-    const userId = await requireUser(ctx);
+export const createUploadIntent = internalMutation({
+  args: { userId: v.id("users") },
+  returns: v.id("cardOrderDesignUploads"),
+  handler: async (ctx, args) => {
+    const userId = args.userId;
     const customer = await customerForAuthUser(ctx, userId);
     if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
       throw new Error("Active customer account required.");
     }
 
+    const now = Date.now();
     const previousIntents = await ctx.db
       .query("cardOrderDesignUploads")
       .withIndex("by_ownerId_and_status", (query) =>
         query.eq("ownerId", customer._id).eq("status", "pending"),
       )
       .take(2);
+    if (previousIntents.some((intent) => now - intent.createdAt < PENDING_INTENT_TTL_MS)) {
+      throw new Error("A card design upload is already being processed.");
+    }
     for (const intent of previousIntents) await ctx.db.delete(intent._id);
 
     const processingIntent = await ctx.db
@@ -66,75 +83,84 @@ export const generateUploadUrl = mutation({
       .first();
     if (
       processingIntent !== null &&
-      Date.now() - (processingIntent.processingAt ?? processingIntent.createdAt) <
-        PROCESSING_INTENT_TTL_MS
+      now - (processingIntent.processingAt ?? processingIntent.createdAt) < PROCESSING_INTENT_TTL_MS
     ) {
       throw new Error("A card design upload is already being processed.");
     }
-    if (processingIntent !== null) await ctx.db.delete(processingIntent._id);
+    if (processingIntent !== null)
+      throw new Error("A previous card design upload is still being cleaned up.");
 
     const uploadId = await ctx.db.insert("cardOrderDesignUploads", {
       ownerId: customer._id,
       scope: customer.scope,
       status: "pending",
-      createdAt: Date.now(),
+      createdAt: now,
     });
-    const uploadUrl = await ctx.storage.generateUploadUrl();
     await ctx.scheduler.runAfter(PENDING_INTENT_TTL_MS, internal.cardOrderDesigns.cleanup, {
       uploadId,
     });
-    return uploadUrl;
+    return uploadId;
   },
 });
 
-export const validateUpload = internalMutation({
-  args: { userId: v.id("users"), storageId: v.id("_storage") },
+export const prepareUpload = internalMutation({
+  args: {
+    uploadId: v.id("cardOrderDesignUploads"),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+  },
   returns: v.id("cardOrderDesignUploads"),
   handler: async (ctx, args) => {
-    const customer = await customerForAuthUser(ctx, args.userId);
-    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
-      throw new Error("Active customer account required.");
-    }
-
-    const intents = await ctx.db
-      .query("cardOrderDesignUploads")
-      .withIndex("by_ownerId_and_status", (query) =>
-        query.eq("ownerId", customer._id).eq("status", "pending"),
-      )
-      .take(2);
-    if (intents.length !== 1 || intents[0] === undefined) {
+    const intent = await ctx.db.get(args.uploadId);
+    const customer = intent === null ? null : await ctx.db.get(intent.ownerId);
+    if (
+      customer === null ||
+      !isActiveCustomer(customer) ||
+      customer.role !== "customer" ||
+      intent === null ||
+      intent.status !== "pending" ||
+      !sameScope(customer, intent)
+    ) {
       throw new Error("Start a new card design upload.");
     }
-    const intent = intents[0];
     if (Date.now() - intent.createdAt >= PENDING_INTENT_TTL_MS) {
       throw new Error("This upload request expired. Start a new upload.");
     }
-    await assertStorageWasUploadedAfterIntent(ctx, args.storageId, intent.createdAt);
+    await assertStorageWasNotCreatedBeforeIntent(ctx, args.storageId, intent.createdAt);
     if (!(await storageIsUnreferenced(ctx, args.storageId))) {
       throw new Error("This file is already in use.");
     }
+    const fileName = args.fileName.trim().slice(0, 255);
+    if (!fileName) throw new Error("The file name is required.");
     await ctx.db.patch(intent._id, {
       status: "processing",
       processingAt: Date.now(),
       storageId: args.storageId,
+      fileName,
     });
     return intent._id;
   },
 });
 
+export const getProcessingUpload = internalQuery({
+  args: { uploadId: v.id("cardOrderDesignUploads") },
+  returns: v.union(v.null(), schema.doc("cardOrderDesignUploads")),
+  handler: async (ctx, args) => {
+    const upload = await ctx.db.get(args.uploadId);
+    return upload?.status === "processing" ? upload : null;
+  },
+});
+
 export const register = internalMutation({
   args: {
-    userId: v.id("users"),
     uploadId: v.id("cardOrderDesignUploads"),
-    storageId: v.id("_storage"),
-    fileName: v.string(),
     contentType: v.union(v.literal("image/jpeg"), v.literal("image/png")),
     byteSize: v.number(),
   },
   returns: v.id("cardOrderDesignUploads"),
   handler: async (ctx, args) => {
-    const customer = await customerForAuthUser(ctx, args.userId);
     const intent = await ctx.db.get(args.uploadId);
+    const customer = intent === null ? null : await ctx.db.get(intent.ownerId);
     if (
       customer === null ||
       !isActiveCustomer(customer) ||
@@ -144,19 +170,17 @@ export const register = internalMutation({
       intent.ownerId !== customer._id ||
       !sameScope(customer, intent) ||
       intent.processingAt === undefined ||
-      intent.storageId !== args.storageId ||
+      intent.storageId === undefined ||
       Date.now() - intent.processingAt >= PROCESSING_INTENT_TTL_MS
     ) {
       throw new Error("This upload request is no longer available.");
     }
-    await assertStorageWasUploadedAfterIntent(ctx, args.storageId, intent.createdAt);
-    if (!(await storageIsUnreferenced(ctx, args.storageId, intent._id))) {
+    await assertStorageWasNotCreatedBeforeIntent(ctx, intent.storageId, intent.createdAt);
+    if (!(await storageIsUnreferenced(ctx, intent.storageId, intent._id))) {
       throw new Error("This file is already in use.");
     }
 
     await ctx.db.patch(intent._id, {
-      storageId: args.storageId,
-      fileName: args.fileName,
       contentType: args.contentType,
       byteSize: args.byteSize,
       status: "available",
@@ -199,7 +223,7 @@ export const cleanup = internalMutation({
         const metadata = await ctx.db.system.get("_storage", upload.storageId);
         if (
           metadata !== null &&
-          metadata._creationTime > upload.createdAt &&
+          metadata._creationTime >= upload.createdAt &&
           (await storageIsUnreferenced(ctx, upload.storageId, upload._id))
         ) {
           const currentUpload = await ctx.db.get(upload._id);
@@ -246,7 +270,7 @@ export const cleanup = internalMutation({
     }
 
     const metadata = await ctx.db.system.get("_storage", upload.storageId);
-    if (metadata === null || metadata._creationTime <= upload.createdAt) return null;
+    if (metadata === null || metadata._creationTime < upload.createdAt) return null;
     if (!(await storageIsUnreferenced(ctx, upload.storageId, upload._id))) return null;
 
     const currentUpload = await ctx.db.get(upload._id);
@@ -272,49 +296,50 @@ export const cleanup = internalMutation({
 });
 
 export const cleanupFailedUpload = internalMutation({
-  args: { uploadId: v.id("cardOrderDesignUploads"), storageId: v.id("_storage") },
+  args: {
+    uploadId: v.id("cardOrderDesignUploads"),
+    storageId: v.optional(v.id("_storage")),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const intent = await ctx.db.get(args.uploadId);
+    if (intent === null) return null;
     if (
-      intent === null ||
-      intent.status !== "processing" ||
-      intent.processingAt === undefined ||
+      intent.storageId !== undefined &&
+      args.storageId !== undefined &&
       intent.storageId !== args.storageId
-    )
+    ) {
       return null;
-
-    const processingIntents = await ctx.db
-      .query("cardOrderDesignUploads")
-      .withIndex("by_ownerId_and_status", (query) =>
-        query.eq("ownerId", intent.ownerId).eq("status", "processing"),
-      )
-      .take(2);
-    if (processingIntents.length !== 1 || processingIntents[0]?._id !== intent._id) return null;
-
+    }
+    const storageId = intent.storageId ?? args.storageId;
+    if (intent.status !== "processing" && intent.status !== "pending") return null;
+    if (intent.status === "processing" && intent.processingAt === undefined) return null;
     const customer = await ctx.db.get(intent.ownerId);
     if (customer === null || !sameScope(customer, intent)) return null;
-    const metadata = await ctx.db.system.get("_storage", args.storageId);
-    if (metadata === null || metadata._creationTime <= intent.createdAt) return null;
-    if (!(await storageIsUnreferenced(ctx, args.storageId, intent._id))) return null;
 
     const currentIntent = await ctx.db.get(intent._id);
     if (
       currentIntent === null ||
-      currentIntent.status !== "processing" ||
+      (currentIntent.status !== "processing" && currentIntent.status !== "pending") ||
       currentIntent.ownerId !== intent.ownerId ||
       currentIntent.createdAt !== intent.createdAt ||
-      currentIntent.processingAt !== intent.processingAt
+      currentIntent.processingAt !== intent.processingAt ||
+      (currentIntent.storageId !== undefined && currentIntent.storageId !== storageId)
     ) {
       return null;
     }
 
-    await ctx.storage.delete(args.storageId);
-    await ctx.db.patch(currentIntent._id, {
-      status: "pending",
-      processingAt: undefined,
-      storageId: undefined,
-    });
+    if (storageId !== undefined) {
+      const metadata = await ctx.db.system.get("_storage", storageId);
+      if (
+        metadata !== null &&
+        metadata._creationTime >= intent.createdAt &&
+        (await storageIsUnreferenced(ctx, storageId, intent._id))
+      ) {
+        await ctx.storage.delete(storageId);
+      }
+    }
+    await ctx.db.delete(currentIntent._id);
     return null;
   },
 });
@@ -373,32 +398,34 @@ async function orderDesignUrl(
   return (await ctx.storage.getUrl(upload.storageId)) ?? undefined;
 }
 
-/** Resolves only the signed URL for this active customer's own order upload. */
-export async function resolveCustomerCardOrderDesignUrl(
-  ctx: DesignStorageContext,
-  customer: Doc<"customers">,
-  order: Doc<"cardOrders">,
-) {
-  if (!isActiveCustomer(customer) || customer.role !== "customer") return undefined;
-  return await orderDesignUrl(ctx, customer, order);
-}
+export const customerDesignUrl = query({
+  args: { orderId: v.id("cardOrders") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const userId = await requireUser(ctx);
+    const customer = await customerForAuthUser(ctx, userId);
+    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
+      throw new Error("Active customer account required.");
+    }
+    const order = await ctx.db.get(args.orderId);
+    if (order === null || order.customerId !== customer._id || !sameScope(customer, order)) {
+      return null;
+    }
+    return (await orderDesignUrl(ctx, customer, order)) ?? null;
+  },
+});
 
-/** Pass the account returned by requireAdministrator; scope and ownership are checked here too. */
-export async function resolveAdminCardOrderDesignUrl(
-  ctx: DesignStorageContext,
-  administrator: Doc<"customers">,
-  order: Doc<"cardOrders">,
-) {
-  if (
-    !isActiveCustomer(administrator) ||
-    administrator.role !== "admin" ||
-    !sameScope(administrator, order)
-  ) {
-    return undefined;
-  }
-  const customer = await ctx.db.get(order.customerId);
-  if (customer === null || !sameScope(administrator, customer) || !sameScope(customer, order)) {
-    return undefined;
-  }
-  return await orderDesignUrl(ctx, customer, order);
-}
+export const adminDesignUrl = query({
+  args: { orderId: v.id("cardOrders") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, args) => {
+    const { account: administrator } = await requireAdministrator(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (order === null || !sameScope(administrator, order)) return null;
+    const customer = await ctx.db.get(order.customerId);
+    if (customer === null || !sameScope(administrator, customer) || !sameScope(customer, order)) {
+      return null;
+    }
+    return (await orderDesignUrl(ctx, customer, order)) ?? null;
+  },
+});
