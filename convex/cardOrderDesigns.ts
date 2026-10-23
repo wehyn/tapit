@@ -39,7 +39,7 @@ export const register = internalMutation({
     contentType: v.union(v.literal("image/jpeg"), v.literal("image/png")),
     byteSize: v.number(),
   },
-  returns: v.null(),
+  returns: v.id("cardOrderDesignUploads"),
   handler: async (ctx, args) => {
     const customer = await customerForAuthUser(ctx, args.userId);
     if (customer === null || !isActiveCustomer(customer))
@@ -61,7 +61,7 @@ export const register = internalMutation({
       createdAt: Date.now(),
     });
     await ctx.scheduler.runAfter(DAY_MS, internal.cardOrderDesigns.cleanup, { uploadId });
-    return null;
+    return uploadId;
   },
 });
 
@@ -73,19 +73,6 @@ export const cleanup = internalMutation({
     if (upload === null || upload.status !== "available") return null;
     await ctx.db.delete(upload._id);
     await ctx.storage.delete(upload.storageId);
-    return null;
-  },
-});
-
-export const deleteUnregistered = internalMutation({
-  args: { storageId: v.id("_storage") },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const upload = await ctx.db
-      .query("cardOrderDesignUploads")
-      .withIndex("by_storageId", (query) => query.eq("storageId", args.storageId))
-      .unique();
-    if (upload === null) await ctx.storage.delete(args.storageId);
     return null;
   },
 });
