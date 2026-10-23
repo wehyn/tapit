@@ -18,6 +18,8 @@ import type * as auth from "../auth.js";
 import type * as authIdentity from "../authIdentity.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as cardClaims from "../cardClaims.js";
+import type * as cardOrderDesigns from "../cardOrderDesigns.js";
+import type * as cardOrderDesignProcessing from "../cardOrderDesignProcessing.js";
 import type * as cards from "../cards.js";
 import type * as components_ from "../components.js";
 import type * as crons from "../crons.js";
@@ -62,6 +64,8 @@ declare const fullApi: ApiFromModules<{
   authIdentity: typeof authIdentity;
   bootstrap: typeof bootstrap;
   cardClaims: typeof cardClaims;
+  cardOrderDesigns: typeof cardOrderDesigns;
+  cardOrderDesignProcessing: typeof cardOrderDesignProcessing;
   cards: typeof cards;
   components: typeof components_;
   crons: typeof crons;
