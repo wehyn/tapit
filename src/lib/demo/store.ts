@@ -207,7 +207,7 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
 }
 
 function normalizeCollection<T>(value: unknown, isItem: (item: unknown) => item is T): T[] {
-  return Array.isArray(value) && value.every(isItem) ? value : [];
+  return Array.isArray(value) ? value.filter(isItem) : [];
 }
 
 function normalizeStoredState(raw: string): StateStorageRead {
