@@ -371,9 +371,18 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
           if (customer?.deletionStatus !== "requested") {
             throw new Error("Deletion request unavailable.");
           }
+          const erasedOrderIds = new Set(
+            state.cardOrders
+              .filter((order) => order.customerId === customerId)
+              .map((order) => order.id),
+          );
           return {
             ...state,
             cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
+            audits: state.audits.filter(
+              (event) =>
+                !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
+            ),
           };
         });
         const state = approvedDeletionState(customerId);

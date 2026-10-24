@@ -50,6 +50,24 @@ function currentState(role: "customer" | "admin") {
   return refreshed.snapshot.state;
 }
 
+async function updateDemoCardOrderAdminState(
+  adminId: string,
+  update: (state: DemoState) => DemoState,
+): Promise<void> {
+  await withDemoCardOrderCommitLock(async () => {
+    const refreshedState = currentState("admin");
+    if (activeAccount(refreshedState, "admin").id !== adminId) {
+      throw new Error("Administrator session changed. Try again.");
+    }
+    updateDemoState((state) => {
+      if (activeAccount(state, "admin").id !== adminId) {
+        throw new Error("Administrator session changed. Try again.");
+      }
+      return update(state);
+    });
+  });
+}
+
 function requiredText(value: string, label: string, max: number) {
   const trimmed = value.trim();
   if (trimmed.length < 1 || trimmed.length > max) {
@@ -98,13 +116,12 @@ export function getDemoCardOrderCustomerSettings() {
   };
 }
 
-export function setDemoCardOrderLaunchEndDate(date: string | null): void {
+export async function setDemoCardOrderLaunchEndDate(date: string | null): Promise<void> {
   if (date !== null && !isCardOrderLaunchEndDate(date)) {
     throw new Error("Use a valid YYYY-MM-DD date.");
   }
-  currentState("admin");
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
+  const adminId = activeAccount(currentState("admin"), "admin").id;
+  await updateDemoCardOrderAdminState(adminId, (state) => {
     return {
       ...state,
       cardOrderLaunchEndDate: date,
@@ -119,14 +136,14 @@ export function setDemoCardOrderLaunchEndDate(date: string | null): void {
   });
 }
 
-export function saveDemoCardOrderPaymentMethod(input: {
+export async function saveDemoCardOrderPaymentMethod(input: {
   id?: string;
   provider: string;
   label: string;
   accountDetails: string;
   instructions: string;
-}): string {
-  currentState("admin");
+}): Promise<string> {
+  const adminId = activeAccount(currentState("admin"), "admin").id;
   const fields = {
     provider: requiredText(input.provider, "Provider", 80),
     label: requiredText(input.label, "Label", 120),
@@ -134,8 +151,7 @@ export function saveDemoCardOrderPaymentMethod(input: {
     instructions: requiredText(input.instructions, "Instructions", 1000),
   };
   const id = input.id ?? crypto.randomUUID();
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
+  await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderPaymentMethods.find((method) => method.id === id);
     if (input.id && !existing) throw new Error("Payment method unavailable.");
     const now = Date.now();
@@ -163,10 +179,9 @@ export function saveDemoCardOrderPaymentMethod(input: {
   return id;
 }
 
-export function deactivateDemoCardOrderPaymentMethod(id: string): void {
-  currentState("admin");
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
+export async function deactivateDemoCardOrderPaymentMethod(id: string): Promise<void> {
+  const adminId = activeAccount(currentState("admin"), "admin").id;
+  await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderPaymentMethods.find((method) => method.id === id);
     if (!existing) throw new Error("Payment method unavailable.");
     return {
@@ -179,20 +194,19 @@ export function deactivateDemoCardOrderPaymentMethod(id: string): void {
   });
 }
 
-export function saveDemoCardOrderReferralCode(input: {
+export async function saveDemoCardOrderReferralCode(input: {
   id?: string;
   code: string;
   referrerLabel: string;
-}): string {
-  currentState("admin");
+}): Promise<string> {
+  const adminId = activeAccount(currentState("admin"), "admin").id;
   const code = requiredText(input.code, "Referral code", 40).toUpperCase();
   if (!/^[A-Z0-9_-]+$/.test(code)) {
     throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
   }
   const referrerLabel = requiredText(input.referrerLabel, "Referrer label", 120);
   const id = input.id ?? crypto.randomUUID();
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
+  await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
     if (input.id && !existing) throw new Error("Referral code unavailable.");
     if (
@@ -226,10 +240,9 @@ export function saveDemoCardOrderReferralCode(input: {
   return id;
 }
 
-export function deactivateDemoCardOrderReferralCode(id: string): void {
-  currentState("admin");
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
+export async function deactivateDemoCardOrderReferralCode(id: string): Promise<void> {
+  const adminId = activeAccount(currentState("admin"), "admin").id;
+  await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
     if (!existing) throw new Error("Referral code unavailable.");
     return {
@@ -416,33 +429,39 @@ export function getAdminDemoCardOrders() {
   return [...currentState("admin").cardOrders].sort((a, b) => b.createdAt - a.createdAt);
 }
 
+function orderAuditSnapshot(order: DemoCardOrder): string {
+  return JSON.stringify({
+    paymentStatus: order.paymentStatus,
+    fulfillmentStatus: order.fulfillmentStatus,
+    commissionStatus: order.commissionStatus,
+    shippingQuoteCentavos: order.shippingQuoteCentavos,
+  });
+}
+
 async function changeOrder(
   orderId: string,
   action: string,
   transition: (order: DemoCardOrder) => Partial<DemoCardOrder>,
 ): Promise<void> {
-  const admin = activeAccount(currentState("admin"), "admin");
-  await withDemoCardOrderCommitLock(async () => {
-    const refreshedState = currentState("admin");
-    if (activeAccount(refreshedState, "admin").id !== admin.id) {
-      throw new Error("Administrator session changed. Try again.");
-    }
-    updateDemoState((state) => {
-      const actor = activeAccount(state, "admin");
-      if (actor.id !== admin.id) throw new Error("Administrator session changed. Try again.");
-      const order = state.cardOrders.find((candidate) => candidate.id === orderId);
-      if (!order) throw new Error("Order unavailable.");
-      const changes = transition(order);
-      return {
-        ...state,
-        cardOrders: state.cardOrders.map((candidate) =>
-          candidate.id === orderId
-            ? { ...candidate, ...changes, updatedAt: Date.now() }
-            : candidate,
-        ),
-        audits: audit(state, action, orderId, JSON.stringify(order), JSON.stringify(changes)),
-      };
-    });
+  const adminId = activeAccount(currentState("admin"), "admin").id;
+  await updateDemoCardOrderAdminState(adminId, (state) => {
+    const order = state.cardOrders.find((candidate) => candidate.id === orderId);
+    if (!order) throw new Error("Order unavailable.");
+    const changes = transition(order);
+    const updatedOrder = { ...order, ...changes };
+    return {
+      ...state,
+      cardOrders: state.cardOrders.map((candidate) =>
+        candidate.id === orderId ? { ...updatedOrder, updatedAt: Date.now() } : candidate,
+      ),
+      audits: audit(
+        state,
+        action,
+        orderId,
+        orderAuditSnapshot(order),
+        orderAuditSnapshot(updatedOrder),
+      ),
+    };
   });
 }
 
