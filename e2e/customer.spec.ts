@@ -1465,7 +1465,7 @@ test("the last link action menu stays visible above the draft bar", async ({ pag
 });
 
 test("link drag handles reorder destinations", async ({ page }) => {
-  await page.setViewportSize({ width: 1467, height: 899 });
+  await page.setViewportSize({ width: 1467, height: 1200 });
   await signInAsCustomer(page);
   await page.goto("/app/links");
 
@@ -1514,7 +1514,7 @@ test("Portfolio link can use a new preset icon through publication", async ({ pa
 });
 
 test("link rows shift while the drag is still held", async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 1467, height: 899 });
+  await page.setViewportSize({ width: 1467, height: 1200 });
   await signInAsCustomer(page);
   await page.goto("/app/links");
 

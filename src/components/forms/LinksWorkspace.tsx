@@ -188,6 +188,55 @@ export function LinksWorkspace({
         >
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
           <Card
+            description="Choose what visitors see when they open your profile link or tap or scan your card."
+            title="Destination"
+          >
+            <div className="grid gap-3">
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
+                <span className="text-sm font-medium text-tapit-ink">Show my Tapit profile</span>
+                <Switch
+                  aria-label="Show my Tapit profile"
+                  checked={!redirect.enabled}
+                  onCheckedChange={(checked) =>
+                    onRedirectChange({ ...redirect, enabled: !checked })
+                  }
+                />
+              </div>
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
+                <span className="text-sm font-medium text-tapit-ink">Redirect to website</span>
+                <Switch
+                  aria-label="Redirect to website"
+                  checked={redirect.enabled}
+                  onCheckedChange={(checked) => onRedirectChange({ ...redirect, enabled: checked })}
+                />
+              </div>
+            </div>
+            {redirect.enabled ? (
+              <Field
+                error={redirectError ?? undefined}
+                help="When published, your Tapit profile link and card taps or scans will send visitors here."
+                id="profile-redirect-destination"
+                label="HTTPS destination URL"
+                onChange={(event) =>
+                  onRedirectChange({ ...redirect, destination: event.target.value })
+                }
+                placeholder="https://www.yourwebsite.com"
+                type="url"
+                value={redirect.destination}
+              />
+            ) : (
+              <p className="text-sm leading-6 text-tapit-muted">
+                Visitors see your contact details and profile links.
+              </p>
+            )}
+          </Card>
+          {redirect.enabled ? (
+            <Notice>
+              Profile links are paused while visitors go to your website. Show my Tapit profile to
+              edit them.
+            </Notice>
+          ) : null}
+          <Card
             description="Shown as a large button at the top of your profile."
             title="Featured link"
           >
@@ -484,55 +533,6 @@ export function LinksWorkspace({
                 <li key={error}>{error}</li>
               ))}
             </ul>
-          ) : null}
-          <Card
-            description="Choose what visitors see when they open your profile link or tap or scan your card."
-            title="Destination"
-          >
-            <div className="grid gap-3">
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
-                <span className="text-sm font-medium text-tapit-ink">Show my Tapit profile</span>
-                <Switch
-                  aria-label="Show my Tapit profile"
-                  checked={!redirect.enabled}
-                  onCheckedChange={(checked) =>
-                    onRedirectChange({ ...redirect, enabled: !checked })
-                  }
-                />
-              </div>
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
-                <span className="text-sm font-medium text-tapit-ink">Redirect to website</span>
-                <Switch
-                  aria-label="Redirect to website"
-                  checked={redirect.enabled}
-                  onCheckedChange={(checked) => onRedirectChange({ ...redirect, enabled: checked })}
-                />
-              </div>
-            </div>
-            {redirect.enabled ? (
-              <Field
-                error={redirectError ?? undefined}
-                help="When published, your Tapit profile link and card taps or scans will send visitors here."
-                id="profile-redirect-destination"
-                label="HTTPS destination URL"
-                onChange={(event) =>
-                  onRedirectChange({ ...redirect, destination: event.target.value })
-                }
-                placeholder="https://www.yourwebsite.com"
-                type="url"
-                value={redirect.destination}
-              />
-            ) : (
-              <p className="text-sm leading-6 text-tapit-muted">
-                Visitors see your contact details and profile links.
-              </p>
-            )}
-          </Card>
-          {redirect.enabled ? (
-            <Notice>
-              Profile links are paused while visitors go to your website. Show my Tapit profile to
-              edit them.
-            </Notice>
           ) : null}
         </section>
         <section

@@ -49,6 +49,8 @@ test("published profile destination controls where the slug link goes", async ({
     summaryBox!.y + summaryBox!.height / 2,
   );
   await expect(actionsMenu).toHaveJSProperty("open", false);
+  await expect(actionsMenu.locator("button").filter({ hasText: "Move down" })).toBeDisabled();
+  await expect(actionsMenu.locator("button").filter({ hasText: "Delete" })).toBeDisabled();
   await expect(page.getByRole("combobox", { name: "Featured link" })).toBeDisabled();
   await expect(
     page.getByText(
