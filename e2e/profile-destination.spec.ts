@@ -8,11 +8,13 @@ test("published profile destination controls where the slug link goes", async ({
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
-  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).toHaveCount(0);
-  await expect(page.getByRole("switch", { name: "Redirect to website" })).toHaveCount(0);
+  const tapitProfileChoice = page.getByRole("button", { name: "Tapit profile", exact: true });
+  const redirectChoice = page.getByRole("button", { name: "Redirect link", exact: true });
+  await expect(tapitProfileChoice).toHaveCount(0);
+  await expect(redirectChoice).toHaveCount(0);
   await page.goto("/app/links");
-  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).toBeChecked();
-  await expect(page.getByRole("switch", { name: "Redirect to website" })).toHaveCount(1);
+  await expect(tapitProfileChoice).toHaveAttribute("aria-pressed", "true");
+  await expect(redirectChoice).toHaveAttribute("aria-pressed", "false");
 
   const destination = "https://destination.example.test/contact";
   await page.route("https://destination.example.test/**", (route) =>
@@ -23,10 +25,9 @@ test("published profile destination controls where the slug link goes", async ({
     }),
   );
 
-  const redirectMode = page.getByRole("switch", { name: "Redirect to website" });
-  await redirectMode.click();
-  await expect(redirectMode).toBeChecked();
-  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).not.toBeChecked();
+  await redirectChoice.click();
+  await expect(redirectChoice).toHaveAttribute("aria-pressed", "true");
+  await expect(tapitProfileChoice).toHaveAttribute("aria-pressed", "false");
   const linkedInRow = page
     .locator("article")
     .filter({ has: page.getByRole("textbox", { name: "Label for LinkedIn" }) });
@@ -54,7 +55,7 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(page.getByRole("combobox", { name: "Featured link" })).toBeDisabled();
   await expect(
     page.getByText(
-      "Profile links are paused while visitors go to your website. Show my Tapit profile to edit them.",
+      "Profile links are paused while visitors go to your website. Switch to Tapit profile to edit them.",
     ),
   ).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -105,10 +106,9 @@ test("published profile destination controls where the slug link goes", async ({
   });
 
   await page.goto("/app/links");
-  const tapitProfileMode = page.getByRole("switch", { name: "Show my Tapit profile" });
-  await tapitProfileMode.click();
-  await expect(tapitProfileMode).toBeChecked();
-  await expect(page.getByRole("switch", { name: "Redirect to website" })).not.toBeChecked();
+  await tapitProfileChoice.click();
+  await expect(tapitProfileChoice).toHaveAttribute("aria-pressed", "true");
+  await expect(redirectChoice).toHaveAttribute("aria-pressed", "false");
   await expect(page.getByRole("button", { name: "Add link" })).toBeEnabled();
   await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toBeEnabled();
   await expect(page.getByRole("textbox", { name: "Destination for LinkedIn" })).toBeEnabled();

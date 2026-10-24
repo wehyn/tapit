@@ -124,20 +124,20 @@ test("form focus indicators stay within the Soft Precision theme", async ({ page
   }
 
   await page.goto("/app/links");
-  const redirectMode = page.getByRole("switch", { name: "Redirect to website" });
+  const redirectMode = page.getByRole("button", { name: "Redirect link", exact: true });
   await redirectMode.focus();
   const redirectModeFocus = await readFocusStyles(redirectMode);
   expect(redirectModeFocus.hasVisibleIndicator, "redirect mode").toBe(true);
   expect(redirectModeFocus.colors, "redirect mode").not.toMatch(ORANGE_FOCUS);
   await redirectMode.click();
-  await expect(redirectMode).toBeChecked();
+  await expect(redirectMode).toHaveAttribute("aria-pressed", "true");
 
   const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
   await redirectInput.focus();
   const redirectInputFocus = await readFocusStyles(redirectInput);
   expect(redirectInputFocus.hasVisibleIndicator, "redirect URL").toBe(true);
   expect(redirectInputFocus.colors, "redirect URL").not.toMatch(ORANGE_FOCUS);
-  await page.getByRole("switch", { name: "Show my Tapit profile" }).click();
+  await page.getByRole("button", { name: "Tapit profile", exact: true }).click();
 
   await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();

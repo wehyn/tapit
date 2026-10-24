@@ -13,7 +13,6 @@ import { Icon } from "@/components/ui/Icon";
 import { Field, SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
-import { Switch } from "@/components/ui/Switch";
 import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
 
 export type LinksWorkspaceMessage = {
@@ -48,6 +47,14 @@ export type LinksWorkspaceProps = {
 
 const rowFieldClasses =
   "min-h-11 w-full min-w-0 rounded-control bg-tapit-surface px-4 text-tapit-ink transition-colors placeholder:text-tapit-muted focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent aria-invalid:bg-tapit-danger-soft aria-invalid:focus:outline-tapit-danger";
+
+function destinationChoiceClass(active: boolean) {
+  return `flex min-h-12 items-center justify-center gap-2 rounded-control border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${
+    active
+      ? "border-tapit-accent bg-tapit-surface text-tapit-accent-strong shadow-card"
+      : "border-transparent text-tapit-muted hover:text-tapit-ink"
+  }`;
+}
 
 export function LinksWorkspace({
   profileUrl,
@@ -192,23 +199,32 @@ export function LinksWorkspace({
             title="Destination"
           >
             <div className="grid gap-3">
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
-                <span className="text-sm font-medium text-tapit-ink">Show my Tapit profile</span>
-                <Switch
-                  aria-label="Show my Tapit profile"
-                  checked={!redirect.enabled}
-                  onCheckedChange={(checked) =>
-                    onRedirectChange({ ...redirect, enabled: !checked })
-                  }
-                />
-              </div>
-              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
-                <span className="text-sm font-medium text-tapit-ink">Redirect to website</span>
-                <Switch
-                  aria-label="Redirect to website"
-                  checked={redirect.enabled}
-                  onCheckedChange={(checked) => onRedirectChange({ ...redirect, enabled: checked })}
-                />
+              <span className="text-sm font-medium text-tapit-ink" id="visitor-destination-label">
+                Visitors go to
+              </span>
+              <div
+                aria-labelledby="visitor-destination-label"
+                className="grid grid-cols-2 gap-1 rounded-control bg-tapit-soft-surface p-1"
+                role="group"
+              >
+                <button
+                  aria-pressed={!redirect.enabled}
+                  className={destinationChoiceClass(!redirect.enabled)}
+                  onClick={() => onRedirectChange({ ...redirect, enabled: false })}
+                  type="button"
+                >
+                  <Icon name="user" size={18} weight="bold" />
+                  Tapit profile
+                </button>
+                <button
+                  aria-pressed={redirect.enabled}
+                  className={destinationChoiceClass(redirect.enabled)}
+                  onClick={() => onRedirectChange({ ...redirect, enabled: true })}
+                  type="button"
+                >
+                  <Icon name="link" size={18} weight="bold" />
+                  Redirect link
+                </button>
               </div>
             </div>
             {redirect.enabled ? (
@@ -225,14 +241,15 @@ export function LinksWorkspace({
                 value={redirect.destination}
               />
             ) : (
-              <p className="text-sm leading-6 text-tapit-muted">
+              <p className="flex items-start gap-2 text-sm leading-6 text-tapit-muted">
+                <Icon className="mt-1 shrink-0" name="info" size={18} />
                 Visitors see your contact details and profile links.
               </p>
             )}
           </Card>
           {redirect.enabled ? (
             <Notice>
-              Profile links are paused while visitors go to your website. Show my Tapit profile to
+              Profile links are paused while visitors go to your website. Switch to Tapit profile to
               edit them.
             </Notice>
           ) : null}
