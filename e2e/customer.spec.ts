@@ -985,7 +985,7 @@ test("customization category tabs and fine-tuning controls stay clear on mobile"
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 });
 
-test("standalone card builder keeps its public shell and upload preview usable", async ({
+test("standalone card builder keeps its public shell and opens the order form", async ({
   page,
 }) => {
   await signInAsCustomer(page);
@@ -1014,12 +1014,9 @@ test("standalone card builder keeps its public shell and upload preview usable",
   const preview = page.getByRole("dialog", { name: "Looks good?" });
   await expect(preview).toBeVisible();
   await expect(preview.getByRole("img", { name: "Preview of transparent-logo.png" })).toBeVisible();
-  await preview.getByRole("button", { name: "Ordering is not open yet" }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "Ordering is coming soon" }),
-  ).toBeVisible();
-  await preview.getByRole("button", { name: "Choose another design" }).click();
-  await expect(preview).toHaveCount(0);
+  await preview.getByRole("button", { name: "Continue to order" }).click();
+  await expect(page).toHaveURL(/\/app\/account\/order-card$/);
+  await expect(page.getByRole("heading", { name: "Order your card" })).toBeVisible();
 });
 
 test("active-card QR downloads keep the light surface and remain available", async ({ page }) => {
@@ -3489,16 +3486,23 @@ test("customer analytics keeps zero totals and privacy context for an empty rang
   await expect(page.getByText(/without identifying the people who viewed it/)).toBeVisible();
 });
 
-test("customer can prepare a card design before ordering opens", async ({ page }) => {
+test("customer can continue from card design to the order form", async ({ page }) => {
   await signInAsCustomer(page);
   await page.goto("/app/account/build-card");
-  await expect.soft(page.getByText(/design preparation is available now/i)).toBeVisible();
-  await expect.soft(page.getByText(/custom ordering is not open/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Build your own with Canva" })).toHaveAttribute(
     "href",
     "https://canva.link/tapit-templates",
   );
   await expect(page.getByLabel("Upload your design")).toBeAttached();
+  await page
+    .getByLabel("Upload your design")
+    .setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
+  const preview = page.getByRole("dialog", { name: "Looks good?" });
+  await expect(preview).toBeVisible();
+  await preview.getByRole("button", { name: "Continue to order" }).click();
+  await expect(page).toHaveURL(/\/app\/account\/order-card$/);
+  await expect(page.getByRole("heading", { name: "Order your card" })).toBeVisible();
 });
 
 test("customer can unpublish from Account", async ({ page }) => {
