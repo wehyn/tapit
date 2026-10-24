@@ -12,9 +12,11 @@ import {
   validateLinkDestination,
   validatePublication,
   validatePublicationAccess,
+  validateProfileRedirect,
   type LinkIcon,
   type ProfileContent,
   type ProfileLink,
+  type ProfileRedirect,
   type ProfileTheme,
 } from "@/lib/domain";
 import { defaultProfileCustomizationForTheme } from "@/lib/profile-customization";
@@ -124,6 +126,7 @@ function draftWithLinksAndFeaturedLink(
   draft: ProfileDraftWithPersistedLinks,
   links: ProfileLink[],
   featuredLinkId: string | null,
+  redirect: ProfileRedirect,
   theme?: ProfileTheme,
 ): ProfileContent {
   let customization = draft.customization;
@@ -140,16 +143,31 @@ function draftWithLinksAndFeaturedLink(
       };
     }
   }
-  return { ...draft, links, ...(customization === undefined ? {} : { customization }) };
+  return { ...draft, links, redirect, ...(customization === undefined ? {} : { customization }) };
+}
+
+function areProfileRedirectsEqual(
+  current: ProfileRedirect,
+  persisted: ProfileRedirect | undefined,
+): boolean {
+  const previous = persisted ?? { enabled: false, destination: "" };
+  return current.enabled === previous.enabled && current.destination === previous.destination;
 }
 
 function previewForLinks(
   profile: ReturnType<typeof getDemoProfileForSession>,
   links: ProfileLink[],
   featuredLinkId: string | null,
+  redirect: ProfileRedirect,
   legacyTheme: ReturnType<typeof getDemoTheme>,
 ) {
-  const draft = draftWithLinksAndFeaturedLink(profile.draft, links, featuredLinkId, legacyTheme);
+  const draft = draftWithLinksAndFeaturedLink(
+    profile.draft,
+    links,
+    featuredLinkId,
+    redirect,
+    legacyTheme,
+  );
   return projectDemoPublicProfile(profile, draft, legacyTheme);
 }
 
@@ -160,6 +178,9 @@ function DemoLinksEditor() {
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
   const [featuredLinkId, setFeaturedLinkId] = useState<string | null>(
     () => profile.draft.customization?.featuredLinkId ?? null,
+  );
+  const [redirect, setRedirect] = useState<ProfileRedirect>(
+    () => profile.draft.redirect ?? { enabled: false, destination: "" },
   );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
@@ -187,7 +208,14 @@ function DemoLinksEditor() {
   }, [links]);
 
   const legacyTheme = getDemoTheme(state, profile.id);
-  const draft = draftWithLinksAndFeaturedLink(profile.draft, links, featuredLinkId, legacyTheme);
+  const draft = draftWithLinksAndFeaturedLink(
+    profile.draft,
+    links,
+    featuredLinkId,
+    redirect,
+    legacyTheme,
+  );
+  const redirectError = validateProfileRedirect(redirect);
   const customer = session
     ? state.customers.find((candidate) => candidate.email === session.email)
     : undefined;
@@ -216,11 +244,12 @@ function DemoLinksEditor() {
       : []),
   ];
   const preview = canPreviewLinks(validation, publicationErrors)
-    ? previewForLinks(profile, links, featuredLinkId, legacyTheme)
+    ? previewForLinks(profile, links, featuredLinkId, redirect, legacyTheme)
     : null;
   const isDirty =
     !areProfileLinksEqual(links, profile.draft.links) ||
-    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null);
+    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null) ||
+    !areProfileRedirectsEqual(redirect, profile.draft.redirect);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
     profile.status === "published"
@@ -250,6 +279,12 @@ function DemoLinksEditor() {
   function updateFeaturedLink(id: string | null) {
     draftRevisionRef.current += 1;
     setFeaturedLinkId(id);
+    setMessage(null);
+  }
+
+  function updateRedirect(next: ProfileRedirect) {
+    draftRevisionRef.current += 1;
+    setRedirect(next);
     setMessage(null);
   }
 
@@ -306,6 +341,10 @@ function DemoLinksEditor() {
         blocker: { kind: "links-validation", messages: Object.values(validation) },
       };
     }
+    if (redirectError !== null) {
+      setMessage({ tone: "error", text: redirectError });
+      return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
+    }
     setPendingAction("save");
     try {
       updateDemoState((current) =>
@@ -315,6 +354,7 @@ function DemoLinksEditor() {
             currentProfile.draft,
             copyLinks(links),
             featuredLinkId,
+            redirect,
             legacyTheme,
           ),
         })),
@@ -334,7 +374,7 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [featuredLinkId, isDirty, legacyTheme, links, pendingAction, profile.id, validation]);
+  }, [featuredLinkId, isDirty, legacyTheme, links, pendingAction, profile.id, redirect, redirectError, validation]);
 
   useDraftSaveRegistration(saveDraft);
   useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
@@ -360,6 +400,7 @@ function DemoLinksEditor() {
               profile.draft,
               copyLinks(links),
               featuredLinkId,
+              redirect,
               legacyTheme,
             ),
           },
@@ -407,6 +448,8 @@ function DemoLinksEditor() {
     <LinksWorkspace
       profileUrl={`/${profile.draft.slug}`}
       links={links}
+      redirect={redirect}
+      redirectError={redirectError}
       featuredLinkId={featuredLinkId}
       preview={preview}
       validation={validation}
@@ -417,6 +460,7 @@ function DemoLinksEditor() {
       hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
+      onRedirectChange={updateRedirect}
       onFeaturedLinkChange={updateFeaturedLink}
       onAddLink={addLink}
       onMoveLink={moveLink}
@@ -450,6 +494,9 @@ export function LiveLinksEditorContent({
   const [featuredLinkId, setFeaturedLinkId] = useState<string | null>(
     () => profile.draft.customization?.featuredLinkId ?? null,
   );
+  const [redirect, setRedirect] = useState<ProfileRedirect>(
+    () => profile.draft.redirect ?? { enabled: false, destination: "" },
+  );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<DraftSaveHandler>(async () => ({ kind: "saved" }));
@@ -459,6 +506,7 @@ export function LiveLinksEditorContent({
   const serverDraftRevisionRef = useRef(profile.draftRevision ?? 0);
   const serverDraftProfileIdRef = useRef(profile._id);
   const serverFeaturedLinkIdRef = useRef(profile.draft.customization?.featuredLinkId ?? null);
+  const serverRedirectRef = useRef(profile.draft.redirect ?? { enabled: false, destination: "" });
 
   const currentDraft = useMemo(
     () =>
@@ -466,9 +514,10 @@ export function LiveLinksEditorContent({
         profile.draft,
         links ?? normalizeProfileLinks(profile.draft.links),
         featuredLinkId,
+        redirect,
         profile.draft.theme,
       ),
-    [featuredLinkId, links, profile.draft],
+    [featuredLinkId, links, profile.draft, redirect],
   );
   const normalizedDraftLinks = useMemo(
     () => normalizeProfileLinks(profile.draft.links),
@@ -512,7 +561,8 @@ export function LiveLinksEditorContent({
     : null;
   const isDirty =
     !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
-    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null);
+    featuredLinkId !== (profile.draft.customization?.featuredLinkId ?? null) ||
+    !areProfileRedirectsEqual(redirect, profile.draft.redirect);
   useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = profile.draftRevision ?? 0;
@@ -520,19 +570,26 @@ export function LiveLinksEditorContent({
       serverDraftProfileIdRef.current = profile._id;
       serverDraftRevisionRef.current = incomingRevision;
       serverFeaturedLinkIdRef.current = profile.draft.customization?.featuredLinkId ?? null;
+      serverRedirectRef.current = profile.draft.redirect ?? { enabled: false, destination: "" };
       setFeaturedLinkId(serverFeaturedLinkIdRef.current);
+      setRedirect(serverRedirectRef.current);
     } else if (!isDirty && incomingRevision >= serverDraftRevisionRef.current) {
       serverDraftRevisionRef.current = incomingRevision;
       serverFeaturedLinkIdRef.current = profile.draft.customization?.featuredLinkId ?? null;
+      serverRedirectRef.current = profile.draft.redirect ?? { enabled: false, destination: "" };
       if (featuredLinkId !== serverFeaturedLinkIdRef.current)
         setFeaturedLinkId(serverFeaturedLinkIdRef.current);
+      if (!areProfileRedirectsEqual(redirect, profile.draft.redirect))
+        setRedirect(serverRedirectRef.current);
     }
   }, [
     featuredLinkId,
     isDirty,
     profile._id,
     profile.draft.customization?.featuredLinkId,
+    profile.draft.redirect,
     profile.draftRevision,
+    redirect,
   ]);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
@@ -543,6 +600,7 @@ export function LiveLinksEditorContent({
       : "Publish";
   const latestLinksRef = useRef(currentDraft.links);
   const latestFeaturedLinkIdRef = useRef(featuredLinkId);
+  const latestRedirectRef = useRef(redirect);
 
   useEffect(() => {
     latestLinksRef.current = currentDraft.links;
@@ -551,6 +609,10 @@ export function LiveLinksEditorContent({
   useEffect(() => {
     latestFeaturedLinkIdRef.current = featuredLinkId;
   }, [featuredLinkId]);
+
+  useEffect(() => {
+    latestRedirectRef.current = redirect;
+  }, [redirect]);
 
   function updateLink(id: string, patch: Partial<ProfileLink>) {
     draftRevisionRef.current += 1;
@@ -574,6 +636,13 @@ export function LiveLinksEditorContent({
     draftRevisionRef.current += 1;
     latestFeaturedLinkIdRef.current = id;
     setFeaturedLinkId(id);
+    setMessage(null);
+  }
+
+  function updateRedirect(next: ProfileRedirect) {
+    draftRevisionRef.current += 1;
+    latestRedirectRef.current = next;
+    setRedirect(next);
     setMessage(null);
   }
   function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
@@ -624,9 +693,14 @@ export function LiveLinksEditorContent({
   }
 
   const persistLinks = useCallback(
-    async (linksToSave: ProfileLink[], featuredLinkIdToSave: string | null) => {
+    async (
+      linksToSave: ProfileLink[],
+      featuredLinkIdToSave: string | null,
+      redirectToSave: ProfileRedirect,
+    ) => {
       let nextLinks = linksToSave;
       let nextFeaturedLinkId = featuredLinkIdToSave;
+      let nextRedirect = redirectToSave;
       for (let attempt = 0; attempt < MAX_DRAFT_SAVE_ATTEMPTS; attempt += 1) {
         const revisionAtStart = draftRevisionRef.current;
         const result = await saveLinks({
@@ -635,14 +709,19 @@ export function LiveLinksEditorContent({
           ...(nextFeaturedLinkId === serverFeaturedLinkIdRef.current
             ? {}
             : { featuredLinkId: nextFeaturedLinkId }),
+          ...(!areProfileRedirectsEqual(nextRedirect, serverRedirectRef.current)
+            ? { redirect: nextRedirect }
+            : {}),
           expectedDraftRevision: serverDraftRevisionRef.current,
         });
         serverDraftRevisionRef.current = result.draftRevision;
         serverFeaturedLinkIdRef.current = nextFeaturedLinkId;
+        serverRedirectRef.current = nextRedirect;
         const latestLinks = latestLinksRef.current;
         if (revisionAtStart === draftRevisionRef.current) return;
         nextLinks = latestLinks;
         nextFeaturedLinkId = latestFeaturedLinkIdRef.current;
+        nextRedirect = latestRedirectRef.current;
       }
       throw new Error("Your links changed while they were saving. Try again.");
     },
@@ -661,9 +740,18 @@ export function LiveLinksEditorContent({
         blocker: { kind: "links-validation", messages: Object.values(validation) },
       };
     }
+    const redirectError = validateProfileRedirect(redirect);
+    if (redirectError !== null) {
+      setMessage({ tone: "error", text: redirectError });
+      return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
+    }
     setPendingAction("save");
     try {
-      await persistLinks(latestLinksRef.current, latestFeaturedLinkIdRef.current);
+      await persistLinks(
+        latestLinksRef.current,
+        latestFeaturedLinkIdRef.current,
+        latestRedirectRef.current,
+      );
       setLinks(null);
       setMessage({
         tone: "success",
@@ -680,7 +768,7 @@ export function LiveLinksEditorContent({
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, pendingAction, persistLinks, validation]);
+  }, [isDirty, pendingAction, persistLinks, redirect, validation]);
   useEffect(() => {
     navigationSaveRef.current = saveDraft;
   }, [saveDraft]);
@@ -700,7 +788,11 @@ export function LiveLinksEditorContent({
     setMessage(null);
     try {
       if (isDirty) {
-        await persistLinks(latestLinksRef.current, latestFeaturedLinkIdRef.current);
+        await persistLinks(
+          latestLinksRef.current,
+          latestFeaturedLinkIdRef.current,
+          latestRedirectRef.current,
+        );
         setLinks(null);
       }
       await publishMutation({
@@ -726,6 +818,8 @@ export function LiveLinksEditorContent({
     <LinksWorkspace
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
+      redirect={redirect}
+      redirectError={validateProfileRedirect(redirect)}
       featuredLinkId={featuredLinkId}
       preview={preview}
       validation={validation}
@@ -736,6 +830,7 @@ export function LiveLinksEditorContent({
       hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
       onUpdateLink={updateLink}
+      onRedirectChange={updateRedirect}
       onFeaturedLinkChange={updateFeaturedLink}
       onAddLink={addLink}
       onMoveLink={moveLink}
