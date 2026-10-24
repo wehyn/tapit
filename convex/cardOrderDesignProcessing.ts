@@ -6,7 +6,11 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { CARD_DESIGN_POLICY } from "./uploadPolicies";
+import {
+  CARD_ORDER_DESIGN_DIMENSIONS_EXCEEDED_MESSAGE,
+  CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE,
+  CARD_ORDER_DESIGN_POLICY,
+} from "./uploadPolicies";
 
 export const process = internalAction({
   args: { uploadId: v.id("cardOrderDesignUploads") },
@@ -21,19 +25,19 @@ export const process = internalAction({
     try {
       let file = await ctx.storage.get(storageId);
       if (file === null) throw new Error("The uploaded design was not found.");
-      if (file.size >= CARD_DESIGN_POLICY.maxBytesExclusive)
-        throw new Error("Choose an image under 50 MB.");
+      if (file.size >= CARD_ORDER_DESIGN_POLICY.maxBytesExclusive)
+        throw new Error(CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE);
 
       const fileType = file.type;
       const bytes = await file.arrayBuffer();
       file = null;
-      if (bytes.byteLength >= CARD_DESIGN_POLICY.maxBytesExclusive)
-        throw new Error("Choose an image under 50 MB.");
+      if (bytes.byteLength >= CARD_ORDER_DESIGN_POLICY.maxBytesExclusive)
+        throw new Error(CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE);
 
-      // Buffer.from(ArrayBuffer) shares the buffer instead of duplicating a 50 MiB file.
+      // Buffer.from(ArrayBuffer) shares the buffer instead of duplicating a 5 MiB file.
       const image = sharp(Buffer.from(bytes), {
         failOn: "error",
-        limitInputPixels: CARD_DESIGN_POLICY.maxPixels,
+        limitInputPixels: CARD_ORDER_DESIGN_POLICY.maxPixels,
         sequentialRead: true,
       });
       const metadata = await image.metadata();
@@ -41,7 +45,7 @@ export const process = internalAction({
         metadata.format === "jpeg" ? "image/jpeg" : metadata.format === "png" ? "image/png" : null;
       if (
         contentType === null ||
-        !CARD_DESIGN_POLICY.acceptedContentTypes.includes(contentType) ||
+        !CARD_ORDER_DESIGN_POLICY.acceptedContentTypes.includes(contentType) ||
         fileType !== contentType
       ) {
         throw new Error("Upload a valid JPEG or PNG image.");
@@ -50,12 +54,12 @@ export const process = internalAction({
       if (
         width === undefined ||
         height === undefined ||
-        width > (CARD_DESIGN_POLICY.maxWidth ?? Infinity) ||
-        height > (CARD_DESIGN_POLICY.maxHeight ?? Infinity) ||
-        (CARD_DESIGN_POLICY.maxPixels !== undefined &&
-          width * height > CARD_DESIGN_POLICY.maxPixels)
+        width > (CARD_ORDER_DESIGN_POLICY.maxWidth ?? Infinity) ||
+        height > (CARD_ORDER_DESIGN_POLICY.maxHeight ?? Infinity) ||
+        (CARD_ORDER_DESIGN_POLICY.maxPixels !== undefined &&
+          width * height > CARD_ORDER_DESIGN_POLICY.maxPixels)
       ) {
-        throw new Error("The image dimensions exceed the card design limits.");
+        throw new Error(CARD_ORDER_DESIGN_DIMENSIONS_EXCEEDED_MESSAGE);
       }
       await image.clone().stats();
 

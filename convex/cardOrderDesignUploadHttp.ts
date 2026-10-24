@@ -4,7 +4,10 @@ import { httpAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { CARD_DESIGN_POLICY } from "./uploadPolicies";
+import {
+  CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE,
+  CARD_ORDER_DESIGN_POLICY,
+} from "./uploadPolicies";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowed = (process.env.TAPIT_ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim());
@@ -57,9 +60,9 @@ async function storeRequestBody(
       if (done) break;
       if (value === undefined) continue;
       totalBytes += value.byteLength;
-      if (totalBytes >= CARD_DESIGN_POLICY.maxBytesExclusive) {
+      if (totalBytes >= CARD_ORDER_DESIGN_POLICY.maxBytesExclusive) {
         await reader.cancel().catch(() => null);
-        throw new Error("Choose an image under 50 MB.");
+        throw new Error(CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE);
       }
       const chunkBuffer = value.buffer;
       if (!(chunkBuffer instanceof ArrayBuffer)) {
@@ -110,7 +113,10 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
   if (userId === null) return errorResponse("Authentication required.", 401, headers);
 
   const contentType = request.headers.get("Content-Type");
-  if (contentType === null || !CARD_DESIGN_POLICY.acceptedContentTypes.includes(contentType)) {
+  if (
+    contentType === null ||
+    !CARD_ORDER_DESIGN_POLICY.acceptedContentTypes.includes(contentType)
+  ) {
     return errorResponse("Upload a JPEG or PNG image.", 415, headers);
   }
   const contentLength = request.headers.get("Content-Length");
@@ -118,8 +124,8 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
     if (!/^(0|[1-9][0-9]*)$/.test(contentLength) || !Number.isSafeInteger(Number(contentLength))) {
       return errorResponse("A valid Content-Length is required.", 400, headers);
     }
-    if (Number(contentLength) >= CARD_DESIGN_POLICY.maxBytesExclusive) {
-      return errorResponse("Choose an image under 50 MB.", 413, headers);
+    if (Number(contentLength) >= CARD_ORDER_DESIGN_POLICY.maxBytesExclusive) {
+      return errorResponse(CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE, 413, headers);
     }
   }
 
@@ -159,7 +165,7 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
           : message.includes("already being processed") ||
               message.includes("still being cleaned up")
             ? 409
-            : message.includes("under 50 MB")
+            : message === CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE
               ? 413
               : 400;
     return errorResponse(message, status, headers);

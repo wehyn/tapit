@@ -11,7 +11,7 @@ Let an active Tapit customer submit an order for one physical NFC + QR card with
 ## Customer flow
 
 - Add `/app/account/order-card` inside the authenticated customer workspace. Link the existing card-builder order action to this page. The order page owns the design upload or URL field, so a file previewed on `/build-card` must be selected again there.
-- Accept one design source: a PNG/JPG upload using the existing card-design limits, or an HTTPS URL. Keep uploaded originals private; do not fetch customer URLs from the server.
+- Accept one design source: a PNG/JPG upload strictly under 5 MiB and at most 6,000,000 decoded pixels, or an HTTPS URL. Keep uploaded originals private; do not fetch customer URLs from the server. The order upload also keeps the existing maximum edge of 12,000 pixels. Client checks provide quick feedback; Convex enforces the authoritative limits.
 - Collect delivery name, phone, and address. Shipping remains separate: an admin quotes the fee after submission, and the customer sees the quote before paying.
 - Show active payment entries with their account details and instructions. Orders are paid manually; there is no payment gateway.
 - Sell one card per order. The card price is ₱599 until the admin-configured launch end date, then ₱799. An active referral code gives 10% off the current card price. During launch, a referred customer pays ₱539.10. Shipping is excluded from the discount and quoted separately.
@@ -28,7 +28,7 @@ Let an active Tapit customer submit an order for one physical NFC + QR card with
 
 - Store orders, payment methods, and referral codes as Convex records. Keep order amounts as integer PHP centavos and calculate all prices on the server; never trust an amount from the client.
 - Each order snapshots the card price, discount, shipping quote, selected payment details, referral code/referrer, and commission amount. Later edits to settings or codes cannot rewrite existing orders.
-- Store either a private card-design asset reference or an HTTPS URL, never both. Validate file type, size, and image content at the upload boundary. Validate URLs, payment entry status, referral status, first-order eligibility, and customer identity again in the order mutation.
+- Store either a private card-design asset reference or an HTTPS URL, never both. Validate file type, the strict under-5-MiB byte cap, decoded pixel count of at most 6,000,000, maximum 12,000-pixel edge, and image content at the upload boundary. Validate URLs, payment entry status, referral status, first-order eligibility, and customer identity again in the order mutation.
 - Restrict customer order queries to the authenticated owner. Only administrators can list all orders, view referral labels and addresses, or change payment, delivery, eligibility, and payout states.
 - Match the same behavior in local demo mode using the existing demo-state store.
 - Require an admin-configured launch end date and at least one active payment entry before orders can be submitted. The ₱599 price applies before that date; ₱799 applies at or after it. Existing orders retain the price calculated at submission.
@@ -47,4 +47,4 @@ Excluded: card quantities and team bundles, student/founders/Card Care offers, a
 
 ## Validation approach
 
-Review the customer flow in both local demo and Convex mode. Check that uploaded files remain private, customers cannot read other customers’ orders, disabled payment methods/codes are rejected at submission, launch-date boundaries produce the right price, referral totals round to centavos, and canceled/refunded orders do not leave an unpaid commission. Automated test creation or execution is not part of this design approval.
+Review the customer flow in both local demo and Convex mode. Check the file-size and decoded-pixel boundaries, that uploaded files remain private, customers cannot read other customers’ orders, disabled payment methods/codes are rejected at submission, launch-date boundaries produce the right price, referral totals round to centavos, and canceled/refunded orders do not leave an unpaid commission. Automated test creation or execution is not part of this design approval.
