@@ -374,7 +374,17 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [featuredLinkId, isDirty, legacyTheme, links, pendingAction, profile.id, redirect, redirectError, validation]);
+  }, [
+    featuredLinkId,
+    isDirty,
+    legacyTheme,
+    links,
+    pendingAction,
+    profile.id,
+    redirect,
+    redirectError,
+    validation,
+  ]);
 
   useDraftSaveRegistration(saveDraft);
   useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");

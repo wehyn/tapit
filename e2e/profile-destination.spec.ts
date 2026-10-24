@@ -8,9 +8,11 @@ test("published profile destination controls where the slug link goes", async ({
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
-  await expect(page.getByRole("radio", { name: "Show my Tapit profile" })).toBeChecked();
+  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Redirect to website" })).toHaveCount(0);
   await page.goto("/app/links");
-  await expect(page.getByRole("radio", { name: "Redirect to website" })).toHaveCount(0);
+  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).toBeChecked();
+  await expect(page.getByRole("switch", { name: "Redirect to website" })).toHaveCount(1);
 
   const destination = "https://destination.example.test/contact";
   await page.route("https://destination.example.test/**", (route) =>
@@ -21,14 +23,50 @@ test("published profile destination controls where the slug link goes", async ({
     }),
   );
 
-  await page.goto("/app/profile");
-  const redirectMode = page.getByRole("radio", { name: "Redirect to website" });
-  await redirectMode.locator("xpath=..").click();
+  const redirectMode = page.getByRole("switch", { name: "Redirect to website" });
+  await redirectMode.click();
   await expect(redirectMode).toBeChecked();
-  await page.getByRole("textbox", { name: "HTTPS destination URL" }).fill(destination);
+  await expect(page.getByRole("switch", { name: "Show my Tapit profile" })).not.toBeChecked();
+  const linkedInRow = page
+    .locator("article")
+    .filter({ has: page.getByRole("textbox", { name: "Label for LinkedIn" }) });
+  await expect(page.getByRole("button", { name: "Add link" })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toBeDisabled();
+  await expect(page.getByRole("textbox", { name: "Destination for LinkedIn" })).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "Enable LinkedIn" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Reorder LinkedIn" })).toBeDisabled();
+  await expect(
+    linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
+  ).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Actions for LinkedIn" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+  await expect(
+    linkedInRow.getByRole("button", { name: "Move down", includeHidden: true }),
+  ).toBeDisabled();
+  await expect(
+    linkedInRow.getByRole("button", { name: "Delete", includeHidden: true }),
+  ).toBeDisabled();
+  await expect(page.getByRole("combobox", { name: "Featured link" })).toBeDisabled();
+  await expect(
+    page.getByText(
+      "Profile links are paused while visitors go to your website. Show my Tapit profile to edit them.",
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
+  await expect(redirectInput).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    redirectInput
+      .locator("xpath=..")
+      .getByRole("alert")
+      .filter({ hasText: "Redirect destination must be a valid HTTPS URL without credentials." }),
+  ).toBeVisible();
+  await redirectInput.fill(destination);
   const settingsArtifact = testInfo.outputPath("profile-destination-settings.png");
   await page
-    .getByRole("heading", { name: "Profile link", exact: true })
+    .getByRole("heading", { name: "Destination", exact: true })
     .locator("xpath=..")
     .screenshot({ path: settingsArtifact });
   await testInfo.attach("profile-destination-settings", {
@@ -36,7 +74,7 @@ test("published profile destination controls where the slug link goes", async ({
     contentType: "image/png",
   });
   await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await expect(page.getByText("Links saved to draft.")).toBeVisible();
 
   await page.goto("/mara-velasquez");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
@@ -48,10 +86,10 @@ test("published profile destination controls where the slug link goes", async ({
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "LinkedIn" })).toBeVisible();
 
-  await page.goto("/app/profile");
+  await page.goto("/app/links");
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
-    page.getByText("Profile published. Your active card paths now show this version."),
+    page.getByText("Links published. The public profile now uses this order and enabled state."),
   ).toBeVisible();
   await page.goto("/mara-velasquez");
   await expect(page).toHaveURL(destination);
@@ -63,13 +101,23 @@ test("published profile destination controls where the slug link goes", async ({
     contentType: "image/png",
   });
 
-  await page.goto("/app/profile");
-  const tapitProfileMode = page.getByRole("radio", { name: "Show my Tapit profile" });
-  await tapitProfileMode.locator("xpath=..").click();
+  await page.goto("/app/links");
+  const tapitProfileMode = page.getByRole("switch", { name: "Show my Tapit profile" });
+  await tapitProfileMode.click();
   await expect(tapitProfileMode).toBeChecked();
+  await expect(page.getByRole("switch", { name: "Redirect to website" })).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Add link" })).toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toBeEnabled();
+  await expect(page.getByRole("textbox", { name: "Destination for LinkedIn" })).toBeEnabled();
+  await expect(page.getByRole("checkbox", { name: "Enable LinkedIn" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Reorder LinkedIn" })).toBeEnabled();
+  await expect(
+    linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
+  ).toBeEnabled();
+  await expect(page.getByRole("combobox", { name: "Featured link" })).toBeEnabled();
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
-    page.getByText("Profile published. Your active card paths now show this version."),
+    page.getByText("Links published. The public profile now uses this order and enabled state."),
   ).toBeVisible();
 
   await page.goto("/mara-velasquez");

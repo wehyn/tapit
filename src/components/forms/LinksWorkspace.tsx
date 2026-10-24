@@ -207,9 +207,7 @@ export function LinksWorkspace({
                 <Switch
                   aria-label="Redirect to website"
                   checked={redirect.enabled}
-                  onCheckedChange={(checked) =>
-                    onRedirectChange({ ...redirect, enabled: checked })
-                  }
+                  onCheckedChange={(checked) => onRedirectChange({ ...redirect, enabled: checked })}
                 />
               </div>
             </div>
@@ -264,8 +262,8 @@ export function LinksWorkspace({
               </SelectField>
               {featuredUnavailable ? (
                 <Notice>
-                  The selected featured link is missing or disabled. It will appear as a normal link,
-                  and this will not block publication.
+                  The selected featured link is missing or disabled. It will appear as a normal
+                  link, and this will not block publication.
                   <span className="mt-3 block">
                     <Button
                       disabled={redirect.enabled}
