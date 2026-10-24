@@ -10,6 +10,7 @@ const STORE_NAME = "originals";
 type StoredAsset = {
   assetKey: string;
   ownerId: string;
+  attachedOrderId?: string;
   fileName: string;
   contentType: "image/jpeg" | "image/png";
   byteSize: number;
@@ -146,6 +147,44 @@ export async function readDemoCardOrderAsset(assetKey: string): Promise<StoredAs
   return asset ?? null;
 }
 
+export async function reserveDemoCardOrderAsset(
+  designSource: Extract<DemoCardOrderDesignSource, { kind: "upload" }>,
+  orderId: string,
+  ownerId: string,
+): Promise<void> {
+  const { account } = access();
+  if (account.role !== "customer" || account.id !== ownerId) {
+    throw new Error("Customer session changed. Try again.");
+  }
+  await withStore("readwrite", async (store) => {
+    const asset = await requestValue<StoredAsset | undefined>(store.get(designSource.assetKey));
+    if (
+      !asset ||
+      asset.ownerId !== ownerId ||
+      asset.attachedOrderId !== undefined ||
+      asset.fileName !== designSource.fileName ||
+      asset.contentType !== designSource.contentType ||
+      asset.byteSize !== designSource.byteSize
+    ) {
+      throw new Error("The uploaded card design is unavailable.");
+    }
+    await requestValue(store.put({ ...asset, attachedOrderId: orderId }));
+  });
+}
+
+export async function releaseDemoCardOrderAsset(
+  assetKey: string,
+  orderId: string,
+  ownerId: string,
+): Promise<void> {
+  await withStore("readwrite", async (store) => {
+    const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
+    if (asset?.ownerId !== ownerId || asset.attachedOrderId !== orderId) return;
+    delete asset.attachedOrderId;
+    await requestValue(store.put(asset));
+  });
+}
+
 export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> {
   const { state, account } = access();
   if (account.role !== "customer") throw new Error("Customer access required.");
@@ -159,6 +198,9 @@ export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> 
   await withStore("readwrite", async (store) => {
     const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
     if (asset?.ownerId !== account.id) throw new Error("Artwork unavailable.");
+    if (asset.attachedOrderId !== undefined) {
+      throw new Error("Artwork attached to an order cannot be removed.");
+    }
     await requestValue(store.delete(assetKey));
   });
 }

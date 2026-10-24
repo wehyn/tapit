@@ -6,7 +6,7 @@ import {
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
 } from "../card-ordering";
-import { readDemoCardOrderAsset } from "./card-order-assets";
+import { releaseDemoCardOrderAsset, reserveDemoCardOrderAsset } from "./card-order-assets";
 import type {
   DemoCardOrder,
   DemoCardOrderDesignSource,
@@ -269,20 +269,10 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   ) {
     throw new Error("Choose one design source.");
   }
-  if (input.designSource.kind === "upload") {
-    const asset = await readDemoCardOrderAsset(input.designSource.assetKey);
-    if (
-      !asset ||
-      asset.ownerId !== customer.id ||
-      asset.fileName !== input.designSource.fileName ||
-      asset.contentType !== input.designSource.contentType ||
-      asset.byteSize !== input.designSource.byteSize
-    ) {
-      throw new Error("The uploaded card design is unavailable.");
-    }
-  }
+  const upload = input.designSource.kind === "upload" ? input.designSource : undefined;
   const id = crypto.randomUUID();
-  updateDemoState((current) => {
+  if (upload) await reserveDemoCardOrderAsset(upload, id, customer.id);
+  const updateOrder = (current: DemoState) => {
     const owner = activeAccount(current, "customer");
     if (owner.id !== customer.id) throw new Error("Customer session changed. Try again.");
     if (
@@ -375,7 +365,30 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       updatedAt: now,
     };
     return { ...current, cardOrders: [...current.cardOrders, order] };
-  });
+  };
+  try {
+    updateDemoState(updateOrder);
+  } catch (error) {
+    if (upload) {
+      try {
+        const latest = refreshDemoAccessSnapshot();
+        if (
+          latest.kind === "ready" &&
+          !latest.snapshot.state.cardOrders.some(
+            (order) =>
+              order.id === id &&
+              order.designSource.kind === "upload" &&
+              order.designSource.assetKey === upload.assetKey,
+          )
+        ) {
+          await releaseDemoCardOrderAsset(upload.assetKey, id, customer.id);
+        }
+      } catch {
+        // Keep the reservation if its persisted order cannot be ruled out.
+      }
+    }
+    throw error;
+  }
   return id;
 }
 
