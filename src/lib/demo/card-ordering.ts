@@ -416,29 +416,41 @@ export function getAdminDemoCardOrders() {
   return [...currentState("admin").cardOrders].sort((a, b) => b.createdAt - a.createdAt);
 }
 
-function changeOrder(
+async function changeOrder(
   orderId: string,
   action: string,
   transition: (order: DemoCardOrder) => Partial<DemoCardOrder>,
-) {
-  currentState("admin");
-  updateDemoState((state) => {
-    activeAccount(state, "admin");
-    const order = state.cardOrders.find((candidate) => candidate.id === orderId);
-    if (!order) throw new Error("Order unavailable.");
-    const changes = transition(order);
-    return {
-      ...state,
-      cardOrders: state.cardOrders.map((candidate) =>
-        candidate.id === orderId ? { ...candidate, ...changes, updatedAt: Date.now() } : candidate,
-      ),
-      audits: audit(state, action, orderId, JSON.stringify(order), JSON.stringify(changes)),
-    };
+): Promise<void> {
+  const admin = activeAccount(currentState("admin"), "admin");
+  await withDemoCardOrderCommitLock(async () => {
+    const refreshedState = currentState("admin");
+    if (activeAccount(refreshedState, "admin").id !== admin.id) {
+      throw new Error("Administrator session changed. Try again.");
+    }
+    updateDemoState((state) => {
+      const actor = activeAccount(state, "admin");
+      if (actor.id !== admin.id) throw new Error("Administrator session changed. Try again.");
+      const order = state.cardOrders.find((candidate) => candidate.id === orderId);
+      if (!order) throw new Error("Order unavailable.");
+      const changes = transition(order);
+      return {
+        ...state,
+        cardOrders: state.cardOrders.map((candidate) =>
+          candidate.id === orderId
+            ? { ...candidate, ...changes, updatedAt: Date.now() }
+            : candidate,
+        ),
+        audits: audit(state, action, orderId, JSON.stringify(order), JSON.stringify(changes)),
+      };
+    });
   });
 }
 
-export function quoteDemoCardOrderShipping(orderId: string, shippingQuoteCentavos: number) {
-  changeOrder(orderId, "shipping_quoted", (order) => {
+export function quoteDemoCardOrderShipping(
+  orderId: string,
+  shippingQuoteCentavos: number,
+): Promise<void> {
+  return changeOrder(orderId, "shipping_quoted", (order) => {
     if (order.fulfillmentStatus !== "awaiting_shipping_quote" || order.paymentStatus !== "unpaid") {
       throw new Error("Order is not awaiting a shipping quote.");
     }
@@ -449,8 +461,8 @@ export function quoteDemoCardOrderShipping(orderId: string, shippingQuoteCentavo
   });
 }
 
-export function markDemoCardOrderPaymentReceived(orderId: string) {
-  changeOrder(orderId, "payment_received", (order) => {
+export function markDemoCardOrderPaymentReceived(orderId: string): Promise<void> {
+  return changeOrder(orderId, "payment_received", (order) => {
     if (
       order.fulfillmentStatus !== "awaiting_payment" ||
       order.paymentStatus !== "unpaid" ||
@@ -462,8 +474,8 @@ export function markDemoCardOrderPaymentReceived(orderId: string) {
   });
 }
 
-export function markDemoCardOrderDelivered(orderId: string) {
-  changeOrder(orderId, "delivered", (order) => {
+export function markDemoCardOrderDelivered(orderId: string): Promise<void> {
+  return changeOrder(orderId, "delivered", (order) => {
     if (order.fulfillmentStatus !== "processing" || order.paymentStatus !== "received") {
       throw new Error("Paid processing order required.");
     }
@@ -475,8 +487,8 @@ function stoppedCommission(order: DemoCardOrder): DemoCardOrder["commissionStatu
   return order.commissionStatus === "paid" ? "paid" : order.referralCodeId ? "void" : "none";
 }
 
-export function cancelDemoCardOrder(orderId: string) {
-  changeOrder(orderId, "cancelled", (order) => {
+export function cancelDemoCardOrder(orderId: string): Promise<void> {
+  return changeOrder(orderId, "cancelled", (order) => {
     if (
       order.paymentStatus !== "unpaid" ||
       !["awaiting_shipping_quote", "awaiting_payment"].includes(order.fulfillmentStatus)
@@ -487,8 +499,8 @@ export function cancelDemoCardOrder(orderId: string) {
   });
 }
 
-export function refundDemoCardOrder(orderId: string) {
-  changeOrder(orderId, "refunded", (order) => {
+export function refundDemoCardOrder(orderId: string): Promise<void> {
+  return changeOrder(orderId, "refunded", (order) => {
     if (
       order.paymentStatus !== "received" ||
       !["processing", "delivered"].includes(order.fulfillmentStatus)
@@ -503,8 +515,8 @@ export function refundDemoCardOrder(orderId: string) {
   });
 }
 
-export function markDemoCardOrderCommissionEligible(orderId: string) {
-  changeOrder(orderId, "commission_eligible", (order) => {
+export function markDemoCardOrderCommissionEligible(orderId: string): Promise<void> {
+  return changeOrder(orderId, "commission_eligible", (order) => {
     if (
       order.fulfillmentStatus !== "delivered" ||
       order.paymentStatus !== "received" ||
@@ -516,8 +528,11 @@ export function markDemoCardOrderCommissionEligible(orderId: string) {
   });
 }
 
-export function recordDemoCardOrderCommissionPayout(orderId: string, reference: string) {
-  changeOrder(orderId, "commission_paid", (order) => {
+export function recordDemoCardOrderCommissionPayout(
+  orderId: string,
+  reference: string,
+): Promise<void> {
+  return changeOrder(orderId, "commission_paid", (order) => {
     if (
       order.commissionStatus !== "eligible" ||
       order.fulfillmentStatus !== "delivered" ||

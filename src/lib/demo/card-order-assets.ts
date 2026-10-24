@@ -51,7 +51,7 @@ export function withDemoCardOrderCommitLock<T>(operation: () => Promise<T>): Pro
   return withLock(
     "tapit:card-order-commit",
     operation,
-    "Card order submissions require a browser with Web Locks support.",
+    "Card order changes require a browser with Web Locks support.",
   );
 }
 
@@ -181,35 +181,7 @@ function requestValue<T>(request: IDBRequest<T>): Promise<T> {
 export async function saveDemoCardOrderAsset(
   file: File,
 ): Promise<Extract<DemoCardOrderDesignSource, { kind: "upload" }>> {
-  const { account } = access();
-  if (account.role !== "customer") throw new Error("An active customer account is required.");
-  await validateCardOrderDesignFile(file);
-  const assetKey = crypto.randomUUID();
-  const asset: StoredAsset = {
-    assetKey,
-    ownerId: account.id,
-    fileName: file.name,
-    contentType: file.type as StoredAsset["contentType"],
-    byteSize: file.size,
-    blob: file,
-  };
-  await withCustomerAssetsLock(account.id, async () => {
-    const current = access();
-    if (current.account.role !== "customer" || current.account.id !== account.id) {
-      throw new Error("Customer session changed. Try again.");
-    }
-    await recoverUnreferencedAssetReservations(account.id);
-    await withStore("readwrite", async (store) => {
-      await requestValue(store.add(asset));
-    });
-  });
-  return {
-    kind: "upload",
-    assetKey,
-    fileName: asset.fileName,
-    contentType: asset.contentType,
-    byteSize: asset.byteSize,
-  };
+  return replaceDemoCardOrderAsset(undefined, file);
 }
 
 export async function readDemoCardOrderAsset(assetKey: string): Promise<StoredAsset | null> {
@@ -305,6 +277,83 @@ export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> 
   });
 }
 
+export function replaceDemoCardOrderAsset(
+  previousAssetKey: string | undefined,
+  file: File,
+): Promise<Extract<DemoCardOrderDesignSource, { kind: "upload" }>>;
+export function replaceDemoCardOrderAsset(
+  previousAssetKey: string | undefined,
+  file: null,
+): Promise<null>;
+export function replaceDemoCardOrderAsset(
+  previousAssetKey: string | undefined,
+  file: File | null,
+): Promise<Extract<DemoCardOrderDesignSource, { kind: "upload" }> | null>;
+export async function replaceDemoCardOrderAsset(
+  previousAssetKey: string | undefined,
+  file: File | null,
+): Promise<Extract<DemoCardOrderDesignSource, { kind: "upload" }> | null> {
+  if (file === null) {
+    if (previousAssetKey !== undefined) await deleteDemoCardOrderAsset(previousAssetKey);
+    return null;
+  }
+
+  const { account } = access();
+  if (account.role !== "customer") throw new Error("An active customer account is required.");
+  await validateCardOrderDesignFile(file);
+  const assetKey = crypto.randomUUID();
+  const asset: StoredAsset = {
+    assetKey,
+    ownerId: account.id,
+    fileName: file.name,
+    contentType: file.type as StoredAsset["contentType"],
+    byteSize: file.size,
+    blob: file,
+  };
+
+  await withCustomerAssetsLock(account.id, async () => {
+    const current = access();
+    if (current.account.role !== "customer" || current.account.id !== account.id) {
+      throw new Error("Customer session changed. Try again.");
+    }
+    await recoverUnreferencedAssetReservations(account.id);
+    await withAssetLocks(
+      previousAssetKey === undefined ? [assetKey] : [previousAssetKey, assetKey],
+      () =>
+        withStore("readwrite", async (store) => {
+          const { state, account: owner } = access();
+          if (owner.role !== "customer" || owner.id !== account.id) {
+            throw new Error("Customer session changed. Try again.");
+          }
+          if (previousAssetKey !== undefined) {
+            if (orderReferencesAsset(state, previousAssetKey)) {
+              throw new Error("Artwork attached to an order cannot be removed.");
+            }
+            const previous = await requestValue<StoredAsset | undefined>(
+              store.get(previousAssetKey),
+            );
+            if (!previous || previous.ownerId !== owner.id) {
+              throw new Error("Artwork unavailable.");
+            }
+            if (previous.attachedOrderId !== undefined) {
+              throw new Error("Artwork attached to an order cannot be removed.");
+            }
+            await requestValue(store.delete(previousAssetKey));
+          }
+          await requestValue(store.add(asset));
+        }),
+    );
+  });
+
+  return {
+    kind: "upload",
+    assetKey,
+    fileName: asset.fileName,
+    contentType: asset.contentType,
+    byteSize: asset.byteSize,
+  };
+}
+
 export async function deleteDemoCardOrderAssetsForApprovedDeletion(
   customerId: string,
 ): Promise<void> {
@@ -315,44 +364,46 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
     );
     const keys = assetKeys.map(String);
     await withAssetLocks(keys, async () => {
-      approvedDeletionState(customerId);
-      updateDemoState((state) => {
-        const customer = state.customers.find((candidate) => candidate.id === customerId);
-        if (customer?.deletionStatus !== "requested") {
-          throw new Error("Deletion request unavailable.");
-        }
-        return {
-          ...state,
-          cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
-        };
-      });
-      const state = approvedDeletionState(customerId);
-      await withStore("readwrite", async (store, transaction) => {
-        const currentKeys = await requestValue<IDBValidKey[]>(
-          store.index("by_ownerId").getAllKeys(customerId),
-        );
-        if (currentKeys.some((key) => typeof key !== "string" || !keys.includes(key))) {
-          transaction.abort();
-          throw new Error("Artwork changed during deletion. Retry the approval.");
-        }
-        for (const key of currentKeys) {
-          if (typeof key !== "string") {
-            transaction.abort();
-            throw new Error("Artwork could not be verified for deletion.");
+      await withDemoCardOrderCommitLock(async () => {
+        approvedDeletionState(customerId);
+        updateDemoState((state) => {
+          const customer = state.customers.find((candidate) => candidate.id === customerId);
+          if (customer?.deletionStatus !== "requested") {
+            throw new Error("Deletion request unavailable.");
           }
-          if (
-            state.cardOrders.some(
-              (order) =>
-                order.customerId !== customerId &&
-                order.designSource.kind === "upload" &&
-                order.designSource.assetKey === key,
-            )
-          ) {
+          return {
+            ...state,
+            cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
+          };
+        });
+        const state = approvedDeletionState(customerId);
+        await withStore("readwrite", async (store, transaction) => {
+          const currentKeys = await requestValue<IDBValidKey[]>(
+            store.index("by_ownerId").getAllKeys(customerId),
+          );
+          if (currentKeys.some((key) => typeof key !== "string" || !keys.includes(key))) {
             transaction.abort();
-            throw new Error("Artwork is attached to another customer's order.");
+            throw new Error("Artwork changed during deletion. Retry the approval.");
           }
-          await requestValue(store.delete(key));
-        }
+          for (const key of currentKeys) {
+            if (typeof key !== "string") {
+              transaction.abort();
+              throw new Error("Artwork could not be verified for deletion.");
+            }
+            if (
+              state.cardOrders.some(
+                (order) =>
+                  order.customerId !== customerId &&
+                  order.designSource.kind === "upload" &&
+                  order.designSource.assetKey === key,
+              )
+            ) {
+              transaction.abort();
+              throw new Error("Artwork is attached to another customer's order.");
+            }
+            await requestValue(store.delete(key));
+          }
+        });
       });
     });
   });
