@@ -38,16 +38,17 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(
     linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
   ).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Actions for LinkedIn" })).toHaveAttribute(
-    "aria-disabled",
-    "true",
+  const actionsMenu = linkedInRow.locator("details");
+  const actionsSummary = actionsMenu.locator("summary");
+  await actionsSummary.focus();
+  await expect(actionsSummary).not.toBeFocused();
+  const summaryBox = await actionsSummary.boundingBox();
+  expect(summaryBox).not.toBeNull();
+  await page.mouse.click(
+    summaryBox!.x + summaryBox!.width / 2,
+    summaryBox!.y + summaryBox!.height / 2,
   );
-  await expect(
-    linkedInRow.getByRole("button", { name: "Move down", includeHidden: true }),
-  ).toBeDisabled();
-  await expect(
-    linkedInRow.getByRole("button", { name: "Delete", includeHidden: true }),
-  ).toBeDisabled();
+  await expect(actionsMenu).toHaveJSProperty("open", false);
   await expect(page.getByRole("combobox", { name: "Featured link" })).toBeDisabled();
   await expect(
     page.getByText(
