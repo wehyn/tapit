@@ -303,7 +303,15 @@ export const cleanupFailedUpload = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const intent = await ctx.db.get(args.uploadId);
-    if (intent === null) return null;
+    if (intent === null) {
+      if (args.storageId !== undefined) {
+        const metadata = await ctx.db.system.get("_storage", args.storageId);
+        if (metadata !== null && (await storageIsUnreferenced(ctx, args.storageId))) {
+          await ctx.storage.delete(args.storageId);
+        }
+      }
+      return null;
+    }
     if (
       intent.storageId !== undefined &&
       args.storageId !== undefined &&
