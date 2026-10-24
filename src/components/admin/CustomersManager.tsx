@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery_experimental } from "convex/react";
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
@@ -32,6 +32,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 function DemoCustomersManager() {
   const state = useDemoState();
+  const approvingDeletionCustomerIds = useRef(new Set<string>());
   const [query, setQuery] = useState("");
   const [email, setEmail] = useState("");
   const [profileName, setProfileName] = useState("");
@@ -132,6 +133,8 @@ function DemoCustomersManager() {
   }
 
   async function approveDeletion(customerId: string) {
+    if (approvingDeletionCustomerIds.current.has(customerId)) return;
+    approvingDeletionCustomerIds.current.add(customerId);
     try {
       assertDemoCardOrderDeletionAccess(customerId);
       updateDemoState((current) => {
@@ -208,6 +211,8 @@ function DemoCustomersManager() {
             ? error.message
             : "Deletion approval could not be completed. The request remains available to retry.",
       });
+    } finally {
+      approvingDeletionCustomerIds.current.delete(customerId);
     }
   }
 
