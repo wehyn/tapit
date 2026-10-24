@@ -136,14 +136,11 @@ function DemoCustomersManager() {
     if (approvingDeletionCustomerIds.current.has(customerId)) return;
     approvingDeletionCustomerIds.current.add(customerId);
     try {
-      assertDemoCardOrderDeletionAccess(customerId);
-      await deleteDemoCardOrderAssetsForApprovedDeletion(customerId);
+      const adminId = assertDemoCardOrderDeletionAccess(customerId);
       const occurredAt = new Date().toISOString();
-      updateDemoState((current) => {
+      await deleteDemoCardOrderAssetsForApprovedDeletion(customerId, adminId, (current) => {
         const customer = current.customers.find((candidate) => candidate.id === customerId);
-        if (customer === undefined || customer.deletionStatus !== "requested") {
-          throw new Error("Deletion request unavailable.");
-        }
+        if (customer === undefined) return current;
         const profile = getDemoProfiles(current).find(
           (candidate) => candidate.id === customer.profileId,
         );
@@ -191,7 +188,7 @@ function DemoCustomersManager() {
       setApprovalCustomer(null);
       setMessage({
         tone: "success",
-        text: "Deletion approved. The account, orders, and original artwork were removed; its profile and cards remain unavailable.",
+        text: "Deletion approved. The account is closed and its profile and cards remain unavailable. Orders and original artwork were removed.",
       });
     } catch (error) {
       setMessage({

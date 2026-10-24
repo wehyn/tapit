@@ -1,7 +1,7 @@
 "use client";
 
 import { validateCardOrderDesignFile } from "../card-design";
-import type { DemoCardOrderDesignSource } from "./fixtures";
+import type { DemoCardOrderDesignSource, DemoState } from "./fixtures";
 import { refreshDemoAccessSnapshot, resolveDemoSessionAccess, updateDemoState } from "./store";
 
 const DATABASE_NAME = "tapit-card-order-assets";
@@ -25,15 +25,18 @@ function access() {
   return { state: refreshed.snapshot.state, account: resolved.account };
 }
 
-function approvedDeletionState(customerId: string) {
+function approvedDeletionAccess(customerId: string, expectedAdminId?: string) {
   const { state, account } = access();
   if (account.role !== "admin") throw new Error("Administrator access required.");
+  if (expectedAdminId !== undefined && account.id !== expectedAdminId) {
+    throw new Error("Administrator session changed. Try again.");
+  }
   if (
     state.customers.find((candidate) => candidate.id === customerId)?.deletionStatus !== "requested"
   ) {
     throw new Error("Deletion request unavailable.");
   }
-  return state;
+  return { state, account };
 }
 
 async function withLock<T>(
@@ -106,8 +109,11 @@ async function recoverUnreferencedAssetReservations(ownerId: string): Promise<vo
   }
 }
 
-export function assertDemoCardOrderDeletionAccess(customerId: string): void {
-  approvedDeletionState(customerId);
+export function assertDemoCardOrderDeletionAccess(
+  customerId: string,
+  expectedAdminId?: string,
+): string {
+  return approvedDeletionAccess(customerId, expectedAdminId).account.id;
 }
 
 function openDatabase(): Promise<IDBDatabase> {
@@ -118,15 +124,17 @@ function openDatabase(): Promise<IDBDatabase> {
     let request: IDBOpenDBRequest;
     try {
       if (!window.indexedDB) throw new Error();
-      request = window.indexedDB.open(DATABASE_NAME, 1);
+      request = window.indexedDB.open(DATABASE_NAME, 2);
     } catch {
       reject(new Error("Artwork storage is unavailable in this browser."));
       return;
     }
-    request.onupgradeneeded = () => {
-      request.result
-        .createObjectStore(STORE_NAME, { keyPath: "assetKey" })
-        .createIndex("by_ownerId", "ownerId");
+    request.onupgradeneeded = (event) => {
+      if (event.oldVersion < 1) {
+        request.result
+          .createObjectStore(STORE_NAME, { keyPath: "assetKey" })
+          .createIndex("by_ownerId", "ownerId");
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(new Error("Artwork storage is unavailable in this browser."));
@@ -185,11 +193,15 @@ export async function saveDemoCardOrderAsset(
 }
 
 export async function readDemoCardOrderAsset(assetKey: string): Promise<StoredAsset | null> {
-  const { account } = access();
+  const initialAccount = access().account;
   const asset = await withStore("readonly", (store) =>
     requestValue<StoredAsset | undefined>(store.get(assetKey)),
   );
-  if (asset && account.role !== "admin" && asset.ownerId !== account.id) {
+  const currentAccount = access().account;
+  if (currentAccount.role !== initialAccount.role || currentAccount.id !== initialAccount.id) {
+    throw new Error("Demo account changed. Try again.");
+  }
+  if (asset && currentAccount.role !== "admin" && asset.ownerId !== currentAccount.id) {
     throw new Error("Artwork unavailable.");
   }
   return asset ?? null;
@@ -356,36 +368,32 @@ export async function replaceDemoCardOrderAsset(
 
 export async function deleteDemoCardOrderAssetsForApprovedDeletion(
   customerId: string,
+  expectedAdminId: string,
+  finalizeDeletion: (state: DemoState) => DemoState,
 ): Promise<void> {
+  assertDemoCardOrderDeletionAccess(customerId, expectedAdminId);
   await withCustomerAssetsLock(customerId, async () => {
-    approvedDeletionState(customerId);
+    approvedDeletionAccess(customerId, expectedAdminId);
     const assetKeys = await withStore("readonly", (store) =>
       requestValue<IDBValidKey[]>(store.index("by_ownerId").getAllKeys(customerId)),
     );
     const keys = assetKeys.map(String);
     await withAssetLocks(keys, async () => {
       await withDemoCardOrderCommitLock(async () => {
-        approvedDeletionState(customerId);
-        updateDemoState((state) => {
-          const customer = state.customers.find((candidate) => candidate.id === customerId);
-          if (customer?.deletionStatus !== "requested") {
-            throw new Error("Deletion request unavailable.");
-          }
-          const erasedOrderIds = new Set(
-            state.cardOrders
-              .filter((order) => order.customerId === customerId)
-              .map((order) => order.id),
-          );
-          return {
-            ...state,
-            cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
-            audits: state.audits.filter(
-              (event) =>
-                !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
-            ),
-          };
-        });
-        const state = approvedDeletionState(customerId);
+        const { state } = approvedDeletionAccess(customerId, expectedAdminId);
+        const erasedOrderIds = new Set(
+          state.cardOrders
+            .filter((order) => order.customerId === customerId)
+            .map((order) => order.id),
+        );
+        const erasedState: DemoState = {
+          ...state,
+          cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
+          audits: state.audits.filter(
+            (event) =>
+              !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
+          ),
+        };
         await withStore("readwrite", async (store, transaction) => {
           const currentKeys = await requestValue<IDBValidKey[]>(
             store.index("by_ownerId").getAllKeys(customerId),
@@ -394,24 +402,44 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
             transaction.abort();
             throw new Error("Artwork changed during deletion. Retry the approval.");
           }
-          for (const key of currentKeys) {
+          const currentAssetKeys = currentKeys.map((key) => {
             if (typeof key !== "string") {
               transaction.abort();
               throw new Error("Artwork could not be verified for deletion.");
             }
+            return key;
+          });
+          for (const key of currentAssetKeys) {
             if (
-              state.cardOrders.some(
+              erasedState.cardOrders.some(
                 (order) =>
-                  order.customerId !== customerId &&
-                  order.designSource.kind === "upload" &&
-                  order.designSource.assetKey === key,
+                  order.designSource.kind === "upload" && order.designSource.assetKey === key,
               )
             ) {
               transaction.abort();
               throw new Error("Artwork is attached to another customer's order.");
             }
+          }
+          assertDemoCardOrderDeletionAccess(customerId, expectedAdminId);
+          for (const key of currentAssetKeys) {
             await requestValue(store.delete(key));
           }
+        });
+        updateDemoState((current) => {
+          const erasedOrderIds = new Set(
+            current.cardOrders
+              .filter((order) => order.customerId === customerId)
+              .map((order) => order.id),
+          );
+          const withoutCustomerOrders: DemoState = {
+            ...current,
+            cardOrders: current.cardOrders.filter((order) => order.customerId !== customerId),
+            audits: current.audits.filter(
+              (event) =>
+                !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
+            ),
+          };
+          return finalizeDeletion(withoutCustomerOrders);
         });
       });
     });
