@@ -28,6 +28,7 @@ const adminNavGroups: ShellNavGroup[] = [
       { href: "/admin/customers", label: "Customers", icon: "users" },
       { href: "/admin/profiles", label: "Profiles", icon: "profiles" },
       { href: "/admin/cards", label: "Cards", icon: "card" },
+      { href: "/admin/orders", label: "Orders", icon: "audit" },
       { href: "/admin/analytics", label: "Analytics", icon: "chart" },
     ],
   },
