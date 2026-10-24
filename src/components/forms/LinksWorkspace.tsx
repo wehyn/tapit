@@ -2,7 +2,7 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import type { LinkIcon, ProfileLink, PublicProfileProjection } from "@/lib/domain";
+import type { LinkIcon, ProfileLink, ProfileRedirect, PublicProfileProjection } from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
 import { displayDestination, linkKind } from "./LinkDestination";
@@ -10,9 +10,10 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { SelectField } from "@/components/ui/Field";
+import { Field, SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
+import { Switch } from "@/components/ui/Switch";
 import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
 
 export type LinksWorkspaceMessage = {
@@ -23,6 +24,8 @@ export type LinksWorkspaceMessage = {
 export type LinksWorkspaceProps = {
   profileUrl: string;
   links: ProfileLink[];
+  redirect?: ProfileRedirect;
+  redirectError?: string | null;
   featuredLinkId?: string | null;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
@@ -33,6 +36,7 @@ export type LinksWorkspaceProps = {
   hasUnpublishedChanges: boolean;
   publicationLabel: string;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
+  onRedirectChange?: (redirect: ProfileRedirect) => void;
   onFeaturedLinkChange?: (id: string | null) => void;
   onAddLink: (link: Pick<ProfileLink, "label" | "destination" | "icon">) => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
@@ -48,6 +52,8 @@ const rowFieldClasses =
 export function LinksWorkspace({
   profileUrl,
   links,
+  redirect = { enabled: false, destination: "" },
+  redirectError = null,
   featuredLinkId = null,
   preview,
   validation,
@@ -58,6 +64,7 @@ export function LinksWorkspace({
   hasUnpublishedChanges,
   publicationLabel,
   onUpdateLink,
+  onRedirectChange = () => {},
   onFeaturedLinkChange = () => {},
   onAddLink,
   onMoveLink,
@@ -181,38 +188,97 @@ export function LinksWorkspace({
         >
           {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
           <Card
+            description="Choose what visitors see when they open your profile link or tap or scan your card."
+            title="Destination"
+          >
+            <div className="grid gap-3">
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
+                <span className="text-sm font-medium text-tapit-ink">Show my Tapit profile</span>
+                <Switch
+                  aria-label="Show my Tapit profile"
+                  checked={!redirect.enabled}
+                  onCheckedChange={(checked) =>
+                    onRedirectChange({ ...redirect, enabled: !checked })
+                  }
+                />
+              </div>
+              <div className="flex min-h-11 items-center justify-between gap-4 rounded-control bg-tapit-soft-surface px-4 py-2">
+                <span className="text-sm font-medium text-tapit-ink">Redirect to website</span>
+                <Switch
+                  aria-label="Redirect to website"
+                  checked={redirect.enabled}
+                  onCheckedChange={(checked) =>
+                    onRedirectChange({ ...redirect, enabled: checked })
+                  }
+                />
+              </div>
+            </div>
+            {redirect.enabled ? (
+              <Field
+                error={redirectError ?? undefined}
+                help="When published, your Tapit profile link and card taps or scans will send visitors here."
+                id="profile-redirect-destination"
+                label="HTTPS destination URL"
+                onChange={(event) =>
+                  onRedirectChange({ ...redirect, destination: event.target.value })
+                }
+                placeholder="https://www.yourwebsite.com"
+                type="url"
+                value={redirect.destination}
+              />
+            ) : (
+              <p className="text-sm leading-6 text-tapit-muted">
+                Visitors see your contact details and profile links.
+              </p>
+            )}
+          </Card>
+          {redirect.enabled ? (
+            <Notice>
+              Profile links are paused while visitors go to your website. Show my Tapit profile to
+              edit them.
+            </Notice>
+          ) : null}
+          <Card
             description="Shown as a large button at the top of your profile."
             title="Featured link"
           >
-            <SelectField
-              id="featured-link"
-              label="Featured link"
-              onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
-              value={featuredLinkId ?? ""}
-            >
-              <option value="">No featured link</option>
+            <div className="grid gap-4">
+              <SelectField
+                disabled={redirect.enabled}
+                id="featured-link"
+                label="Featured link"
+                onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
+                value={featuredLinkId ?? ""}
+              >
+                <option value="">No featured link</option>
+                {featuredUnavailable ? (
+                  <option value={featuredLinkId}>Previously selected link</option>
+                ) : null}
+                {links
+                  .filter((link) => link.enabled)
+                  .map((link) => (
+                    <option key={link.id} value={link.id}>
+                      {link.label}
+                    </option>
+                  ))}
+              </SelectField>
               {featuredUnavailable ? (
-                <option value={featuredLinkId}>Previously selected link</option>
+                <Notice>
+                  The selected featured link is missing or disabled. It will appear as a normal link,
+                  and this will not block publication.
+                  <span className="mt-3 block">
+                    <Button
+                      disabled={redirect.enabled}
+                      onClick={() => onFeaturedLinkChange(null)}
+                      type="button"
+                      variant="quiet"
+                    >
+                      Clear featured link
+                    </Button>
+                  </span>
+                </Notice>
               ) : null}
-              {links
-                .filter((link) => link.enabled)
-                .map((link) => (
-                  <option key={link.id} value={link.id}>
-                    {link.label}
-                  </option>
-                ))}
-            </SelectField>
-            {featuredUnavailable ? (
-              <Notice>
-                The selected featured link is missing or disabled. It will appear as a normal link,
-                and this will not block publication.
-                <span className="mt-3 block">
-                  <Button onClick={() => onFeaturedLinkChange(null)} type="button" variant="quiet">
-                    Clear featured link
-                  </Button>
-                </span>
-              </Notice>
-            ) : null}
+            </div>
           </Card>
           <section
             aria-label="Editable profile links"
@@ -242,7 +308,12 @@ export function LinksWorkspace({
                     {publicationLabel}
                   </Button>
                 ) : null}
-                <Button onClick={() => setAddDialogOpen(true)} type="button" variant="secondary">
+                <Button
+                  disabled={redirect.enabled}
+                  onClick={() => setAddDialogOpen(true)}
+                  type="button"
+                  variant="secondary"
+                >
                   <Icon name="plus" size={18} weight="bold" />
                   Add link
                 </Button>
@@ -254,7 +325,7 @@ export function LinksWorkspace({
                 choose email or phone to add those actions.
               </Notice>
             ) : null}
-            <div className="flex flex-col gap-2">
+            <div className="flex min-w-0 flex-col gap-2">
               {links.map((link, index) => {
                 const selectedIcon: LinkIcon = link.icon ?? "link";
                 return (
@@ -262,6 +333,7 @@ export function LinksWorkspace({
                     className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"}`}
                     key={link.id}
                     onDragOver={(event) => {
+                      if (redirect.enabled) return;
                       event.preventDefault();
                       event.dataTransfer.dropEffect = "move";
                       const sourceId = draggedLinkIdRef.current;
@@ -296,7 +368,8 @@ export function LinksWorkspace({
                     <button
                       aria-label={`Reorder ${link.label || "link"}`}
                       className="hidden size-11 touch-none cursor-grab place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
-                      draggable
+                      disabled={redirect.enabled}
+                      draggable={!redirect.enabled}
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
                         event.dataTransfer.setData("text/plain", link.id);
@@ -331,6 +404,7 @@ export function LinksWorkspace({
                       <Icon name="dragHandle" size={18} weight="bold" />
                     </button>
                     <LinkPresetIconPicker
+                      disabled={redirect.enabled}
                       value={selectedIcon}
                       label={link.label}
                       onChange={(icon) => onUpdateLink(link.id, { icon })}
@@ -344,6 +418,7 @@ export function LinksWorkspace({
                         aria-invalid={Boolean(validation[link.id])}
                         className={`${rowFieldClasses} text-base font-medium`}
                         id={`${link.id}-label`}
+                        disabled={redirect.enabled}
                         onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
                         placeholder="e.g. Portfolio"
                         value={link.label}
@@ -358,6 +433,7 @@ export function LinksWorkspace({
                         aria-invalid={Boolean(validation[link.id])}
                         className={`${rowFieldClasses} text-sm text-tapit-muted`}
                         id={`${link.id}-destination`}
+                        disabled={redirect.enabled}
                         onChange={(event) =>
                           onUpdateLink(link.id, {
                             destination:
@@ -386,6 +462,7 @@ export function LinksWorkspace({
                         aria-label={`Enable ${link.label || "link"}`}
                         checked={link.enabled}
                         className="peer sr-only"
+                        disabled={redirect.enabled}
                         onChange={(event) =>
                           onUpdateLink(link.id, { enabled: event.target.checked })
                         }
@@ -399,7 +476,13 @@ export function LinksWorkspace({
                     <details className="relative">
                       <summary
                         aria-label={`Actions for ${link.label || "link"}`}
+                        aria-disabled={redirect.enabled}
                         className="grid size-11 cursor-pointer list-none place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink"
+                        onClick={(event) => {
+                          if (redirect.enabled) event.preventDefault();
+                        }}
+                        role="button"
+                        tabIndex={redirect.enabled ? -1 : undefined}
                       >
                         <Icon name="more" size={20} weight="bold" />
                       </summary>
@@ -408,7 +491,7 @@ export function LinksWorkspace({
                       >
                         <Button
                           className="justify-start"
-                          disabled={index === 0}
+                          disabled={redirect.enabled || index === 0}
                           onClick={() => onMoveLink(link.id, -1)}
                           type="button"
                           variant="quiet"
@@ -418,7 +501,7 @@ export function LinksWorkspace({
                         </Button>
                         <Button
                           className="justify-start"
-                          disabled={index === links.length - 1}
+                          disabled={redirect.enabled || index === links.length - 1}
                           onClick={() => onMoveLink(link.id, 1)}
                           type="button"
                           variant="quiet"
@@ -428,6 +511,7 @@ export function LinksWorkspace({
                         </Button>
                         <Button
                           className="justify-start"
+                          disabled={redirect.enabled}
                           onClick={() => onRemoveLink(link.id)}
                           type="button"
                           variant="quiet"

@@ -12,7 +12,7 @@ export function Switch({
     <button
       {...props}
       aria-checked={checked}
-      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-55"
+      className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-55"
       onClick={() => onCheckedChange(!checked)}
       role="switch"
       type="button"
