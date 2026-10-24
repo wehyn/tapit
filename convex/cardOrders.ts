@@ -315,7 +315,12 @@ export const cancelOrder = mutation({
       throw new Error("Only an unpaid open order can be cancelled.");
     await updateOrder(ctx, access, "cancelled", {
       fulfillmentStatus: "cancelled",
-      commissionStatus: access.order.commissionStatus === "paid" ? "paid" : "void",
+      commissionStatus:
+        access.order.commissionStatus === "paid"
+          ? "paid"
+          : access.order.referralCodeId === undefined
+            ? "none"
+            : "void",
     });
     return null;
   },
@@ -334,7 +339,12 @@ export const refundOrder = mutation({
     await updateOrder(ctx, access, "refunded", {
       paymentStatus: "refunded",
       fulfillmentStatus: access.order.fulfillmentStatus === "delivered" ? "delivered" : "cancelled",
-      commissionStatus: access.order.commissionStatus === "paid" ? "paid" : "void",
+      commissionStatus:
+        access.order.commissionStatus === "paid"
+          ? "paid"
+          : access.order.referralCodeId === undefined
+            ? "none"
+            : "void",
     });
     return null;
   },
