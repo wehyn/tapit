@@ -7,6 +7,7 @@ import { useMutation, usePaginatedQuery, useQuery_experimental } from "convex/re
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
+import { deleteDemoCardOrderAssetsForApprovedDeletion } from "@/lib/demo/card-order-assets";
 import { validateProfileSlug } from "@/lib/domain";
 import {
   getDemoProfiles,
@@ -127,53 +128,74 @@ function DemoCustomersManager() {
     });
   }
 
-  function approveDeletion(customerId: string) {
-    const occurredAt = new Date().toISOString();
-    updateDemoState((current) => {
-      const customer = current.customers.find((candidate) => candidate.id === customerId);
-      if (customer === undefined || customer.deletionStatus !== "requested") return current;
-      const profile = getDemoProfiles(current).find(
-        (candidate) => candidate.id === customer.profileId,
-      );
-      const withProfile =
-        profile === undefined
-          ? current
-          : updateDemoProfile(current, profile.id, (currentProfile) => ({
-              ...currentProfile,
-              status: "unpublished",
-            }));
-      return {
-        ...withProfile,
-        customers: withProfile.customers.map((candidate) =>
-          candidate.id === customerId
-            ? { ...candidate, status: "deleted", deletionStatus: "deleted", setupToken: undefined }
-            : candidate,
-        ),
-        cards: withProfile.cards.map((card) =>
-          card.profileId === customer.profileId &&
-          (card.status === "active" || card.status === "claimable" || card.status === "registered")
-            ? { ...card, status: "inactive" }
-            : card,
-        ),
-        audits: [
-          {
-            id: `audit-${Date.now()}`,
-            actor: "admin@tapit.local",
-            action: "account.deletion_approved",
-            target: customer.email,
-            occurredAt,
-            before: "requested",
-            after: "deleted; profile unpublished; cards inactive",
-          },
-          ...withProfile.audits,
-        ],
-      };
-    });
-    setApprovalCustomer(null);
-    setMessage({
-      tone: "success",
-      text: "Deletion approved. The account is closed and its profile and cards remain unavailable.",
-    });
+  async function approveDeletion(customerId: string) {
+    try {
+      await deleteDemoCardOrderAssetsForApprovedDeletion(customerId);
+      const occurredAt = new Date().toISOString();
+      updateDemoState((current) => {
+        const customer = current.customers.find((candidate) => candidate.id === customerId);
+        if (customer === undefined || customer.deletionStatus !== "requested") {
+          throw new Error("Deletion request unavailable.");
+        }
+        const profile = getDemoProfiles(current).find(
+          (candidate) => candidate.id === customer.profileId,
+        );
+        const withProfile =
+          profile === undefined
+            ? current
+            : updateDemoProfile(current, profile.id, (currentProfile) => ({
+                ...currentProfile,
+                status: "unpublished",
+              }));
+        return {
+          ...withProfile,
+          cardOrders: withProfile.cardOrders.filter((order) => order.customerId !== customerId),
+          customers: withProfile.customers.map((candidate) =>
+            candidate.id === customerId
+              ? {
+                  ...candidate,
+                  status: "deleted",
+                  deletionStatus: "deleted",
+                  setupToken: undefined,
+                }
+              : candidate,
+          ),
+          cards: withProfile.cards.map((card) =>
+            card.profileId === customer.profileId &&
+            (card.status === "active" ||
+              card.status === "claimable" ||
+              card.status === "registered")
+              ? { ...card, status: "inactive" }
+              : card,
+          ),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: "admin@tapit.local",
+              action: "account.deletion_approved",
+              target: customer.email,
+              occurredAt,
+              before: "requested",
+              after: "deleted; profile unpublished; cards inactive; orders and artwork removed",
+            },
+            ...withProfile.audits,
+          ],
+        };
+      });
+      setApprovalCustomer(null);
+      setMessage({
+        tone: "success",
+        text: "Deletion approved. The account, orders, and original artwork were removed; its profile and cards remain unavailable.",
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Could not remove original artwork. Account deletion was not approved.",
+      });
+    }
   }
 
   return (
@@ -433,7 +455,7 @@ function DemoCustomersManager() {
         }
         onCancel={() => setApprovalCustomer(null)}
         onConfirm={() => {
-          if (approvalCustomer !== null) approveDeletion(approvalCustomer.id);
+          if (approvalCustomer !== null) void approveDeletion(approvalCustomer.id);
         }}
         open={approvalCustomer !== null}
         title="Approve account deletion?"
