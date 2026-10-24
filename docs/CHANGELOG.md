@@ -1,3 +1,16 @@
+## 2026-10-21 — Workspace shell and navigation
+
+- Customer and admin workspaces share one shell built from a typed navigation registry. Desktop uses a 248px labelled sidebar with a Customer / Admin switch for administrators. Mobile uses a bottom tab bar and a More sheet; administrators keep their own tabs.
+- Every workspace page has a top bar with breadcrumbs, a ⌘K search button that has no behaviour yet, and a save-state pill driven by the draft save context.
+- Build card moved from `/app/account/build-card` to `/app/card`. The old path redirects permanently.
+- The first-visit navigation tour is removed. The Profile page shows a "Finish your profile" checklist derived from profile data until every step is done.
+
+Validation for this change:
+
+- `npx tsc --noEmit`, `npm run lint` (0 errors, 3 existing warnings), `npm run build`
+- `npx vitest run` — 58 files, 573 tests passed
+- `npm run test:e2e:demo` — 152 passed, 1 skipped, 1 failed on a browser protocol error in the focus-style spec that passed when rerun alone
+
 # Change log
 
 ## 2026-09-24 — Public profile customization

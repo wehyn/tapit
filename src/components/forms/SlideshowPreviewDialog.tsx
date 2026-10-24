@@ -1,8 +1,8 @@
-import { ArrowLeft } from "@phosphor-icons/react";
 import { useEffect, useId, useRef } from "react";
 
 import { ProfileSlideshow } from "@/components/profile/ProfileSlideshow";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import type { PublicProfileMediaImage } from "@/lib/profile-media";
 
 export function SlideshowPreviewDialog({
@@ -37,10 +37,10 @@ export function SlideshowPreviewDialog({
       }}
       ref={dialogRef}
     >
-      <div className="flex h-[100dvh] min-h-0 w-full max-w-[24.375rem] flex-col bg-tapit-paper sm:h-[90vh] sm:max-h-[56rem] sm:rounded-tapit sm:border sm:border-tapit-line sm:shadow-[0_16px_48px_rgba(27,36,51,0.2)]">
-        <header className="flex min-h-16 items-center gap-3 border-b border-tapit-line px-4">
+      <div className="flex h-dvh min-h-0 w-full max-w-[24.375rem] flex-col bg-tapit-surface sm:h-[90vh] sm:max-h-[56rem] sm:rounded-card sm:shadow-card">
+        <header className="flex min-h-16 items-center gap-3 px-4">
           <Button className="shrink-0" onClick={onClose} type="button" variant="quiet">
-            <ArrowLeft aria-hidden="true" className="mr-2" size={18} />
+            <Icon className="size-4" name="arrowLeft" />
             Return to editor
           </Button>
           <h2

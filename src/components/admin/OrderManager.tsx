@@ -22,10 +22,10 @@ import { useDemoState } from "@/lib/demo/store";
 
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
 
 type OrderDesign =
   { kind: "url"; url: string } | { kind: "upload"; sourceId: string; fileName?: string };
@@ -600,7 +600,8 @@ function OrdersView({
         description="Review private order snapshots, shipping quotes, payment, fulfillment, and referral commissions."
         title="Orders"
       />
-      <Panel
+      <Card
+        className="gap-0"
         description="Customer delivery details and design artwork are visible only in this administrator workspace. Each manual order change is recorded in the audit log."
         title="Card orders"
       >
@@ -642,7 +643,7 @@ function OrdersView({
             </Button>
           </div>
         ) : null}
-      </Panel>
+      </Card>
       <ConfirmDialog
         confirmLabel={confirmedAction?.action === "refund" ? "Refund order" : "Cancel order"}
         description={

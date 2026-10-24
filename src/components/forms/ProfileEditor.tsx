@@ -7,7 +7,6 @@ import { useMutation, useQuery } from "convex/react";
 import { useAuthToken } from "@convex-dev/auth/react";
 import NextImage from "next/image";
 import { useRouter } from "next/navigation";
-import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 
 import {
   hasUnpublishedChanges,
@@ -50,6 +49,7 @@ import {
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizationEditor";
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
@@ -58,10 +58,12 @@ import {
   type PublishRequirement,
 } from "@/components/forms/ProfileWorkspaceFrame";
 import { MissingProfilePage } from "@/components/state/StatePage";
+import { ProfileChecklist } from "@/components/forms/ProfileChecklist";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import {
   useDraftSaveLink,
   useDraftSaveRegistration,
+  useDraftStatusReport,
   type DraftDepartureState,
   type DraftSaveOutcome,
 } from "@/components/layout/DraftSaveContext";
@@ -116,6 +118,9 @@ const FAILED_MEDIA_MESSAGE =
   "Your image upload failed. Retry or discard it before saving or publishing.";
 const DEMO_MEDIA_UPLOAD_DELAY_KEY = "tapit:e2e-media-upload-delay-ms";
 const DEMO_MEDIA_UPLOAD_FAILURE_KEY = "tapit:e2e-media-upload-failure";
+// A label styled as the tonal Button, so the sr-only file input before it stays the control.
+const photoPickerClass =
+  "inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-control bg-tapit-accent-soft px-4 text-sm font-semibold text-tapit-accent-strong transition-colors hover:text-tapit-ink peer-disabled:cursor-not-allowed peer-disabled:opacity-55 peer-focus-visible:outline-3 peer-focus-visible:outline-offset-3 peer-focus-visible:outline-tapit-focus";
 
 export type ProfileEditorView = "profile" | "customize";
 
@@ -412,6 +417,7 @@ function DemoProfileEditor({
   }
 
   useDraftSaveRegistration(saveForNavigation);
+  useDraftStatusReport(isDirty ? "unsaved" : "saved");
 
   async function saveAndContinue() {
     if (departureState.kind !== "repair") return;
@@ -571,65 +577,62 @@ function DemoProfileEditor({
   }
 
   const imageContent = (
-    <div className="border-t border-tapit-line/70 pt-5">
-      <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-          {draft.imageUrl ? (
-            <NextImage
-              alt={`${draft.name} profile`}
-              className="tapit-image-outline size-full object-cover"
-              height={80}
-              src={draft.imageUrl}
-              unoptimized
-              width={80}
-            />
-          ) : (
-            draft.name.slice(0, 1).toUpperCase()
-          )}
-        </div>
-        <div>
-          <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-            htmlFor="profile-image"
-          >
-            <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-            {imagePending ? "Preparing..." : "Change photo"}
-          </label>
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="grid size-22 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent text-xl font-semibold text-white">
+        {draft.imageUrl ? (
+          <NextImage
+            alt={`${draft.name} profile`}
+            className="tapit-image-outline size-full object-cover"
+            height={88}
+            src={draft.imageUrl}
+            unoptimized
+            width={88}
+          />
+        ) : (
+          draft.name.slice(0, 1).toUpperCase()
+        )}
+      </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="text-sm font-semibold text-tapit-ink">Photo or logo</p>
+        <p className="text-xs text-tapit-muted">JPG, PNG, or WebP. Max 20 MB.</p>
+        <div className="flex flex-wrap items-center gap-2">
           <input
             accept="image/jpeg,image/png,image/webp"
             aria-label="Profile photo or logo"
-            className="sr-only"
+            className="peer sr-only"
             disabled={cropFile !== null || imagePending}
             id="profile-image"
             onChange={chooseImage}
             type="file"
           />
-          <p className="mt-2 text-xs leading-5 text-tapit-muted">JPG, PNG, or WebP. Max 20 MB.</p>
+          <label className={photoPickerClass} htmlFor="profile-image">
+            <Icon className="size-4" name="upload" />
+            {imagePending ? "Preparing..." : "Replace"}
+          </label>
         </div>
+        {imageError ? (
+          <p className="text-xs font-medium text-tapit-danger" role="alert">
+            {imageError}
+          </p>
+        ) : null}
+        {imageApplied ? (
+          <p
+            className="inline-flex items-center gap-1 text-xs font-medium text-tapit-accent-strong"
+            role="status"
+            aria-label="Photo applied"
+          >
+            <Icon className="size-4" name="check" />
+            Photo applied
+          </p>
+        ) : null}
       </div>
-      {imageError ? (
-        <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-          {imageError}
-        </p>
-      ) : null}
-      {imageApplied ? (
-        <p
-          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-tapit-accent-strong"
-          role="status"
-          aria-label="Photo applied"
-        >
-          <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
-          Photo applied
-        </p>
-      ) : null}
     </div>
   );
   const customizationEditor = (
     <div
       className={
         draft.customization === undefined && view !== "customize"
-          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          ? "flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
           : "contents"
       }
     >
@@ -663,6 +666,7 @@ function DemoProfileEditor({
       controls={
         view === "profile" ? (
           <>
+            <ProfileChecklist draft={draft} published={profile.status === "published"} />
             <ProfileDetailsEditor
               customization={draft.customization}
               copyMessage={copyMessage}
@@ -945,6 +949,7 @@ function LiveProfileEditorContent({
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
+  useDraftStatusReport(pending !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = liveProfile.draftRevision ?? 0;
     if (serverDraftProfileIdRef.current !== liveProfile._id) {
@@ -1295,70 +1300,66 @@ function LiveProfileEditorContent({
   }
 
   const imageContent = (
-    <div className="border-t border-tapit-line/70 pt-5">
-      <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
-          {currentDraft.imageUrl ? (
-            <NextImage
-              alt={`${currentDraft.name} profile`}
-              className="tapit-image-outline size-full object-cover"
-              height={80}
-              src={currentDraft.imageUrl}
-              unoptimized
-              width={80}
-            />
-          ) : (
-            currentDraft.name.slice(0, 1).toUpperCase()
-          )}
-        </div>
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="grid size-22 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent text-xl font-semibold text-white">
+        {currentDraft.imageUrl ? (
+          <NextImage
+            alt={`${currentDraft.name} profile`}
+            className="tapit-image-outline size-full object-cover"
+            height={88}
+            src={currentDraft.imageUrl}
+            unoptimized
+            width={88}
+          />
+        ) : (
+          currentDraft.name.slice(0, 1).toUpperCase()
+        )}
+      </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <p className="text-sm font-semibold text-tapit-ink">Photo or logo</p>
+        <p className="text-xs text-tapit-muted">JPG, PNG, or WebP. Max 20 MB.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
-            htmlFor="profile-image"
-          >
-            <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
-            {pending === "image" ? "Uploading..." : "Change photo"}
-          </label>
-          {currentDraft.imageUrl ? (
-            <Button
-              disabled={pending !== null || cropFile !== null}
-              onClick={clearImage}
-              type="button"
-              variant="quiet"
-            >
-              Remove photo
-            </Button>
-          ) : null}
           <input
             accept="image/jpeg,image/png,image/webp"
             aria-label="Profile photo or logo"
-            className="sr-only"
+            className="peer sr-only"
             disabled={pending !== null || cropFile !== null}
             id="profile-image"
             onChange={chooseImage}
             type="file"
           />
-          <p className="basis-full text-xs leading-5 text-tapit-muted">
-            JPG, PNG, or WebP. Max 20 MB.
-          </p>
+          <label className={photoPickerClass} htmlFor="profile-image">
+            <Icon className="size-4" name="upload" />
+            {pending === "image" ? "Uploading..." : "Replace"}
+          </label>
+          {currentDraft.imageUrl ? (
+            <Button
+              aria-label="Remove photo"
+              disabled={pending !== null || cropFile !== null}
+              onClick={clearImage}
+              type="button"
+              variant="quiet"
+            >
+              Remove
+            </Button>
+          ) : null}
         </div>
+        {imageError ? (
+          <p className="text-xs font-medium text-tapit-danger" role="alert">
+            {imageError}
+          </p>
+        ) : null}
+        {imageApplied ? (
+          <p
+            className="inline-flex items-center gap-1 text-xs font-medium text-tapit-accent-strong"
+            role="status"
+            aria-label="Photo applied"
+          >
+            <Icon className="size-4" name="check" />
+            Photo applied
+          </p>
+        ) : null}
       </div>
-      {imageError ? (
-        <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
-          {imageError}
-        </p>
-      ) : null}
-      {imageApplied ? (
-        <p
-          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-tapit-accent-strong"
-          role="status"
-          aria-label="Photo applied"
-        >
-          <CheckCircleIcon aria-hidden="true" size={16} weight="fill" />
-          Photo applied
-        </p>
-      ) : null}
     </div>
   );
 
@@ -1366,7 +1367,7 @@ function LiveProfileEditorContent({
     <div
       className={
         currentDraft.customization === undefined && view !== "customize"
-          ? "min-w-0 rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] shadow-none sm:p-7"
+          ? "flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
           : "contents"
       }
     >
@@ -1401,6 +1402,7 @@ function LiveProfileEditorContent({
       controls={
         view === "profile" ? (
           <>
+            <ProfileChecklist draft={currentDraft} published={liveProfile.status === "published"} />
             <ProfileDetailsEditor
               customization={currentDraft.customization}
               copyMessage={copyMessage}
@@ -1587,7 +1589,7 @@ function ProfileEditorLoading() {
   return (
     <main
       aria-busy="true"
-      className="grid min-h-[60dvh] place-items-center bg-tapit-paper px-5"
+      className="grid min-h-[60dvh] place-items-center bg-tapit-paper px-4"
       role="status"
     >
       <p className="text-sm text-tapit-muted">Loading your profile...</p>

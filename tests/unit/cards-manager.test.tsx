@@ -93,7 +93,7 @@ describe("live card URL mutations", () => {
     ]);
     render(<CardsManager />);
 
-    fireEvent.click(screen.getByText("(existing-card)"));
+    fireEvent.click(screen.getByText("/c/existing-card"));
     fireEvent.change(screen.getByLabelText("Replacement URL for existing-card"), {
       target: { value: " /c/replacement-88 " },
     });

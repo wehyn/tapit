@@ -2,26 +2,17 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  CheckCircleIcon,
-  DotsSixVerticalIcon,
-  DotsThreeVerticalIcon,
-  FloppyDiskIcon,
-  PlusIcon,
-  TrashIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
-
 import type { LinkIcon, ProfileLink, PublicProfileProjection } from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
 import { displayDestination, linkKind } from "./LinkDestination";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { Icon } from "@/components/ui/Icon";
 import { SelectField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
+import { Segmented } from "@/components/ui/Segmented";
 import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
 
 export type LinksWorkspaceMessage = {
@@ -50,6 +41,9 @@ export type LinksWorkspaceProps = {
   onSaveDraft: () => Promise<DraftSaveOutcome>;
   onPublish: () => void | Promise<void>;
 };
+
+const rowFieldClasses =
+  "min-h-11 w-full min-w-0 rounded-control bg-tapit-surface px-4 text-tapit-ink transition-colors placeholder:text-tapit-muted focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent aria-invalid:bg-tapit-danger-soft aria-invalid:focus:outline-tapit-danger";
 
 export function LinksWorkspace({
   profileUrl,
@@ -83,6 +77,7 @@ export function LinksWorkspace({
   const previousPositionsRef = useRef<Map<string, number> | null>(null);
   const featuredUnavailable =
     featuredLinkId !== null && !links.some((link) => link.id === featuredLinkId && link.enabled);
+  const shownCount = links.filter((link) => link.enabled).length;
   const status =
     pendingAction === "save"
       ? "Saving draft"
@@ -149,7 +144,7 @@ export function LinksWorkspace({
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1480px] px-4 pb-32 pt-6 sm:px-8 sm:pb-28 lg:px-10 lg:pt-8">
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 pb-16">
       {addDialogOpen ? (
         <AddLinkDialog
           destinations={links.map((link) => link.destination)}
@@ -160,48 +155,80 @@ export function LinksWorkspace({
           }}
         />
       ) : null}
-      <div className="mb-5 min-[1280px]:hidden">
-        <div
-          aria-label="Links view"
-          className="inline-flex rounded-tapit border border-tapit-line bg-tapit-surface p-1"
-          role="group"
-        >
-          {(["edit", "preview"] as const).map((view) => (
-            <button
-              aria-pressed={mobileView === view}
-              className={`min-h-9 rounded-[10px] px-3 text-sm font-semibold transition ${mobileView === view ? "bg-tapit-accent text-white" : "text-tapit-muted hover:bg-tapit-paper hover:text-tapit-ink"}`}
-              key={view}
-              onClick={() => setMobileView(view)}
-              type="button"
-            >
-              {view === "edit" ? "Edit" : "Preview"}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-xl font-semibold text-tapit-ink" id="links-workspace-title">
+          Links
+        </h1>
+        <p className="text-base text-tapit-muted">
+          Drag to reorder. Switch a link off to hide it without deleting it.
+        </p>
       </div>
-      <div className="grid min-w-0 gap-8 min-[1280px]:grid-cols-[minmax(32rem,1fr)_minmax(25rem,0.75fr)]">
+      <div className="xl:hidden">
+        <Segmented
+          label="Links view"
+          onChange={setMobileView}
+          options={[
+            { label: "Edit", value: "edit" },
+            { label: "Preview", value: "preview" },
+          ]}
+          value={mobileView}
+        />
+      </div>
+      <div className="grid min-w-0 gap-8 xl:grid-cols-[minmax(32rem,1fr)_minmax(25rem,0.75fr)]">
         <section
           aria-labelledby="links-workspace-title"
-          className={mobileView === "edit" ? "block" : "hidden min-[1280px]:block"}
+          className={`flex min-w-0 flex-col gap-4 ${mobileView === "edit" ? "flex" : "hidden xl:flex"}`}
         >
-          <h1 className="sr-only" id="links-workspace-title">
-            Links
-          </h1>
-          {message ? (
-            <div className="mt-6">
-              <Notice tone={message.tone}>{message.text}</Notice>
-            </div>
-          ) : null}
+          {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
+          <Card
+            description="Shown as a large button at the top of your profile."
+            title="Featured link"
+          >
+            <SelectField
+              id="featured-link"
+              label="Featured link"
+              onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
+              value={featuredLinkId ?? ""}
+            >
+              <option value="">No featured link</option>
+              {featuredUnavailable ? (
+                <option value={featuredLinkId}>Previously selected link</option>
+              ) : null}
+              {links
+                .filter((link) => link.enabled)
+                .map((link) => (
+                  <option key={link.id} value={link.id}>
+                    {link.label}
+                  </option>
+                ))}
+            </SelectField>
+            {featuredUnavailable ? (
+              <Notice>
+                The selected featured link is missing or disabled. It will appear as a normal link,
+                and this will not block publication.
+                <span className="mt-3 block">
+                  <Button onClick={() => onFeaturedLinkChange(null)} type="button" variant="quiet">
+                    Clear featured link
+                  </Button>
+                </span>
+              </Notice>
+            ) : null}
+          </Card>
           <section
             aria-label="Editable profile links"
-            className="mt-6 rounded-tapit border border-tapit-line bg-tapit-surface shadow-[0_4px_18px_rgba(27,36,51,0.04)]"
+            className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
             ref={linksListRef}
           >
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-tapit-line px-4 py-3 sm:px-5">
-              <h2 className="tapit-display text-lg font-semibold tracking-[-0.02em] text-tapit-ink">
-                Profile links
-              </h2>
-              <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-col gap-1">
+                <h2 className="tapit-display text-lg font-semibold text-tapit-ink">
+                  Profile links
+                </h2>
+                <p className="text-sm text-tapit-muted">
+                  {shownCount} shown · {links.length - shownCount} hidden
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-4">
                 <span
                   aria-live="polite"
                   className="text-xs font-medium text-tapit-muted"
@@ -211,108 +238,64 @@ export function LinksWorkspace({
                 </span>
                 {!isDirty && hasUnpublishedChanges && pendingAction === null ? (
                   <Button disabled={publishDisabled} onClick={onPublish} type="button">
-                    <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                    <Icon name="upload" size={18} weight="bold" />
                     {publicationLabel}
                   </Button>
                 ) : null}
-                <Button onClick={() => setAddDialogOpen(true)} type="button">
-                  <PlusIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                <Button onClick={() => setAddDialogOpen(true)} type="button" variant="secondary">
+                  <Icon name="plus" size={18} weight="bold" />
                   Add link
                 </Button>
               </div>
             </div>
-            <div className="grid gap-3 border-b border-tapit-line px-4 py-4 sm:px-5 sm:py-5">
-              <SelectField
-                id="featured-link"
-                label="Featured link"
-                onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
-                value={featuredLinkId ?? ""}
-              >
-                <option value="">No featured link</option>
-                {featuredUnavailable ? (
-                  <option value={featuredLinkId}>Previously selected link</option>
-                ) : null}
-                {links
-                  .filter((link) => link.enabled)
-                  .map((link) => (
-                    <option key={link.id} value={link.id}>
-                      {link.label}
-                    </option>
-                  ))}
-              </SelectField>
-              {featuredUnavailable ? (
-                <Notice>
-                  The selected featured link is missing or disabled. It will appear as a normal
-                  link, and this will not block publication.
-                  <span className="mt-3 block">
-                    <Button
-                      onClick={() => onFeaturedLinkChange(null)}
-                      type="button"
-                      variant="quiet"
-                    >
-                      Clear featured link
-                    </Button>
-                  </span>
-                </Notice>
-              ) : null}
-            </div>
-            <div className="hidden border-b border-tapit-line bg-tapit-surface px-5 py-4 text-sm font-medium text-tapit-muted md:grid md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
-              <span aria-hidden="true" />
-              <span>Link</span>
-              <span>Destination</span>
-              <span>Status</span>
-              <span aria-hidden="true" />
-            </div>
             {links.length === 0 ? (
-              <div className="p-6">
-                <Notice>
-                  Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
-                  choose email or phone to add those actions.
-                </Notice>
-              </div>
+              <Notice>
+                Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
+                choose email or phone to add those actions.
+              </Notice>
             ) : null}
-            {links.map((link, index) => {
-              const selectedIcon: LinkIcon = link.icon ?? "link";
-              return (
-                <article
-                  className={`group border-b border-tapit-line px-4 py-5 last:border-b-0 sm:px-5 sm:py-6 ${draggedLinkId === link.id ? "bg-tapit-accent-soft/60 opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : ""}`}
-                  key={link.id}
-                  onDragOver={(event) => {
-                    event.preventDefault();
-                    event.dataTransfer.dropEffect = "move";
-                    const sourceId = draggedLinkIdRef.current;
-                    if (!sourceId || sourceId === link.id) return;
-                    const sourceIndex = links.findIndex((candidate) => candidate.id === sourceId);
-                    const targetIndex = links.findIndex((candidate) => candidate.id === link.id);
-                    if (sourceIndex < 0 || targetIndex < 0) return;
-                    const row = event.currentTarget;
-                    const transform = getComputedStyle(row).transform;
-                    const animatedY =
-                      transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
-                    const bounds = row.getBoundingClientRect();
-                    const midpoint = bounds.top - animatedY + bounds.height / 2;
-                    if (
-                      sourceIndex < targetIndex
-                        ? event.clientY < midpoint
-                        : event.clientY > midpoint
-                    )
-                      return;
-                    captureRowPositions();
-                    onReorderLink(sourceId, link.id, sourceIndex < targetIndex);
-                  }}
-                  onDrop={(event) => {
-                    event.preventDefault();
-                    dropCompletedRef.current = true;
-                  }}
-                  ref={(element) => {
-                    if (element) rowRefs.current.set(link.id, element);
-                    else rowRefs.current.delete(link.id);
-                  }}
-                >
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4 md:grid-cols-[1.5rem_minmax(11rem,0.75fr)_minmax(12rem,1fr)_6rem_2.5rem] md:gap-4">
+            <div className="flex flex-col gap-2">
+              {links.map((link, index) => {
+                const selectedIcon: LinkIcon = link.icon ?? "link";
+                return (
+                  <article
+                    className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"}`}
+                    key={link.id}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                      const sourceId = draggedLinkIdRef.current;
+                      if (!sourceId || sourceId === link.id) return;
+                      const sourceIndex = links.findIndex((candidate) => candidate.id === sourceId);
+                      const targetIndex = links.findIndex((candidate) => candidate.id === link.id);
+                      if (sourceIndex < 0 || targetIndex < 0) return;
+                      const row = event.currentTarget;
+                      const transform = getComputedStyle(row).transform;
+                      const animatedY =
+                        transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+                      const bounds = row.getBoundingClientRect();
+                      const midpoint = bounds.top - animatedY + bounds.height / 2;
+                      if (
+                        sourceIndex < targetIndex
+                          ? event.clientY < midpoint
+                          : event.clientY > midpoint
+                      )
+                        return;
+                      captureRowPositions();
+                      onReorderLink(sourceId, link.id, sourceIndex < targetIndex);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      dropCompletedRef.current = true;
+                    }}
+                    ref={(element) => {
+                      if (element) rowRefs.current.set(link.id, element);
+                      else rowRefs.current.delete(link.id);
+                    }}
+                  >
                     <button
                       aria-label={`Reorder ${link.label || "link"}`}
-                      className="hidden size-10 touch-none cursor-grab place-items-center rounded-tapit text-tapit-muted transition hover:bg-tapit-paper hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
+                      className="hidden size-11 touch-none cursor-grab place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
                       draggable
                       onDragStart={(event) => {
                         event.dataTransfer.effectAllowed = "move";
@@ -345,37 +328,35 @@ export function LinksWorkspace({
                       title="Drag to reorder, or press the up and down arrow keys"
                       type="button"
                     >
-                      <DotsSixVerticalIcon aria-hidden="true" size={18} weight="bold" />
+                      <Icon name="dragHandle" size={18} weight="bold" />
                     </button>
-                    <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-1">
-                      <LinkPresetIconPicker
-                        value={selectedIcon}
-                        label={link.label}
-                        onChange={(icon) => onUpdateLink(link.id, { icon })}
+                    <LinkPresetIconPicker
+                      value={selectedIcon}
+                      label={link.label}
+                      onChange={(icon) => onUpdateLink(link.id, { icon })}
+                    />
+                    <div className="min-w-0">
+                      <label className="sr-only" htmlFor={`${link.id}-label`}>
+                        Label for {link.label || "link"}
+                      </label>
+                      <input
+                        aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
+                        aria-invalid={Boolean(validation[link.id])}
+                        className={`${rowFieldClasses} text-base font-medium`}
+                        id={`${link.id}-label`}
+                        onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
+                        placeholder="e.g. Portfolio"
+                        value={link.label}
                       />
-                      <div className="min-w-0 flex-1">
-                        <label className="sr-only" htmlFor={`${link.id}-label`}>
-                          Label for {link.label || "link"}
-                        </label>
-                        <input
-                          aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
-                          aria-invalid={Boolean(validation[link.id])}
-                          className={`min-h-11 w-full min-w-0 rounded-tapit border border-transparent bg-transparent px-2 text-base font-medium text-tapit-ink outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper ${validation[link.id] ? "border-tapit-danger" : ""}`}
-                          id={`${link.id}-label`}
-                          onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
-                          placeholder="e.g. Portfolio"
-                          value={link.label}
-                        />
-                      </div>
                     </div>
-                    <div className="col-span-2 md:col-span-1">
+                    <div className="order-last col-span-full min-w-0 md:order-none md:col-span-1">
                       <label className="sr-only" htmlFor={`${link.id}-destination`}>
                         Destination for {link.label || "link"}
                       </label>
                       <input
                         aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
                         aria-invalid={Boolean(validation[link.id])}
-                        className="min-h-11 w-full min-w-0 rounded-tapit border border-transparent bg-transparent px-2 text-sm text-tapit-muted outline-none transition placeholder:text-tapit-muted/70 focus:border-tapit-accent focus:bg-tapit-paper"
+                        className={`${rowFieldClasses} text-sm text-tapit-muted`}
                         id={`${link.id}-destination`}
                         onChange={(event) =>
                           onUpdateLink(link.id, {
@@ -398,7 +379,7 @@ export function LinksWorkspace({
                       />
                     </div>
                     <label
-                      className="col-start-1 flex min-h-11 items-center gap-2 text-sm font-medium text-tapit-ink md:col-auto"
+                      className="flex min-h-11 min-w-11 items-center justify-center"
                       title="Enabled links appear on your profile"
                     >
                       <input
@@ -412,67 +393,66 @@ export function LinksWorkspace({
                       />
                       <span
                         aria-hidden="true"
-                        className="relative inline-flex h-6 w-11 shrink-0 rounded-full bg-tapit-soft-surface transition-colors after:absolute after:left-1 after:top-1 after:size-4 after:rounded-full after:bg-white after:shadow-sm motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-5 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
+                        className="relative inline-flex h-7 w-11 shrink-0 rounded-full bg-tapit-muted/40 transition-colors after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
                       />
-                      <span className="hidden md:inline">Enabled</span>
                     </label>
-                    <details className="relative col-start-2 justify-self-end md:col-auto md:justify-self-auto">
+                    <details className="relative">
                       <summary
                         aria-label={`Actions for ${link.label || "link"}`}
-                        className="grid size-11 cursor-pointer list-none place-items-center rounded-tapit border border-transparent text-tapit-muted transition hover:border-tapit-line hover:bg-tapit-paper hover:text-tapit-ink"
+                        className="grid size-11 cursor-pointer list-none place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink"
                       >
-                        <DotsThreeVerticalIcon aria-hidden="true" size={20} weight="bold" />
+                        <Icon name="more" size={20} weight="bold" />
                       </summary>
                       <div
-                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-tapit border border-tapit-line bg-white p-2 shadow-xl ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
+                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-card bg-tapit-surface p-2 shadow-card ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
                       >
                         <Button
-                          className="justify-start !min-h-10 !px-3"
+                          className="justify-start"
                           disabled={index === 0}
                           onClick={() => onMoveLink(link.id, -1)}
                           type="button"
                           variant="quiet"
                         >
-                          <ArrowUpIcon aria-hidden="true" className="mr-2" size={16} />
+                          <Icon name="arrowUp" size={16} />
                           Move up
                         </Button>
                         <Button
-                          className="justify-start !min-h-10 !px-3"
+                          className="justify-start"
                           disabled={index === links.length - 1}
                           onClick={() => onMoveLink(link.id, 1)}
                           type="button"
                           variant="quiet"
                         >
-                          <ArrowDownIcon aria-hidden="true" className="mr-2" size={16} />
+                          <Icon name="arrowDown" size={16} />
                           Move down
                         </Button>
                         <Button
-                          className="justify-start !min-h-10 !px-3"
+                          className="justify-start"
                           onClick={() => onRemoveLink(link.id)}
                           type="button"
                           variant="quiet"
                         >
-                          <TrashIcon aria-hidden="true" className="mr-2" size={16} />
+                          <Icon name="trash" size={16} />
                           Delete
                         </Button>
                       </div>
                     </details>
-                  </div>
-                  {validation[link.id] ? (
-                    <p
-                      className="mt-1.5 text-xs font-medium text-tapit-danger sm:ml-6"
-                      id={`${link.id}-error`}
-                      role="alert"
-                    >
-                      {validation[link.id]}
-                    </p>
-                  ) : null}
-                </article>
-              );
-            })}
+                    {validation[link.id] ? (
+                      <p
+                        className="order-last col-span-full px-1 text-xs font-medium text-tapit-danger"
+                        id={`${link.id}-error`}
+                        role="alert"
+                      >
+                        {validation[link.id]}
+                      </p>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
           </section>
           {publicationErrors.length > 0 ? (
-            <ul className="mt-4 grid gap-2 text-sm text-tapit-muted">
+            <ul className="grid gap-2 text-sm text-tapit-muted">
               {publicationErrors.map((error) => (
                 <li key={error}>{error}</li>
               ))}
@@ -480,7 +460,7 @@ export function LinksWorkspace({
           ) : null}
         </section>
         <section
-          className={`h-fit min-[1280px]:sticky min-[1280px]:top-6 ${mobileView === "preview" ? "block" : "hidden min-[1280px]:block"}`}
+          className={`h-fit xl:sticky xl:top-6 ${mobileView === "preview" ? "block" : "hidden xl:block"}`}
           aria-label="Live profile preview"
           id="workspace-preview"
         >
@@ -492,16 +472,11 @@ export function LinksWorkspace({
         </section>
       </div>
       {shouldShowActions ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-tapit-line bg-tapit-paper/95 px-4 py-3 shadow-[0_-12px_35px_rgba(27,36,51,0.08)] backdrop-blur sm:px-8">
-          <section aria-label="Draft actions" className="mx-auto max-w-[1480px]" role="region">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="fixed inset-x-0 bottom-0 z-20 bg-tapit-surface px-4 py-2 shadow-card sm:px-8">
+          <section aria-label="Draft actions" className="mx-auto max-w-7xl" role="region">
+            <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="flex min-w-0 items-center gap-2 text-sm">
-                <CheckCircleIcon
-                  aria-hidden="true"
-                  className="shrink-0 text-tapit-accent"
-                  size={21}
-                  weight="fill"
-                />
+                <Icon className="shrink-0 text-tapit-accent" name="check" size={20} weight="bold" />
                 <span className="font-semibold text-tapit-ink">{status}</span>
               </div>
               <div className="flex flex-wrap gap-3">
@@ -512,7 +487,7 @@ export function LinksWorkspace({
                   type="button"
                   variant="secondary"
                 >
-                  <FloppyDiskIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                  <Icon name="save" size={18} weight="bold" />
                   {pendingAction === "save" ? "Saving..." : "Save draft"}
                 </Button>
                 <Button
@@ -521,7 +496,7 @@ export function LinksWorkspace({
                   onClick={onPublish}
                   type="button"
                 >
-                  <UploadSimpleIcon aria-hidden="true" className="mr-2" size={18} weight="bold" />
+                  <Icon name="upload" size={18} weight="bold" />
                   {pendingAction === "publish" ? "Publishing..." : publicationLabel}
                 </Button>
               </div>

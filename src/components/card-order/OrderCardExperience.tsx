@@ -10,10 +10,10 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { StatusChip } from "@/components/ui/Chip";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { getCardPriceCentavos, manilaStartOfDayTimestamp } from "@/lib/card-ordering";
 import { CARD_DESIGN_ACCEPT, validateCardOrderDesignFile } from "@/lib/card-design";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
@@ -429,7 +429,8 @@ function CustomerOrderForm({
 
         <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
           <form className="grid min-w-0 gap-5 lg:col-start-1" onSubmit={handleSubmit}>
-            <Panel
+            <Card
+              className="gap-0"
               description="Choose one image file or a secure link. Tapit will not fetch a link you provide."
               title="01 · Card design"
             >
@@ -534,9 +535,10 @@ function CustomerOrderForm({
                   />
                 </div>
               )}
-            </Panel>
+            </Card>
 
-            <Panel
+            <Card
+              className="gap-0"
               description="Use the name and phone number the courier should contact."
               title="02 · Delivery details"
             >
@@ -588,9 +590,10 @@ function CustomerOrderForm({
                   />
                 </div>
               </div>
-            </Panel>
+            </Card>
 
-            <Panel
+            <Card
+              className="gap-0"
               description="Card payment is arranged after the shipping quote is ready."
               title="03 · Payment"
             >
@@ -649,7 +652,7 @@ function CustomerOrderForm({
                   No payment methods are available yet.
                 </p>
               ) : null}
-            </Panel>
+            </Card>
 
             {submitError ? <Notice tone="error">{submitError}</Notice> : null}
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -672,7 +675,7 @@ function CustomerOrderForm({
           </form>
 
           <aside className="order-first grid gap-5 lg:sticky lg:top-8 lg:order-none lg:col-start-2 lg:row-start-1">
-            <Panel className="overflow-hidden border-tapit-accent/25 bg-tapit-surface p-0">
+            <Card className="gap-0 overflow-hidden border-tapit-accent/25 bg-tapit-surface p-0">
               <div className="border-b border-tapit-line bg-tapit-ink px-5 py-4 text-white sm:px-6">
                 <p className="text-[11px] font-semibold tracking-[0.18em] text-white/65 uppercase">
                   Price preview
@@ -703,7 +706,7 @@ function CustomerOrderForm({
                   </p>
                 ) : null}
               </div>
-            </Panel>
+            </Card>
 
             {submittedOrderId ? (
               <SubmittedOrder
@@ -922,7 +925,7 @@ function OrderSummaryCard({
       ? "Amount due"
       : "Order total";
   return (
-    <Panel className={prominent ? "border-tapit-success/40" : "p-4 sm:p-5"}>
+    <Card className={`gap-0 ${prominent ? "border-tapit-success/40" : "p-4 sm:p-5"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-tapit-muted">
@@ -930,7 +933,7 @@ function OrderSummaryCard({
           </p>
           <h3 className="mt-1 text-base font-semibold text-tapit-ink">Order summary</h3>
         </div>
-        <StatusBadge status={formatStatus(order.fulfillmentStatus)} />
+        <StatusChip status={formatStatus(order.fulfillmentStatus)} />
       </div>
       <div className="mt-4 grid gap-0 text-sm">
         <dl className="grid gap-2.5">
@@ -967,7 +970,7 @@ function OrderSummaryCard({
           {order.paymentSnapshot.instructions}
         </p>
       </div>
-    </Panel>
+    </Card>
   );
 }
 

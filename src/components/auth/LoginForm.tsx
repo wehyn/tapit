@@ -644,13 +644,9 @@ function LiveLoginForm({
         <form className="grid gap-6" onSubmit={submit}>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {pendingAuth?.kind === "reset" ? (
-            <div
-              aria-live="polite"
-              className="rounded-tapit border border-[#b7ddc8] bg-tapit-success-soft px-4 py-3 text-sm leading-6 text-tapit-success-ink"
-              role="status"
-            >
+            <Notice tone="success">
               If an account matches that email, reset instructions are on the way.
-            </div>
+            </Notice>
           ) : null}
           {creationFailed && pendingAuth?.kind === "signup" ? (
             <>

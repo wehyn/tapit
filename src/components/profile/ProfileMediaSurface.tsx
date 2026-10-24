@@ -27,19 +27,23 @@ export function ProfileMediaSurface({
   const fadeHeight = height;
   const fullSurfaceContentOffset = fullSurface
     ? responsivePortrait
-      ? "pt-[calc(var(--tapit-profile-hero-height)-2.5rem)] sm:pt-[calc(var(--tapit-profile-hero-height)-3rem)]"
-      : "pt-[calc(var(--tapit-profile-hero-height)-2.5rem)]"
+      ? "pt-(--tapit-profile-content-offset) sm:pt-(--tapit-profile-content-offset-sm)"
+      : "pt-(--tapit-profile-content-offset)"
     : "";
 
   return (
     <section
       aria-describedby={descriptionId}
       aria-label="Profile hero"
-      className={`${fullSurface ? "relative isolate" : compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-tapit border border-[#e5d6c5]"}`}
+      className={`${fullSurface ? "relative isolate" : compact ? "relative isolate overflow-hidden" : "relative sm:isolate sm:overflow-hidden"} ${className ?? "rounded-card"}`}
       role="region"
       style={
         fullSurface
-          ? ({ "--tapit-profile-hero-height": `${height}px` } as CSSProperties)
+          ? ({
+              "--tapit-profile-hero-height": `${height}px`,
+              "--tapit-profile-content-offset": `calc(${height}px - 52px)`,
+              "--tapit-profile-content-offset-sm": `calc(${height}px - 52px)`,
+            } as CSSProperties)
           : { height }
       }
       data-hero-height={height}
@@ -60,7 +64,7 @@ export function ProfileMediaSurface({
             ? ""
             : treatment === "warm"
               ? "bg-gradient-to-b from-[#17120f]/5 via-[#17120f]/15 to-[#17120f]/80"
-              : "bg-[#2c2420]/45"
+              : "bg-tapit-warm-studio-ink/45"
         }`}
         style={{
           height: fadeHeight,
@@ -77,9 +81,9 @@ export function ProfileMediaSurface({
           fullSurface
             ? compact
               ? "px-4 pb-6"
-              : "px-4 pb-8 sm:px-6 sm:pb-10"
+              : "px-4 pb-8 sm:px-6 sm:pb-12"
             : children
-              ? `-mt-14 px-4 pb-1 ${compact ? "pt-0" : "sm:-mt-16 sm:px-6"}`
+              ? `-mt-12 px-4 pb-1 ${compact ? "pt-0" : "sm:-mt-16 sm:px-6"}`
               : ""
         }`}
       >

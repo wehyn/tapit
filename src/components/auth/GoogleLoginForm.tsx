@@ -5,6 +5,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
 import { Button } from "@/components/ui/Button";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
@@ -57,6 +58,7 @@ export function GoogleLoginForm({
           onClick={() => void continueWithGoogle()}
           type="button"
         >
+          <Icon name="google" size={20} weight="bold" />
           {pending
             ? "Connecting to Google"
             : signupIntent

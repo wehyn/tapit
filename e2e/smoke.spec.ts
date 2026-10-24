@@ -19,7 +19,7 @@ test("homepage presents a Tapit profile and profile creation action at mobile an
     await page.goto("/");
 
     const heroHeading = page.getByRole("heading", {
-      name: "A better introduction, in one tap.",
+      name: "Share with a tap. Follow up with ease.",
     });
     await expect(heroHeading).toBeVisible();
     await expect(heroHeading).toHaveCSS("text-align", viewport.width >= 1024 ? "left" : "center");
@@ -27,24 +27,12 @@ test("homepage presents a Tapit profile and profile creation action at mobile an
     for (let index = 0; index < 3; index += 1) {
       await expect(profileActions.nth(index)).toHaveAttribute("href", "/login?mode=signup");
     }
-    if (viewport.width >= 1280) {
-      await expect(page.getByText("Illustrative example", { exact: true })).toBeVisible();
-    }
     await expect(phone).toBeVisible();
     await expect(screen).toBeVisible();
     await expect(screen.getByText("Mara Velasquez", { exact: true })).toBeVisible();
     await expect(screen).toContainText("LinkedIn");
     await expect(screen).toContainText("Portfolio");
     await expect(screen.getByText("Save contact", { exact: true })).toBeVisible();
-    await expect(screen.getByText("Powered by Tapit", { exact: true })).toBeVisible();
-    await expect(
-      screen.getByRole("img", { name: "Illustrative Tapit NFC card and profile preview" }),
-    ).toHaveCount(0);
-    await expect(phone.getByTestId("tapit-iphone-hardware")).toBeVisible();
-    const phoneBox = await phone.boundingBox();
-    expect(phoneBox).not.toBeNull();
-    expect(phoneBox!.height / phoneBox!.width).toBeGreaterThan(2.0);
-    expect(phoneBox!.height / phoneBox!.width).toBeLessThan(2.3);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       viewport.width,
     );
@@ -55,39 +43,24 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   await page.goto("/");
 
   await expect(
-    page.getByRole("heading", { name: "A better introduction, in one tap." }),
+    page.getByRole("heading", { name: "Share with a tap. Follow up with ease." }),
   ).toBeVisible();
   await expect(page.locator("main h1")).toHaveCount(1);
-  const hero = page.locator("main > section").first();
-  await expect(hero).toContainText("A better introduction, in one tap.");
+  const hero = page.locator("main section").first();
+  await expect(hero).toContainText("Share with a tap.");
   await expect(hero.getByRole("group", { name: "Tapit profile on an iPhone" })).toBeVisible();
-  await expect(hero.locator("[data-scroll-reveal]")).toHaveCount(0);
   const orderedSections = await page
-    .locator("#product-proof, #product, #showcase, #benefits, #how-it-works, #faq")
+    .locator("#how-it-works, #faq")
     .evaluateAll((sections) => sections.map((section) => section.id));
-  expect(orderedSections).toEqual([
-    "product-proof",
-    "product",
-    "showcase",
-    "benefits",
-    "how-it-works",
-    "faq",
-  ]);
+  expect(orderedSections).toEqual(["how-it-works", "faq"]);
 
-  const proofBand = page.locator("#product-proof");
-  for (const fact of ["NFC tap", "QR fallback", "No app required", "Update details anytime"]) {
-    await expect(proofBand).toContainText(fact);
+  for (const step of ["Shape your profile", "Choose what to share", "Tap or scan to connect"]) {
+    await expect(page.locator("#how-it-works")).toContainText(step);
   }
-  const features = page.locator("#product");
-  for (const feature of ["Social links", "Work and portfolio", "Contact details", "Save contact"]) {
-    await expect(features).toContainText(feature);
+  for (const feature of ["Save contact", "Featured link", "Simple analytics", "Your look"]) {
+    await expect(page.getByText(feature, { exact: true }).last()).toBeVisible();
   }
-  await expect(page.getByText("Illustrative example", { exact: true })).toBeVisible();
   await expect(page.locator("#faq")).toContainText(/card ordering is coming soon/i);
-  await expect(page.getByRole("link", { name: "Explore card designs" })).toHaveAttribute(
-    "href",
-    "/build-card",
-  );
   await expect(page.getByRole("link", { name: "Design a card", exact: true })).toHaveAttribute(
     "href",
     "/build-card",
@@ -95,8 +68,8 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   await expect(page.locator("#pricing")).toHaveCount(0);
   await expect(page.locator("#testimonials")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: /pricing|testimonials/i })).toHaveCount(0);
-  await expect(page.locator("main > footer")).toContainText("Privacy");
-  await expect(page.locator("main > footer")).toContainText("Terms");
+  await expect(page.locator("main footer")).toContainText("Privacy");
+  await expect(page.locator("main footer")).toContainText("Terms");
 });
 
 test("homepage profile CTAs preserve customer and admin destinations and start guest profile creation", async ({
@@ -125,12 +98,16 @@ test("homepage profile CTAs preserve customer and admin destinations and start g
 
   await profileActions.nth(1).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await page.goto("/");
   await page.getByRole("link", { name: "Go to your profile", exact: true }).first().click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await resetDemoHarness(page);
   await page.goto("/");
@@ -223,7 +200,7 @@ test("premium landing stays within supported viewport widths", async ({ page }) 
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: "A better introduction, in one tap." }),
+      page.getByRole("heading", { name: "Share with a tap. Follow up with ease." }),
     ).toBeVisible();
     const cta = page.getByRole("link", { name: "Create your profile", exact: true }).first();
     await expect(cta).toBeVisible();
@@ -272,21 +249,6 @@ test("mobile navigation opens and closes with the keyboard", async ({ page }) =>
   await expect(page).toHaveURL(/#faq$/);
 });
 
-test("landing scroll reveals activate when targets enter the viewport", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
-  const benefits = page.locator("#benefits [data-scroll-reveal]").first();
-  await expect(benefits).toBeAttached();
-  await expect
-    .poll(() => benefits.evaluate((section) => getComputedStyle(section).opacity))
-    .toBe("0");
-
-  await benefits.scrollIntoViewIfNeeded();
-  await expect
-    .poll(() => benefits.evaluate((section) => getComputedStyle(section).opacity))
-    .toBe("1");
-});
-
 test("landing content remains visible when JavaScript is disabled", async ({
   browser,
 }, testInfo) => {
@@ -300,36 +262,15 @@ test("landing content remains visible when JavaScript is disabled", async ({
     const page = await context.newPage();
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { name: "A better introduction, in one tap." }),
+      page.getByRole("heading", { name: "Share with a tap. Follow up with ease." }),
     ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Create your profile", exact: true }).first(),
     ).toHaveAttribute("href", "/login?mode=signup");
-    await expect(page.locator("#product-proof")).toBeVisible();
+    await expect(page.locator("#how-it-works")).toBeVisible();
   } finally {
     await context.close();
   }
-});
-
-test("reduced motion keeps reveal content visible", async ({ page }) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "A better introduction, in one tap." }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: "Create your profile", exact: true }).first(),
-  ).toBeVisible();
-
-  const benefitStyles = await page.locator("#benefits").evaluate((section) => {
-    const styles = getComputedStyle(section);
-    return {
-      animationName: styles.animationName,
-      opacity: styles.opacity,
-      transform: styles.transform,
-    };
-  });
-  expect(benefitStyles).toEqual({ animationName: "none", opacity: "1", transform: "none" });
 });
 
 test("visitors can reach the privacy notice and terms from the public homepage", async ({

@@ -59,23 +59,23 @@ export function ConfirmDialog({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-20 grid place-items-center bg-tapit-ink/45 px-5 py-8 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-20 grid place-items-center bg-tapit-ink/45 p-4">
       <div
         aria-describedby="confirm-description"
         aria-labelledby="confirm-title"
         aria-modal="true"
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_20px_56px_rgba(27,36,51,0.14)] sm:p-8"
+        className="flex w-full max-w-lg flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
       >
-        <h2 className="text-xl font-semibold tracking-tight text-tapit-ink" id="confirm-title">
+        <h2 className="text-lg font-semibold text-tapit-ink" id="confirm-title">
           {title}
         </h2>
-        <p className="mt-3 text-sm leading-6 text-tapit-muted" id="confirm-description">
+        <p className="text-sm text-tapit-muted" id="confirm-description">
           {description}
         </p>
-        <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <div className="flex flex-wrap justify-end gap-3">
           <Button onClick={onCancel} variant="secondary" type="button">
             {cancelLabel}
           </Button>

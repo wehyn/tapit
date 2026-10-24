@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cards · Tapit admin</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="app">
+  <aside class="side" aria-label="Admin workspace">
+    <a class="brand" href="Landing.dc.html"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="ws"><a href="Profile.dc.html">Customer</a><a class="on" href="AdminCustomers.dc.html">Admin</a></div>
+    <nav class="nav" aria-label="Admin navigation">
+      <p class="nav-label">Operations</p>
+      <a class="nav-item" href="AdminCustomers.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.8c2.4.6 4 2.4 4 5.2"/></svg>Customers<span class="count">24</span></a>
+      <a class="nav-item" href="AdminProfiles.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 17c.6-1.8 2-2.7 3.5-2.7s2.9.9 3.5 2.7M15 10h3M15 14h3"/></svg>Profiles</a>
+      <a class="nav-item on" href="AdminCards.dc.html" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>Cards</a>
+      <a class="nav-item" href="AdminAnalytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Analytics</a>
+      <p class="nav-label">Governance</p>
+      <a class="nav-item" href="AdminAudit.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg>Audit log</a>
+      <a class="nav-item" href="AdminSettings.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Settings</a>
+    </nav>
+    <div class="side-foot">
+      <div class="live"><p class="t-xs muted">Needs attention</p><a class="t-sm strong" href="AdminCustomers.dc.html">1 deletion request</a></div>
+      <a class="nav-item" href="Login.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 16l-4-4 4-4M6 12h10"/></svg>Sign out</a>
+      <div class="user"><span class="avatar" style="background: #1b2433;">AD</span><span class="col-1 grow" style="gap: 0;"><span class="t-sm strong">Administrator</span><span class="t-xs muted">admin@tapit.local</span></span></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="crumbs"><a href="AdminCustomers.dc.html">Admin</a><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="here">Cards</span></div>
+      <button class="search" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search customers, profiles, cards<span class="kbd">⌘K</span></button>
+    </div>
+
+    <div class="head">
+      <div class="col-2">
+        <h1 class="t-xl">Cards</h1>
+        <p class="t-md muted">Register pre-encoded NFC cards, hand out claim codes and replace lost cards.</p>
+      </div>
+    </div>
+
+    <div class="card-flat" style="background: #e8edf9;">
+      <div class="spread" style="align-items: flex-end;">
+        <div class="field grow" style="flex: 1 1 420px;"><label for="c-url">Register a card URL</label><input class="input" id="c-url" placeholder="/c/card-token or https://cards.example/c/card-token" style="background: #fff;"></div>
+        <button class="btn btn-primary" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Register card</button>
+      </div>
+    </div>
+
+    <div class="editor">
+      <div class="form">
+        <div class="card">
+          <div class="spread">
+            <div class="seg on-soft"><button class="on" type="button">All 31</button><button type="button">Unclaimed 7</button><button type="button">Claimed 21</button><button type="button">Inactive 3</button></div>
+            <label class="row-2" style="background: #f0f3f9; border-radius: 12px; padding: 0 12px; min-height: 44px; flex: 0 1 260px;"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input aria-label="Search cards" placeholder="Search URL or token" style="border: 0; background: transparent; font: inherit; font-size: 14px; flex: 1; min-height: 40px; outline: none;"></label>
+          </div>
+          <div class="scroll-x"><div class="tbl" style="min-width: 600px;">
+            <div class="tr th" style="grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.6fr) 110px;"><span>Card</span><span>Status</span><span>Attached profile</span><span>Last tap</span></div>
+            <div class="tr td sel" style="grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.6fr) 110px;"><span class="row-2"><span class="ico ico-w" style="width: 32px; height: 32px;"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><span class="strong">/c/x7k2-4F2A</span></span><span><span class="chip b-ok">Claimed</span></span><span class="muted">mara-velasquez</span><span class="muted">3h ago</span></div>
+            <div class="tr td" style="grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.6fr) 110px;"><span class="row-2"><span class="ico ico-w" style="width: 32px; height: 32px;"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><span class="strong">/c/p9m1-88C0</span></span><span><span class="chip b-accent">Unclaimed</span></span><span class="muted">Waiting for code</span><span class="muted">—</span></div>
+            <div class="tr td" style="grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.6fr) 110px;"><span class="row-2"><span class="ico ico-w" style="width: 32px; height: 32px;"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><span class="strong">/c/r4t8-19BE</span></span><span><span class="chip b-ok">Claimed</span></span><span class="muted">jules-reyes</span><span class="muted">Yesterday</span></div>
+            <div class="tr td" style="grid-template-columns: minmax(0, 1.6fr) 120px minmax(0, 1.6fr) 110px;"><span class="row-2"><span class="ico ico-w" style="width: 32px; height: 32px;"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 0 1 0 8M10 5a10 10 0 0 1 0 14M14 2a14 14 0 0 1 0 20"/></svg></span><span class="strong">/c/a2b6-07DD</span></span><span><span class="chip b-danger">Replaced</span></span><span class="muted">lia-print</span><span class="muted">3w ago</span></div>
+          </div></div>
+        </div>
+      </div>
+
+      <div class="preview">
+        <div class="card">
+          <div class="spread"><p class="label">Card /c/x7k2-4F2A</p><span class="chip b-ok">Claimed</span></div>
+          <div class="list">
+            <div class="tile" style="min-height: 48px;"><span class="t-sm muted grow">Owner</span><a class="t-sm strong" href="AdminCustomers.dc.html">mara@example.test</a></div>
+            <div class="tile" style="min-height: 48px;"><span class="t-sm muted grow">Claimed</span><span class="t-sm">Oct 19, 2026</span></div>
+            <div class="tile" style="min-height: 48px;"><span class="t-sm muted grow">Taps this month</span><span class="t-sm">744</span></div>
+          </div>
+          <div class="field"><label for="c-rep">Replacement card URL</label><input class="input" id="c-rep" placeholder="/c/replacement-token"></div>
+          <div class="grid-2" style="gap: 8px;"><button class="btn btn-secondary" type="button">Replace</button><button class="btn btn-danger-soft" type="button">Deactivate</button></div>
+        </div>
+        <div class="card">
+          <h2 class="t-lg">Claim code</h2>
+          <p class="t-sm muted">For unclaimed cards. Codes expire after 24 hours.</p>
+          <div class="tile" style="justify-content: space-between;"><span style="font-size: 20px; font-weight: 650; letter-spacing: .2em;">K7Q-29M</span><button class="btn btn-quiet btn-icon" type="button" aria-label="Copy claim code"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

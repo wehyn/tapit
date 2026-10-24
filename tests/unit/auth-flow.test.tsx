@@ -2,10 +2,16 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { getFunctionName } from "convex/server";
+
+import type { DraftSaveOutcome } from "../../src/components/layout/DraftSaveContext";
+
 const replace = vi.fn();
 const signIn = vi.fn();
 const signOut = vi.fn();
 const useQuery = vi.fn();
+const mockQuery = useQuery;
+const liveProfileForShell = { status: "published", draft: { slug: "mara-velasquez" } };
 const mutation = vi.fn();
 const setupEmailPreflight = vi.fn();
 const useConvexAuth = vi.fn();
@@ -32,7 +38,10 @@ vi.mock("convex/react", async (importOriginal) => {
     ...actual,
     useMutation: () => mutation,
     useConvex: () => ({ mutation: setupEmailPreflight }),
-    useQuery: (...args: unknown[]) => useQuery(...args),
+    useQuery: (query: unknown, ...args: unknown[]) =>
+      getFunctionName(query as Parameters<typeof getFunctionName>[0]) === "profiles:mine"
+        ? liveProfileForShell
+        : mockQuery(query, ...args),
   };
 });
 
@@ -53,35 +62,32 @@ async function loadPublicAccountAction() {
 
 async function loadShells() {
   vi.resetModules();
-  const [{ AdminShell }, { CustomerShell }] = await Promise.all([
-    import("../../src/components/layout/AdminShell"),
-    import("../../src/components/layout/CustomerShell"),
-  ]);
-  return { AdminShell, CustomerShell };
+  const { WorkspaceShell } = await import("../../src/components/layout/WorkspaceShell");
+  return {
+    AdminShell: ({ children }: { children: React.ReactNode }) => (
+      <WorkspaceShell audience="admin">{children}</WorkspaceShell>
+    ),
+    CustomerShell: ({ children }: { children: React.ReactNode }) => (
+      <WorkspaceShell audience="customer">{children}</WorkspaceShell>
+    ),
+  };
 }
 
-async function loadCustomerShellWithDraftSaver(outcome: {
-  kind: "deferred";
-  reason: "pending-save";
-}) {
-  vi.resetModules();
-  const [{ CustomerShell }, { useDraftSaveRegistration }] = await Promise.all([
-    import("../../src/components/layout/CustomerShell"),
-    import("../../src/components/layout/DraftSaveContext"),
-  ]);
+async function loadShellWithDraftSaver(audience: "admin" | "customer", outcome: DraftSaveOutcome) {
+  const shells = await loadShells();
+  const { useDraftSaveRegistration } = await import("../../src/components/layout/DraftSaveContext");
+  const saveDraft = vi.fn(async () => outcome);
   function RegisterDraftSaver() {
-    useDraftSaveRegistration(async () => outcome);
-    return <div>customer content</div>;
+    useDraftSaveRegistration(saveDraft);
+    return <div>{audience} content</div>;
   }
-  return { CustomerShell, RegisterDraftSaver };
+  const Shell = audience === "admin" ? shells.AdminShell : shells.CustomerShell;
+  return { Shell, RegisterDraftSaver, saveDraft };
 }
 
 async function loadDemoCustomerShell() {
-  vi.resetModules();
-  const [{ CustomerShell }, { resetDemoState, setDemoSession }] = await Promise.all([
-    import("../../src/components/layout/CustomerShell"),
-    import("../../src/lib/demo/store"),
-  ]);
+  const { CustomerShell } = await loadShells();
+  const { resetDemoState, setDemoSession } = await import("../../src/lib/demo/store");
   return { CustomerShell, resetDemoState, setDemoSession };
 }
 
@@ -191,6 +197,7 @@ describe("demo auth isolation", () => {
         <div>admin content</div>
       </AdminShell>,
     );
+    await user.click(screen.getByRole("button", { name: /^Account menu for / }));
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(replace).not.toHaveBeenCalled();
@@ -465,15 +472,15 @@ describe("non-active workspace shells", () => {
       profileId: "profile_1",
       email: "mara@example.com",
     });
-    const { CustomerShell, RegisterDraftSaver } = await loadCustomerShellWithDraftSaver({
+    const { Shell, RegisterDraftSaver } = await loadShellWithDraftSaver("customer", {
       kind: "deferred",
       reason: "pending-save",
     });
 
     render(
-      <CustomerShell>
+      <Shell>
         <RegisterDraftSaver />
-      </CustomerShell>,
+      </Shell>,
     );
 
     await user.click(screen.getByRole("button", { name: "Account menu for mara@example.com" }));
@@ -484,6 +491,192 @@ describe("non-active workspace shells", () => {
     );
     expect(signOut).not.toHaveBeenCalled();
     expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("admin sign-out failure shows the error and stays signed in", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    signOut.mockRejectedValue(new Error("Sign out failed"));
+    const { AdminShell } = await loadShells();
+
+    render(
+      <AdminShell>
+        <div>admin content</div>
+      </AdminShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign out failed");
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(replace).not.toHaveBeenCalledWith("/login");
+    expect(screen.getByText("admin content")).toBeInTheDocument();
+  });
+
+  it("admin sign-out saves the draft before signing out", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    const { Shell, RegisterDraftSaver, saveDraft } = await loadShellWithDraftSaver("admin", {
+      kind: "saved",
+    });
+
+    render(
+      <Shell>
+        <RegisterDraftSaver />
+      </Shell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    expect(saveDraft.mock.invocationCallOrder[0]).toBeLessThan(
+      signOut.mock.invocationCallOrder[0] ?? Infinity,
+    );
+  });
+
+  it("admin sign-out does not sign out when the draft cannot be saved", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    const { Shell, RegisterDraftSaver } = await loadShellWithDraftSaver("admin", {
+      kind: "failed",
+      message: "Network down",
+    });
+
+    render(
+      <Shell>
+        <RegisterDraftSaver />
+      </Shell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your draft could not be saved. You are still signed in.",
+    );
+    expect(signOut).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalledWith("/login");
+  });
+
+  it("admin sign-out can be retried after a failed sign-out", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    signOut.mockRejectedValueOnce(new Error("Sign out failed")).mockResolvedValueOnce(undefined);
+    const { Shell, RegisterDraftSaver } = await loadShellWithDraftSaver("admin", {
+      kind: "saved",
+    });
+
+    render(
+      <Shell>
+        <RegisterDraftSaver />
+      </Shell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sign out failed");
+
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    expect(signOut).toHaveBeenCalledTimes(2);
+  });
+
+  it("admin sign-out redirects to login after a successful sign-out", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "admin",
+      accountId: "admin_1",
+      profileId: null,
+      email: "admin@example.com",
+    });
+    signOut.mockResolvedValue(undefined);
+    const { AdminShell } = await loadShells();
+
+    render(
+      <AdminShell>
+        <div>admin content</div>
+      </AdminShell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for admin@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("customer sign-out redirects to login after a successful sign-out", async () => {
+    const user = userEvent.setup();
+    vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://example.convex.cloud");
+    currentPath = "/app/profile";
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+      email: "mara@example.com",
+    });
+    signOut.mockResolvedValue(undefined);
+    const { Shell, RegisterDraftSaver } = await loadShellWithDraftSaver("customer", {
+      kind: "saved",
+    });
+
+    render(
+      <Shell>
+        <RegisterDraftSaver />
+      </Shell>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Account menu for mara@example.com" }));
+    await user.click(screen.getByRole("button", { name: /^Sign out$/ }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/login"));
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 
   it("marks Customize active for an active customer at /app/customize", async () => {
@@ -511,7 +704,9 @@ describe("non-active workspace shells", () => {
       "/app/customize",
     );
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).not.toHaveAttribute("aria-current");
   });
 
   it("shows Customize for an active admin in CustomerShell", async () => {
@@ -534,7 +729,9 @@ describe("non-active workspace shells", () => {
     );
 
     expect(screen.getByText("admin profile content")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
       "href",
       "/app/customize",
@@ -557,7 +754,9 @@ describe("non-active workspace shells", () => {
     );
 
     expect(screen.getByText("demo admin profile content")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("aria-current", "page");
+    expect(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("link", { name: "Profile" }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Customize" })).toHaveAttribute(
       "href",
       "/app/customize",

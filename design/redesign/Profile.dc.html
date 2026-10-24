@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Profile · Tapit</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="tapit.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+a{color:#315fe4}a:hover{color:#1b2433}
+</style>
+</helmet>
+<div class="app">
+  <aside class="side" aria-label="Workspace">
+    <a class="brand" href="Landing.dc.html"><span class="mark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 20a10 10 0 0 0 1.5-5.5V12a2 2 0 0 1 4 0v1.5"/><path d="M5 17a13 13 0 0 0 1-4.5V12a6 6 0 0 1 12 0v2a14 14 0 0 1-1 5"/><path d="M14 17.5a12 12 0 0 1-1 3"/></svg></span>Tapit</a>
+    <div class="ws"><a class="on" href="Profile.dc.html">Customer</a><a href="AdminCustomers.dc.html">Admin</a></div>
+    <nav class="nav" aria-label="Customer navigation">
+      <p class="nav-label">Your profile</p>
+      <a class="nav-item on" href="Profile.dc.html" aria-current="page"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>Profile</a>
+      <a class="nav-item" href="Links.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Links<span class="count">4</span></a>
+      <a class="nav-item" href="Customize.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Customize</a>
+      <p class="nav-label">Share &amp; grow</p>
+      <a class="nav-item" href="BuildCard.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg>Card</a>
+      <a class="nav-item" href="Analytics.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V11M12 20V5M19 20v-6"/></svg>Analytics</a>
+    </nav>
+    <div class="side-foot">
+      <div class="live">
+        <div class="row-2"><span class="chip b-ok"><span class="dot"></span>Live</span><span class="t-xs muted">Published 2 days ago</span></div>
+        <a class="t-sm strong" href="PublicProfile.dc.html">tapit.me/mara-velasquez</a>
+      </div>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>Account</a>
+      <a class="nav-item" href="Account.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14M12 17.5v0"/></svg>Help &amp; support</a>
+      <a class="user" href="Account.dc.html"><span class="avatar">MV</span><span class="col-1 grow" style="gap: 0;"><span class="t-sm strong">Mara Velasquez</span><span class="t-xs muted">mara@example.test</span></span></a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="top">
+      <div class="crumbs"><a href="Profile.dc.html">Workspace</a><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg><span class="here">Profile</span></div>
+      <button class="search" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>Search pages, links, settings<span class="kbd">⌘K</span></button>
+      <span class="saved"><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg>All changes saved</span>
+    </div>
+
+    <div class="head">
+      <div class="col-2">
+        <h1 class="t-xl">Profile</h1>
+        <p class="t-md muted">The details people see when they tap your card or scan your code.</p>
+      </div>
+      <div class="row-2">
+        <a class="btn btn-secondary" href="PublicProfile.dc.html"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>View live</a>
+        <a class="btn btn-primary" href="PublicProfile.dc.html">Publish changes</a>
+      </div>
+    </div>
+
+    <div class="editor">
+      <div class="form">
+        <div class="card">
+          <div class="spread">
+            <div class="col-1"><h2 class="t-lg">Finish your profile</h2><p class="t-sm muted">3 of 5 done. Each step takes a minute.</p></div>
+            <span class="chip b-accent">60%</span>
+          </div>
+          <div class="progress"><span style="width: 60%;"></span></div>
+          <div class="grid-2" style="gap: 8px;">
+            <div class="tile"><span class="ico" style="background: #e1f2e9; color: #10543f;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><span class="t-sm muted grow">Add a photo</span></div>
+            <div class="tile"><span class="ico" style="background: #e1f2e9; color: #10543f;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><span class="t-sm muted grow">Name and headline</span></div>
+            <div class="tile"><span class="ico" style="background: #e1f2e9; color: #10543f;"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7"/></svg></span><span class="t-sm muted grow">Add three links</span></div>
+            <a class="tile" href="Customize.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg></span><span class="t-sm strong grow">Choose a look</span><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+            <a class="tile" href="BuildCard.dc.html" style="color: #1b2433;"><span class="ico ico-w"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg></span><span class="t-sm strong grow">Design your card</span><svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="t-lg">Identity</h2>
+          <div class="row" style="gap: 16px;">
+            <span class="avatar avatar-lg">MV</span>
+            <div class="col-2">
+              <p class="t-sm strong">Photo or logo</p>
+              <p class="t-xs muted">Square, at least 400px. JPG, PNG or WebP.</p>
+              <div class="row-2"><button class="btn btn-tonal" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5M4 20h16"/></svg>Replace</button><button class="btn btn-quiet" type="button">Remove</button></div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="field"><label for="p-name">Display name</label><input class="input" id="p-name" value="Mara Velasquez"></div>
+            <div class="field"><label for="p-slug">Profile link</label><input class="input" id="p-slug" value="tapit.me/mara-velasquez"></div>
+          </div>
+          <div class="field"><label for="p-bio">Headline</label><textarea class="input" id="p-bio">Brand systems for independent teams.</textarea><p class="hint">36 of 120 characters</p></div>
+        </div>
+
+        <div class="card">
+          <div class="spread"><h2 class="t-lg">Contact</h2><div class="row-2"><button class="switch" type="button" aria-label="Show Save contact button"></button><span class="t-sm">Save contact button</span></div></div>
+          <div class="grid-3">
+            <div class="field"><label for="p-email">Email</label><input class="input" id="p-email" value="mara@example.test"></div>
+            <div class="field"><label for="p-phone">Phone</label><input class="input" id="p-phone" value="+63 917 555 0184"></div>
+            <div class="field"><label for="p-web">Website</label><input class="input" id="p-web" value="mara-velasquez.example"></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="spread"><h2 class="t-lg">Media</h2><button class="btn btn-tonal" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Add</button></div>
+            <div class="grid-3" style="gap: 8px;">
+              <div style="aspect-ratio: 1; border-radius: 12px; background: #e8edf9;"></div>
+              <div style="aspect-ratio: 1; border-radius: 12px; background: #f0f3f9;"></div>
+              <div style="aspect-ratio: 1; border-radius: 12px; background: #c9a875; opacity: .35;"></div>
+            </div>
+            <p class="hint">Shown as a slideshow under your name.</p>
+          </div>
+          <div class="card">
+            <h2 class="t-lg">Section order</h2>
+            <div class="list">
+              <div class="tile" style="min-height: 44px;"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="t-sm">Contact buttons</span></div>
+              <div class="tile" style="min-height: 44px;"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="t-sm">Links</span></div>
+              <div class="tile" style="min-height: 44px;"><svg class="i muted" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg><span class="t-sm">Media</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview">
+        <div class="spread"><p class="label">Live preview</p><div class="seg on-soft"><button class="on" type="button">Phone</button><button type="button">Card</button></div></div>
+        <div class="phone">
+          <div class="phone-in">
+            <span class="avatar avatar-xl">MV</span>
+            <div class="col-1" style="align-items: center;"><p class="t-lg">Mara Velasquez</p><p class="t-sm muted">Brand systems for independent teams.</p></div>
+            <div class="row-2">
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M4 7l8 6 8-6"/></svg></span>
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg></span>
+              <span class="btn btn-secondary btn-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg></span>
+            </div>
+            <span class="btn btn-primary btn-block">Save contact</span>
+            <div class="list" style="width: 100%;">
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="3"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>LinkedIn<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></svg>Portfolio<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+              <span class="plink"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Book a conversation<svg class="i i-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <p class="hint" style="text-align: center;">Preview updates as you type.</p>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

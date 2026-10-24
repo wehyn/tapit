@@ -173,7 +173,7 @@ describe("ProfileMediaEditor", () => {
       ),
     };
     render(<ProfileMediaEditor media={fullMedia} onChange={vi.fn()} onUpload={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "Upload slideshow image" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Add slideshow image" })).toBeDisabled();
   });
 
   it("associates validation and upload errors with affected controls", async () => {

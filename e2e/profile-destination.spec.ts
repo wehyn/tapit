@@ -22,7 +22,9 @@ test("published profile destination controls where the slug link goes", async ({
   );
 
   await page.goto("/app/profile");
-  await page.getByRole("radio", { name: "Redirect to website" }).check();
+  const redirectMode = page.getByRole("radio", { name: "Redirect to website" });
+  await redirectMode.locator("xpath=..").click();
+  await expect(redirectMode).toBeChecked();
   await page.getByRole("textbox", { name: "HTTPS destination URL" }).fill(destination);
   const settingsArtifact = testInfo.outputPath("profile-destination-settings.png");
   await page
@@ -62,7 +64,9 @@ test("published profile destination controls where the slug link goes", async ({
   });
 
   await page.goto("/app/profile");
-  await page.getByRole("radio", { name: "Show my Tapit profile" }).check();
+  const tapitProfileMode = page.getByRole("radio", { name: "Show my Tapit profile" });
+  await tapitProfileMode.locator("xpath=..").click();
+  await expect(tapitProfileMode).toBeChecked();
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),

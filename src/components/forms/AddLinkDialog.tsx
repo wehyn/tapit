@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { EnvelopeSimpleIcon, GlobeIcon, PhoneIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
+import { Notice } from "@/components/ui/Notice";
 import { validateLinkDestination, type LinkIcon, type ProfileLink } from "@/lib/domain";
 import { formatDestination, type LinkKind } from "./LinkDestination";
 
@@ -11,15 +13,15 @@ const kinds = [
     value: "link",
     label: "Website or link",
     detail: "A page, portfolio, or social profile",
-    icon: GlobeIcon,
+    icon: "globe",
   },
   {
     value: "email",
     label: "Email address",
     detail: "Let people send you an email",
-    icon: EnvelopeSimpleIcon,
+    icon: "email",
   },
-  { value: "phone", label: "Phone number", detail: "Let people call you", icon: PhoneIcon },
+  { value: "phone", label: "Phone number", detail: "Let people call you", icon: "phone" },
 ] as const;
 
 export function AddLinkDialog({
@@ -104,21 +106,18 @@ export function AddLinkDialog({
         aria-modal="true"
         aria-labelledby="add-link-title"
         tabIndex={-1}
-        className="w-full max-w-lg rounded-tapit border border-tapit-line bg-tapit-surface p-6 shadow-[0_24px_70px_rgba(27,36,51,.2)] outline-none sm:p-8"
+        className="w-full max-w-lg rounded-card bg-tapit-surface p-6 shadow-card outline-none"
       >
-        <p className="text-xs font-semibold uppercase tracking-widest text-tapit-accent">
+        <p className="text-xs font-semibold tracking-widest text-tapit-accent uppercase">
           Add link · {kind ? "Step 2 of 2" : "Step 1 of 2"}
         </p>
-        <h2
-          id="add-link-title"
-          className="tapit-display mt-2 text-2xl font-semibold text-tapit-ink"
-        >
+        <h2 id="add-link-title" className="tapit-display mt-2 text-xl font-semibold text-tapit-ink">
           {kind
             ? `Add ${kind === "link" ? "a link" : kind === "email" ? "an email" : "a phone number"}`
             : "What would you like to add?"}
         </h2>
         {!kind ? (
-          <div className="mt-6 grid gap-3">
+          <div className="mt-6 grid gap-2">
             {kinds.map((option) => (
               <button
                 key={option.value}
@@ -128,10 +127,10 @@ export function AddLinkDialog({
                   setKind(option.value);
                   setError("");
                 }}
-                className="flex items-center gap-4 rounded-tapit border border-tapit-line p-4 text-left transition hover:border-tapit-accent hover:bg-tapit-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+                className="flex min-h-11 items-center gap-4 rounded-control bg-tapit-soft-surface p-4 text-left transition-colors hover:bg-tapit-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
               >
-                <span className="grid size-11 shrink-0 place-items-center rounded-tapit bg-tapit-accent-soft text-tapit-accent">
-                  <option.icon size={22} />
+                <span className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-surface text-tapit-accent">
+                  <Icon name={option.icon} size={22} />
                 </span>
                 <span>
                   <span className="block font-semibold text-tapit-ink">{option.label}</span>
@@ -141,67 +140,49 @@ export function AddLinkDialog({
             ))}
           </div>
         ) : (
-          <form className="mt-6 grid gap-4" onSubmit={submit}>
-            <div>
-              <label
-                htmlFor="new-link-label"
-                className="mb-2 block text-sm font-semibold text-tapit-ink"
-              >
-                Label
-              </label>
-              <input
-                id="new-link-label"
-                autoFocus
-                value={label}
-                onChange={(event) => {
-                  setLabel(event.target.value);
-                  setError("");
-                }}
-                placeholder={
-                  kind === "link"
-                    ? "e.g. Portfolio"
-                    : kind === "email"
-                      ? "e.g. Email me"
-                      : "e.g. Call me"
-                }
-                className="min-h-12 w-full rounded-tapit border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="new-link-destination"
-                className="mb-2 block text-sm font-semibold text-tapit-ink"
-              >
-                {kind === "link"
+          <form className="mt-6 flex flex-col gap-4" onSubmit={submit}>
+            <Field
+              autoFocus
+              id="new-link-label"
+              label="Label"
+              onChange={(event) => {
+                setLabel(event.target.value);
+                setError("");
+              }}
+              placeholder={
+                kind === "link"
+                  ? "e.g. Portfolio"
+                  : kind === "email"
+                    ? "e.g. Email me"
+                    : "e.g. Call me"
+              }
+              value={label}
+            />
+            <Field
+              id="new-link-destination"
+              label={
+                kind === "link"
                   ? "Web address"
                   : kind === "email"
                     ? "Email address"
-                    : "Phone number"}
-              </label>
-              <input
-                id="new-link-destination"
-                value={value}
-                onChange={(event) => {
-                  setValue(event.target.value);
-                  setError("");
-                }}
-                type={kind === "email" ? "email" : kind === "phone" ? "tel" : "text"}
-                placeholder={
-                  kind === "link"
-                    ? "https://example.com"
-                    : kind === "email"
-                      ? "you@example.com"
-                      : "+1 555 123 4567"
-                }
-                className="min-h-12 w-full rounded-tapit border border-tapit-line bg-white px-3 outline-none focus:border-tapit-accent"
-              />
-            </div>
-            {error ? (
-              <p role="alert" className="text-sm text-tapit-danger">
-                {error}
-              </p>
-            ) : null}
-            <div className="mt-2 flex justify-between gap-3">
+                    : "Phone number"
+              }
+              onChange={(event) => {
+                setValue(event.target.value);
+                setError("");
+              }}
+              placeholder={
+                kind === "link"
+                  ? "https://example.com"
+                  : kind === "email"
+                    ? "you@example.com"
+                    : "+1 555 123 4567"
+              }
+              type={kind === "email" ? "email" : kind === "phone" ? "tel" : "text"}
+              value={value}
+            />
+            {error ? <Notice tone="error">{error}</Notice> : null}
+            <div className="flex justify-between gap-3">
               <Button
                 type="button"
                 variant="secondary"

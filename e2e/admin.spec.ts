@@ -79,7 +79,9 @@ test("administrator can crop a profile photo source larger than 5 MB", async ({ 
   await expect(photo).toHaveAttribute("src", /^data:image\/jpeg;base64,.+/);
 });
 
-test("administrator sidebar preserves operations and governance navigation", async ({ page }) => {
+test("administrator sidebar groups operations and governance and offers the customer switch", async ({
+  page,
+}) => {
   await signInAsAdmin(page);
 
   const sidebar = page.getByTestId("workspace-sidebar");
@@ -87,74 +89,75 @@ test("administrator sidebar preserves operations and governance navigation", asy
     .poll(() => sidebar.evaluate((element) => getComputedStyle(element).backgroundColor))
     .toBe("rgb(255, 255, 255)");
 
-  const desktopNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
+  const desktopNavigation = sidebar.getByRole("navigation", { name: "Admin navigation" });
   await expect(desktopNavigation).toBeVisible();
-  await expect(desktopNavigation.getByRole("heading", { name: "Operations" })).toBeVisible();
-  await expect(desktopNavigation.getByRole("heading", { name: "Governance" })).toBeVisible();
-  await expect(desktopNavigation.getByRole("heading", { name: "Personal" })).toBeVisible();
-  await expect(desktopNavigation.getByRole("link", { name: "My profile" })).toHaveAttribute(
-    "href",
-    "/app/profile",
-  );
+  await expect(
+    desktopNavigation.getByRole("heading", { name: "Operations", exact: true }),
+  ).toBeVisible();
+  await expect(
+    desktopNavigation.getByRole("heading", { name: "Governance", exact: true }),
+  ).toBeVisible();
   for (const label of ["Customers", "Profiles", "Cards", "Analytics", "Audit log", "Settings"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(
     desktopNavigation.getByRole("link", { name: "Customers", exact: true }),
   ).toHaveAttribute("aria-current", "page");
+  const workspaceSwitch = sidebar.getByRole("group", { name: "Workspace", exact: true });
+  await expect(
+    workspaceSwitch.getByRole("link", { name: "Customer", exact: true }),
+  ).toHaveAttribute("href", "/app/profile");
+  await expect(workspaceSwitch.getByRole("link", { name: "Admin", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(sidebar.getByRole("link", { name: "My profile" })).toHaveCount(0);
+  await expect(sidebar.getByRole("link", { name: "Admin workspace" })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/customers");
-  const openNavigation = page.getByRole("button", { name: "Open navigation" });
-  await openNavigation.click();
-  const drawerNavigation = page.getByRole("navigation", { name: "Tapit operations navigation" });
-  await expect(drawerNavigation).toBeVisible();
-  await expect(
-    drawerNavigation.getByRole("link", { name: "Audit log", exact: true }),
-  ).toBeVisible();
-  await expect(drawerNavigation.getByRole("link", { name: "My profile" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
+  const tabBar = page.getByRole("navigation", { name: "Mobile navigation" });
+  for (const label of ["Customers", "Profiles", "Cards"]) {
+    await expect(tabBar.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  const more = tabBar.getByRole("button", { name: "More", exact: true });
+  await more.click();
+  const sheet = page.getByRole("dialog", { name: "More", exact: true });
+  await expect(sheet).toBeVisible();
+  for (const label of ["Analytics", "Audit log", "Settings", "Switch to Customer"]) {
+    await expect(sheet.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.keyboard.press("Escape");
-  await expect(drawerNavigation).toBeHidden();
-  await expect(openNavigation).toBeFocused();
-  await openNavigation.click();
-  await drawerNavigation.getByRole("link", { name: "Cards", exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+  await expect(more).toBeFocused();
+  await tabBar.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/cards$/);
-  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
-    "aria-expanded",
-    "false",
+  await expect(tabBar.getByRole("link", { name: "Cards", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
   );
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
-  await openNavigation.click();
-  await drawerNavigation.getByRole("link", { name: "My profile" }).click();
-  await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("button", { name: "Open navigation" })).toHaveAttribute(
-    "aria-expanded",
-    "false",
-  );
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+
   await page.setViewportSize({ width: 320, height: 720 });
   await page.goto("/admin/customers");
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
-  await expect(openNavigation).toBeVisible();
-  const openerBox = await openNavigation.boundingBox();
-  expect(openerBox).not.toBeNull();
-  expect(openerBox!.height).toBeGreaterThanOrEqual(44);
+  await expect(more).toBeVisible();
+  const moreBox = await more.boundingBox();
+  expect(moreBox).not.toBeNull();
+  expect(moreBox!.height).toBeGreaterThanOrEqual(44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
-  await openNavigation.click();
-  await expect(drawerNavigation).toBeVisible();
-  const drawerBox = await drawerNavigation
-    .locator("xpath=ancestor::div[@role='dialog']")
-    .boundingBox();
-  expect(drawerBox).not.toBeNull();
-  expect(drawerBox!.x + drawerBox!.width).toBeLessThanOrEqual(320);
+  await more.click();
+  const sheetBox = await sheet.boundingBox();
+  expect(sheetBox).not.toBeNull();
+  expect(sheetBox!.x + sheetBox!.width).toBeLessThanOrEqual(320);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   await page.keyboard.press("Escape");
-  await expect(openNavigation).toBeFocused();
+  await expect(more).toBeFocused();
+
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/admin/customers");
-  await expect(page.getByRole("navigation", { name: "Tapit operations navigation" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 });
 
@@ -492,8 +495,7 @@ test("administrator profile analytics dialog contains keyboard and assistive nav
     ).toBe(false);
     expect(
       nodes.some(
-        (node) =>
-          node.role?.value === "navigation" && node.name?.value === "Tapit operations navigation",
+        (node) => node.role?.value === "navigation" && node.name?.value === "Admin navigation",
       ),
     ).toBe(false);
   } finally {
@@ -505,28 +507,30 @@ test("administrator profile analytics dialog contains keyboard and assistive nav
   await expect(profileButton).toBeFocused();
 });
 
-test("administrator owns a private personal workspace and keeps console access", async ({
-  page,
-}) => {
+test("administrator switches between the customer and admin workspaces", async ({ page }) => {
   await signInAsAdmin(page);
-  const nav = page.getByRole("navigation", { name: "Tapit operations navigation" });
-  await expect(nav.getByRole("heading", { name: "Personal" })).toBeVisible();
-  await nav.getByRole("link", { name: "My profile" }).click();
+  const sidebar = page.getByTestId("workspace-sidebar");
+  await sidebar
+    .getByRole("group", { name: "Workspace", exact: true })
+    .getByRole("link", { name: "Customer", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByLabel("Name")).toHaveValue("Tapit Admin");
   await expect(page.getByLabel("Stable profile slug")).toHaveValue("admin-tapit");
   const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
   await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
-  const profileNavigation = page.getByRole("navigation", {
-    name: "Your Tapit profile navigation",
-  });
+  const profileNavigation = page.getByRole("navigation", { name: "Customer navigation" });
   const customizeLink = profileNavigation.getByRole("link", { name: "Customize", exact: true });
   await expect(customizeLink).toBeVisible();
   await customizeLink.click();
   await expect(page).toHaveURL(/\/app\/customize$/);
   await expect(page.getByRole("heading", { name: "Customize your profile" })).toBeVisible();
   await page.goto("/app/profile");
-  await profileNavigation.getByRole("link", { name: "Admin workspace" }).click();
+  await page
+    .getByTestId("workspace-sidebar")
+    .getByRole("group", { name: "Workspace", exact: true })
+    .getByRole("link", { name: "Admin", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
   await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
 });
@@ -554,7 +558,7 @@ test("administrator publishes only after editing their own draft", async ({ page
   await page.goto("/admin-tapit");
   await expect(page.getByRole("heading", { name: "Admin Personal Profile" })).toBeVisible();
 
-  await page.goto("/app/account/build-card");
+  await page.goto("/app/card");
   await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
   await page.goto("/app/analytics");
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
@@ -732,9 +736,9 @@ test("administrator changes a slug without publishing drafts, keeps card URLs st
   const slugAudit = page.locator("details").filter({ hasText: "Profile slug changed" }).first();
   await expect(slugAudit).toBeVisible();
   await slugAudit.locator("summary").click();
-  await expect(
-    slugAudit.getByText("mara-velasquez → mara-renamed-e2e", { exact: true }),
-  ).toBeVisible();
+  const slugChange = slugAudit.getByText("Profile slug", { exact: true }).locator("..");
+  await expect(slugChange.getByText("mara-velasquez", { exact: true })).toBeVisible();
+  await expect(slugChange.getByText("mara-renamed-e2e", { exact: true })).toBeVisible();
 
   await page.goto("/admin/profiles");
   await page.getByRole("button", { name: "Tapit Admin /admin-tapit" }).click();
@@ -882,20 +886,25 @@ test("administrator can expand audit entries to read account changes", async ({ 
   await expect(entry.getByText("View details")).toBeVisible();
   await expect(entry).not.toContainText('{"role":"customer","status":"pending"}');
   await entry.getByText("View details").click();
-  await expect(entry.getByText(/Account role/)).toBeVisible();
-  await expect(entry.getByText(/Not recorded → Customer/)).toBeVisible();
-  await expect(entry.getByText(/Account status/)).toBeVisible();
-  await expect(entry.getByText(/Not recorded → Pending/)).toBeVisible();
+  const createdRole = entry.getByText("Account role", { exact: true }).locator("..");
+  await expect(createdRole.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(createdRole.getByText("Customer", { exact: true })).toBeVisible();
+  const createdStatus = entry.getByText("Account status", { exact: true }).locator("..");
+  await expect(createdStatus.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(createdStatus.getByText("Pending", { exact: true })).toBeVisible();
 
   const onboarding = page.locator("details").filter({ hasText: "Customer onboarding completed" });
   await onboarding.getByText("View details").click();
-  await expect(onboarding.getByText(/Profile slug/)).toBeVisible();
-  await expect(onboarding.getByText(/Not recorded → harley-albert-buendia/)).toBeVisible();
+  const onboardingSlug = onboarding.getByText("Profile slug", { exact: true }).locator("..");
+  await expect(onboardingSlug.getByText("Not recorded", { exact: true })).toBeVisible();
+  await expect(onboardingSlug.getByText("harley-albert-buendia", { exact: true })).toBeVisible();
 
   const roleChange = page.locator("details").filter({ hasText: "Customer role changed" });
   await expect(
     roleChange.getByText("By admin@example.test · Account: harley@example.test"),
   ).toBeVisible();
   await roleChange.getByText("View details").click();
-  await expect(roleChange.getByText(/Customer → Administrator/)).toBeVisible();
+  const changedRole = roleChange.getByText("Account role", { exact: true }).locator("..");
+  await expect(changedRole.getByText("Customer", { exact: true })).toBeVisible();
+  await expect(changedRole.getByText("Administrator", { exact: true })).toBeVisible();
 });

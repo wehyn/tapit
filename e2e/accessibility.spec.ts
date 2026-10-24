@@ -45,12 +45,16 @@ test("published profile disclosure is keyboard accessible", async ({ page }) => 
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await page.goto("/app/customize");
-  await page.getByRole("radio", { name: "Warm Studio", exact: true }).check();
+  const warmStudio = page.getByRole("radio", { name: "Warm Studio", exact: true });
+  await warmStudio.locator("xpath=..").click();
+  await expect(warmStudio).toBeChecked();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText(/Draft saved/)).toBeVisible();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "About or Services" }).click();
-  await page.getByRole("radio", { name: "About", exact: true }).check();
+  const about = page.getByRole("radio", { name: "About", exact: true });
+  await about.locator("xpath=..").click();
+  await expect(about).toBeChecked();
   await page.getByLabel("About copy").fill("Keyboard-friendly studio details.");
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByRole("button", { name: "Publish changes" }).click();
@@ -79,7 +83,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   await page.getByLabel("Password").fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
   await expectNoA11yViolations(page);
 
   await page.goto("/app/links");
@@ -90,7 +96,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/app/profile");
-    await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+    ).toBeVisible();
     const publicUrlText = page
       .getByRole("link", { name: "Open public profile /mara-velasquez" })
       .locator("code");
@@ -128,11 +136,11 @@ test("customer workspace has no automated accessibility violations", async ({ pa
     });
     expect(layout.documentWidth, JSON.stringify(layout, null, 2)).toBeLessThanOrEqual(width);
     if (width < 1024) {
-      const opener = page.getByRole("button", { name: "Open navigation" });
+      const opener = page
+        .getByRole("navigation", { name: "Mobile navigation" })
+        .getByRole("button", { name: "More", exact: true });
       await opener.click();
-      await expect(
-        page.getByRole("navigation", { name: "Your Tapit profile navigation" }),
-      ).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "More", exact: true })).toBeVisible();
       await expectNoA11yViolations(page);
       await page.keyboard.press("Escape");
       await expect(opener).toBeFocused();
@@ -165,11 +173,11 @@ test("administrator workspace has no automated accessibility violations", async 
       width,
     );
     if (width < 1024) {
-      const opener = page.getByRole("button", { name: "Open navigation" });
+      const opener = page
+        .getByRole("navigation", { name: "Mobile navigation" })
+        .getByRole("button", { name: "More", exact: true });
       await opener.click();
-      await expect(
-        page.getByRole("navigation", { name: "Tapit operations navigation" }),
-      ).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "More", exact: true })).toBeVisible();
       await expectNoA11yViolations(page);
       await page.keyboard.press("Escape");
       await expect(opener).toBeFocused();
@@ -186,7 +194,9 @@ test("customer and administrator workspace index routes keep their redirect targ
 
   await page.goto("/app");
   await expect(page).toHaveURL(/\/app\/profile$/);
-  await expect(page.getByRole("heading", { name: "Your profile", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
+  ).toBeVisible();
 
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/customers$/);

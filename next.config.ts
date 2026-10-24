@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
   },
   poweredByHeader: false,
   reactStrictMode: true,
+  async redirects() {
+    return [{ source: "/app/account/build-card", destination: "/app/card", permanent: true }];
+  },
 };
 
 export default nextConfig;

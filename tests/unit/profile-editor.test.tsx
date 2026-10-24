@@ -39,6 +39,7 @@ vi.mock("convex/react", () => ({
 }));
 
 vi.mock("@/components/layout/DraftSaveContext", () => ({
+  useDraftStatusReport: () => undefined,
   useDraftSaveRegistration: (handler: ((href?: string) => Promise<unknown>) | null) => {
     if (handler !== null) mocks.registeredSave = handler;
   },
@@ -248,13 +249,12 @@ describe("ProfileEditor workspace boundaries", () => {
     async (branch) => {
       const user = userEvent.setup();
       renderBranch(branch, "customize");
+      const coralLinkStyle = screen.getByRole("link", { name: "Site" }).className;
 
       await user.click(screen.getByRole("radio", { name: "Jade" }));
 
-      expect(screen.getByRole("link", { name: "Site" })).toHaveClass(
-        "border-[#3e806d]",
-        "bg-transparent",
-      );
+      expect(screen.getByRole("radio", { name: "Jade" })).toBeChecked();
+      expect(screen.getByRole("link", { name: "Site" }).className).not.toBe(coralLinkStyle);
       const save = screen.getByRole("button", { name: "Save draft" });
       expect(save).toBeEnabled();
       await user.click(save);

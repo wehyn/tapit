@@ -2,8 +2,6 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import NextImage from "next/image";
-import { CheckCircleIcon, UploadSimpleIcon } from "@phosphor-icons/react";
-
 import type { ProfileContent, ProfileLink, ProfileRedirect, ProfileTheme } from "@/lib/domain";
 import { validateLinkDestination, validateProfileRedirect } from "@/lib/domain";
 import { prepareProfileImageCrop, validateProfileAvatarFile, type Crop } from "@/lib/profile-image";
@@ -13,8 +11,9 @@ import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import { Button } from "@/components/ui/Button";
 import { Field, SelectField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
-import { Panel } from "@/components/ui/Panel";
+import { Card } from "@/components/ui/Card";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 type PreparedProfileImage = { blob: Blob; contentType: string };
@@ -153,10 +152,10 @@ function PhotoEditor({
 
   const photoId = `admin-profile-photo-${profileId}-${id}`;
   const imageContent: ReactNode = (
-    <div className="border-t border-tapit-line/70 pt-5">
+    <div className="flex flex-col gap-4">
       <p className="text-sm font-semibold text-tapit-ink">Profile photo or logo</p>
-      <div className="mt-3 flex flex-wrap items-center gap-4">
-        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-3xl font-semibold text-tapit-accent">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent">
           {draft.imageUrl ? (
             <NextImage
               alt={`${draft.name} profile`}
@@ -172,10 +171,9 @@ function PhotoEditor({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <label
-            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink transition hover:border-tapit-accent hover:text-tapit-accent"
+            className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-control bg-tapit-surface px-4 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface"
             htmlFor={photoId}
           >
-            <UploadSimpleIcon aria-hidden="true" size={17} weight="bold" />
             {pending ? "Saving..." : "Change photo"}
           </label>
           {draft.imageUrl ? (
@@ -200,22 +198,20 @@ function PhotoEditor({
             }}
             type="file"
           />
-          <p className="basis-full text-xs leading-5 text-tapit-muted">
-            JPG, PNG, or WebP. Max 20 MB.
-          </p>
+          <p className="basis-full text-xs text-tapit-muted">JPG, PNG, or WebP. Max 20 MB.</p>
         </div>
       </div>
       {error ? (
-        <p className="mt-1.5 text-xs font-medium text-tapit-danger" role="alert">
+        <p className="text-xs font-medium text-tapit-danger" role="alert">
           {error}
         </p>
       ) : null}
       {applied ? (
         <p
-          className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-tapit-accent-strong"
+          className="inline-flex items-center gap-1 text-xs font-medium text-tapit-accent-strong"
           role="status"
         >
-          <CheckCircleIcon aria-hidden="true" size={16} weight="fill" /> Photo applied
+          <Icon name="check" size={16} /> Photo applied
         </p>
       ) : null}
       {cropFile ? (
@@ -281,8 +277,8 @@ function LinksAndRedirectEditor({
   }
 
   return (
-    <Panel className="shadow-none" title="Links and card redirect">
-      <div className="mt-6 grid gap-5">
+    <Card tone="soft" title="Links and card redirect">
+      <div className="grid gap-4">
         <section className="grid gap-4" aria-label="Card tap and scan redirect">
           <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-tapit-ink">
             <input
@@ -304,10 +300,10 @@ function LinksAndRedirectEditor({
           />
         </section>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-tapit-line pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-semibold text-tapit-ink">Profile links</h3>
-            <p className="mt-1 text-xs leading-5 text-tapit-muted">
+            <p className="mt-1 text-xs text-tapit-muted">
               {draft.links.length} of {MAX_PROFILE_LINKS}. Enabled links appear on the public card.
             </p>
           </div>
@@ -324,7 +320,7 @@ function LinksAndRedirectEditor({
         <div className="grid gap-4">
           {draft.links.map((link, index) => (
             <article
-              className="grid gap-4 rounded-tapit border border-tapit-line bg-tapit-paper p-4 sm:p-5"
+              className="grid gap-4 rounded-control bg-tapit-surface p-4 shadow-card"
               key={`${link.id}-${index}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -394,7 +390,7 @@ function LinksAndRedirectEditor({
                     </option>
                   ))}
                 </SelectField>
-                <label className="flex min-h-12 items-center gap-3 self-end rounded-tapit border border-tapit-line bg-tapit-surface px-3.5 text-sm font-semibold text-tapit-ink">
+                <label className="flex min-h-11 items-center gap-3 self-end rounded-control bg-tapit-soft-surface px-4 text-sm font-semibold text-tapit-ink">
                   <input
                     checked={link.enabled}
                     className="size-4 accent-tapit-accent"
@@ -408,7 +404,7 @@ function LinksAndRedirectEditor({
           ))}
         </div>
       </div>
-    </Panel>
+    </Card>
   );
 }
 
@@ -469,7 +465,7 @@ export function AdminProfileContentEditor({
   );
 
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       <ProfileDetailsEditor
         customization={draft.customization}
         copyMessage={copyMessage}
@@ -482,11 +478,11 @@ export function AdminProfileContentEditor({
         slugLocked
       />
       <LinksAndRedirectEditor draft={draft} onChange={onChange} />
-      <Panel
-        className="shadow-none"
+      <Card
+        tone="soft"
         title={draft.customization === undefined ? "Legacy appearance" : "Profile appearance"}
       >
-        <div className="mt-6">
+        <div>
           <ProfileCustomizationEditor
             customization={draft.customization}
             media={draft.media as ProfileMediaPresentation | undefined}
@@ -499,7 +495,7 @@ export function AdminProfileContentEditor({
             theme={theme}
           />
         </div>
-      </Panel>
+      </Card>
       {mediaBusy || photoBusy ? (
         <Notice>Waiting for profile media to finish uploading…</Notice>
       ) : null}
