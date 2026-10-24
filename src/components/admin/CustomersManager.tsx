@@ -137,16 +137,6 @@ function DemoCustomersManager() {
     approvingDeletionCustomerIds.current.add(customerId);
     try {
       assertDemoCardOrderDeletionAccess(customerId);
-      updateDemoState((current) => {
-        const customer = current.customers.find((candidate) => candidate.id === customerId);
-        if (customer === undefined || customer.deletionStatus !== "requested") {
-          throw new Error("Deletion request unavailable.");
-        }
-        return {
-          ...current,
-          cardOrders: current.cardOrders.filter((order) => order.customerId !== customerId),
-        };
-      });
       await deleteDemoCardOrderAssetsForApprovedDeletion(customerId);
       const occurredAt = new Date().toISOString();
       updateDemoState((current) => {

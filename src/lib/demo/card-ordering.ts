@@ -6,7 +6,7 @@ import {
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
 } from "../card-ordering";
-import { releaseDemoCardOrderAsset, reserveDemoCardOrderAsset } from "./card-order-assets";
+import { withDemoCardOrderAssetReservation } from "./card-order-assets";
 import type {
   DemoCardOrder,
   DemoCardOrderDesignSource,
@@ -271,7 +271,6 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   }
   const upload = input.designSource.kind === "upload" ? input.designSource : undefined;
   const id = crypto.randomUUID();
-  if (upload) await reserveDemoCardOrderAsset(upload, id, customer.id);
   const updateOrder = (current: DemoState) => {
     const owner = activeAccount(current, "customer");
     if (owner.id !== customer.id) throw new Error("Customer session changed. Try again.");
@@ -366,30 +365,13 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
     };
     return { ...current, cardOrders: [...current.cardOrders, order] };
   };
-  try {
+  const persistOrder = () => {
     updateDemoState(updateOrder);
-  } catch (error) {
-    if (upload) {
-      try {
-        const latest = refreshDemoAccessSnapshot();
-        if (
-          latest.kind === "ready" &&
-          !latest.snapshot.state.cardOrders.some(
-            (order) =>
-              order.id === id &&
-              order.designSource.kind === "upload" &&
-              order.designSource.assetKey === upload.assetKey,
-          )
-        ) {
-          await releaseDemoCardOrderAsset(upload.assetKey, id, customer.id);
-        }
-      } catch {
-        // Keep the reservation if its persisted order cannot be ruled out.
-      }
-    }
-    throw error;
-  }
-  return id;
+    return id;
+  };
+  return upload
+    ? withDemoCardOrderAssetReservation(upload, id, customer.id, persistOrder)
+    : persistOrder();
 }
 
 export function getMyDemoCardOrders() {

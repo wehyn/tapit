@@ -2,7 +2,7 @@
 
 import { validateCardOrderDesignFile } from "../card-design";
 import type { DemoCardOrderDesignSource } from "./fixtures";
-import { refreshDemoAccessSnapshot, resolveDemoSessionAccess } from "./store";
+import { refreshDemoAccessSnapshot, resolveDemoSessionAccess, updateDemoState } from "./store";
 
 const DATABASE_NAME = "tapit-card-order-assets";
 const STORE_NAME = "originals";
@@ -34,6 +34,64 @@ function approvedDeletionState(customerId: string) {
     throw new Error("Deletion request unavailable.");
   }
   return state;
+}
+
+async function withLock<T>(name: string, operation: () => Promise<T>): Promise<T> {
+  if (typeof navigator === "undefined" || typeof navigator.locks?.request !== "function") {
+    throw new Error("Artwork changes require a browser with Web Locks support.");
+  }
+  return await navigator.locks.request<Promise<T>>(name, { mode: "exclusive" }, operation);
+}
+
+function withAssetLock<T>(assetKey: string, operation: () => Promise<T>): Promise<T> {
+  return withLock(`tapit:card-order-asset:${assetKey}`, operation);
+}
+
+function withCustomerAssetsLock<T>(customerId: string, operation: () => Promise<T>): Promise<T> {
+  return withLock(`tapit:card-order-customer-assets:${customerId}`, operation);
+}
+
+function withAssetLocks<T>(assetKeys: string[], operation: () => Promise<T>): Promise<T> {
+  const keys = [...new Set(assetKeys)].sort();
+  const lockNext = (index: number): Promise<T> =>
+    index === keys.length ? operation() : withAssetLock(keys[index]!, () => lockNext(index + 1));
+  return lockNext(0);
+}
+
+function orderReferencesAsset(
+  state: ReturnType<typeof access>["state"],
+  assetKey: string,
+): boolean {
+  return state.cardOrders.some(
+    (order) => order.designSource.kind === "upload" && order.designSource.assetKey === assetKey,
+  );
+}
+
+async function recoverUnreferencedAssetReservations(ownerId: string): Promise<void> {
+  const assetKeys = await withStore("readonly", (store) =>
+    requestValue<IDBValidKey[]>(store.index("by_ownerId").getAllKeys(ownerId)),
+  );
+  for (const assetKey of assetKeys.map(String)) {
+    await withAssetLock(assetKey, async () => {
+      const { state, account } = access();
+      if (account.role !== "customer" || account.id !== ownerId) {
+        throw new Error("Customer session changed. Try again.");
+      }
+      await withStore("readwrite", async (store) => {
+        const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
+        if (
+          !asset ||
+          asset.ownerId !== ownerId ||
+          asset.attachedOrderId === undefined ||
+          orderReferencesAsset(state, assetKey)
+        ) {
+          return;
+        }
+        delete asset.attachedOrderId;
+        await requestValue(store.put(asset));
+      });
+    });
+  }
 }
 
 export function assertDemoCardOrderDeletionAccess(customerId: string): void {
@@ -114,7 +172,6 @@ export async function saveDemoCardOrderAsset(
   const { account } = access();
   if (account.role !== "customer") throw new Error("An active customer account is required.");
   await validateCardOrderDesignFile(file);
-  if (access().account.id !== account.id) throw new Error("Customer session changed. Try again.");
   const assetKey = crypto.randomUUID();
   const asset: StoredAsset = {
     assetKey,
@@ -124,8 +181,15 @@ export async function saveDemoCardOrderAsset(
     byteSize: file.size,
     blob: file,
   };
-  await withStore("readwrite", async (store) => {
-    await requestValue(store.add(asset));
+  await withCustomerAssetsLock(account.id, async () => {
+    const current = access();
+    if (current.account.role !== "customer" || current.account.id !== account.id) {
+      throw new Error("Customer session changed. Try again.");
+    }
+    await recoverUnreferencedAssetReservations(account.id);
+    await withStore("readwrite", async (store) => {
+      await requestValue(store.add(asset));
+    });
   });
   return {
     kind: "upload",
@@ -147,21 +211,23 @@ export async function readDemoCardOrderAsset(assetKey: string): Promise<StoredAs
   return asset ?? null;
 }
 
-export async function reserveDemoCardOrderAsset(
+async function reserveDemoCardOrderAsset(
   designSource: Extract<DemoCardOrderDesignSource, { kind: "upload" }>,
   orderId: string,
   ownerId: string,
 ): Promise<void> {
-  const { account } = access();
+  const { state, account } = access();
   if (account.role !== "customer" || account.id !== ownerId) {
     throw new Error("Customer session changed. Try again.");
+  }
+  if (orderReferencesAsset(state, designSource.assetKey)) {
+    throw new Error("The uploaded card design is unavailable.");
   }
   await withStore("readwrite", async (store) => {
     const asset = await requestValue<StoredAsset | undefined>(store.get(designSource.assetKey));
     if (
       !asset ||
       asset.ownerId !== ownerId ||
-      asset.attachedOrderId !== undefined ||
       asset.fileName !== designSource.fileName ||
       asset.contentType !== designSource.contentType ||
       asset.byteSize !== designSource.byteSize
@@ -172,7 +238,7 @@ export async function reserveDemoCardOrderAsset(
   });
 }
 
-export async function releaseDemoCardOrderAsset(
+async function releaseDemoCardOrderAsset(
   assetKey: string,
   orderId: string,
   ownerId: string,
@@ -185,45 +251,97 @@ export async function releaseDemoCardOrderAsset(
   });
 }
 
+export async function withDemoCardOrderAssetReservation<T>(
+  designSource: Extract<DemoCardOrderDesignSource, { kind: "upload" }>,
+  orderId: string,
+  ownerId: string,
+  persistOrder: () => T | Promise<T>,
+): Promise<T> {
+  return withAssetLock(designSource.assetKey, async () => {
+    await reserveDemoCardOrderAsset(designSource, orderId, ownerId);
+    try {
+      return await persistOrder();
+    } catch (error) {
+      try {
+        const latest = refreshDemoAccessSnapshot();
+        if (
+          latest.kind === "ready" &&
+          !orderReferencesAsset(latest.snapshot.state, designSource.assetKey)
+        ) {
+          await releaseDemoCardOrderAsset(designSource.assetKey, orderId, ownerId);
+        }
+      } catch {
+        // Keep the reservation if a persisted order cannot be ruled out.
+      }
+      throw error;
+    }
+  });
+}
+
 export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> {
-  const { state, account } = access();
-  if (account.role !== "customer") throw new Error("Customer access required.");
-  if (
-    state.cardOrders.some(
-      (order) => order.designSource.kind === "upload" && order.designSource.assetKey === assetKey,
-    )
-  ) {
-    throw new Error("Artwork attached to an order cannot be removed.");
-  }
-  await withStore("readwrite", async (store) => {
-    const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
-    if (asset?.ownerId !== account.id) throw new Error("Artwork unavailable.");
-    if (asset.attachedOrderId !== undefined) {
+  await withAssetLock(assetKey, async () => {
+    const { state, account } = access();
+    if (account.role !== "customer") throw new Error("Customer access required.");
+    if (orderReferencesAsset(state, assetKey)) {
       throw new Error("Artwork attached to an order cannot be removed.");
     }
-    await requestValue(store.delete(assetKey));
+    await withStore("readwrite", async (store) => {
+      const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
+      if (asset?.ownerId !== account.id) throw new Error("Artwork unavailable.");
+      await requestValue(store.delete(assetKey));
+    });
   });
 }
 
 export async function deleteDemoCardOrderAssetsForApprovedDeletion(
   customerId: string,
 ): Promise<void> {
-  const state = approvedDeletionState(customerId);
-  await withStore("readwrite", async (store, transaction) => {
-    const keys = await requestValue(store.index("by_ownerId").getAllKeys(customerId));
-    for (const key of keys) {
-      if (
-        state.cardOrders.some(
-          (order) =>
-            order.customerId !== customerId &&
-            order.designSource.kind === "upload" &&
-            order.designSource.assetKey === key,
-        )
-      ) {
-        transaction.abort();
-        throw new Error("Artwork is attached to another customer's order.");
-      }
-      await requestValue(store.delete(key));
-    }
+  await withCustomerAssetsLock(customerId, async () => {
+    approvedDeletionState(customerId);
+    const assetKeys = await withStore("readonly", (store) =>
+      requestValue<IDBValidKey[]>(store.index("by_ownerId").getAllKeys(customerId)),
+    );
+    const keys = assetKeys.map(String);
+    await withAssetLocks(keys, async () => {
+      approvedDeletionState(customerId);
+      updateDemoState((state) => {
+        const customer = state.customers.find((candidate) => candidate.id === customerId);
+        if (customer?.deletionStatus !== "requested") {
+          throw new Error("Deletion request unavailable.");
+        }
+        return {
+          ...state,
+          cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
+        };
+      });
+      const state = approvedDeletionState(customerId);
+      await withStore("readwrite", async (store, transaction) => {
+        const currentKeys = await requestValue<IDBValidKey[]>(
+          store.index("by_ownerId").getAllKeys(customerId),
+        );
+        if (currentKeys.some((key) => typeof key !== "string" || !keys.includes(key))) {
+          transaction.abort();
+          throw new Error("Artwork changed during deletion. Retry the approval.");
+        }
+        for (const key of currentKeys) {
+          if (typeof key !== "string") {
+            transaction.abort();
+            throw new Error("Artwork could not be verified for deletion.");
+          }
+          if (
+            state.cardOrders.some(
+              (order) =>
+                order.customerId !== customerId &&
+                order.designSource.kind === "upload" &&
+                order.designSource.assetKey === key,
+            )
+          ) {
+            transaction.abort();
+            throw new Error("Artwork is attached to another customer's order.");
+          }
+          await requestValue(store.delete(key));
+        }
+      });
+    });
   });
 }
