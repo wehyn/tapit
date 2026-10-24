@@ -7,7 +7,10 @@ import { useMutation, usePaginatedQuery, useQuery_experimental } from "convex/re
 import { ArrowRightIcon, CopyIcon, UserPlusIcon, UsersThreeIcon } from "@phosphor-icons/react";
 
 import type { DemoCustomer, DemoProfile } from "@/lib/demo/fixtures";
-import { deleteDemoCardOrderAssetsForApprovedDeletion } from "@/lib/demo/card-order-assets";
+import {
+  assertDemoCardOrderDeletionAccess,
+  deleteDemoCardOrderAssetsForApprovedDeletion,
+} from "@/lib/demo/card-order-assets";
 import { validateProfileSlug } from "@/lib/domain";
 import {
   getDemoProfiles,
@@ -130,6 +133,17 @@ function DemoCustomersManager() {
 
   async function approveDeletion(customerId: string) {
     try {
+      assertDemoCardOrderDeletionAccess(customerId);
+      updateDemoState((current) => {
+        const customer = current.customers.find((candidate) => candidate.id === customerId);
+        if (customer === undefined || customer.deletionStatus !== "requested") {
+          throw new Error("Deletion request unavailable.");
+        }
+        return {
+          ...current,
+          cardOrders: current.cardOrders.filter((order) => order.customerId !== customerId),
+        };
+      });
       await deleteDemoCardOrderAssetsForApprovedDeletion(customerId);
       const occurredAt = new Date().toISOString();
       updateDemoState((current) => {
@@ -149,7 +163,6 @@ function DemoCustomersManager() {
               }));
         return {
           ...withProfile,
-          cardOrders: withProfile.cardOrders.filter((order) => order.customerId !== customerId),
           customers: withProfile.customers.map((candidate) =>
             candidate.id === customerId
               ? {
@@ -193,7 +206,7 @@ function DemoCustomersManager() {
         text:
           error instanceof Error
             ? error.message
-            : "Could not remove original artwork. Account deletion was not approved.",
+            : "Deletion approval could not be completed. The request remains available to retry.",
       });
     }
   }

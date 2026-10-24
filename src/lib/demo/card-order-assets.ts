@@ -24,6 +24,21 @@ function access() {
   return { state: refreshed.snapshot.state, account: resolved.account };
 }
 
+function approvedDeletionState(customerId: string) {
+  const { state, account } = access();
+  if (account.role !== "admin") throw new Error("Administrator access required.");
+  if (
+    state.customers.find((candidate) => candidate.id === customerId)?.deletionStatus !== "requested"
+  ) {
+    throw new Error("Deletion request unavailable.");
+  }
+  return state;
+}
+
+export function assertDemoCardOrderDeletionAccess(customerId: string): void {
+  approvedDeletionState(customerId);
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   if (typeof window === "undefined") {
     return Promise.reject(new Error("Artwork storage is unavailable in this browser."));
@@ -151,10 +166,7 @@ export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> 
 export async function deleteDemoCardOrderAssetsForApprovedDeletion(
   customerId: string,
 ): Promise<void> {
-  const { state, account } = access();
-  if (account.role !== "admin") throw new Error("Administrator access required.");
-  const customer = state.customers.find((candidate) => candidate.id === customerId);
-  if (customer?.deletionStatus !== "requested") throw new Error("Deletion request unavailable.");
+  const state = approvedDeletionState(customerId);
   await withStore("readwrite", async (store, transaction) => {
     const keys = await requestValue(store.index("by_ownerId").getAllKeys(customerId));
     for (const key of keys) {
