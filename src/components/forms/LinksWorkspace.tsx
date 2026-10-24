@@ -49,10 +49,10 @@ const rowFieldClasses =
   "min-h-11 w-full min-w-0 rounded-control bg-tapit-surface px-4 text-tapit-ink transition-colors placeholder:text-tapit-muted focus:outline-3 focus:outline-offset-2 focus:outline-tapit-accent aria-invalid:bg-tapit-danger-soft aria-invalid:focus:outline-tapit-danger";
 
 function destinationChoiceClass(active: boolean) {
-  return `flex min-h-12 items-center justify-center gap-2 rounded-control border px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${
+  return `flex min-h-12 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${
     active
-      ? "border-tapit-accent bg-tapit-surface text-tapit-accent-strong shadow-card"
-      : "border-transparent text-tapit-muted hover:text-tapit-ink"
+      ? "bg-tapit-surface text-tapit-accent-strong shadow-card ring-2 ring-tapit-accent"
+      : "text-tapit-muted hover:text-tapit-ink"
   }`;
 }
 
