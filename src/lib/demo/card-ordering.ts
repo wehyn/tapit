@@ -6,7 +6,10 @@ import {
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
 } from "../card-ordering";
-import { withDemoCardOrderAssetReservation } from "./card-order-assets";
+import {
+  withDemoCardOrderAssetReservation,
+  withDemoCardOrderCommitLock,
+} from "./card-order-assets";
 import type {
   DemoCardOrder,
   DemoCardOrderDesignSource,
@@ -365,10 +368,15 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
     };
     return { ...current, cardOrders: [...current.cardOrders, order] };
   };
-  const persistOrder = () => {
-    updateDemoState(updateOrder);
-    return id;
-  };
+  const persistOrder = () =>
+    withDemoCardOrderCommitLock(async () => {
+      const refreshedState = currentState("customer");
+      if (activeAccount(refreshedState, "customer").id !== customer.id) {
+        throw new Error("Customer session changed. Try again.");
+      }
+      updateDemoState(updateOrder);
+      return id;
+    });
   return upload
     ? withDemoCardOrderAssetReservation(upload, id, customer.id, persistOrder)
     : persistOrder();

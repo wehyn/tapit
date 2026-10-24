@@ -36,11 +36,23 @@ function approvedDeletionState(customerId: string) {
   return state;
 }
 
-async function withLock<T>(name: string, operation: () => Promise<T>): Promise<T> {
+async function withLock<T>(
+  name: string,
+  operation: () => Promise<T>,
+  errorMessage = "Artwork changes require a browser with Web Locks support.",
+): Promise<T> {
   if (typeof navigator === "undefined" || typeof navigator.locks?.request !== "function") {
-    throw new Error("Artwork changes require a browser with Web Locks support.");
+    throw new Error(errorMessage);
   }
   return await navigator.locks.request<Promise<T>>(name, { mode: "exclusive" }, operation);
+}
+
+export function withDemoCardOrderCommitLock<T>(operation: () => Promise<T>): Promise<T> {
+  return withLock(
+    "tapit:card-order-commit",
+    operation,
+    "Card order submissions require a browser with Web Locks support.",
+  );
 }
 
 function withAssetLock<T>(assetKey: string, operation: () => Promise<T>): Promise<T> {
