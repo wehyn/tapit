@@ -3,11 +3,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Brand } from "@/components/layout/Brand";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { Field } from "@/components/ui/Field";
-import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
@@ -461,10 +461,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
           {isAuthenticated ? (
             <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
           ) : (
-            <Button disabled={submitting} onClick={continueWithGoogle} type="button">
-              <Icon name="google" size={20} weight="bold" />
-              {submitting ? "Opening Google" : "Continue with Google"}
-            </Button>
+            <GoogleSignInButton pending={submitting} onClick={continueWithGoogle} />
           )}
         </>
       )}
