@@ -972,7 +972,7 @@ test("standalone card builder keeps its public shell and opens the order form", 
   await expect(preview).toBeVisible();
   await expect(preview.getByRole("img", { name: "Preview of transparent-logo.png" })).toBeVisible();
   await preview.getByRole("button", { name: "Continue to order" }).click();
-  await expect(page).toHaveURL(/\/app\/account\/order-card$/);
+  await expect(page).toHaveURL(/\/app\/card\/order-card$/);
   await expect(page.getByRole("heading", { name: "Order your card" })).toBeVisible();
 });
 
@@ -3449,7 +3449,7 @@ test("customer can continue from card design to the order form", async ({ page }
   const preview = page.getByRole("dialog", { name: "Looks good?" });
   await expect(preview).toBeVisible();
   await preview.getByRole("button", { name: "Continue to order" }).click();
-  await expect(page).toHaveURL(/\/app\/account\/order-card$/);
+  await expect(page).toHaveURL(/\/app\/card\/order-card$/);
   await expect(page.getByRole("heading", { name: "Order your card" })).toBeVisible();
 });
 
