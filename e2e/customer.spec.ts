@@ -2133,7 +2133,15 @@ test("customer can remove a saved background from the media header", async ({ pa
   await page.getByLabel("Background image description").fill("Studio backdrop");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
 
-  await page.reload();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(page.getByText("Studio backdrop", { exact: true })).toHaveCount(1);
+
+  await page.goto("/app/customize");
   await page.getByRole("tab", { name: "Media" }).click();
   const backgroundSection = page
     .getByRole("heading", { name: "Background image" })
@@ -2147,9 +2155,6 @@ test("customer can remove a saved background from the media header", async ({ pa
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
 
-  await page.reload();
-  await page.getByRole("tab", { name: "Media" }).click();
-  await expect(page.getByRole("button", { name: "Remove background" })).toHaveCount(0);
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Profile published. Your active card paths now show this version."),
