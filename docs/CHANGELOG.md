@@ -1,3 +1,7 @@
+## 2026-10-26 — Remove inert workspace search
+
+- The workspace top bar no longer shows the ⌘K search button, which had no behaviour.
+
 ## 2026-10-21 — Workspace shell and navigation
 
 - Customer and admin workspaces share one shell built from a typed navigation registry. Desktop uses a 248px labelled sidebar with a Customer / Admin switch for administrators. Mobile uses a bottom tab bar and a More sheet; administrators keep their own tabs.

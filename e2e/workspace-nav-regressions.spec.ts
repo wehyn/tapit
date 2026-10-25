@@ -2,6 +2,16 @@ import { expect, test } from "@playwright/test";
 
 import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
 
+test("workspace header has no inert search control", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+
+  await expect(page.getByText("Search pages, links, settings", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("⌘K", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("banner").getByRole("status")).toBeVisible();
+});
+
 test("mobile More stays open and explains when a draft save blocks navigation", async ({
   page,
 }) => {

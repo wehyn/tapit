@@ -200,16 +200,6 @@ export function WorkspaceChrome({
             ) : null}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              className="hidden h-11 min-w-72 items-center gap-2 rounded-control bg-tapit-surface px-4 text-left text-sm text-tapit-muted shadow-card lg:flex"
-              type="button"
-            >
-              <Icon name="search" size={18} />
-              <span className="flex-1">Search pages, links, settings</span>
-              <kbd className="rounded-control bg-tapit-soft-surface px-2 text-xs font-semibold text-tapit-muted">
-                ⌘K
-              </kbd>
-            </button>
             <span role="status" aria-live="polite">
               <Chip tone={saveStatus.tone}>
                 <span aria-hidden="true" className="size-2 rounded-full bg-current" />
