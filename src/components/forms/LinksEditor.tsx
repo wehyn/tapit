@@ -154,6 +154,14 @@ function DemoLinksEditor() {
   const [redirect, setRedirect] = useState<ProfileRedirect>(
     () => profile.draft.redirect ?? { enabled: false, destination: "" },
   );
+  const serverRedirectRef = useRef(profile.draft.redirect ?? { enabled: false, destination: "" });
+  useEffect(() => {
+    const incomingRedirect = profile.draft.redirect ?? { enabled: false, destination: "" };
+    if (areProfileRedirectsEqual(serverRedirectRef.current, incomingRedirect)) return;
+    const hasLocalRedirectEdits = !areProfileRedirectsEqual(redirect, serverRedirectRef.current);
+    serverRedirectRef.current = incomingRedirect;
+    if (!hasLocalRedirectEdits) setRedirect(incomingRedirect);
+  }, [profile.draft.redirect, redirect]);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
 
@@ -282,7 +290,9 @@ function DemoLinksEditor() {
     if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
-        text: "Fix each highlighted link before saving the draft.",
+        text: redirect.enabled
+          ? "Switch to Tapit profile to fix the highlighted links before saving the draft."
+          : "Fix each highlighted link before saving the draft.",
       });
       return {
         kind: "blocked",
@@ -327,7 +337,9 @@ function DemoLinksEditor() {
         tone: "error",
         text:
           Object.keys(validation).length > 0
-            ? "Fix each highlighted link before publishing."
+            ? redirect.enabled
+              ? "Switch to Tapit profile to fix the highlighted links before publishing."
+              : "Fix each highlighted link before publishing."
             : publicationErrors.join(" "),
       });
       return;
@@ -487,24 +499,33 @@ export function LiveLinksEditorContent({
         published: { ...currentDraft, publishedAt: new Date().toISOString() },
       })
     : null;
-  const isDirty =
-    !areProfileLinksEqual(currentDraft.links, profile.draft.links) ||
-    !areProfileRedirectsEqual(redirect, profile.draft.redirect);
+  const hasLocalLinkEdits = !areProfileLinksEqual(currentDraft.links, profile.draft.links);
+  const isDirty = hasLocalLinkEdits || !areProfileRedirectsEqual(redirect, profile.draft.redirect);
   useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = profile.draftRevision ?? 0;
+    const incomingRedirect = profile.draft.redirect ?? { enabled: false, destination: "" };
     if (serverDraftProfileIdRef.current !== profile._id) {
       serverDraftProfileIdRef.current = profile._id;
       serverDraftRevisionRef.current = incomingRevision;
-      serverRedirectRef.current = profile.draft.redirect ?? { enabled: false, destination: "" };
-      setRedirect(serverRedirectRef.current);
-    } else if (!isDirty && incomingRevision >= serverDraftRevisionRef.current) {
-      serverDraftRevisionRef.current = incomingRevision;
-      serverRedirectRef.current = profile.draft.redirect ?? { enabled: false, destination: "" };
-      if (!areProfileRedirectsEqual(redirect, profile.draft.redirect))
-        setRedirect(serverRedirectRef.current);
+      serverRedirectRef.current = incomingRedirect;
+      setRedirect(incomingRedirect);
+      return;
     }
-  }, [isDirty, profile._id, profile.draft.redirect, profile.draftRevision, redirect]);
+    // Compare against the last server value we observed, not the incoming one, so a
+    // redirect saved elsewhere is not mistaken for a local edit.
+    const hasLocalRedirectEdits = !areProfileRedirectsEqual(redirect, serverRedirectRef.current);
+    if (
+      !hasLocalLinkEdits &&
+      !hasLocalRedirectEdits &&
+      incomingRevision >= serverDraftRevisionRef.current
+    )
+      serverDraftRevisionRef.current = incomingRevision;
+    if (!areProfileRedirectsEqual(serverRedirectRef.current, incomingRedirect)) {
+      serverRedirectRef.current = incomingRedirect;
+      if (!hasLocalRedirectEdits) setRedirect(incomingRedirect);
+    }
+  }, [hasLocalLinkEdits, profile._id, profile.draft.redirect, profile.draftRevision, redirect]);
   const hasChangesSincePublish = hasUnpublishedChanges(currentDraft, publishedForValidation);
   const publicationLabel =
     profile.status === "published"
@@ -610,7 +631,9 @@ export function LiveLinksEditorContent({
     if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
-        text: "Fix each highlighted link before saving.",
+        text: redirect.enabled
+          ? "Switch to Tapit profile to fix the highlighted links before saving."
+          : "Fix each highlighted link before saving.",
       });
       return {
         kind: "blocked",
@@ -652,7 +675,9 @@ export function LiveLinksEditorContent({
         tone: "error",
         text:
           Object.keys(validation).length > 0
-            ? "Fix each highlighted link before publishing."
+            ? redirect.enabled
+              ? "Switch to Tapit profile to fix the highlighted links before publishing."
+              : "Fix each highlighted link before publishing."
             : publicationErrors.join(" "),
       });
       return;

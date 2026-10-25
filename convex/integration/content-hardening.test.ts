@@ -233,6 +233,151 @@ describe("content hardening", () => {
     });
   });
 
+  it("accepts links.replaceDraft calls from tabs that still send featuredLinkId", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await expect(
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        links: [validLink("kept")],
+        featuredLinkId: "kept",
+        expectedDraftRevision: await draftRevision(t, data.profileId),
+      }),
+    ).resolves.toMatchObject({ draftRevision: expect.any(Number) });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { links: [{ id: "kept" }] },
+    });
+  });
+
+  it("loads legacy featuredLinkId profiles and saves them without the field", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const legacyCustomization = {
+      preset: "paper" as const,
+      accent: "coral" as const,
+      typeScale: "comfortable" as const,
+      linkTreatment: "filled" as const,
+      contentOrder: "links-first" as const,
+      featuredLinkId: "legacy-featured-link",
+    };
+
+    const legacyProfileId = await t.run(async (ctx) => {
+      const profile = await ctx.db.get(data.profileId);
+      if (profile === null) throw new Error("Profile missing");
+      const draft = { ...profile.draft, customization: legacyCustomization };
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: profile.ownerId,
+        slug: profile.slug,
+        status: "published",
+        draft,
+        published: { ...draft, publishedAt: 1 },
+        createdAt: profile.createdAt,
+        updatedAt: profile.updatedAt,
+        publishedAt: 1,
+      });
+      await ctx.db.patch(profile.ownerId, { profileId });
+      await ctx.db.delete(data.profileId);
+      return profileId;
+    });
+
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { customization: legacyCustomization },
+      published: { customization: legacyCustomization },
+    });
+    const publicProfile = await t.query(api.profiles.publicBySlug, { slug: "owner" });
+    expect(publicProfile).toMatchObject({ slug: "owner" });
+    expect(publicProfile?.customization).not.toHaveProperty("featuredLinkId");
+
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: legacyProfileId,
+        draft: {
+          ...validDraft(),
+          customization: {
+            preset: "paper",
+            accent: "coral",
+            typeScale: "comfortable",
+            linkTreatment: "filled",
+            contentOrder: "links-first",
+          },
+        },
+        expectedDraftRevision: await draftRevision(t, legacyProfileId),
+      }),
+    ).resolves.toMatchObject({ draftRevision: 1 });
+  });
+
+  it("rejects invalid destinations for enabled link redirects", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    for (const destination of [
+      "http://redirect.example.com",
+      "https://user:pass@redirect.example.com",
+    ]) {
+      await expect(
+        owner.mutation(api.links.replaceDraft, {
+          profileId: data.profileId,
+          links: [validLink()],
+          redirect: { enabled: true, destination },
+          expectedDraftRevision: await draftRevision(t, data.profileId),
+        }),
+      ).rejects.toThrow("Redirect destination must be a valid HTTPS URL without credentials.");
+    }
+  });
+
+  it("allows disabling a redirect with an invalid stored destination", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const invalidDestination = "http://redirect.example.com";
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(data.profileId);
+      if (profile === null) throw new Error("Profile missing");
+      await ctx.db.patch(data.profileId, {
+        draft: { ...profile.draft, redirect: { enabled: true, destination: invalidDestination } },
+      });
+    });
+
+    await expect(
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        links: [validLink()],
+        redirect: { enabled: false, destination: invalidDestination },
+        expectedDraftRevision: await draftRevision(t, data.profileId),
+      }),
+    ).resolves.toMatchObject({ draftRevision: 1 });
+  });
+
+  it("keeps the stored redirect when links.replaceDraft omits redirect", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const redirect = { enabled: true, destination: "https://redirect.example.com/card" };
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(data.profileId);
+      if (profile === null) throw new Error("Profile missing");
+      await ctx.db.patch(data.profileId, {
+        draft: { ...profile.draft, redirect },
+      });
+    });
+
+    await owner.mutation(api.links.replaceDraft, {
+      profileId: data.profileId,
+      links: [validLink("updated")],
+      expectedDraftRevision: await draftRevision(t, data.profileId),
+    });
+
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { redirect, links: [{ id: "updated" }] },
+    });
+  });
+
   it("does not let a stale full-draft save overwrite newer link edits", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

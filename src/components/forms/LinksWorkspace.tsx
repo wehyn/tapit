@@ -245,6 +245,9 @@ export function LinksWorkspace({
             <Notice>
               Profile links are paused while visitors go to your website. Switch to Tapit profile to
               edit them.
+              {Object.keys(validation).length > 0
+                ? " Fix the highlighted links there before publishing."
+                : null}
             </Notice>
           ) : null}
           <section
@@ -509,6 +512,11 @@ export function LinksWorkspace({
           aria-label="Live profile preview"
           id="workspace-preview"
         >
+          {redirect.enabled ? (
+            <p className="mb-3 text-sm leading-6 text-tapit-muted">
+              Visitors go to your website. This preview shows your Tapit profile.
+            </p>
+          ) : null}
           {preview ? (
             <WorkspacePreview preview={preview} profileUrl={profileUrl} />
           ) : (

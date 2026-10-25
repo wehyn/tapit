@@ -83,6 +83,41 @@ describe("LinksWorkspace", () => {
     });
   });
 
+  it("explains that redirect mode sends visitors away from the profile shown in preview", () => {
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[]}
+        redirect={{ enabled: true, destination: "https://example.com" }}
+        preview={{
+          id: "preview",
+          slug: "mara-velasquez",
+          name: "Mara Velasquez",
+          theme: "paper",
+          links: [],
+        }}
+        validation={{}}
+        publicationErrors={[]}
+        message={null}
+        pendingAction={null}
+        isDirty={false}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Visitors go to your website. This preview shows your Tapit profile."),
+    ).toBeVisible();
+  });
+
   it("exposes invalid rows and a loading save state", () => {
     render(
       <LinksWorkspace

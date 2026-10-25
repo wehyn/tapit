@@ -22,6 +22,11 @@ import {
   LiveLinksEditorContent,
 } from "@/components/forms/LinksEditor";
 import { resetDemoState, setDemoSession } from "@/lib/demo/store";
+import { DraftSaveProvider, useDraftStatus } from "@/components/layout/DraftSaveContext";
+
+function DraftStatusProbe() {
+  return createElement("output", null, useDraftStatus());
+}
 
 const baseLink = {
   label: "Link",
@@ -142,5 +147,213 @@ describe("LinksEditor controller boundaries", () => {
         expect.objectContaining({ profileId: "profile-1", expectedDraftRevision: 7 }),
       ),
     );
+  });
+
+  it("adopts a remote redirect update and saves against its new draft revision", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    saveMutation.mockResolvedValue({ updatedAt: 2, draftRevision: 12 });
+    const initialProfile = {
+      _id: "profile-1",
+      _creationTime: 1,
+      ownerId: "customer-1",
+      status: "draft",
+      draftRevision: 7,
+      draft: {
+        name: "Mara Velasquez",
+        slug: "mara-velasquez",
+        links: [{ id: "site", ...baseLink }],
+        redirect: { enabled: true, destination: "https://old.example.com" },
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const view = render(
+      createElement(
+        DraftSaveProvider,
+        null,
+        createElement(DraftStatusProbe),
+        createElement(LiveLinksEditorContent, { profile: initialProfile as never }),
+      ),
+    );
+
+    view.rerender(
+      createElement(
+        DraftSaveProvider,
+        null,
+        createElement(DraftStatusProbe),
+        createElement(LiveLinksEditorContent, {
+          profile: {
+            ...initialProfile,
+            draftRevision: 11,
+            draft: {
+              ...initialProfile.draft,
+              redirect: { enabled: true, destination: "https://new.example.com" },
+            },
+          } as never,
+        }),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("HTTPS destination URL")).toHaveValue("https://new.example.com");
+      expect(screen.getByText("saved", { selector: "output" })).toBeVisible();
+    });
+    await user.clear(screen.getByLabelText("HTTPS destination URL"));
+    await user.type(screen.getByLabelText("HTTPS destination URL"), "https://later.example.com");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(saveMutation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedDraftRevision: 11,
+          redirect: { enabled: true, destination: "https://later.example.com" },
+        }),
+      ),
+    );
+  });
+
+  it("blocks saving while an enabled link is invalid and says to switch back to fix it", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    const profile = {
+      _id: "profile-1",
+      _creationTime: 1,
+      ownerId: "customer-1",
+      status: "draft",
+      draftRevision: 4,
+      draft: {
+        name: "Mara Velasquez",
+        slug: "mara-velasquez",
+        links: [{ id: "site", label: "", destination: "javascript:alert(1)", enabled: true }],
+        redirect: { enabled: true, destination: "https://old.example.com" },
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    render(createElement(LiveLinksEditorContent, { profile: profile as never }));
+
+    await user.clear(screen.getByLabelText("HTTPS destination URL"));
+    await user.type(screen.getByLabelText("HTTPS destination URL"), "https://new.example.com");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(
+      await screen.findByText(
+        "Switch to Tapit profile to fix the highlighted links before saving.",
+      ),
+    ).toBeVisible();
+    expect(saveMutation).not.toHaveBeenCalled();
+  });
+
+  it("does not advance the draft revision over unsaved link edits", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    saveMutation.mockResolvedValue({ updatedAt: 2, draftRevision: 12 });
+    const initialProfile = {
+      _id: "profile-1",
+      _creationTime: 1,
+      ownerId: "customer-1",
+      status: "draft",
+      draftRevision: 7,
+      draft: {
+        name: "Mara Velasquez",
+        slug: "mara-velasquez",
+        links: [{ id: "site", ...baseLink }],
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    const view = render(
+      createElement(
+        DraftSaveProvider,
+        null,
+        createElement(DraftStatusProbe),
+        createElement(LiveLinksEditorContent, { profile: initialProfile as never }),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Add link" }));
+    await user.click(screen.getByRole("button", { name: "Website or link" }));
+    await user.type(screen.getByLabelText("Label", { exact: true }), "Unsaved site");
+    await user.type(screen.getByLabelText("Web address"), "https://unsaved.example.com");
+    await user.click(screen.getByRole("dialog").querySelector('button[type="submit"]')!);
+
+    view.rerender(
+      createElement(
+        DraftSaveProvider,
+        null,
+        createElement(DraftStatusProbe),
+        createElement(LiveLinksEditorContent, {
+          profile: {
+            ...initialProfile,
+            draftRevision: 11,
+            draft: {
+              ...initialProfile.draft,
+              redirect: { enabled: true, destination: "https://remote.example.com" },
+            },
+          } as never,
+        }),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    await waitFor(() =>
+      expect(saveMutation).toHaveBeenCalledWith(
+        expect.objectContaining({ profileId: "profile-1", expectedDraftRevision: 7 }),
+      ),
+    );
+  });
+
+  it("keeps invalid enabled link validation when redirect is disabled", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    const profile = {
+      _id: "profile-1",
+      _creationTime: 1,
+      ownerId: "customer-1",
+      status: "draft",
+      draftRevision: 4,
+      draft: {
+        name: "Mara Velasquez",
+        slug: "mara-velasquez",
+        links: [{ id: "site", ...baseLink }],
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    render(createElement(LiveLinksEditorContent, { profile: profile as never }));
+
+    await user.clear(screen.getByRole("textbox", { name: "Label for Link" }));
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+
+    expect(await screen.findByText("Fix each highlighted link before saving.")).toBeVisible();
+    expect(saveMutation).not.toHaveBeenCalled();
+  });
+
+  it("blocks publishing while an enabled link is invalid, even when redirect is enabled", async () => {
+    saveMutation.mockClear();
+    const profile = {
+      _id: "profile-1",
+      _creationTime: 1,
+      ownerId: "customer-1",
+      status: "draft",
+      draftRevision: 4,
+      draft: {
+        name: "Mara Velasquez",
+        slug: "mara-velasquez",
+        links: [{ id: "site", label: "", destination: "javascript:alert(1)", enabled: true }],
+        redirect: { enabled: true, destination: "https://redirect.example.com" },
+      },
+      createdAt: 1,
+      updatedAt: 1,
+    };
+    render(createElement(LiveLinksEditorContent, { profile: profile as never }));
+
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    expect(
+      await screen.findByText(/Fix the highlighted links there before publishing\./),
+    ).toBeVisible();
+    expect(saveMutation).not.toHaveBeenCalled();
   });
 });

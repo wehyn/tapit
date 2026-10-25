@@ -90,6 +90,8 @@ export const replaceDraft = mutation({
     profileId: v.id("profiles"),
     links: v.array(linkValidator),
     redirect: v.optional(profileRedirectValidator),
+    // Accepted and ignored so tabs loaded before the featured link removal can still save.
+    featuredLinkId: v.optional(v.string()),
     expectedDraftRevision: v.number(),
   },
   returns: v.object({ updatedAt: v.number(), draftRevision: v.number() }),
