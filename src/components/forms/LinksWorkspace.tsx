@@ -345,7 +345,7 @@ export function LinksWorkspace({
                 const selectedIcon: LinkIcon = link.icon ?? "link";
                 return (
                   <article
-                    className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"}`}
+                    className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"} ${redirect.enabled ? "cursor-not-allowed opacity-55" : ""}`}
                     key={link.id}
                     onDragOver={(event) => {
                       if (redirect.enabled) return;

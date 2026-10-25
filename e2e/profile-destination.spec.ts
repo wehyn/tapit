@@ -39,6 +39,7 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(
     linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
   ).toBeDisabled();
+  await expect(linkedInRow).toHaveCSS("opacity", "0.55");
   const actionsMenu = linkedInRow.locator("details");
   const actionsSummary = actionsMenu.locator("summary");
   await actionsSummary.focus();
