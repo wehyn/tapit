@@ -1,6 +1,7 @@
 # Fixed-price referral code design
 
-**Date:** 2026-10-26  
+**Date:** 2026-10-26
+
 **Status:** Approved as written
 
 ## Goal

@@ -1,7 +1,9 @@
 # Card Ordering Design
 
-**Issue:** [#142](https://github.com/wehyn/tapit/issues/142)  
-**Date:** 2026-10-23  
+**Issue:** [#142](https://github.com/wehyn/tapit/issues/142)
+
+**Date:** 2026-10-23
+
 **Status:** Approved in conversation; two-sided artwork amendment added 2026-10-25, awaiting written-spec review
 
 ## Goal
