@@ -308,7 +308,7 @@ describe("BuildCardExperience auth-aware order action", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(push).toHaveBeenCalledWith("/login?next=%2Fapp%2Faccount%2Forder-card");
+    expect(push).toHaveBeenCalledWith("/login?next=%2Fapp%2Fcard%2Forder-card");
   });
 
   it("reuses the builder without the public header in the customer workspace", () => {
