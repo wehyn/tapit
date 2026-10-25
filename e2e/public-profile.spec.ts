@@ -18,10 +18,6 @@ async function publishWarmStudioProfile(page: Page) {
   await expect(editorial).toBeChecked();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
-  await page.goto("/app/links");
-  await page.getByRole("combobox", { name: "Featured link" }).selectOption("booking");
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "About or Services" }).click();
   const about = page.getByRole("radio", { name: "About", exact: true });
@@ -93,7 +89,6 @@ async function readPublicProfileSnapshot(page: Page) {
       Array.from(main.querySelectorAll<HTMLAnchorElement>(selector)).map((link) => ({
         label: text(link),
         href: link.getAttribute("href"),
-        featured: link.getAttribute("data-featured"),
       }));
     const details = main.querySelector("details");
     const section = details
@@ -111,7 +106,6 @@ async function readPublicProfileSnapshot(page: Page) {
       bio: text(identity?.querySelector("p") ?? null),
       imageSrc: main.querySelector("img")?.getAttribute("src") ?? null,
       contacts: links('nav[aria-label="Contact actions"] a'),
-      featured: links('ul[aria-label="Featured profile link"] a'),
       links: links('ul[aria-label="Profile links"] a'),
       section,
       pageClass: main.getAttribute("class"),
@@ -462,25 +456,18 @@ test("customized direct and active card paths preserve presentation parity", asy
       bio: "Brand systems for independent teams.",
       imageSrc: "/images/tapit-demo-mara-avatar.png",
       contacts: [
-        { label: "Email", href: "mailto:mara@example.test", featured: null },
-        { label: "Phone", href: "tel:+63 917 555 0184", featured: null },
-        { label: "Website", href: "https://mara-velasquez.example", featured: null },
-      ],
-      featured: [
-        {
-          label: "Book a conversation",
-          href: "https://cal.com/mara-velasquez",
-          featured: "true",
-        },
+        { label: "Email", href: "mailto:mara@example.test" },
+        { label: "Phone", href: "tel:+63 917 555 0184" },
+        { label: "Website", href: "https://mara-velasquez.example" },
       ],
       links: [
         {
           label: "LinkedIn",
           href: "https://www.linkedin.com/in/mara-velasquez",
-          featured: null,
         },
-        { label: "Portfolio", href: "https://mara-velasquez.example", featured: null },
-        { label: "Email", href: "mailto:mara@example.test", featured: null },
+        { label: "Portfolio", href: "https://mara-velasquez.example" },
+        { label: "Book a conversation", href: "https://cal.com/mara-velasquez" },
+        { label: "Email", href: "mailto:mara@example.test" },
       ],
       section: {
         label: "About",

@@ -1,5 +1,3 @@
-import type { ProfileLink } from "./domain";
-
 export type ProfileAccent = "coral" | "jade" | "ink";
 export type ProfileIdentityColorPreset = "default" | "coral" | "jade" | "ink";
 export type ProfileIdentityColor =
@@ -51,7 +49,6 @@ export interface ProfileCustomization {
   contactDisplay?: ProfileContactDisplay;
   customColors?: ProfileThemeColors;
   identityColors?: ProfileIdentityColors;
-  featuredLinkId?: string;
   section?: ProfileSection;
 }
 
@@ -134,7 +131,7 @@ export function normalizeProfileCustomization(
     contactDisplay: undefined,
   };
   if (
-    validateProfileCustomization(baseCustomization as unknown as ProfileCustomization, [], {
+    validateProfileCustomization(baseCustomization as unknown as ProfileCustomization, {
       activeTheme: theme,
       allowInvalidCustomPaletteContrast: true,
     }).length > 0
@@ -156,7 +153,6 @@ export function normalizeProfileCustomization(
   if (customColors !== undefined) normalized.customColors = customColors;
   const identityColors = normalizeIdentityColors(value.identityColors);
   if (identityColors !== undefined) normalized.identityColors = identityColors;
-  if (typeof value.featuredLinkId === "string") normalized.featuredLinkId = value.featuredLinkId;
   if (isRecord(value.section) && sectionErrors(value.section).length === 0) {
     if (value.section.kind === "about") {
       normalized.section = { kind: "about", body: value.section.body as string };
@@ -506,12 +502,9 @@ export function validateProfileIdentityColor(
       : "The profile bio custom color does not meet contrast requirements.";
 }
 
-export const INVALID_FEATURED_LINK_ID_MESSAGE = "The featured link id is invalid.";
-
-/** Returns publication-blocking customization errors. Featured links are intentionally advisory. */
+/** Returns publication-blocking customization errors. */
 export function validateProfileCustomization(
   customization: ProfileCustomization | undefined,
-  _links: readonly ProfileLink[] = [],
   options: ProfileCustomizationValidationOptions = {},
 ): string[] {
   if (customization === undefined) return [];
@@ -536,9 +529,6 @@ export function validateProfileCustomization(
     !PROFILE_CONTACT_DISPLAYS.has(value.contactDisplay as ProfileContactDisplay)
   ) {
     errors.push("The profile customization contact display is invalid.");
-  }
-  if (value.featuredLinkId !== undefined && typeof value.featuredLinkId !== "string") {
-    errors.push(INVALID_FEATURED_LINK_ID_MESSAGE);
   }
   const customPaletteActive =
     value.preset === "custom" &&
@@ -603,12 +593,4 @@ export function getAutomaticContactActions(fields: {
   const website = fields.website === undefined ? undefined : httpsWebsite(fields.website);
   if (website !== undefined) actions.push({ kind: "website", href: website, label: "Website" });
   return actions;
-}
-
-export function getFeaturedProfileLink(
-  links: readonly ProfileLink[],
-  featuredLinkId: string | undefined,
-): ProfileLink | undefined {
-  if (featuredLinkId === undefined) return undefined;
-  return links.find((link) => link.id === featuredLinkId && link.enabled);
 }

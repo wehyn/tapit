@@ -57,7 +57,7 @@ test("landing page keeps the approved section order and factual copy", async ({ 
   for (const step of ["Shape your profile", "Choose what to share", "Tap or scan to connect"]) {
     await expect(page.locator("#how-it-works")).toContainText(step);
   }
-  for (const feature of ["Save contact", "Featured link", "Simple analytics", "Your look"]) {
+  for (const feature of ["Save contact", "Simple analytics", "Your look"]) {
     await expect(page.getByText(feature, { exact: true }).last()).toBeVisible();
   }
   await expect(page.locator("#faq")).toContainText(/card ordering is coming soon/i);

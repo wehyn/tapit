@@ -239,7 +239,6 @@ describe("ProfileEditor workspace boundaries", () => {
       expect(screen.queryByRole("heading", { name: "Publication" })).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
       expect(screen.queryByLabelText("Email")).not.toBeInTheDocument();
-      expect(screen.queryByRole("combobox", { name: "Featured link" })).not.toBeInTheDocument();
       expect(screen.queryByRole("radio", { name: "About" })).not.toBeInTheDocument();
     },
   );

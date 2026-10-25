@@ -90,9 +90,6 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
   const redirectEnabled = content.redirect?.enabled === true;
   const customization = content.customization;
   const section = customization?.section;
-  const featuredLink = customization?.featuredLinkId
-    ? content.links.find((link) => link.id === customization.featuredLinkId)
-    : undefined;
   const media = content.media;
   const backgroundImageUrl = media?.background?.previewUrl || media?.background?.url;
   return (
@@ -142,7 +139,6 @@ function ContentSection({ content, heading }: { content: ProfileContent; heading
             <Definition label="Type scale" value={customization.typeScale} />
             <Definition label="Link treatment" value={customization.linkTreatment} />
             <Definition label="Content order" value={customization.contentOrder} />
-            <Definition label="Featured link" value={featuredLink?.label ?? "None"} />
             {customization.identityColors?.name ? (
               <Definition
                 label="Name color"

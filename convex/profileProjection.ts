@@ -2,6 +2,7 @@ import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { getProfileImageMapping, resolveProfileImageUrl } from "./profileImages";
 import { resolveOwnedProfileMedia, resolvePublishedProfileMedia } from "./profileMedia";
+import { normalizeProfileCustomization } from "../src/lib/profile-customization";
 import { validateRedirectDestination } from "./validators";
 
 type ProjectionContext = Pick<QueryCtx, "db" | "storage">;
@@ -28,6 +29,10 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
     }
   }
   const media = await resolvePublishedProfileMedia(ctx, profile, profile.published.media);
+  const customization = normalizeProfileCustomization(
+    profile.published.customization,
+    profile.published.theme ?? "paper",
+  );
   return {
     id: profile._id,
     slug: profile.published.slug,
@@ -39,9 +44,7 @@ export async function projectPublicProfile(ctx: ProjectionContext, profile: Doc<
     ...(profile.published.phone === undefined ? {} : { phone: profile.published.phone }),
     ...(profile.published.website === undefined ? {} : { website: profile.published.website }),
     theme: profile.published.theme ?? "paper",
-    ...(profile.published.customization === undefined
-      ? {}
-      : { customization: profile.published.customization }),
+    ...(customization === undefined ? {} : { customization }),
     ...(media === undefined ? {} : { media }),
     links: profile.published.links.filter((link) => link.enabled),
   };

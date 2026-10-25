@@ -839,76 +839,6 @@ test("customer card page stays inside the authenticated workspace", async ({ pag
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
 
-test("featured link is managed with Links and publishes with its selected link", async ({
-  page,
-}) => {
-  await resetDemoHarness(page);
-  await signInAsCustomer(page);
-  await expect(page.getByLabel("Featured link")).toHaveCount(0);
-
-  await page.goto("/app/links");
-  const featured = page.getByLabel("Featured link");
-  await expect(featured).toBeVisible();
-  await featured.selectOption({ label: "Portfolio" });
-  await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await page.reload();
-  await expect(featured).toHaveValue("portfolio");
-  await featured.selectOption("");
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await page.reload();
-  await expect(featured).toHaveValue("");
-
-  await featured.selectOption({ label: "Portfolio" });
-  await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
-  await expect(
-    page.getByText("The public profile now uses this order and enabled state."),
-  ).toBeVisible();
-  await page.goto("/mara-velasquez");
-  await expect(page.locator('a[data-featured="true"]', { hasText: "Portfolio" })).toBeVisible();
-});
-
-test("a missing featured link can be cleared from Links without blocking draft save", async ({
-  page,
-}) => {
-  await resetDemoHarness(page);
-  await signInAsCustomer(page);
-  await page.getByLabel("Bio or role").fill("Persist setup before legacy fixture.");
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await page.evaluate(() => {
-    const raw = window.localStorage.getItem("tapit:demo-state:v1");
-    if (!raw) throw new Error("Expected demo state after saving the setup draft.");
-    const state = JSON.parse(raw);
-    const addUnavailableSelection = (profile: { id?: string; draft?: Record<string, unknown> }) => {
-      if (profile.id !== "profile-mara") return profile;
-      const draft = profile.draft ?? {};
-      return {
-        ...profile,
-        draft: {
-          ...draft,
-          customization: {
-            preset: "warm-studio",
-            accent: "jade",
-            typeScale: "comfortable",
-            linkTreatment: "filled",
-            contentOrder: "links-first",
-            featuredLinkId: "removed-link",
-          },
-        },
-      };
-    };
-    state.profiles = state.profiles.map(addUnavailableSelection);
-    if (state.profile) state.profile = addUnavailableSelection(state.profile);
-    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
-  });
-  await page.reload();
-  await page.goto("/app/links");
-  await expect(page.getByText(/featured link.*missing|unavailable/i)).toBeVisible();
-  await page.getByRole("button", { name: "Clear featured link", exact: true }).click();
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
-});
-
 test("customer analytics groups events into fixed selected-range periods", async ({ page }) => {
   await resetDemoHarness(page);
   await page.clock.install({ time: new Date("2026-05-20T12:00:00Z") });
@@ -1462,7 +1392,7 @@ test("the last link action menu stays visible above the draft bar", async ({ pag
 });
 
 test("link drag handles reorder destinations", async ({ page }) => {
-  await page.setViewportSize({ width: 1467, height: 899 });
+  await page.setViewportSize({ width: 1467, height: 1200 });
   await signInAsCustomer(page);
   await page.goto("/app/links");
 
@@ -1511,7 +1441,7 @@ test("Portfolio link can use a new preset icon through publication", async ({ pa
 });
 
 test("link rows shift while the drag is still held", async ({ page }, testInfo) => {
-  await page.setViewportSize({ width: 1467, height: 899 });
+  await page.setViewportSize({ width: 1467, height: 1200 });
   await signInAsCustomer(page);
   await page.goto("/app/links");
 
@@ -1939,11 +1869,6 @@ test("customer customization drafts stay private until the profile is published"
   await expect(editorial).toBeChecked();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
-  await page.goto("/app/links");
-  const featuredLink = page.getByRole("combobox", { name: "Featured link" });
-  await expect(featuredLink).toBeVisible();
-  await featuredLink.selectOption("booking");
-  await page.getByRole("button", { name: "Save draft" }).click();
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "About or Services", exact: true }).click();
   const about = page.getByRole("radio", { name: "About", exact: true });
@@ -1957,7 +1882,6 @@ test("customer customization drafts stay private until the profile is published"
   await expect(page.getByText("A private draft introduction.")).toHaveCount(0);
   const bookingLink = page.getByRole("link", { name: "Book a conversation" });
   await expect(bookingLink).toBeVisible();
-  await expect(bookingLink).not.toHaveAttribute("data-featured", "true");
 
   await page.goto("/app/profile");
   await page.getByRole("button", { name: "Publish changes" }).click();
@@ -1978,10 +1902,7 @@ test("customer customization drafts stay private until the profile is published"
       name: "Email",
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Book a conversation" })).toHaveAttribute(
-    "data-featured",
-    "true",
-  );
+  await expect(page.getByRole("link", { name: "Book a conversation" })).toBeVisible();
 });
 
 test("preset theme changes stay private until the saved draft is published", async ({ page }) => {
@@ -2209,7 +2130,15 @@ test("customer can remove a saved background from the media header", async ({ pa
   await page.getByLabel("Background image description").fill("Studio backdrop");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
 
-  await page.reload();
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+  await page.goto("/mara-velasquez");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(page.getByText("Studio backdrop", { exact: true })).toHaveCount(1);
+
+  await page.goto("/app/customize");
   await page.getByRole("tab", { name: "Media" }).click();
   const backgroundSection = page
     .getByRole("heading", { name: "Background image" })
@@ -2223,12 +2152,13 @@ test("customer can remove a saved background from the media header", async ({ pa
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
 
-  await page.reload();
-  await page.getByRole("tab", { name: "Media" }).click();
-  await expect(page.getByRole("button", { name: "Remove background" })).toHaveCount(0);
   await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
   await page.goto("/mara-velasquez");
-  await expect(page.getByRole("region", { name: "Profile hero" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(page.getByText("Studio backdrop", { exact: true })).toHaveCount(0);
 });
 
 test("slideshow saves without descriptions and its arrows navigate in preview and public", async ({

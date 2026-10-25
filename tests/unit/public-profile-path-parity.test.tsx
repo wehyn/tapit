@@ -64,7 +64,6 @@ describe("published demo profile paths", () => {
           name: { kind: "preset", value: "jade" },
           bio: { kind: "preset", value: "coral" },
         },
-        featuredLinkId: "booking",
         section: { kind: "about", body: "A published studio introduction." },
       };
       published.media = {
@@ -97,7 +96,6 @@ describe("published demo profile paths", () => {
         .getByRole("navigation", { name: "Contact actions" })
         .querySelector('a[href="mailto:mara@example.test"]') as HTMLAnchorElement | null;
       if (contact === null) throw new Error("The published email action is missing.");
-      const featured = screen.getByRole("link", { name: "Book a conversation" });
       const background = screen.getByRole("region", { name: "Profile hero" });
       const slide = screen.getByRole("img", { name: "Published demo slide" });
       const disclosure = screen.getByText("About").closest("summary");
@@ -105,7 +103,6 @@ describe("published demo profile paths", () => {
       const marker = screen.getByRole("main");
       const projection = {
         contact: contact.getAttribute("href"),
-        featured: featured.getAttribute("data-featured"),
         background: background.querySelector("p.sr-only")?.textContent,
         slide: slide.getAttribute("alt") ?? slide.getAttribute("aria-label"),
         marker: marker.className,
@@ -118,7 +115,6 @@ describe("published demo profile paths", () => {
     expect(paths[0]).toEqual(paths[1]);
     expect(paths[0]).toMatchObject({
       contact: "mailto:mara@example.test",
-      featured: "true",
       background: "Published demo backdrop",
       slide: "Published demo slide",
       disclosure: "false",
@@ -212,22 +208,22 @@ describe("published demo profile paths", () => {
     },
   );
 
-  it("tracks ordinary and featured profile links, but not contact actions, on both paths", () => {
+  it("tracks profile links, but not contact actions, on both paths", () => {
     for (const path of ["direct", "card"] as const) {
       const view = renderPublishedPath(path);
       pathMocks.recordLinkClick.mockClear();
 
-      const featured = screen.getByRole("link", { name: "Book a conversation" });
+      const booking = screen.getByRole("link", { name: "Book a conversation" });
       const ordinary = screen.getByRole("link", { name: "LinkedIn" });
       const contact = screen
         .getByRole("navigation", { name: "Contact actions" })
         .querySelector('a[href="mailto:mara@example.test"]');
       if (contact === null) throw new Error("The published email action is missing.");
 
-      for (const link of [featured, ordinary, contact]) {
+      for (const link of [booking, ordinary, contact]) {
         link.addEventListener("click", (event) => event.preventDefault());
       }
-      fireEvent.click(featured);
+      fireEvent.click(booking);
       fireEvent.click(ordinary);
       fireEvent.click(contact);
 
