@@ -11,7 +11,8 @@ import {
 import {
   isCardOrderLaunchEndDate,
   getCardPriceCentavos,
-  calculateReferralDiscountCentavos,
+  calculateReferralDiscountForPriceCentavos,
+  isValidReferralFixedPriceCentavos,
 } from "../src/lib/card-ordering";
 
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
@@ -65,6 +66,7 @@ export const adminSettings = query({
         _id: v.id("cardOrderReferralCodes"),
         code: v.string(),
         referrerLabel: v.string(),
+        fixedPriceCentavos: v.optional(v.number()),
         active: v.boolean(),
       }),
     ),
@@ -94,10 +96,11 @@ export const adminSettings = query({
           active,
         }),
       ),
-      referralCodes: referrals.map(({ _id, code, referrerLabel, active }) => ({
+      referralCodes: referrals.map(({ _id, code, referrerLabel, fixedPriceCentavos, active }) => ({
         _id,
         code,
         referrerLabel,
+        ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
         active,
       })),
     };
@@ -159,7 +162,10 @@ export const previewReferral = query({
     return {
       valid,
       discountCentavos: valid
-        ? calculateReferralDiscountCentavos(getCardPriceCentavos(date, args.currentTime))
+        ? calculateReferralDiscountForPriceCentavos(
+            getCardPriceCentavos(date, args.currentTime),
+            referral.fixedPriceCentavos,
+          )
         : 0,
     };
   },
@@ -279,6 +285,7 @@ export const saveReferralCode = mutation({
     id: v.optional(v.id("cardOrderReferralCodes")),
     code: v.string(),
     referrerLabel: v.string(),
+    fixedPriceCentavos: v.optional(v.number()),
   },
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
@@ -290,6 +297,11 @@ export const saveReferralCode = mutation({
     if (!/^[A-Z0-9_-]+$/.test(code))
       throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
     const referrerLabel = requiredText(args.referrerLabel, "Referrer label", 120);
+    if (
+      args.fixedPriceCentavos !== undefined &&
+      !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
+    )
+      throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
     const collision = await ctx.db
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope).eq("code", code))
@@ -303,6 +315,7 @@ export const saveReferralCode = mutation({
             scope: account.scope,
             code,
             referrerLabel,
+            fixedPriceCentavos: args.fixedPriceCentavos,
             active: true,
             createdAt: now,
             updatedAt: now,
@@ -310,7 +323,13 @@ export const saveReferralCode = mutation({
           })
         : existing._id;
     if (existing !== null)
-      await ctx.db.patch(id, { code, referrerLabel, updatedAt: now, updatedByUserId: userId });
+      await ctx.db.patch(id, {
+        code,
+        referrerLabel,
+        fixedPriceCentavos: args.fixedPriceCentavos,
+        updatedAt: now,
+        updatedByUserId: userId,
+      });
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,
@@ -319,7 +338,12 @@ export const saveReferralCode = mutation({
       accountId: account._id,
       occurredAt: now,
       before: existing === null ? undefined : JSON.stringify(existing),
-      after: JSON.stringify({ id, code, referrerLabel }),
+      after: JSON.stringify({
+        id,
+        code,
+        referrerLabel,
+        fixedPriceCentavos: args.fixedPriceCentavos,
+      }),
     });
     return id;
   },

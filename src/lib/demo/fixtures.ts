@@ -68,6 +68,7 @@ export type DemoCardOrderReferralCode = {
   id: string;
   code: string;
   referrerLabel: string;
+  fixedPriceCentavos?: number;
   active: boolean;
   createdAt: number;
   updatedAt: number;
@@ -88,6 +89,7 @@ export type DemoCardOrder = {
   customerId: string;
   quantity: 1;
   designSource: DemoCardOrderDesignSource;
+  backDesignSource?: DemoCardOrderDesignSource;
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;

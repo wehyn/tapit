@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
-import { isCardOrderLaunchEndDate } from "../card-ordering";
+import { isCardOrderLaunchEndDate, isValidReferralFixedPriceCentavos } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
   createDefaultDemoState,
@@ -136,6 +136,8 @@ function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferral
     typeof value.id === "string" &&
     typeof value.code === "string" &&
     typeof value.referrerLabel === "string" &&
+    (value.fixedPriceCentavos === undefined ||
+      isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
     typeof value.active === "boolean" &&
     isFiniteNumber(value.createdAt) &&
     isFiniteNumber(value.updatedAt)
@@ -147,20 +149,24 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     return false;
   }
 
-  const { designSource, paymentSnapshot, referralSnapshot } = value;
-  const hasValidDesignSource =
-    (designSource.kind === "upload" &&
-      !("url" in designSource) &&
-      typeof designSource.assetKey === "string" &&
-      typeof designSource.fileName === "string" &&
-      (designSource.contentType === "image/jpeg" || designSource.contentType === "image/png") &&
-      isNonNegativeSafeInteger(designSource.byteSize)) ||
-    (designSource.kind === "url" &&
-      !("assetKey" in designSource) &&
-      !("fileName" in designSource) &&
-      !("contentType" in designSource) &&
-      !("byteSize" in designSource) &&
-      isHttpsCardDesignUrl(designSource.url));
+  const { designSource, backDesignSource, paymentSnapshot, referralSnapshot } = value;
+  const isCardOrderDesignSource = (source: unknown): boolean => {
+    if (!isRecord(source)) return false;
+    return (
+      (source.kind === "upload" &&
+        !("url" in source) &&
+        typeof source.assetKey === "string" &&
+        typeof source.fileName === "string" &&
+        (source.contentType === "image/jpeg" || source.contentType === "image/png") &&
+        isNonNegativeSafeInteger(source.byteSize)) ||
+      (source.kind === "url" &&
+        !("assetKey" in source) &&
+        !("fileName" in source) &&
+        !("contentType" in source) &&
+        !("byteSize" in source) &&
+        isHttpsCardDesignUrl(source.url))
+    );
+  };
   const hasValidReferralSnapshot =
     referralSnapshot === undefined ||
     (isRecord(referralSnapshot) &&
@@ -171,7 +177,8 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     typeof value.id === "string" &&
     typeof value.customerId === "string" &&
     value.quantity === 1 &&
-    hasValidDesignSource &&
+    isCardOrderDesignSource(designSource) &&
+    (backDesignSource === undefined || isCardOrderDesignSource(backDesignSource)) &&
     typeof value.deliveryName === "string" &&
     typeof value.deliveryPhone === "string" &&
     typeof value.deliveryAddress === "string" &&
@@ -333,7 +340,7 @@ function isSameStorageBlock(previous: StateWriteBlock | null, next: StateWriteBl
 function installStoredState(read: StateStorageRead): boolean {
   if (read.kind === "supported") {
     const changed = read.raw !== persistedRaw || storageWriteBlock !== null;
-    state = read.state;
+    if (changed) state = read.state;
     persistedRaw = read.raw;
     storageWriteBlock = null;
     return changed;
@@ -363,7 +370,7 @@ function sameSession(left: DemoSession | null, right: DemoSession | null): boole
 function installStoredSession(read: SessionStorageRead): boolean {
   const nextSession = read.kind === "supported" ? read.session : null;
   const changed = !sameSession(session, nextSession);
-  session = nextSession;
+  if (changed) session = nextSession;
   sessionLoaded = true;
   return changed;
 }

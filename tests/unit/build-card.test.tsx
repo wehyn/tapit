@@ -325,7 +325,7 @@ describe("BuildCardExperience auth-aware order action", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(push).toHaveBeenCalledWith("/app/account/order-card");
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
   it("routes signed-in demo admins to the order form", async () => {
@@ -336,7 +336,7 @@ describe("BuildCardExperience auth-aware order action", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(push).toHaveBeenCalledWith("/app/account/order-card");
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
   it("routes signed-in live admins to the order form", async () => {
@@ -346,7 +346,7 @@ describe("BuildCardExperience auth-aware order action", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(push).toHaveBeenCalledWith("/app/account/order-card");
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
   it("does nothing while auth is loading", async () => {

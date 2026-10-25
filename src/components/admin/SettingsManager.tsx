@@ -46,6 +46,7 @@ type ReferralCode = {
   id: string;
   code: string;
   referrerLabel: string;
+  fixedPriceCentavos?: number;
   active: boolean;
 };
 
@@ -88,6 +89,7 @@ function CardOrderSettings({
   const [referralEditId, setReferralEditId] = useState<string | undefined>();
   const [referralCode, setReferralCode] = useState("");
   const [referrerLabel, setReferrerLabel] = useState("");
+  const [fixedPricePesos, setFixedPricePesos] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
@@ -134,7 +136,13 @@ function CardOrderSettings({
   async function saveReferralCode(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const saved = await perform(
-      () => onSaveReferralCode({ id: referralEditId, code: referralCode, referrerLabel }),
+      () =>
+        onSaveReferralCode({
+          id: referralEditId,
+          code: referralCode,
+          referrerLabel,
+          fixedPriceCentavos: fixedPricePesos === "" ? undefined : Number(fixedPricePesos) * 100,
+        }),
       referralEditId ? "Referral code updated." : "Referral code added.",
     );
     if (saved) resetReferralForm();
@@ -152,6 +160,7 @@ function CardOrderSettings({
     setReferralEditId(undefined);
     setReferralCode("");
     setReferrerLabel("");
+    setFixedPricePesos("");
   }
 
   return (
@@ -309,6 +318,16 @@ function CardOrderSettings({
             required
             value={referrerLabel}
           />
+          <Field
+            id="referral-fixed-price"
+            label="Fixed card price (₱, optional)"
+            min="1"
+            onChange={(event) => setFixedPricePesos(event.target.value)}
+            placeholder="Leave blank for 10% off"
+            step="1"
+            type="number"
+            value={fixedPricePesos}
+          />
           <div className="flex flex-wrap gap-3 sm:col-span-2">
             <Button disabled={busy} type="submit">
               {referralEditId ? "Save referral code" : "Add referral code"}
@@ -332,7 +351,10 @@ function CardOrderSettings({
                 <div>
                   <p className="font-semibold text-tapit-ink">{referral.code}</p>
                   <p className="mt-1 text-sm text-tapit-muted">
-                    {referral.referrerLabel} · {referral.active ? "Active" : "Inactive"}
+                    {referral.referrerLabel} · {referral.active ? "Active" : "Inactive"} ·{" "}
+                    {referral.fixedPriceCentavos === undefined
+                      ? "10% off"
+                      : `Fixed price · ${formatPHP(referral.fixedPriceCentavos)}`}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
@@ -342,6 +364,11 @@ function CardOrderSettings({
                       setReferralEditId(referral.id);
                       setReferralCode(referral.code);
                       setReferrerLabel(referral.referrerLabel);
+                      setFixedPricePesos(
+                        referral.fixedPriceCentavos === undefined
+                          ? ""
+                          : String(referral.fixedPriceCentavos / 100),
+                      );
                     }}
                     type="button"
                     variant="secondary"
@@ -624,4 +651,13 @@ function LiveSettingsManager() {
 
 export function SettingsManager() {
   return !isLocalDemoMode() ? <LiveSettingsManager /> : <DemoSettingsManager />;
+}
+
+function formatPHP(amountCentavos: number): string {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(amountCentavos / 100);
 }

@@ -61,11 +61,21 @@ type CustomerOrder = {
 };
 
 type OrderDesign = { kind: "upload"; file: File } | { kind: "url"; url: string };
+type DesignSide = "front" | "back";
+type SideArtwork = {
+  kind: "upload" | "url";
+  file: File | null;
+  url: string;
+  previewUrl: string | null;
+  error: string;
+  validating: boolean;
+};
 
 type PlaceOrderInput = {
   paymentMethodId: string;
   referralCode?: string;
   design: OrderDesign;
+  backDesign: OrderDesign;
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
@@ -104,28 +114,31 @@ function LocalDemoOrderExperience() {
     <CustomerOrderForm
       mode="demo"
       onPlaceOrder={async (input) => {
-        let designSource: DemoCardOrderDesignSource;
-        let uploadedAsset: Extract<DemoCardOrderDesignSource, { kind: "upload" }> | undefined;
-        if (input.design.kind === "upload") {
-          uploadedAsset = await saveDemoCardOrderAsset(input.design.file);
-          designSource = uploadedAsset;
-        } else {
-          designSource = { kind: "url", url: input.design.url };
-        }
-
+        const savedAssets: Extract<DemoCardOrderDesignSource, { kind: "upload" }>[] = [];
         try {
+          const saveSource = async (design: OrderDesign) => {
+            if (design.kind === "url") return { kind: "url" as const, url: design.url };
+            const asset = await saveDemoCardOrderAsset(design.file);
+            savedAssets.push(asset);
+            return asset;
+          };
+          const designSource = await saveSource(input.design);
+          const backDesignSource = await saveSource(input.backDesign);
           return await placeDemoCardOrder({
             paymentMethodId: input.paymentMethodId,
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
             designSource,
+            backDesignSource,
             deliveryName: input.deliveryName,
             deliveryPhone: input.deliveryPhone,
             deliveryAddress: input.deliveryAddress,
           });
         } catch (error) {
-          if (uploadedAsset !== undefined) {
-            await replaceDemoCardOrderAsset(uploadedAsset.assetKey, null).catch(() => undefined);
-          }
+          await Promise.all(
+            savedAssets.map((asset) =>
+              replaceDemoCardOrderAsset(asset.assetKey, null).catch(() => undefined),
+            ),
+          );
           throw error;
         }
       }}
@@ -168,19 +181,14 @@ function LiveOrderExperience() {
     <CustomerOrderForm
       mode="live"
       onPlaceOrder={async (input) => {
-        let designSource:
-          | { kind: "upload"; uploadId: Id<"cardOrderDesignUploads"> }
-          | {
-              kind: "url";
-              url: string;
-            };
-        if (input.design.kind === "upload") {
+        const uploadDesign = async (design: OrderDesign) => {
+          if (design.kind === "url") return { kind: "url" as const, url: design.url };
           if (authToken === null) throw new Error("Authentication is required to upload artwork.");
           const siteUrl = requirePairedConvexSiteUrl(
             process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
             process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
           );
-          const file = input.design.file;
+          const file = design.file;
           const response = await fetch(`${siteUrl}/card-order-design-upload`, {
             method: "POST",
             body: file,
@@ -190,24 +198,23 @@ function LiveOrderExperience() {
               "X-File-Name": encodeURIComponent(file.name),
             },
           });
-          if (!response.ok) {
+          if (!response.ok)
             throw new Error(
               (await response.text()) || "The design upload failed. Choose another file.",
             );
-          }
           const uploaded = parseUploadResponse(await response.json());
-          designSource = {
-            kind: "upload",
+          return {
+            kind: "upload" as const,
             uploadId: uploaded.uploadId as Id<"cardOrderDesignUploads">,
           };
-        } else {
-          designSource = { kind: "url", url: input.design.url };
-        }
-
+        };
+        const designSource = await uploadDesign(input.design);
+        const backDesignSource = await uploadDesign(input.backDesign);
         return await placeOrder({
           paymentMethodId: input.paymentMethodId as Id<"cardOrderPaymentMethods">,
           ...(input.referralCode ? { referralCode: input.referralCode } : {}),
           designSource,
+          backDesignSource,
           deliveryName: input.deliveryName,
           deliveryPhone: input.deliveryPhone,
           deliveryAddress: input.deliveryAddress,
@@ -254,11 +261,11 @@ function CustomerOrderForm({
   onPlaceOrder: PlaceOrder;
 }) {
   const [now, setNow] = useState(() => Date.now());
-  const [designKind, setDesignKind] = useState<"upload" | "url">("upload");
-  const [designFile, setDesignFile] = useState<File | null>(null);
-  const [designUrl, setDesignUrl] = useState("");
-  const [validatingFile, setValidatingFile] = useState(false);
-  const [designError, setDesignError] = useState("");
+  const [activeSide, setActiveSide] = useState<DesignSide>("front");
+  const [artwork, setArtwork] = useState<Record<DesignSide, SideArtwork>>({
+    front: { kind: "upload", file: null, url: "", previewUrl: null, error: "", validating: false },
+    back: { kind: "upload", file: null, url: "", previewUrl: null, error: "", validating: false },
+  });
   const [deliveryName, setDeliveryName] = useState("");
   const [deliveryPhone, setDeliveryPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
@@ -268,13 +275,25 @@ function CustomerOrderForm({
   const [submitError, setSubmitError] = useState("");
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const validationIdRef = useRef(0);
+  const inputRefs = useRef<Record<DesignSide, HTMLInputElement | null>>({
+    front: null,
+    back: null,
+  });
+  const previewUrlsRef = useRef<Record<DesignSide, string | null>>({ front: null, back: null });
+  const validationIdsRef = useRef<Record<DesignSide, number>>({ front: 0, back: 0 });
 
   useEffect(() => {
     const updateTime = () => setNow(Date.now());
     const interval = window.setInterval(updateTime, 30_000);
-    return () => window.clearInterval(interval);
+    return () => {
+      window.clearInterval(interval);
+      validationIdsRef.current.front += 1;
+      validationIdsRef.current.back += 1;
+      for (const side of ["front", "back"] as const) {
+        if (previewUrlsRef.current[side] !== null)
+          URL.revokeObjectURL(previewUrlsRef.current[side]!);
+      }
+    };
   }, []);
 
   const paymentMethods = settings?.paymentMethods ?? [];
@@ -291,51 +310,76 @@ function CustomerOrderForm({
       : manilaStartOfDayTimestamp(settings.launchEndDate);
   const isConfigured = settings?.launchEndDate !== null && paymentMethods.length > 0;
 
-  function changeDesignKind(kind: "upload" | "url") {
-    setDesignKind(kind);
-    setDesignFile(null);
-    setDesignUrl("");
-    setDesignError("");
-    setSubmitError("");
-    setFieldErrors((current) => ({ ...current, design: "" }));
-    validationIdRef.current += 1;
-    setValidatingFile(false);
-    if (inputRef.current !== null) inputRef.current.value = "";
+  function clearSidePreview(side: DesignSide) {
+    if (previewUrlsRef.current[side] !== null) URL.revokeObjectURL(previewUrlsRef.current[side]!);
+    previewUrlsRef.current[side] = null;
+    setArtwork((current) => ({ ...current, [side]: { ...current[side], previewUrl: null } }));
   }
 
-  async function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+  function changeDesignKind(side: DesignSide, kind: "upload" | "url") {
+    validationIdsRef.current[side] += 1;
+    clearSidePreview(side);
+    setArtwork((current) => ({
+      ...current,
+      [side]: { kind, file: null, url: "", previewUrl: null, error: "", validating: false },
+    }));
+    setSubmitError("");
+    setFieldErrors((current) => ({ ...current, [side]: "" }));
+    if (inputRefs.current[side] !== null) inputRefs.current[side]!.value = "";
+  }
+
+  async function handleFileChange(side: DesignSide, event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file === undefined) return;
-    const requestId = ++validationIdRef.current;
-    setDesignFile(null);
-    setDesignError("");
+    const requestId = ++validationIdsRef.current[side];
+    clearSidePreview(side);
+    setArtwork((current) => ({
+      ...current,
+      [side]: { ...current[side], file: null, error: "", validating: true },
+    }));
     setSubmitError("");
-    setFieldErrors((current) => ({ ...current, design: "" }));
-    setValidatingFile(true);
+    setFieldErrors((current) => ({ ...current, [side]: "" }));
     try {
       await validateCardOrderDesignFile(file);
-      if (requestId === validationIdRef.current) setDesignFile(file);
+      if (requestId === validationIdsRef.current[side]) {
+        const previewUrl = URL.createObjectURL(file);
+        previewUrlsRef.current[side] = previewUrl;
+        setArtwork((current) => ({
+          ...current,
+          [side]: { ...current[side], file, previewUrl, error: "", validating: false },
+        }));
+      }
     } catch (error) {
-      if (requestId === validationIdRef.current) {
-        setDesignError(error instanceof Error ? error.message : "Choose a supported PNG or JPG.");
+      if (requestId === validationIdsRef.current[side]) {
+        setArtwork((current) => ({
+          ...current,
+          [side]: {
+            ...current[side],
+            error: error instanceof Error ? error.message : "Choose a supported PNG or JPG.",
+            validating: false,
+          },
+        }));
         event.target.value = "";
       }
     } finally {
-      if (requestId === validationIdRef.current) setValidatingFile(false);
+      if (requestId === validationIdsRef.current[side])
+        setArtwork((current) => ({ ...current, [side]: { ...current[side], validating: false } }));
     }
   }
 
-  function removeFile() {
-    validationIdRef.current += 1;
-    setDesignFile(null);
-    setDesignError("");
-    setValidatingFile(false);
-    if (inputRef.current !== null) inputRef.current.value = "";
+  function removeFile(side: DesignSide) {
+    validationIdsRef.current[side] += 1;
+    clearSidePreview(side);
+    setArtwork((current) => ({
+      ...current,
+      [side]: { ...current[side], file: null, error: "", validating: false },
+    }));
+    if (inputRefs.current[side] !== null) inputRefs.current[side]!.value = "";
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting || validatingFile) return;
+    if (submitting || artwork.front.validating || artwork.back.validating) return;
     const nextErrors: Record<string, string> = {};
     const name = deliveryName.trim();
     const phone = deliveryPhone.trim();
@@ -346,19 +390,29 @@ function CustomerOrderForm({
       nextErrors.deliveryAddress = "Enter 1–1,000 characters.";
     if (!selectedPaymentMethodId) nextErrors.paymentMethod = "Choose an available payment method.";
 
-    let design: OrderDesign | null = null;
-    if (designKind === "upload") {
-      if (designFile === null)
-        nextErrors.design = "Upload a PNG or JPG design under the file limits.";
-      else design = { kind: "upload", file: designFile };
-    } else {
-      const validation = validateDesignUrl(designUrl);
-      if ("error" in validation) nextErrors.design = validation.error;
-      else design = { kind: "url", url: validation.url };
-    }
+    const resolveArtwork = (side: DesignSide): OrderDesign | null => {
+      const source = artwork[side];
+      if (source.kind === "upload") {
+        if (!source.file) {
+          nextErrors[side] = `Add ${side} artwork as an upload or HTTPS URL.`;
+          return null;
+        }
+        return { kind: "upload", file: source.file };
+      }
+      const validation = validateDesignUrl(source.url);
+      if ("error" in validation) {
+        nextErrors[side] = validation.error;
+        return null;
+      }
+      return { kind: "url", url: validation.url };
+    };
+    const design = resolveArtwork("front");
+    const backDesign = resolveArtwork("back");
     setFieldErrors(nextErrors);
     setSubmitError("");
-    if (Object.keys(nextErrors).length > 0 || design === null) return;
+    if (nextErrors.front) setActiveSide("front");
+    else if (nextErrors.back) setActiveSide("back");
+    if (Object.keys(nextErrors).length > 0 || design === null || backDesign === null) return;
     if (!isConfigured) {
       setSubmitError("Card ordering is not configured yet. Please try again later.");
       return;
@@ -371,12 +425,13 @@ function CustomerOrderForm({
         paymentMethodId: selectedPaymentMethodId,
         ...(referralCode.trim() ? { referralCode: referralCode.trim() } : {}),
         design,
+        backDesign,
         deliveryName: name,
         deliveryPhone: phone,
         deliveryAddress: address,
       });
       setSubmittedOrderId(orderId);
-      if (design.kind === "upload") removeFile();
+      for (const side of ["front", "back"] as const) removeFile(side);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Your order could not be saved.");
     } finally {
@@ -406,88 +461,105 @@ function CustomerOrderForm({
         </Link>
 
         <header className="mt-5 max-w-3xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-            Tapit · Physical card
-          </p>
-          <h1 className="tapit-display mt-3 text-4xl font-medium tracking-[-0.055em] sm:text-5xl">
+          <h1 className="tapit-display text-4xl font-medium tracking-[-0.055em] sm:text-5xl">
             Order your card
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-tapit-muted sm:text-base">
-            Choose your design again, add delivery details, and select how you’d like to pay. Your
-            preview stays on the card design page.
-          </p>
         </header>
 
-        {!isConfigured ? (
-          <div className="mt-7">
-            <Notice>
-              Card ordering is being prepared. The order form will open once payment and launch
-              settings are available.
-            </Notice>
-          </div>
-        ) : null}
-
-        <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
           <form className="grid min-w-0 gap-5 lg:col-start-1" onSubmit={handleSubmit}>
-            <Card
-              className="gap-0"
-              description="Choose one image file or a secure link. Tapit will not fetch a link you provide."
-              title="01 · Card design"
-            >
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            <Card className="gap-0" title="01 · Card design">
+              <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Card side">
+                {(["front", "back"] as const).map((side) => (
+                  <button
+                    aria-pressed={activeSide === side}
+                    className={`min-h-11 rounded-xl border px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${activeSide === side ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink" : "border-tapit-line text-tapit-muted"}`}
+                    key={side}
+                    onClick={() => setActiveSide(side)}
+                    type="button"
+                  >
+                    {side}
+                    {fieldErrors[side] ? (
+                      <span className="ml-2 text-xs font-medium text-tapit-danger">Needs attention</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+              <figure className="mt-4 w-full max-w-lg">
+                <div className="overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-card">
+                  {artwork[activeSide].previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      alt={`${activeSide} artwork CR80 preview`}
+                      className="block aspect-[1.586] w-full object-cover"
+                      src={artwork[activeSide].previewUrl!}
+                    />
+                  ) : (
+                    <div className="flex aspect-[1.586] items-center justify-center bg-tapit-paper text-sm text-tapit-muted">
+                      {activeSide === "front" ? "Front" : "Back"} preview
+                    </div>
+                  )}
+                </div>
+                <figcaption className="mt-2 text-xs font-medium text-tapit-muted">
+                  CR80 card · {activeSide} side
+                </figcaption>
+              </figure>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <DesignChoice
-                  checked={designKind === "upload"}
+                  checked={artwork[activeSide].kind === "upload"}
                   description="Select a PNG or JPG from this device."
                   label="Upload an image"
-                  onChange={() => changeDesignKind("upload")}
+                  onChange={() => changeDesignKind(activeSide, "upload")}
                 />
                 <DesignChoice
-                  checked={designKind === "url"}
+                  checked={artwork[activeSide].kind === "url"}
                   description="Provide an HTTPS link to your image."
                   label="Use a design link"
-                  onChange={() => changeDesignKind("url")}
+                  onChange={() => changeDesignKind(activeSide, "url")}
                 />
               </div>
-
-              {designKind === "upload" ? (
-                <div className="mt-5 rounded-[18px] border border-dashed border-tapit-line bg-tapit-paper/65 p-4 sm:p-5">
+              {artwork[activeSide].kind === "upload" ? (
+                <div className="mt-4 rounded-[18px] border border-dashed border-tapit-line bg-tapit-paper/65 p-4 sm:p-5">
                   <input
                     accept={CARD_DESIGN_ACCEPT}
-                    aria-label="Upload your card artwork"
-                    aria-describedby="design-file-guidance"
-                    aria-invalid={Boolean(designError || fieldErrors.design)}
+                    aria-label={`Upload ${activeSide} artwork`}
+                    aria-describedby={`${activeSide}-file-guidance`}
+                    aria-invalid={Boolean(artwork[activeSide].error || fieldErrors[activeSide])}
                     className="sr-only"
-                    id="order-card-design-file"
-                    onChange={handleFileChange}
-                    ref={inputRef}
+                    id={`order-card-${activeSide}-file`}
+                    key={activeSide}
+                    onChange={(event) => void handleFileChange(activeSide, event)}
+                    ref={(element) => {
+                      inputRefs.current[activeSide] = element;
+                    }}
                     tabIndex={-1}
                     type="file"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-tapit-ink">
-                        {designFile ? designFile.name : "Select your card artwork"}
+                        {artwork[activeSide].file?.name ?? `Select ${activeSide} artwork`}
                       </p>
                       <p className="mt-1 text-xs leading-5 text-tapit-muted">
-                        {designFile
-                          ? `${formatFileSize(designFile.size)} · ${designFile.type === "image/png" ? "PNG" : "JPG"}`
+                        {artwork[activeSide].file
+                          ? `${formatFileSize(artwork[activeSide].file!.size)} · ${artwork[activeSide].file!.type === "image/png" ? "PNG" : "JPG"}`
                           : "PNG or JPG, under 5 MiB"}
                       </p>
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <Button
-                        disabled={validatingFile || submitting}
-                        onClick={() => inputRef.current?.click()}
+                        disabled={artwork[activeSide].validating || submitting}
+                        onClick={() => inputRefs.current[activeSide]?.click()}
                         type="button"
                         variant="secondary"
                       >
                         <UploadSimpleIcon aria-hidden="true" className="mr-2" size={17} />
-                        {designFile ? "Replace" : "Choose file"}
+                        {artwork[activeSide].file ? "Replace" : "Choose file"}
                       </Button>
-                      {designFile ? (
+                      {artwork[activeSide].file ? (
                         <Button
                           disabled={submitting}
-                          onClick={removeFile}
+                          onClick={() => removeFile(activeSide)}
                           type="button"
                           variant="quiet"
                         >
@@ -496,53 +568,51 @@ function CustomerOrderForm({
                       ) : null}
                     </div>
                   </div>
-                  <p className="mt-4 text-xs leading-5 text-tapit-muted" id="design-file-guidance">
+                  <p
+                    className="mt-4 text-xs leading-5 text-tapit-muted"
+                    id={`${activeSide}-file-guidance`}
+                  >
                     The image must be no larger than 12,000 pixels per side or 6 million pixels in
                     total.
                   </p>
-                  {validatingFile ? (
+                  {artwork[activeSide].validating ? (
                     <p className="mt-3 text-sm text-tapit-muted" role="status">
                       Checking file size and image dimensions…
                     </p>
                   ) : null}
-                  {designError ? (
+                  {artwork[activeSide].error || fieldErrors[activeSide] ? (
                     <p className="mt-3 text-sm text-tapit-danger" role="alert">
-                      {designError}
-                    </p>
-                  ) : null}
-                  {fieldErrors.design ? (
-                    <p className="mt-3 text-sm text-tapit-danger" role="alert">
-                      {fieldErrors.design}
+                      {artwork[activeSide].error || fieldErrors[activeSide]}
                     </p>
                   ) : null}
                 </div>
               ) : (
-                <div className="mt-5">
+                <div className="mt-4">
                   <Field
                     autoComplete="url"
-                    error={fieldErrors.design}
+                    error={artwork[activeSide].error || fieldErrors[activeSide]}
                     help="Use an HTTPS URL without username or password. The image is not fetched during order submission."
-                    id="order-card-design-url"
-                    label="Design URL"
+                    id={`order-card-${activeSide}-url`}
+                    label={`${activeSide === "front" ? "Front" : "Back"} design URL`}
                     maxLength={2048}
                     onChange={(event) => {
-                      setDesignUrl(event.target.value);
-                      setFieldErrors((current) => ({ ...current, design: "" }));
+                      const url = event.target.value;
+                      setArtwork((current) => ({
+                        ...current,
+                        [activeSide]: { ...current[activeSide], url },
+                      }));
+                      setFieldErrors((current) => ({ ...current, [activeSide]: "" }));
                     }}
                     placeholder="https://example.com/my-card.png"
                     type="url"
-                    value={designUrl}
+                    value={artwork[activeSide].url}
                   />
                 </div>
               )}
             </Card>
 
-            <Card
-              className="gap-0"
-              description="Use the name and phone number the courier should contact."
-              title="02 · Delivery details"
-            >
-              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <Card className="gap-0" title="02 · Delivery details">
+              <div className="mt-4 grid gap-5 sm:grid-cols-2">
                 <Field
                   autoComplete="name"
                   error={fieldErrors.deliveryName}
@@ -576,7 +646,6 @@ function CustomerOrderForm({
                   <TextareaField
                     autoComplete="street-address"
                     error={fieldErrors.deliveryAddress}
-                    help="Include the house or unit number, street, barangay, city, and any helpful delivery notes."
                     id="delivery-address"
                     label="Delivery address"
                     maxLength={1000}
@@ -592,13 +661,10 @@ function CustomerOrderForm({
               </div>
             </Card>
 
-            <Card
-              className="gap-0"
-              description="Card payment is arranged after the shipping quote is ready."
-              title="03 · Payment"
-            >
-              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+            <Card className="gap-0" title="03 · Payment">
+              <div className="mt-4 grid gap-5 sm:grid-cols-2">
                 <SelectField
+                  disabled={paymentMethods.length === 0}
                   id="payment-method"
                   label="Payment method"
                   onChange={(event) => {
@@ -638,7 +704,6 @@ function CustomerOrderForm({
                 <div className="sm:col-span-2">
                   <Field
                     autoCapitalize="characters"
-                    help="Optional. A valid code takes 10% off the current card price."
                     id="referral-code"
                     label="Referral code"
                     maxLength={40}
@@ -647,9 +712,13 @@ function CustomerOrderForm({
                   />
                 </div>
               </div>
-              {paymentMethods.length === 0 ? (
-                <p className="mt-4 text-sm leading-6 text-tapit-muted">
-                  No payment methods are available yet.
+              {!isConfigured ? (
+                <p className="mt-4 text-sm leading-6 text-tapit-muted" role="status">
+                  {settings.launchEndDate === null && paymentMethods.length === 0
+                    ? "Ordering is unavailable until launch pricing and a payment method are set."
+                    : settings.launchEndDate === null
+                      ? "Ordering is unavailable until launch pricing is set."
+                      : "Ordering is unavailable until a payment method is available."}
                 </p>
               ) : null}
             </Card>
@@ -664,7 +733,7 @@ function CustomerOrderForm({
               </Link>
               <Button
                 className="sm:min-w-48"
-                disabled={!isConfigured || validatingFile}
+                disabled={!isConfigured || artwork.front.validating || artwork.back.validating}
                 loading={submitting}
                 type="submit"
               >
@@ -676,8 +745,8 @@ function CustomerOrderForm({
 
           <aside className="order-first grid gap-5 lg:sticky lg:top-8 lg:order-none lg:col-start-2 lg:row-start-1">
             <Card className="gap-0 overflow-hidden border-tapit-accent/25 bg-tapit-surface p-0">
-              <div className="border-b border-tapit-line bg-tapit-ink px-5 py-4 text-white sm:px-6">
-                <p className="text-[11px] font-semibold tracking-[0.18em] text-white/65 uppercase">
+              <div className="rounded-t-card border-b border-tapit-accent-strong bg-tapit-accent px-5 py-4 text-tapit-accent-foreground sm:px-6">
+                <p className="text-[11px] font-semibold tracking-[0.18em] text-tapit-accent-foreground uppercase">
                   Price preview
                 </p>
                 <h2 className="tapit-display mt-1.5 text-2xl font-medium tracking-tight">
@@ -727,7 +796,7 @@ function CustomerOrderForm({
           </aside>
         </div>
         <footer className="mt-10 flex items-center justify-between gap-4 border-t border-tapit-line pt-5 text-xs text-tapit-muted">
-          <span>Card design preview remains on the previous page.</span>
+          <span>Front and back artwork use the CR80 card ratio.</span>
           <Link
             className="inline-flex min-h-10 items-center gap-1 font-semibold hover:text-tapit-accent"
             href={BUILD_CARD_PATH}

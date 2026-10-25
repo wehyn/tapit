@@ -7,7 +7,7 @@ import { activeOrderCustomer, launchEndDate } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
 import {
   calculateCommissionCentavos,
-  calculateReferralDiscountCentavos,
+  calculateReferralDiscountForPriceCentavos,
   getCardPriceCentavos,
 } from "../src/lib/card-ordering";
 import schema from "./schema";
@@ -50,6 +50,7 @@ export const placeOrder = mutation({
     paymentMethodId: v.id("cardOrderPaymentMethods"),
     referralCode: v.optional(v.string()),
     designSource,
+    backDesignSource: designSource,
     deliveryName: v.string(),
     deliveryPhone: v.string(),
     deliveryAddress: v.string(),
@@ -83,22 +84,23 @@ export const placeOrder = mutation({
     const deliveryName = deliveryText(args.deliveryName, "Delivery name", 120);
     const deliveryPhone = deliveryText(args.deliveryPhone, "Delivery phone", 40);
     const deliveryAddress = deliveryText(args.deliveryAddress, "Delivery address", 1000);
-    let designSourceValue: Doc<"cardOrders">["designSource"];
-    if (args.designSource.kind === "url") {
-      const url = args.designSource.url.trim();
-      if (url.length < 1 || url.length > 2048)
-        throw new Error("Design URL must contain 1–2048 characters.");
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-      } catch {
-        throw new Error("Design URL must use HTTPS.");
+    const validateDesignSource = async (source: typeof args.designSource) => {
+      if (source.kind === "url") {
+        const url = source.url.trim();
+        if (url.length < 1 || url.length > 2048)
+          throw new Error("Design URL must contain 1–2048 characters.");
+        let parsed: URL;
+        try {
+          parsed = new URL(url);
+        } catch {
+          throw new Error("Design URL must use HTTPS.");
+        }
+        if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password)
+          throw new Error("Design URL must use HTTPS without credentials.");
+        return { kind: "url" as const, url };
       }
-      if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password)
-        throw new Error("Design URL must use HTTPS without credentials.");
-      designSourceValue = { kind: "url", url };
-    } else {
-      const upload = await ctx.db.get(args.designSource.uploadId);
+
+      const upload = await ctx.db.get(source.uploadId);
       if (
         upload === null ||
         upload.ownerId !== customer._id ||
@@ -108,8 +110,19 @@ export const placeOrder = mutation({
         upload.orderId !== undefined
       )
         throw new Error("The uploaded card design is unavailable.");
-      designSourceValue = { kind: "upload", uploadId: upload._id };
+      return { kind: "upload" as const, uploadId: upload._id };
+    };
+    if (
+      args.designSource.kind === "upload" &&
+      args.backDesignSource.kind === "upload" &&
+      args.designSource.uploadId === args.backDesignSource.uploadId
+    ) {
+      throw new Error("Front and back must use different uploaded files.");
     }
+    const [designSourceValue, backDesignSourceValue] = await Promise.all([
+      validateDesignSource(args.designSource),
+      validateDesignSource(args.backDesignSource),
+    ]);
     const normalizedCode = args.referralCode?.trim().toUpperCase();
     const referral = normalizedCode
       ? await ctx.db
@@ -123,7 +136,12 @@ export const placeOrder = mutation({
       throw new Error("Referral code is unavailable for this order.");
     const cardPriceCentavos = getCardPriceCentavos(date, now);
     const discountCentavos =
-      referral === null ? 0 : calculateReferralDiscountCentavos(cardPriceCentavos);
+      referral === null
+        ? 0
+        : calculateReferralDiscountForPriceCentavos(
+            cardPriceCentavos,
+            referral.fixedPriceCentavos,
+          );
     const commissionCentavos =
       referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
     const orderId = await ctx.db.insert("cardOrders", {
@@ -131,6 +149,7 @@ export const placeOrder = mutation({
       customerId: customer._id,
       quantity: 1,
       designSource: designSourceValue,
+      backDesignSource: backDesignSourceValue,
       deliveryName,
       deliveryPhone,
       deliveryAddress,
@@ -157,6 +176,8 @@ export const placeOrder = mutation({
     });
     if (designSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);
+    if (backDesignSourceValue.kind === "upload")
+      await attachCardOrderDesignUpload(ctx, backDesignSourceValue.uploadId, customer, orderId);
     return orderId;
   },
 });

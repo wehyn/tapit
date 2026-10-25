@@ -137,14 +137,14 @@ Delete an unattached demo asset when the user replaces/removes a selected side�
 
 **Files:**
 
-- Create: `src/app/app/account/order-card/page.tsx`
+- Create: `src/app/app/card/order-card/page.tsx`
 - Create: `src/components/card-order/OrderCardExperience.tsx`
 - Modify: `src/components/card-builder/BuildCardExperience.tsx`
 - Use: `src/lib/card-design.ts` and `src/lib/card-ordering.ts`
 
 - [ ] **Step 1: Route the existing builder action to the order page**
 
-Change the authenticated builder order action to `router.push("/app/account/order-card")`. For unauthenticated visitors, send login’s `next` path to that route. Keep the existing preview local to `/build-card`; the order page explicitly asks the customer to select the design again.
+Change the authenticated builder order action to `router.push("/app/card/order-card")`. For unauthenticated visitors, send login’s `next` path to that route. Keep the existing preview local to `/build-card`; the order page explicitly asks the customer to select the design again.
 
 - [ ] **Step 2: Build the shared customer form and mode adapters**
 

@@ -1,7 +1,7 @@
 # Fixed-price referral code design
 
 **Date:** 2026-10-26  
-**Status:** Conversation decision confirmed; awaiting spec review
+**Status:** Approved as written
 
 ## Goal
 

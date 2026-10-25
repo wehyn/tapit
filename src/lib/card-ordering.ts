@@ -1,5 +1,6 @@
 export const CARD_LAUNCH_PRICE_CENTAVOS = 59_900;
 export const CARD_REGULAR_PRICE_CENTAVOS = 79_900;
+export const CARD_LOWEST_PRICE_CENTAVOS = CARD_LAUNCH_PRICE_CENTAVOS;
 export const REFERRAL_PERCENT = 10;
 export const COMMISSION_PERCENT = 10;
 
@@ -101,6 +102,31 @@ export function percentageCentavos(amountCentavos: number, percent: number): num
 
 export function calculateReferralDiscountCentavos(cardPriceCentavos: number): number {
   return percentageCentavos(cardPriceCentavos, REFERRAL_PERCENT);
+}
+
+export function isValidReferralFixedPriceCentavos(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value > 0 &&
+    value <= CARD_LOWEST_PRICE_CENTAVOS
+  );
+}
+
+export function calculateReferralDiscountForPriceCentavos(
+  cardPriceCentavos: number,
+  fixedPriceCentavos?: number,
+): number {
+  if (fixedPriceCentavos === undefined) return calculateReferralDiscountCentavos(cardPriceCentavos);
+  if (!isValidReferralFixedPriceCentavos(fixedPriceCentavos)) {
+    throw new RangeError(
+      "fixedPriceCentavos must be a positive safe integer no greater than the lowest card price.",
+    );
+  }
+  if (!Number.isSafeInteger(cardPriceCentavos) || cardPriceCentavos < fixedPriceCentavos) {
+    throw new RangeError("fixedPriceCentavos cannot exceed the card price.");
+  }
+  return cardPriceCentavos - fixedPriceCentavos;
 }
 
 export function calculateCommissionCentavos(cardPriceCentavos: number): number {

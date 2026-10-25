@@ -181,10 +181,10 @@ export function BuildCardWorkspace({
   function handleOrder() {
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push(`/login?next=${encodeURIComponent("/app/account/order-card")}`);
+      router.push(`/login?next=${encodeURIComponent("/app/card/order-card")}`);
       return;
     }
-    router.push("/app/account/order-card");
+    router.push("/app/card/order-card");
   }
 
   const Root = showPublicHeader ? "main" : "div";

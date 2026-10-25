@@ -2,9 +2,10 @@
 
 import {
   calculateCommissionCentavos,
-  calculateReferralDiscountCentavos,
+  calculateReferralDiscountForPriceCentavos,
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
+  isValidReferralFixedPriceCentavos,
 } from "../card-ordering";
 import {
   withDemoCardOrderAssetReservation,
@@ -28,6 +29,7 @@ type PlaceOrderInput = {
   paymentMethodId: string;
   referralCode?: string;
   designSource: DemoCardOrderDesignSource;
+  backDesignSource: DemoCardOrderDesignSource;
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
@@ -74,6 +76,37 @@ function requiredText(value: string, label: string, max: number) {
     throw new Error(`${label} must contain 1–${max} characters.`);
   }
   return trimmed;
+}
+
+function validateDesignSource(source: DemoCardOrderDesignSource): DemoCardOrderDesignSource {
+  if (source.kind === "url" && !("assetKey" in source)) {
+    const url = source.url.trim();
+    if (url.length < 1 || url.length > 2_048) {
+      throw new Error("Design URL must contain 1–2048 characters.");
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw new Error("Design URL must use HTTPS.");
+    }
+    if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) {
+      throw new Error("Design URL must use HTTPS without credentials.");
+    }
+    return { kind: "url", url };
+  }
+  if (
+    source.kind === "upload" &&
+    !("url" in source) &&
+    typeof source.assetKey === "string" &&
+    typeof source.fileName === "string" &&
+    (source.contentType === "image/jpeg" || source.contentType === "image/png") &&
+    Number.isSafeInteger(source.byteSize) &&
+    source.byteSize >= 0
+  ) {
+    return { ...source };
+  }
+  throw new Error("Choose one design source.");
 }
 
 function audit(state: DemoState, action: string, target: string, before?: string, after?: string) {
@@ -198,6 +231,7 @@ export async function saveDemoCardOrderReferralCode(input: {
   id?: string;
   code: string;
   referrerLabel: string;
+  fixedPriceCentavos?: number;
 }): Promise<string> {
   const adminId = activeAccount(currentState("admin"), "admin").id;
   const code = requiredText(input.code, "Referral code", 40).toUpperCase();
@@ -205,6 +239,12 @@ export async function saveDemoCardOrderReferralCode(input: {
     throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
   }
   const referrerLabel = requiredText(input.referrerLabel, "Referrer label", 120);
+  if (
+    input.fixedPriceCentavos !== undefined &&
+    !isValidReferralFixedPriceCentavos(input.fixedPriceCentavos)
+  ) {
+    throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+  }
   const id = input.id ?? crypto.randomUUID();
   await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
@@ -219,6 +259,7 @@ export async function saveDemoCardOrderReferralCode(input: {
       id,
       code,
       referrerLabel,
+      fixedPriceCentavos: input.fixedPriceCentavos,
       active: existing?.active ?? true,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -269,8 +310,9 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
   return {
     valid,
     discountCentavos: valid
-      ? calculateReferralDiscountCentavos(
+      ? calculateReferralDiscountForPriceCentavos(
           getCardPriceCentavos(state.cardOrderLaunchEndDate, currentTime),
+          referral.fixedPriceCentavos,
         )
       : 0,
   };
@@ -279,13 +321,15 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
 export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string> {
   const state = currentState("customer");
   const customer = activeAccount(state, "customer");
-  if (
-    (input.designSource.kind === "upload" && "url" in input.designSource) ||
-    (input.designSource.kind === "url" && "assetKey" in input.designSource)
-  ) {
-    throw new Error("Choose one design source.");
+  const frontSource = validateDesignSource(input.designSource);
+  const backSource = validateDesignSource(input.backDesignSource);
+  const uploads = [frontSource, backSource].filter(
+    (source): source is Extract<DemoCardOrderDesignSource, { kind: "upload" }> =>
+      source.kind === "upload",
+  );
+  if (new Set(uploads.map(({ assetKey }) => assetKey)).size !== uploads.length) {
+    throw new Error("The same artwork cannot be used for both sides.");
   }
-  const upload = input.designSource.kind === "upload" ? input.designSource : undefined;
   const id = crypto.randomUUID();
   const updateOrder = (current: DemoState) => {
     const owner = activeAccount(current, "customer");
@@ -303,41 +347,16 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
     const deliveryName = requiredText(input.deliveryName, "Delivery name", 120);
     const deliveryPhone = requiredText(input.deliveryPhone, "Delivery phone", 40);
     const deliveryAddress = requiredText(input.deliveryAddress, "Delivery address", 1000);
-    let designSource: DemoCardOrderDesignSource;
-    if (input.designSource.kind === "url") {
-      const url = input.designSource.url.trim();
-      if (url.length < 1 || url.length > 2_048) {
-        throw new Error("Design URL must contain 1–2048 characters.");
-      }
-      let parsed: URL;
-      try {
-        parsed = new URL(url);
-      } catch {
-        throw new Error("Design URL must use HTTPS.");
-      }
-      if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) {
-        throw new Error("Design URL must use HTTPS without credentials.");
-      }
-      designSource = { kind: "url", url };
-    } else if (input.designSource.kind === "upload") {
-      const assetKey = input.designSource.assetKey;
+    for (const upload of uploads) {
       if (
-        current.cardOrders.some(
-          (order) =>
-            order.designSource.kind === "upload" && order.designSource.assetKey === assetKey,
+        current.cardOrders.some((order) =>
+          [order.designSource, order.backDesignSource].some(
+            (source) => source?.kind === "upload" && source.assetKey === upload.assetKey,
+          ),
         )
       ) {
         throw new Error("The uploaded card design is unavailable.");
       }
-      designSource = {
-        kind: "upload",
-        assetKey,
-        fileName: input.designSource.fileName,
-        contentType: input.designSource.contentType,
-        byteSize: input.designSource.byteSize,
-      };
-    } else {
-      throw new Error("Choose one design source.");
     }
     const normalizedCode = input.referralCode?.trim().toUpperCase();
     const referral = normalizedCode
@@ -355,12 +374,15 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       id,
       customerId: owner.id,
       quantity: 1,
-      designSource,
+      designSource: frontSource,
+      backDesignSource: backSource,
       deliveryName,
       deliveryPhone,
       deliveryAddress,
       cardPriceCentavos,
-      discountCentavos: referral ? calculateReferralDiscountCentavos(cardPriceCentavos) : 0,
+      discountCentavos: referral
+        ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
+        : 0,
       paymentMethodId: payment.id,
       paymentSnapshot: {
         provider: payment.provider,
@@ -390,8 +412,8 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       updateDemoState(updateOrder);
       return id;
     });
-  return upload
-    ? withDemoCardOrderAssetReservation(upload, id, customer.id, persistOrder)
+  return uploads.length > 0
+    ? withDemoCardOrderAssetReservation(uploads, id, customer.id, persistOrder)
     : persistOrder();
 }
 

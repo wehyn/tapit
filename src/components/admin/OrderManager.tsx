@@ -36,6 +36,7 @@ type AdminOrder = {
   customerId: string;
   quantity: 1;
   design: OrderDesign;
+  backDesign?: OrderDesign;
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
@@ -81,6 +82,15 @@ function demoOrder(order: DemoCardOrder): AdminOrder {
             sourceId: order.designSource.assetKey,
             fileName: order.designSource.fileName,
           },
+    backDesign: order.backDesignSource
+      ? order.backDesignSource.kind === "url"
+        ? order.backDesignSource
+        : {
+            kind: "upload",
+            sourceId: order.backDesignSource.assetKey,
+            fileName: order.backDesignSource.fileName,
+          }
+      : undefined,
     deliveryName: order.deliveryName,
     deliveryPhone: order.deliveryPhone,
     deliveryAddress: order.deliveryAddress,
@@ -107,6 +117,11 @@ function liveOrder(order: Doc<"cardOrders">): AdminOrder {
       order.designSource.kind === "url"
         ? order.designSource
         : { kind: "upload", sourceId: order.designSource.uploadId },
+    backDesign: order.backDesignSource
+      ? order.backDesignSource.kind === "url"
+        ? order.backDesignSource
+        : { kind: "upload", sourceId: order.backDesignSource.uploadId }
+      : undefined,
     deliveryName: order.deliveryName,
     deliveryPhone: order.deliveryPhone,
     deliveryAddress: order.deliveryAddress,
@@ -159,10 +174,12 @@ function safeHttpsUrl(value: string) {
 function OrderDesign({
   demo,
   orderId,
+  side,
   design,
 }: {
   demo: boolean;
   orderId: string;
+  side: "front" | "back";
   design: OrderDesign;
 }) {
   if (design.kind === "url") {
@@ -184,7 +201,7 @@ function OrderDesign({
   return demo ? (
     <DemoOrderArtwork design={design} />
   ) : (
-    <LiveOrderArtwork orderId={orderId} fileName={design.fileName} />
+    <LiveOrderArtwork orderId={orderId} side={side} fileName={design.fileName} />
   );
 }
 
@@ -237,9 +254,18 @@ function DemoOrderArtwork({ design }: { design: Extract<OrderDesign, { kind: "up
   return <UploadedArtwork fileName={design.fileName} url={asset.url} />;
 }
 
-function LiveOrderArtwork({ orderId, fileName }: { orderId: string; fileName?: string }) {
+function LiveOrderArtwork({
+  orderId,
+  side,
+  fileName,
+}: {
+  orderId: string;
+  side: "front" | "back";
+  fileName?: string;
+}) {
   const url = useQuery(api.cardOrderDesigns.adminDesignUrl, {
     orderId: orderId as Id<"cardOrders">,
+    side,
   });
 
   if (url === null)
@@ -263,6 +289,7 @@ function OrderCard({
   onAction: (orderId: string, action: OrderAction) => void;
   onConfirmAction: (orderId: string, action: "cancel" | "refund") => void;
 }) {
+  const [artworkSide, setArtworkSide] = useState<"front" | "back">("front");
   const [shippingPesos, setShippingPesos] = useState("");
   const [payoutReference, setPayoutReference] = useState("");
   const [inputError, setInputError] = useState("");
@@ -362,9 +389,33 @@ function OrderCard({
         </section>
 
         <section className="min-w-0">
-          <h3 className="font-semibold text-tapit-ink">Private design</h3>
+          <h3 className="font-semibold text-tapit-ink">Card artwork</h3>
+          <div className="mt-3 flex gap-2" role="group" aria-label="Artwork side">
+            {(["front", "back"] as const).map((side) => (
+              <button
+                aria-pressed={artworkSide === side}
+                className={`min-h-10 rounded-lg border px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${artworkSide === side ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink" : "border-tapit-line text-tapit-muted"}`}
+                disabled={side === "back" && !order.backDesign}
+                key={side}
+                onClick={() => setArtworkSide(side)}
+                type="button"
+              >
+                {side}
+              </button>
+            ))}
+          </div>
+          {!order.backDesign ? (
+            <p className="mt-2 text-xs text-tapit-muted">Legacy order · front artwork only.</p>
+          ) : null}
           <div className="mt-3">
-            <OrderDesign demo={demo} design={order.design} orderId={order.id} />
+            {artworkSide === "back" && !order.backDesign ? null : (
+              <OrderDesign
+                demo={demo}
+                design={artworkSide === "back" ? order.backDesign! : order.design}
+                orderId={order.id}
+                side={artworkSide}
+              />
+            )}
           </div>
         </section>
 

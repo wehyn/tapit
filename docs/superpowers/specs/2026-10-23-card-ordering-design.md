@@ -10,7 +10,7 @@ Let an active Tapit customer submit an order for one physical NFC + QR card with
 
 ## Customer flow
 
-- Add `/app/account/order-card` inside the authenticated customer workspace. Link the existing card-builder order action to this page. The order page owns the design upload or URL field, so a file previewed on `/build-card` must be selected again there.
+- Add `/app/card/order-card` inside the authenticated customer workspace. Link the existing card-builder order action to this page. The order page owns the design upload or URL field, so a file previewed on `/build-card` must be selected again there.
 - Require one source for each side: independently choose a PNG/JPG upload strictly under 5 MiB and at most 6,000,000 decoded pixels, or an HTTPS URL for the front and back. Keep uploaded originals private; do not fetch customer URLs from the server. Each order upload also keeps the existing maximum edge of 12,000 pixels. Client checks provide quick feedback; Convex enforces the authoritative limits.
 - Show a single CR80 preview with Front and Back switches. Each side retains its own source choice, input, validation state, and uploaded-image preview; uploaded artwork crops to the CR80 ratio of 1.586:1. Require both sides before submission.
 - Collect delivery name, phone, and address. Shipping remains separate: an admin quotes the fee after submission, and the customer sees the quote before paying.

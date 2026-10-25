@@ -369,8 +369,10 @@ export async function attachCardOrderDesignUpload(
     upload.orderId !== undefined ||
     upload.ownerId !== customer._id ||
     order.customerId !== customer._id ||
-    order.designSource.kind !== "upload" ||
-    order.designSource.uploadId !== upload._id ||
+    !(
+      (order.designSource.kind === "upload" && order.designSource.uploadId === uploadId) ||
+      (order.backDesignSource?.kind === "upload" && order.backDesignSource.uploadId === uploadId)
+    ) ||
     !sameScope(customer, upload) ||
     !sameScope(customer, order)
   ) {
@@ -383,15 +385,18 @@ async function orderDesignUrl(
   ctx: DesignStorageContext,
   customer: Doc<"customers">,
   order: Doc<"cardOrders">,
+  side: "front" | "back" = "front",
 ) {
+  const source = side === "front" ? order.designSource : order.backDesignSource;
+  if (source === undefined) return undefined;
   if (
-    order.designSource.kind !== "upload" ||
+    source.kind !== "upload" ||
     order.customerId !== customer._id ||
     !sameScope(customer, order)
   ) {
     return undefined;
   }
-  const upload = await ctx.db.get(order.designSource.uploadId);
+  const upload = await ctx.db.get(source.uploadId);
   if (
     upload === null ||
     upload.status !== "attached" ||
@@ -407,7 +412,10 @@ async function orderDesignUrl(
 }
 
 export const customerDesignUrl = query({
-  args: { orderId: v.id("cardOrders") },
+  args: {
+    orderId: v.id("cardOrders"),
+    side: v.optional(v.union(v.literal("front"), v.literal("back"))),
+  },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
@@ -419,12 +427,15 @@ export const customerDesignUrl = query({
     if (order === null || order.customerId !== customer._id || !sameScope(customer, order)) {
       return null;
     }
-    return (await orderDesignUrl(ctx, customer, order)) ?? null;
+    return (await orderDesignUrl(ctx, customer, order, args.side ?? "front")) ?? null;
   },
 });
 
 export const adminDesignUrl = query({
-  args: { orderId: v.id("cardOrders") },
+  args: {
+    orderId: v.id("cardOrders"),
+    side: v.optional(v.union(v.literal("front"), v.literal("back"))),
+  },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
     const { account: administrator } = await requireAdministrator(ctx);
@@ -434,6 +445,6 @@ export const adminDesignUrl = query({
     if (customer === null || !sameScope(administrator, customer) || !sameScope(customer, order)) {
       return null;
     }
-    return (await orderDesignUrl(ctx, customer, order)) ?? null;
+    return (await orderDesignUrl(ctx, customer, order, args.side ?? "front")) ?? null;
   },
 });

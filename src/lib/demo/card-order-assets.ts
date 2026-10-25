@@ -67,7 +67,10 @@ function withCustomerAssetsLock<T>(customerId: string, operation: () => Promise<
 }
 
 function withAssetLocks<T>(assetKeys: string[], operation: () => Promise<T>): Promise<T> {
-  const keys = [...new Set(assetKeys)].sort();
+  if (new Set(assetKeys).size !== assetKeys.length) {
+    return Promise.reject(new Error("The same artwork cannot be used for both sides."));
+  }
+  const keys = [...assetKeys].sort();
   const lockNext = (index: number): Promise<T> =>
     index === keys.length ? operation() : withAssetLock(keys[index]!, () => lockNext(index + 1));
   return lockNext(0);
@@ -77,8 +80,10 @@ function orderReferencesAsset(
   state: ReturnType<typeof access>["state"],
   assetKey: string,
 ): boolean {
-  return state.cardOrders.some(
-    (order) => order.designSource.kind === "upload" && order.designSource.assetKey === assetKey,
+  return state.cardOrders.some((order) =>
+    [order.designSource, order.backDesignSource].some(
+      (source) => source?.kind === "upload" && source.assetKey === assetKey,
+    ),
   );
 }
 
@@ -224,6 +229,7 @@ async function reserveDemoCardOrderAsset(
     if (
       !asset ||
       asset.ownerId !== ownerId ||
+      asset.attachedOrderId !== undefined ||
       asset.fileName !== designSource.fileName ||
       asset.contentType !== designSource.contentType ||
       asset.byteSize !== designSource.byteSize
@@ -248,30 +254,37 @@ async function releaseDemoCardOrderAsset(
 }
 
 export async function withDemoCardOrderAssetReservation<T>(
-  designSource: Extract<DemoCardOrderDesignSource, { kind: "upload" }>,
+  designSources: Extract<DemoCardOrderDesignSource, { kind: "upload" }>[],
   orderId: string,
   ownerId: string,
   persistOrder: () => T | Promise<T>,
 ): Promise<T> {
-  return withAssetLock(designSource.assetKey, async () => {
-    await reserveDemoCardOrderAsset(designSource, orderId, ownerId);
-    try {
-      return await persistOrder();
-    } catch (error) {
+  return withAssetLocks(
+    designSources.map(({ assetKey }) => assetKey),
+    async () => {
       try {
-        const latest = refreshDemoAccessSnapshot();
-        if (
-          latest.kind === "ready" &&
-          !orderReferencesAsset(latest.snapshot.state, designSource.assetKey)
-        ) {
-          await releaseDemoCardOrderAsset(designSource.assetKey, orderId, ownerId);
+        for (const designSource of designSources) {
+          await reserveDemoCardOrderAsset(designSource, orderId, ownerId);
         }
-      } catch {
-        // Keep the reservation if a persisted order cannot be ruled out.
+        return await persistOrder();
+      } catch (error) {
+        for (const designSource of designSources) {
+          try {
+            const latest = refreshDemoAccessSnapshot();
+            if (
+              latest.kind === "ready" &&
+              !orderReferencesAsset(latest.snapshot.state, designSource.assetKey)
+            ) {
+              await releaseDemoCardOrderAsset(designSource.assetKey, orderId, ownerId);
+            }
+          } catch {
+            // Keep the reservation if a persisted order cannot be ruled out.
+          }
+        }
+        throw error;
       }
-      throw error;
-    }
-  });
+    },
+  );
 }
 
 export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> {
@@ -413,7 +426,9 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
             if (
               erasedState.cardOrders.some(
                 (order) =>
-                  order.designSource.kind === "upload" && order.designSource.assetKey === key,
+                  [order.designSource, order.backDesignSource].some(
+                    (source) => source?.kind === "upload" && source.assetKey === key,
+                  ),
               )
             ) {
               transaction.abort();

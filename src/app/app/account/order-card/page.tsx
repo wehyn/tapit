@@ -1,5 +1,5 @@
-import { OrderCardExperience } from "@/components/card-order/OrderCardExperience";
+import { redirect } from "next/navigation";
 
-export default function CustomerOrderCardPage() {
-  return <OrderCardExperience />;
+export default function LegacyCustomerOrderCardPage() {
+  redirect("/app/card/order-card");
 }
