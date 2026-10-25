@@ -241,264 +241,262 @@ export function LinksWorkspace({
               </p>
             )}
           </Card>
-          {redirect.enabled ? (
-            <Notice>
-              Profile links are paused while visitors go to your website. Switch to Tapit profile to
-              edit them.
-              {Object.keys(validation).length > 0
-                ? " Fix the highlighted links there before publishing."
-                : null}
+          {redirect.enabled && Object.keys(validation).length > 0 ? (
+            <Notice tone="error">
+              Switch to Tapit profile to fix the highlighted links before publishing.
             </Notice>
           ) : null}
-          <section
-            aria-label="Editable profile links"
-            className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
-            ref={linksListRef}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="flex flex-col gap-1">
-                <h2 className="tapit-display text-lg font-semibold text-tapit-ink">
-                  Profile links
-                </h2>
-                <p className="text-sm text-tapit-muted">
-                  {shownCount} shown · {links.length - shownCount} hidden
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-4">
-                <span
-                  aria-live="polite"
-                  className="text-xs font-medium text-tapit-muted"
-                  role="status"
-                >
-                  {status}
-                </span>
-                {!isDirty && hasUnpublishedChanges && pendingAction === null ? (
-                  <Button disabled={publishDisabled} onClick={onPublish} type="button">
-                    <Icon name="upload" size={18} weight="bold" />
-                    {publicationLabel}
-                  </Button>
-                ) : null}
-                <Button
-                  disabled={redirect.enabled}
-                  onClick={() => setAddDialogOpen(true)}
-                  type="button"
-                  variant="secondary"
-                >
-                  <Icon name="plus" size={18} weight="bold" />
-                  Add link
-                </Button>
-              </div>
+          {redirect.enabled && !isDirty && hasUnpublishedChanges && pendingAction === null ? (
+            <div className="flex justify-end">
+              <Button disabled={publishDisabled} onClick={onPublish} type="button">
+                <Icon name="upload" size={18} weight="bold" />
+                {publicationLabel}
+              </Button>
             </div>
-            {links.length === 0 ? (
-              <Notice>
-                Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
-                choose email or phone to add those actions.
-              </Notice>
-            ) : null}
-            <div className="flex min-w-0 flex-col gap-2">
-              {links.map((link, index) => {
-                const selectedIcon: LinkIcon = link.icon ?? "link";
-                return (
-                  <article
-                    className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"} ${redirect.enabled ? "cursor-not-allowed opacity-55" : ""}`}
-                    key={link.id}
-                    onDragOver={(event) => {
-                      if (redirect.enabled) return;
-                      event.preventDefault();
-                      event.dataTransfer.dropEffect = "move";
-                      const sourceId = draggedLinkIdRef.current;
-                      if (!sourceId || sourceId === link.id) return;
-                      const sourceIndex = links.findIndex((candidate) => candidate.id === sourceId);
-                      const targetIndex = links.findIndex((candidate) => candidate.id === link.id);
-                      if (sourceIndex < 0 || targetIndex < 0) return;
-                      const row = event.currentTarget;
-                      const transform = getComputedStyle(row).transform;
-                      const animatedY =
-                        transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
-                      const bounds = row.getBoundingClientRect();
-                      const midpoint = bounds.top - animatedY + bounds.height / 2;
-                      if (
-                        sourceIndex < targetIndex
-                          ? event.clientY < midpoint
-                          : event.clientY > midpoint
-                      )
-                        return;
-                      captureRowPositions();
-                      onReorderLink(sourceId, link.id, sourceIndex < targetIndex);
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      dropCompletedRef.current = true;
-                    }}
-                    ref={(element) => {
-                      if (element) rowRefs.current.set(link.id, element);
-                      else rowRefs.current.delete(link.id);
-                    }}
+          ) : null}
+          {redirect.enabled ? null : (
+            <section
+              aria-label="Editable profile links"
+              className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"
+              ref={linksListRef}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <h2 className="tapit-display text-lg font-semibold text-tapit-ink">
+                    Profile links
+                  </h2>
+                  <p className="text-sm text-tapit-muted">
+                    {shownCount} shown · {links.length - shownCount} hidden
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <span
+                    aria-live="polite"
+                    className="text-xs font-medium text-tapit-muted"
+                    role="status"
                   >
-                    <button
-                      aria-label={`Reorder ${link.label || "link"}`}
-                      className="hidden size-11 touch-none cursor-grab place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
-                      disabled={redirect.enabled}
-                      draggable={!redirect.enabled}
-                      onDragStart={(event) => {
-                        event.dataTransfer.effectAllowed = "move";
-                        event.dataTransfer.setData("text/plain", link.id);
-                        draggedLinkIdRef.current = link.id;
-                        originalOrderRef.current = links.map((candidate) => candidate.id);
-                        dropCompletedRef.current = false;
-                        const row = event.currentTarget.closest("article");
-                        if (row) {
-                          const bounds = row.getBoundingClientRect();
-                          event.dataTransfer.setDragImage(
-                            row,
-                            Math.max(0, event.clientX - bounds.left),
-                            Math.max(0, event.clientY - bounds.top),
-                          );
-                        }
-                        setDraggedLinkId(link.id);
+                    {status}
+                  </span>
+                  {!isDirty && hasUnpublishedChanges && pendingAction === null ? (
+                    <Button disabled={publishDisabled} onClick={onPublish} type="button">
+                      <Icon name="upload" size={18} weight="bold" />
+                      {publicationLabel}
+                    </Button>
+                  ) : null}
+                  <Button onClick={() => setAddDialogOpen(true)} type="button" variant="secondary">
+                    <Icon name="plus" size={18} weight="bold" />
+                    Add link
+                  </Button>
+                </div>
+              </div>
+              {links.length === 0 ? (
+                <Notice>
+                  Add your first link, such as Portfolio or TikTok. Use a valid HTTPS destination;
+                  choose email or phone to add those actions.
+                </Notice>
+              ) : null}
+              <div className="flex min-w-0 flex-col gap-2">
+                {links.map((link, index) => {
+                  const selectedIcon: LinkIcon = link.icon ?? "link";
+                  return (
+                    <article
+                      className={`group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-3 rounded-control p-4 md:grid-cols-[auto_auto_minmax(0,1fr)_minmax(0,1.2fr)_auto_auto] ${draggedLinkId === link.id ? "bg-tapit-accent-soft opacity-40 outline-2 -outline-offset-2 outline-dashed outline-tapit-accent" : "bg-tapit-soft-surface"}`}
+                      key={link.id}
+                      onDragOver={(event) => {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                        const sourceId = draggedLinkIdRef.current;
+                        if (!sourceId || sourceId === link.id) return;
+                        const sourceIndex = links.findIndex(
+                          (candidate) => candidate.id === sourceId,
+                        );
+                        const targetIndex = links.findIndex(
+                          (candidate) => candidate.id === link.id,
+                        );
+                        if (sourceIndex < 0 || targetIndex < 0) return;
+                        const row = event.currentTarget;
+                        const transform = getComputedStyle(row).transform;
+                        const animatedY =
+                          transform === "none" ? 0 : new DOMMatrixReadOnly(transform).m42;
+                        const bounds = row.getBoundingClientRect();
+                        const midpoint = bounds.top - animatedY + bounds.height / 2;
+                        if (
+                          sourceIndex < targetIndex
+                            ? event.clientY < midpoint
+                            : event.clientY > midpoint
+                        )
+                          return;
+                        captureRowPositions();
+                        onReorderLink(sourceId, link.id, sourceIndex < targetIndex);
                       }}
-                      onDragEnd={finishDrag}
-                      onKeyDown={(event) => {
-                        if (event.key === "ArrowUp") {
-                          event.preventDefault();
-                          onMoveLink(link.id, -1);
-                        }
-                        if (event.key === "ArrowDown") {
-                          event.preventDefault();
-                          onMoveLink(link.id, 1);
-                        }
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        dropCompletedRef.current = true;
                       }}
-                      title="Drag to reorder, or press the up and down arrow keys"
-                      type="button"
+                      ref={(element) => {
+                        if (element) rowRefs.current.set(link.id, element);
+                        else rowRefs.current.delete(link.id);
+                      }}
                     >
-                      <Icon name="dragHandle" size={18} weight="bold" />
-                    </button>
-                    <LinkPresetIconPicker
-                      disabled={redirect.enabled}
-                      value={selectedIcon}
-                      label={link.label}
-                      onChange={(icon) => onUpdateLink(link.id, { icon })}
-                    />
-                    <div className="min-w-0">
-                      <label className="sr-only" htmlFor={`${link.id}-label`}>
-                        Label for {link.label || "link"}
-                      </label>
-                      <input
-                        aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
-                        aria-invalid={Boolean(validation[link.id])}
-                        className={`${rowFieldClasses} text-base font-medium`}
-                        id={`${link.id}-label`}
-                        disabled={redirect.enabled}
-                        onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
-                        placeholder="e.g. Portfolio"
-                        value={link.label}
-                      />
-                    </div>
-                    <div className="order-last col-span-full min-w-0 md:order-none md:col-span-1">
-                      <label className="sr-only" htmlFor={`${link.id}-destination`}>
-                        Destination for {link.label || "link"}
-                      </label>
-                      <input
-                        aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
-                        aria-invalid={Boolean(validation[link.id])}
-                        className={`${rowFieldClasses} text-sm text-tapit-muted`}
-                        id={`${link.id}-destination`}
-                        disabled={redirect.enabled}
-                        onChange={(event) =>
-                          onUpdateLink(link.id, {
-                            destination:
-                              linkKind(link.destination) === "email"
-                                ? `mailto:${event.target.value}`
-                                : linkKind(link.destination) === "phone"
-                                  ? `tel:${event.target.value}`
-                                  : event.target.value,
-                          })
-                        }
-                        placeholder={
-                          linkKind(link.destination) === "email"
-                            ? "you@example.com"
-                            : linkKind(link.destination) === "phone"
-                              ? "+1 555 123 4567"
-                              : "https://example.com"
-                        }
-                        value={displayDestination(link.destination)}
-                      />
-                    </div>
-                    <label
-                      className="flex min-h-11 min-w-11 items-center justify-center"
-                      title="Enabled links appear on your profile"
-                    >
-                      <input
-                        aria-label={`Enable ${link.label || "link"}`}
-                        checked={link.enabled}
-                        className="peer sr-only"
-                        disabled={redirect.enabled}
-                        onChange={(event) =>
-                          onUpdateLink(link.id, { enabled: event.target.checked })
-                        }
-                        type="checkbox"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="relative inline-flex h-7 w-11 shrink-0 rounded-full bg-tapit-muted/40 transition-colors after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
-                      />
-                    </label>
-                    <details className="relative" inert={redirect.enabled}>
-                      <summary
-                        aria-label={`Actions for ${link.label || "link"}`}
-                        className="grid size-11 cursor-pointer list-none place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink"
+                      <button
+                        aria-label={`Reorder ${link.label || "link"}`}
+                        className="hidden size-11 touch-none cursor-grab place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus active:cursor-grabbing md:grid"
+                        draggable
+                        onDragStart={(event) => {
+                          event.dataTransfer.effectAllowed = "move";
+                          event.dataTransfer.setData("text/plain", link.id);
+                          draggedLinkIdRef.current = link.id;
+                          originalOrderRef.current = links.map((candidate) => candidate.id);
+                          dropCompletedRef.current = false;
+                          const row = event.currentTarget.closest("article");
+                          if (row) {
+                            const bounds = row.getBoundingClientRect();
+                            event.dataTransfer.setDragImage(
+                              row,
+                              Math.max(0, event.clientX - bounds.left),
+                              Math.max(0, event.clientY - bounds.top),
+                            );
+                          }
+                          setDraggedLinkId(link.id);
+                        }}
+                        onDragEnd={finishDrag}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowUp") {
+                            event.preventDefault();
+                            onMoveLink(link.id, -1);
+                          }
+                          if (event.key === "ArrowDown") {
+                            event.preventDefault();
+                            onMoveLink(link.id, 1);
+                          }
+                        }}
+                        title="Drag to reorder, or press the up and down arrow keys"
+                        type="button"
                       >
-                        <Icon name="more" size={20} weight="bold" />
-                      </summary>
-                      <div
-                        className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-card bg-tapit-surface p-2 shadow-card ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
-                      >
-                        <Button
-                          className="justify-start"
-                          disabled={redirect.enabled || index === 0}
-                          onClick={() => onMoveLink(link.id, -1)}
-                          type="button"
-                          variant="quiet"
-                        >
-                          <Icon name="arrowUp" size={16} />
-                          Move up
-                        </Button>
-                        <Button
-                          className="justify-start"
-                          disabled={redirect.enabled || index === links.length - 1}
-                          onClick={() => onMoveLink(link.id, 1)}
-                          type="button"
-                          variant="quiet"
-                        >
-                          <Icon name="arrowDown" size={16} />
-                          Move down
-                        </Button>
-                        <Button
-                          className="justify-start"
-                          disabled={redirect.enabled}
-                          onClick={() => onRemoveLink(link.id)}
-                          type="button"
-                          variant="quiet"
-                        >
-                          <Icon name="trash" size={16} />
-                          Delete
-                        </Button>
+                        <Icon name="dragHandle" size={18} weight="bold" />
+                      </button>
+                      <LinkPresetIconPicker
+                        value={selectedIcon}
+                        label={link.label}
+                        onChange={(icon) => onUpdateLink(link.id, { icon })}
+                      />
+                      <div className="min-w-0">
+                        <label className="sr-only" htmlFor={`${link.id}-label`}>
+                          Label for {link.label || "link"}
+                        </label>
+                        <input
+                          aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
+                          aria-invalid={Boolean(validation[link.id])}
+                          className={`${rowFieldClasses} text-base font-medium`}
+                          id={`${link.id}-label`}
+                          onChange={(event) => onUpdateLink(link.id, { label: event.target.value })}
+                          placeholder="e.g. Portfolio"
+                          value={link.label}
+                        />
                       </div>
-                    </details>
-                    {validation[link.id] ? (
-                      <p
-                        className="order-last col-span-full px-1 text-xs font-medium text-tapit-danger"
-                        id={`${link.id}-error`}
-                        role="alert"
+                      <div className="order-last col-span-full min-w-0 md:order-none md:col-span-1">
+                        <label className="sr-only" htmlFor={`${link.id}-destination`}>
+                          Destination for {link.label || "link"}
+                        </label>
+                        <input
+                          aria-describedby={validation[link.id] ? `${link.id}-error` : undefined}
+                          aria-invalid={Boolean(validation[link.id])}
+                          className={`${rowFieldClasses} text-sm text-tapit-muted`}
+                          id={`${link.id}-destination`}
+                          onChange={(event) =>
+                            onUpdateLink(link.id, {
+                              destination:
+                                linkKind(link.destination) === "email"
+                                  ? `mailto:${event.target.value}`
+                                  : linkKind(link.destination) === "phone"
+                                    ? `tel:${event.target.value}`
+                                    : event.target.value,
+                            })
+                          }
+                          placeholder={
+                            linkKind(link.destination) === "email"
+                              ? "you@example.com"
+                              : linkKind(link.destination) === "phone"
+                                ? "+1 555 123 4567"
+                                : "https://example.com"
+                          }
+                          value={displayDestination(link.destination)}
+                        />
+                      </div>
+                      <label
+                        className="flex min-h-11 min-w-11 items-center justify-center"
+                        title="Enabled links appear on your profile"
                       >
-                        {validation[link.id]}
-                      </p>
-                    ) : null}
-                  </article>
-                );
-              })}
-            </div>
-          </section>
+                        <input
+                          aria-label={`Enable ${link.label || "link"}`}
+                          checked={link.enabled}
+                          className="peer sr-only"
+                          onChange={(event) =>
+                            onUpdateLink(link.id, { enabled: event.target.checked })
+                          }
+                          type="checkbox"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="relative inline-flex h-7 w-11 shrink-0 rounded-full bg-tapit-muted/40 transition-colors after:absolute after:top-1 after:left-1 after:size-5 after:rounded-full after:bg-white motion-safe:after:transition-transform peer-checked:bg-tapit-accent peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-tapit-focus"
+                        />
+                      </label>
+                      <details className="relative">
+                        <summary
+                          aria-label={`Actions for ${link.label || "link"}`}
+                          className="grid size-11 cursor-pointer list-none place-items-center rounded-control text-tapit-muted transition-colors hover:bg-tapit-surface hover:text-tapit-ink"
+                        >
+                          <Icon name="more" size={20} weight="bold" />
+                        </summary>
+                        <div
+                          className={`absolute right-0 z-30 grid min-w-36 gap-1 rounded-card bg-tapit-surface p-2 shadow-card ${index >= Math.max(0, links.length - 2) ? "bottom-full mb-2" : "mt-2"}`}
+                        >
+                          <Button
+                            className="justify-start"
+                            disabled={index === 0}
+                            onClick={() => onMoveLink(link.id, -1)}
+                            type="button"
+                            variant="quiet"
+                          >
+                            <Icon name="arrowUp" size={16} />
+                            Move up
+                          </Button>
+                          <Button
+                            className="justify-start"
+                            disabled={index === links.length - 1}
+                            onClick={() => onMoveLink(link.id, 1)}
+                            type="button"
+                            variant="quiet"
+                          >
+                            <Icon name="arrowDown" size={16} />
+                            Move down
+                          </Button>
+                          <Button
+                            className="justify-start"
+                            onClick={() => onRemoveLink(link.id)}
+                            type="button"
+                            variant="quiet"
+                          >
+                            <Icon name="trash" size={16} />
+                            Delete
+                          </Button>
+                        </div>
+                      </details>
+                      {validation[link.id] ? (
+                        <p
+                          className="order-last col-span-full px-1 text-xs font-medium text-tapit-danger"
+                          id={`${link.id}-error`}
+                          role="alert"
+                        >
+                          {validation[link.id]}
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          )}
           {publicationErrors.length > 0 ? (
             <ul className="grid gap-2 text-sm text-tapit-muted">
               {publicationErrors.map((error) => (

@@ -352,7 +352,9 @@ describe("LinksEditor controller boundaries", () => {
 
     expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
     expect(
-      await screen.findByText(/Fix the highlighted links there before publishing\./),
+      await screen.findByText(
+        "Switch to Tapit profile to fix the highlighted links before publishing.",
+      ),
     ).toBeVisible();
     expect(saveMutation).not.toHaveBeenCalled();
   });

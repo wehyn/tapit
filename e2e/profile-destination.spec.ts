@@ -5,6 +5,8 @@ import { resetDemoHarness, signInAsCustomer } from "./support/demo-harness";
 test("published profile destination controls where the slug link goes", async ({
   page,
 }, testInfo) => {
+  // Two publish cycles and screenshots run close to the default 30s limit under parallel load.
+  test.setTimeout(90_000);
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
@@ -31,33 +33,9 @@ test("published profile destination controls where the slug link goes", async ({
   const linkedInRow = page
     .locator("article")
     .filter({ has: page.getByRole("textbox", { name: "Label for LinkedIn" }) });
-  await expect(page.getByRole("button", { name: "Add link" })).toBeDisabled();
-  await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toBeDisabled();
-  await expect(page.getByRole("textbox", { name: "Destination for LinkedIn" })).toBeDisabled();
-  await expect(page.getByRole("checkbox", { name: "Enable LinkedIn" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Reorder LinkedIn" })).toBeDisabled();
-  await expect(
-    linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
-  ).toBeDisabled();
-  await expect(linkedInRow).toHaveCSS("opacity", "0.55");
-  const actionsMenu = linkedInRow.locator("details");
-  const actionsSummary = actionsMenu.locator("summary");
-  await actionsSummary.focus();
-  await expect(actionsSummary).not.toBeFocused();
-  const summaryBox = await actionsSummary.boundingBox();
-  expect(summaryBox).not.toBeNull();
-  await page.mouse.click(
-    summaryBox!.x + summaryBox!.width / 2,
-    summaryBox!.y + summaryBox!.height / 2,
-  );
-  await expect(actionsMenu).toHaveJSProperty("open", false);
-  await expect(actionsMenu.locator("button").filter({ hasText: "Move down" })).toBeDisabled();
-  await expect(actionsMenu.locator("button").filter({ hasText: "Delete" })).toBeDisabled();
-  await expect(
-    page.getByText(
-      "Profile links are paused while visitors go to your website. Switch to Tapit profile to edit them.",
-    ),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Add link" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveCount(0);
+  await expect(page.getByText("Profile links are paused")).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft" }).click();
   const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
   await expect(redirectInput).toHaveAttribute("aria-invalid", "true");

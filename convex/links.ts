@@ -90,7 +90,7 @@ export const replaceDraft = mutation({
     profileId: v.id("profiles"),
     links: v.array(linkValidator),
     redirect: v.optional(profileRedirectValidator),
-    // Accepted and ignored so tabs loaded before the featured link removal can still save.
+    // Clients still running older code send this field; keep it declared or their saves fail.
     featuredLinkId: v.optional(v.string()),
     expectedDraftRevision: v.number(),
   },
