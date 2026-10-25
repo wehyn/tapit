@@ -91,7 +91,6 @@ describe("public profile preview behavior", () => {
               name: { kind: "preset", value: "jade" },
               bio: { kind: "preset", value: "coral" },
             },
-            featuredLinkId: "portfolio",
             section: { kind: "about", body: "A short studio introduction." },
           },
         }}
@@ -116,16 +115,6 @@ describe("public profile preview behavior", () => {
         .getByRole("navigation", { name: "Contact actions" })
         .querySelector('a[href="https://example.com"]'),
     ).toHaveAttribute("href", "https://example.com");
-    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveAttribute(
-      "data-featured",
-      "true",
-    );
-    expect(screen.getByRole("link", { name: "Portfolio" })).toHaveClass(
-      "rounded-control",
-      "bg-transparent",
-      "text-tapit-warm-studio-coral-ink",
-    );
-    expect(screen.getByRole("link", { name: "Portfolio" })).not.toHaveClass("border");
     expect(screen.getByRole("link", { name: "LinkedIn" })).toHaveClass(
       "rounded-control",
       "bg-transparent",
@@ -510,7 +499,6 @@ describe("public profile preview behavior", () => {
               typeScale,
               linkTreatment: "filled",
               contentOrder: "links-first",
-              featuredLinkId: "portfolio",
             },
           }}
           profileUrl="/mara-velasquez"
@@ -529,42 +517,6 @@ describe("public profile preview behavior", () => {
       expect(screen.getByRole("link", { name: "Portfolio" })).not.toHaveClass("border");
     },
   );
-
-  it.each(["disabled", "missing"])("does not render a %s featured link", (variant) => {
-    if (projection === null) throw new Error("The demo profile fixture is missing.");
-    render(
-      <PublicProfile
-        profile={{
-          ...projection,
-          links: [
-            {
-              id: "featured",
-              label: "Featured",
-              destination: "https://example.com/featured",
-              enabled: variant !== "disabled",
-            },
-          ],
-          customization: {
-            preset: "warm-studio",
-            accent: "coral",
-            typeScale: "comfortable",
-            linkTreatment: "filled",
-            contentOrder: "links-first",
-            featuredLinkId: variant === "disabled" ? "featured" : "missing",
-          },
-        }}
-        profileUrl="/mara-velasquez"
-        trackClicks={false}
-        trackView={false}
-      />,
-    );
-
-    expect(screen.queryByRole("list", { name: "Featured profile link" })).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Featured" })).not.toHaveAttribute(
-      "data-featured",
-      "true",
-    );
-  });
 
   it("omits an empty contact strip and preserves the legacy theme", () => {
     if (projection === null) throw new Error("The demo profile fixture is missing.");

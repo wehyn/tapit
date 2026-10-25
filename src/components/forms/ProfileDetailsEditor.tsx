@@ -3,7 +3,7 @@
 import { useId, useState, type ReactNode } from "react";
 import Link from "next/link";
 
-import type { ProfileContent, ProfileLink } from "@/lib/domain";
+import { validateProfileRedirect, type ProfileContent, type ProfileLink } from "@/lib/domain";
 import {
   defaultProfileCustomizationForTheme,
   type ProfileCustomization,
@@ -210,6 +210,7 @@ export function ProfileDetailsEditor({
   });
   const activeCustomization: ProfileCustomization =
     customization ?? defaultProfileCustomizationForTheme(draft.theme);
+  const hasInvalidRedirect = validateProfileRedirect(draft.redirect) !== null;
 
   function toggle(name: DetailsSectionName) {
     setOpenSections((current) => ({ ...current, [name]: !current[name] }));
@@ -230,8 +231,6 @@ export function ProfileDetailsEditor({
   const errorId = (name: string) => `${baseId}-${name}-error`;
   const findError = (...needles: string[]) =>
     errors.find((error) => needles.some((needle) => error.toLowerCase().includes(needle)));
-  const redirect = draft.redirect ?? { enabled: false, destination: "" };
-  const redirectError = redirect.enabled ? findError("redirect destination") : undefined;
   const kindError = findError("section kind", "section is invalid");
   const bodyError = findError("section body", "about section body", "services section body");
   const itemError = findError("service item", "services items");
@@ -257,6 +256,9 @@ export function ProfileDetailsEditor({
               <li key={error}>{error}</li>
             ))}
           </ul>
+          {hasInvalidRedirect ? (
+            <p className="mt-3">Fix the redirect destination on the Links tab.</p>
+          ) : null}
         </Notice>
       ) : null}
       {customizationErrors.length > 0 ? (
@@ -337,45 +339,6 @@ export function ProfileDetailsEditor({
             {copyMessage || "Copy"}
           </Button>
         </div>
-        <p className="text-sm leading-6 text-tapit-muted">
-          Choose what visitors see when they open your profile link or tap or scan your card.
-        </p>
-        <div className="grid gap-2 sm:grid-cols-2">
-          <RadioChoice
-            checked={!redirect.enabled}
-            name={`${baseId}-profile-destination`}
-            onChange={() => onChange("redirect", { ...redirect, enabled: false })}
-            value="profile"
-          >
-            Show my Tapit profile
-          </RadioChoice>
-          <RadioChoice
-            checked={redirect.enabled}
-            name={`${baseId}-profile-destination`}
-            onChange={() => onChange("redirect", { ...redirect, enabled: true })}
-            value="website"
-          >
-            Redirect to website
-          </RadioChoice>
-        </div>
-        {redirect.enabled ? (
-          <Field
-            error={redirectError}
-            help="When published, your Tapit profile link and card taps or scans will send visitors here."
-            id="profile-redirect-destination"
-            label="HTTPS destination URL"
-            onChange={(event) =>
-              onChange("redirect", { ...redirect, destination: event.target.value })
-            }
-            placeholder="https://www.yourwebsite.com"
-            type="url"
-            value={redirect.destination}
-          />
-        ) : (
-          <p className="text-sm leading-6 text-tapit-muted">
-            Visitors see your contact details and profile links.
-          </p>
-        )}
       </Card>
 
       <SectionRow

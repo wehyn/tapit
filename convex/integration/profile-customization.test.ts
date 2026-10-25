@@ -23,7 +23,6 @@ const customization = {
     name: { kind: "preset" as const, value: "coral" as const },
     bio: { kind: "custom" as const, hex: "#a84431" },
   },
-  featuredLinkId: "site",
   section: { kind: "about" as const, body: "A small studio." },
 };
 

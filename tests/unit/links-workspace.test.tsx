@@ -34,13 +34,12 @@ describe("LinksWorkspace", () => {
             typeScale: "editorial",
             linkTreatment: "outlined",
             contentOrder: "links-first",
-            featuredLinkId: "featured",
           },
           links: [
             {
-              id: "featured",
-              label: "Featured",
-              destination: "https://example.com/featured",
+              id: "portfolio",
+              label: "Portfolio",
+              destination: "https://example.com/portfolio",
               enabled: true,
             },
           ],
@@ -67,7 +66,7 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveValue("LinkedIn");
     expect(screen.getByRole("region", { name: "Live profile preview" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-2xl");
-    expect(screen.getByRole("link", { name: "Featured" })).toHaveAttribute("data-featured", "true");
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
     expect(screen.queryByText("Last saved just now")).not.toBeInTheDocument();
 
@@ -82,6 +81,41 @@ describe("LinksWorkspace", () => {
       destination: "https://example.com",
       icon: "globe",
     });
+  });
+
+  it("explains that redirect mode sends visitors away from the profile shown in preview", () => {
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[]}
+        redirect={{ enabled: true, destination: "https://example.com" }}
+        preview={{
+          id: "preview",
+          slug: "mara-velasquez",
+          name: "Mara Velasquez",
+          theme: "paper",
+          links: [],
+        }}
+        validation={{}}
+        publicationErrors={[]}
+        message={null}
+        pendingAction={null}
+        isDirty={false}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Visitors go to your website. This preview shows your Tapit profile."),
+    ).toBeVisible();
   });
 
   it("exposes invalid rows and a loading save state", () => {

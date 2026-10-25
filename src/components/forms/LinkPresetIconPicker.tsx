@@ -23,10 +23,12 @@ const options = [
 export function LinkPresetIconPicker({
   value,
   label,
+  disabled = false,
   onChange,
 }: {
   value: LinkIcon;
   label: string;
+  disabled?: boolean;
   onChange: (value: LinkIcon) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -57,8 +59,9 @@ export function LinkPresetIconPicker({
         aria-label={`Preset icon for ${label || "link"}: ${selected.label}`}
         aria-expanded={open}
         aria-haspopup="listbox"
+        disabled={disabled}
         onClick={() => setOpen(!open)}
-        className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent transition-colors hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+        className="grid size-11 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent transition-colors hover:bg-tapit-accent-soft/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus disabled:cursor-not-allowed disabled:opacity-55"
       >
         <Icon name={selected.icon} size={19} weight="bold" className="shrink-0" />
       </button>
@@ -72,6 +75,7 @@ export function LinkPresetIconPicker({
             <button
               role="option"
               aria-selected={option.value === selected.value}
+              disabled={disabled}
               key={option.value}
               type="button"
               onClick={() => {

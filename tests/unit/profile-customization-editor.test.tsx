@@ -537,7 +537,7 @@ describe("ProfileCustomizationEditor", () => {
     expect(screen.getByRole("tabpanel")).toHaveFocus();
   });
 
-  it("does not render profile content, featured-link, or publication controls", () => {
+  it("does not render profile content or publication controls", () => {
     render(
       <ProfileCustomizationEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
@@ -545,7 +545,6 @@ describe("ProfileCustomizationEditor", () => {
       />,
     );
 
-    expect(screen.queryByLabelText("Featured link")).not.toBeInTheDocument();
     expect(screen.queryByText("Contact and links")).not.toBeInTheDocument();
     expect(screen.queryByText("About or Services")).not.toBeInTheDocument();
     expect(screen.queryByText("Review and publish")).not.toBeInTheDocument();

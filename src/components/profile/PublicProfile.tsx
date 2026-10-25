@@ -14,7 +14,6 @@ import {
   DEFAULT_CUSTOM_PROFILE_COLORS,
   defaultProfileLayoutOrder,
   getAutomaticContactActions,
-  getFeaturedProfileLink,
   normalizeProfileCustomization,
   resolveProfileAppearance,
   type ProfileLayoutBlock,
@@ -258,8 +257,7 @@ export function PublicProfile({
   );
   const [savingContact, setSavingContact] = useState(false);
   const [contactError, setContactError] = useState("");
-  const featuredLink = getFeaturedProfileLink(profile.links, customization?.featuredLinkId);
-  const links = profile.links.filter((link) => link.id !== featuredLink?.id);
+  const links = profile.links;
   const section = customization?.section;
   const themeClasses = {
     paper: {
@@ -418,7 +416,7 @@ export function PublicProfile({
       setSavingContact(false);
     }
   }
-  function renderLink(link: PublicProfileProjection["links"][number], featured = false) {
+  function renderLink(link: PublicProfileProjection["links"][number]) {
     const iconKey =
       link.icon !== undefined && Object.prototype.hasOwnProperty.call(linkIcons, link.icon)
         ? (link.icon as keyof typeof linkIcons)
@@ -430,33 +428,24 @@ export function PublicProfile({
         ? "text-current/80"
         : `group-hover:text-tapit-accent ${mutedClasses}`;
     const publicMobileLink = publicMobileLayout && !warmStudio;
-    const sizeClasses = featured
-      ? publicMobileLink
-        ? "min-h-11 px-3 py-2 text-sm"
-        : compactPhonePreview
-          ? "min-h-11 px-4 py-2"
-          : "min-h-11 px-4 py-2"
-      : publicMobileLink
-        ? "min-h-11 px-4 py-2 text-sm"
-        : compactPhonePreview
-          ? "min-h-11 px-4 py-2 text-xs"
-          : phonePreview
+    const sizeClasses = publicMobileLink
+      ? "min-h-11 px-4 py-2 text-sm"
+      : compactPhonePreview
+        ? "min-h-11 px-4 py-2 text-xs"
+        : phonePreview
+          ? "min-h-11 px-4 py-2 text-sm"
+          : preview
             ? "min-h-11 px-4 py-2 text-sm"
-            : preview
-              ? "min-h-11 px-4 py-2 text-sm"
-              : "min-h-11 px-4 py-2 text-sm";
+            : "min-h-11 px-4 py-2 text-sm";
     const toneClasses = publicMobileLink
-      ? featured
-        ? "bg-tapit-accent-soft text-tapit-accent-strong hover:bg-tapit-accent-soft"
-        : customTheme
-          ? "bg-transparent text-tapit-accent hover:bg-tapit-accent-soft"
-          : "bg-tapit-surface text-tapit-ink shadow-card hover:bg-tapit-soft-surface"
+      ? customTheme
+        ? "bg-transparent text-tapit-accent hover:bg-tapit-accent-soft"
+        : "bg-tapit-surface text-tapit-ink shadow-card hover:bg-tapit-soft-surface"
       : linkClasses;
     return (
       <li key={link.id}>
         <a
           className={`group flex items-center justify-between rounded-control font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${sizeClasses} ${toneClasses}`}
-          data-featured={featured ? "true" : undefined}
           data-icon={iconKey}
           href={link.destination}
           onClick={() => {
@@ -468,7 +457,7 @@ export function PublicProfile({
           <span className={`flex min-w-0 items-center ${publicMobileLink ? "gap-3" : "gap-2"}`}>
             <span
               className={
-                publicMobileLink && !featured
+                publicMobileLink
                   ? "grid size-9 shrink-0 place-items-center rounded-control bg-tapit-accent-soft text-tapit-accent-strong"
                   : ""
               }
@@ -617,26 +606,12 @@ export function PublicProfile({
         <ProfileSlideshow autoplay={media.autoplay ?? true} images={media.slideshow} />
       ) : null,
     links:
-      featuredLink || links.length > 0 || (publicMobileLayout && canSaveContact) ? (
+      links.length > 0 || (publicMobileLayout && canSaveContact) ? (
         <div
           className={`grid ${publicMobileLayout ? "gap-2" : compactPhonePreview ? "gap-3" : phonePreview ? "gap-4" : "gap-6"}`}
         >
-          {publicMobileLayout && (canSaveContact || featuredLink) ? (
-            <div
-              className={`grid ${canSaveContact && featuredLink ? "grid-cols-2" : "grid-cols-1"} gap-2`}
-            >
-              {saveContactAction}
-              {featuredLink ? (
-                <ul className="grid min-w-0" aria-label="Featured profile link">
-                  {renderLink(featuredLink, true)}
-                </ul>
-              ) : null}
-            </div>
-          ) : null}
-          {!publicMobileLayout && featuredLink ? (
-            <ul className="tapit-profile-stagger grid gap-3" aria-label="Featured profile link">
-              {renderLink(featuredLink, true)}
-            </ul>
+          {publicMobileLayout && canSaveContact ? (
+            <div className="grid grid-cols-1 gap-2">{saveContactAction}</div>
           ) : null}
           {links.length > 0 ? (
             <ul

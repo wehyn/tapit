@@ -3,7 +3,6 @@
 import type { Id } from "../../../convex/_generated/dataModel";
 import { isReservedProfileSlug } from "./reserved-profile-slug";
 import {
-  INVALID_FEATURED_LINK_ID_MESSAGE,
   normalizeProfileCustomization,
   type ProfileCustomization,
   type ProfileCustomizationValidationOptions,
@@ -334,14 +333,11 @@ export function validatePublicationIssues(
   if (redirectError !== null) add("profile", [redirectError]);
   const websiteError = validateWebsite(draft.website);
   if (websiteError !== null) add("profile", [websiteError]);
-  const customizationErrors = validateProfileCustomization(draft.customization, draft.links, {
+  const customizationErrors = validateProfileCustomization(draft.customization, {
     allowWhite: draft.media?.background !== undefined || draft.theme === "night",
     activeTheme: draft.theme ?? options.activeTheme,
   } satisfies ProfileCustomizationValidationOptions);
-  for (const message of customizationErrors) {
-    const kind = message === INVALID_FEATURED_LINK_ID_MESSAGE ? "links" : "customization";
-    add(kind, [message]);
-  }
+  for (const message of customizationErrors) add("customization", [message]);
   add("media", validateProfileMedia(draft.media));
   return issues;
 }
