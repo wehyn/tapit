@@ -11,7 +11,7 @@ import {
 
 const labels: Record<ProfileLayoutBlock, string> = {
   slideshow: "Slideshow",
-  links: "Links (including featured link)",
+  links: "Links",
   section: "About/Services",
 };
 

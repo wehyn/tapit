@@ -340,7 +340,6 @@ export function validateDraftSafety(content: {
   errors.push(
     ...validateProfileCustomization(
       content.customization as Parameters<typeof validateProfileCustomization>[0],
-      [],
       { allowWhite: hasBackgroundMedia(content.media), activeTheme: content.theme },
     ),
   );

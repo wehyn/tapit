@@ -53,7 +53,6 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(actionsMenu).toHaveJSProperty("open", false);
   await expect(actionsMenu.locator("button").filter({ hasText: "Move down" })).toBeDisabled();
   await expect(actionsMenu.locator("button").filter({ hasText: "Delete" })).toBeDisabled();
-  await expect(page.getByRole("combobox", { name: "Featured link" })).toBeDisabled();
   await expect(
     page.getByText(
       "Profile links are paused while visitors go to your website. Switch to Tapit profile to edit them.",
@@ -118,7 +117,6 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(
     linkedInRow.getByRole("button", { name: "Preset icon for LinkedIn: LinkedIn" }),
   ).toBeEnabled();
-  await expect(page.getByRole("combobox", { name: "Featured link" })).toBeEnabled();
   await page.getByRole("button", { name: "Publish changes" }).click();
   await expect(
     page.getByText("Links published. The public profile now uses this order and enabled state."),

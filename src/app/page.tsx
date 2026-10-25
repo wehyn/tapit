@@ -57,7 +57,6 @@ const steps = [
 
 const profileFeatures = [
   { title: "Save contact", description: "One tap adds you to their phone." },
-  { title: "Featured link", description: "Point people to what matters now." },
   { title: "Simple analytics", description: "Views and clicks, no tracking of people." },
   { title: "Your look", description: "Presets, colour and type that fit you." },
 ];

@@ -34,13 +34,12 @@ describe("LinksWorkspace", () => {
             typeScale: "editorial",
             linkTreatment: "outlined",
             contentOrder: "links-first",
-            featuredLinkId: "featured",
           },
           links: [
             {
-              id: "featured",
-              label: "Featured",
-              destination: "https://example.com/featured",
+              id: "portfolio",
+              label: "Portfolio",
+              destination: "https://example.com/portfolio",
               enabled: true,
             },
           ],
@@ -67,7 +66,7 @@ describe("LinksWorkspace", () => {
     expect(screen.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveValue("LinkedIn");
     expect(screen.getByRole("region", { name: "Live profile preview" })).toBeVisible();
     expect(screen.getByRole("heading", { name: "Mara Velasquez" })).toHaveClass("text-2xl");
-    expect(screen.getByRole("link", { name: "Featured" })).toHaveAttribute("data-featured", "true");
+    expect(screen.getByRole("link", { name: "Portfolio" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Save draft" })).toBeEnabled();
     expect(screen.queryByText("Last saved just now")).not.toBeInTheDocument();
 

@@ -10,7 +10,7 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { Field, SelectField } from "@/components/ui/Field";
+import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
 import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
@@ -25,7 +25,6 @@ export type LinksWorkspaceProps = {
   links: ProfileLink[];
   redirect?: ProfileRedirect;
   redirectError?: string | null;
-  featuredLinkId?: string | null;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
   publicationErrors: string[];
@@ -36,7 +35,6 @@ export type LinksWorkspaceProps = {
   publicationLabel: string;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
   onRedirectChange?: (redirect: ProfileRedirect) => void;
-  onFeaturedLinkChange?: (id: string | null) => void;
   onAddLink: (link: Pick<ProfileLink, "label" | "destination" | "icon">) => void;
   onMoveLink: (id: string, direction: -1 | 1) => void;
   onReorderLink: (sourceId: string, targetId: string, insertAfter: boolean) => void;
@@ -61,7 +59,6 @@ export function LinksWorkspace({
   links,
   redirect = { enabled: false, destination: "" },
   redirectError = null,
-  featuredLinkId = null,
   preview,
   validation,
   publicationErrors,
@@ -72,7 +69,6 @@ export function LinksWorkspace({
   publicationLabel,
   onUpdateLink,
   onRedirectChange = () => {},
-  onFeaturedLinkChange = () => {},
   onAddLink,
   onMoveLink,
   onReorderLink,
@@ -89,8 +85,6 @@ export function LinksWorkspace({
   const linksListRef = useRef<HTMLElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const previousPositionsRef = useRef<Map<string, number> | null>(null);
-  const featuredUnavailable =
-    featuredLinkId !== null && !links.some((link) => link.id === featuredLinkId && link.enabled);
   const shownCount = links.filter((link) => link.enabled).length;
   const status =
     pendingAction === "save"
@@ -253,48 +247,6 @@ export function LinksWorkspace({
               edit them.
             </Notice>
           ) : null}
-          <Card
-            description="Shown as a large button at the top of your profile."
-            title="Featured link"
-          >
-            <div className="grid gap-4">
-              <SelectField
-                disabled={redirect.enabled}
-                id="featured-link"
-                label="Featured link"
-                onChange={(event) => onFeaturedLinkChange(event.target.value || null)}
-                value={featuredLinkId ?? ""}
-              >
-                <option value="">No featured link</option>
-                {featuredUnavailable ? (
-                  <option value={featuredLinkId}>Previously selected link</option>
-                ) : null}
-                {links
-                  .filter((link) => link.enabled)
-                  .map((link) => (
-                    <option key={link.id} value={link.id}>
-                      {link.label}
-                    </option>
-                  ))}
-              </SelectField>
-              {featuredUnavailable ? (
-                <Notice>
-                  The selected featured link is missing or disabled. It will appear as a normal
-                  link, and this will not block publication.
-                  <span className="mt-3 block">
-                    <Button
-                      disabled={redirect.enabled}
-                      onClick={() => onFeaturedLinkChange(null)}
-                      type="button"
-                      variant="quiet"
-                    >
-                      Clear featured link
-                    </Button>
-                  </span>
-                </Notice>
-              ) : null}
-            </div>
-          </Card>
           <section
             aria-label="Editable profile links"
             className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-surface p-6 shadow-card"

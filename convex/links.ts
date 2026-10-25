@@ -11,7 +11,6 @@ import {
   profileRedirectValidator,
   validateDraftSafety,
 } from "./validators";
-import { defaultProfileCustomizationForTheme } from "../src/lib/profile-customization";
 
 type AuthContext = QueryCtx | MutationCtx;
 
@@ -92,7 +91,6 @@ export const replaceDraft = mutation({
     links: v.array(linkValidator),
     redirect: v.optional(profileRedirectValidator),
     expectedDraftRevision: v.number(),
-    featuredLinkId: v.optional(v.union(v.string(), v.null())),
   },
   returns: v.object({ updatedAt: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
@@ -117,36 +115,13 @@ export const replaceDraft = mutation({
       if (seen.has(normalized)) throw new Error("Duplicate link destinations are not allowed.");
       seen.add(normalized);
     }
-    if (
-      typeof args.featuredLinkId === "string" &&
-      !args.links.some((link) => link.id === args.featuredLinkId && link.enabled)
-    )
-      throw new Error("The featured link must be enabled in the submitted links.");
-    const previousFeaturedLinkId = profile.draft.customization?.featuredLinkId;
-    let customization = profile.draft.customization;
-    if (args.featuredLinkId === null && customization !== undefined) {
-      customization = { ...customization };
-      delete customization.featuredLinkId;
-    } else if (typeof args.featuredLinkId === "string") {
-      customization = {
-        ...(customization ?? defaultProfileCustomizationForTheme(profile.draft.theme)),
-        featuredLinkId: args.featuredLinkId,
-      };
-    }
     const now = Math.max(Date.now(), profile.updatedAt + 1);
     const nextDraftRevision = draftRevision + 1;
-    const nextFeaturedLinkId =
-      args.featuredLinkId === undefined
-        ? previousFeaturedLinkId
-        : (args.featuredLinkId ?? undefined);
     await ctx.db.patch(profile._id, {
       draft: {
         ...profile.draft,
         links: args.links,
         ...(args.redirect === undefined ? {} : { redirect: args.redirect }),
-        ...(args.featuredLinkId !== undefined && customization !== undefined
-          ? { customization }
-          : {}),
       },
       draftRevision: nextDraftRevision,
       updatedAt: now,
@@ -164,16 +139,8 @@ export const replaceDraft = mutation({
       profileId: profile._id,
       accountId: profile.ownerId,
       occurredAt: now,
-      before: JSON.stringify({
-        links: existing.length,
-        featuredLinkSelected: previousFeaturedLinkId !== undefined,
-        featuredSelectionChanged: false,
-      }),
-      after: JSON.stringify({
-        links: args.links.length,
-        featuredLinkSelected: nextFeaturedLinkId !== undefined,
-        featuredSelectionChanged: previousFeaturedLinkId !== nextFeaturedLinkId,
-      }),
+      before: JSON.stringify({ links: existing.length }),
+      after: JSON.stringify({ links: args.links.length }),
     });
     return { updatedAt: now, draftRevision: nextDraftRevision };
   },
