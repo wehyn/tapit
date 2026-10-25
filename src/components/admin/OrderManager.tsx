@@ -212,7 +212,7 @@ function UploadedArtwork({ url, fileName }: { url: string; fileName?: string }) 
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         alt={fileName ? `Uploaded design: ${fileName}` : "Uploaded card design"}
-        className="max-h-72 max-w-full rounded-tapit border border-tapit-line object-contain"
+        className="max-h-72 max-w-full rounded-control object-contain"
         src={url}
       />
       {fileName ? <span className="mt-2 block text-xs text-tapit-muted">{fileName}</span> : null}
@@ -338,8 +338,8 @@ function OrderCard({
   }
 
   return (
-    <article className="rounded-tapit border border-tapit-line bg-tapit-surface p-5 shadow-[0_8px_24px_rgba(27,36,51,0.05)] sm:p-7">
-      <header className="flex flex-col gap-3 border-b border-tapit-line pb-5 sm:flex-row sm:items-start sm:justify-between">
+    <article className="rounded-card bg-tapit-surface p-4 shadow-card sm:p-6">
+      <header className="flex flex-col gap-3 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h2 className="break-all text-lg font-semibold text-tapit-ink">Order {order.id}</h2>
           <p className="mt-1 text-sm text-tapit-muted">
@@ -351,19 +351,19 @@ function OrderCard({
           </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs font-semibold capitalize">
-          <span className="rounded-full bg-tapit-soft-surface px-3 py-1.5 text-tapit-ink">
+          <span className="rounded-full bg-tapit-soft-surface px-3 py-2 text-tapit-ink">
             Payment: {formatStatus(order.paymentStatus)}
           </span>
-          <span className="rounded-full bg-tapit-soft-surface px-3 py-1.5 text-tapit-ink">
+          <span className="rounded-full bg-tapit-soft-surface px-3 py-2 text-tapit-ink">
             Fulfillment: {formatStatus(order.fulfillmentStatus)}
           </span>
-          <span className="rounded-full bg-tapit-soft-surface px-3 py-1.5 text-tapit-ink">
+          <span className="rounded-full bg-tapit-soft-surface px-3 py-2 text-tapit-ink">
             Commission: {formatStatus(order.commissionStatus)}
           </span>
         </div>
       </header>
 
-      <div className="mt-5 grid gap-6 lg:grid-cols-2">
+      <div className="mt-4 grid gap-6 lg:grid-cols-2">
         <section aria-label="Customer and delivery details" className="min-w-0">
           <h3 className="font-semibold text-tapit-ink">Customer and delivery</h3>
           <dl className="mt-3 grid gap-3 text-sm leading-6">
@@ -394,7 +394,7 @@ function OrderCard({
             {(["front", "back"] as const).map((side) => (
               <button
                 aria-pressed={artworkSide === side}
-                className={`min-h-10 rounded-lg border px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${artworkSide === side ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink" : "border-tapit-line text-tapit-muted"}`}
+                className={`min-h-10 rounded-control px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${artworkSide === side ? "bg-tapit-accent-soft text-tapit-ink" : "bg-tapit-soft-surface text-tapit-muted"}`}
                 disabled={side === "back" && !order.backDesign}
                 key={side}
                 onClick={() => setArtworkSide(side)}
@@ -460,8 +460,8 @@ function OrderCard({
                 ? "Not quoted"
                 : formatMoney(order.shippingQuoteCentavos)}
             </dd>
-            <dt className="border-t border-tapit-line pt-2 font-semibold text-tapit-ink">Total</dt>
-            <dd className="border-t border-tapit-line pt-2 text-right font-semibold text-tapit-ink">
+            <dt className="pt-2 font-semibold text-tapit-ink">Total</dt>
+            <dd className="pt-2 text-right font-semibold text-tapit-ink">
               {order.shippingQuoteCentavos === undefined
                 ? "Pending shipping quote"
                 : formatMoney(
@@ -646,7 +646,7 @@ function OrdersView({
   const confirmedAction = confirmation;
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-5 px-4 pb-12 pt-5 sm:gap-6 sm:px-8 sm:pt-6">
+    <div className="mx-auto grid w-full max-w-7xl gap-4 px-4 pb-12 pt-4 sm:gap-6 sm:px-8 sm:pt-6">
       <AdminPageHeader
         description="Review private order snapshots, shipping quotes, payment, fulfillment, and referral commissions."
         title="Orders"
@@ -657,18 +657,18 @@ function OrdersView({
         title="Card orders"
       >
         {message ? (
-          <div className="mt-5">
+          <div className="mt-4">
             <Notice tone={message.tone}>{message.text}</Notice>
           </div>
         ) : null}
         {loading && orders.length === 0 ? (
-          <div className="mt-5">
+          <div className="mt-4">
             <Notice>Loading orders…</Notice>
           </div>
         ) : orders.length === 0 ? (
-          <p className="mt-5 text-sm text-tapit-muted">No card orders yet.</p>
+          <p className="mt-4 text-sm text-tapit-muted">No card orders yet.</p>
         ) : (
-          <div className="mt-5 grid gap-5">
+          <div className="mt-4 grid gap-4">
             {orders.map((order) => (
               <OrderCard
                 busy={busyOrderId !== null}

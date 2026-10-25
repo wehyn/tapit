@@ -261,7 +261,8 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
       if (
         order !== null &&
         ((order.designSource.kind === "upload" && order.designSource.uploadId === upload._id) ||
-          (order.backDesignSource?.kind === "upload" && order.backDesignSource.uploadId === upload._id))
+          (order.backDesignSource?.kind === "upload" &&
+            order.backDesignSource.uploadId === upload._id))
       )
         throw new Error("A card order still references this design upload.");
       if (upload.storageId !== undefined) {

@@ -13,6 +13,7 @@
 ### Task 1: Add fixed-price pricing and persistence
 
 **Files:**
+
 - Modify: `src/lib/card-ordering.ts`
 - Modify: `src/lib/demo/fixtures.ts`
 - Modify: `src/lib/demo/store.ts`
@@ -29,6 +30,7 @@
 ### Task 2: Expose the price rule in admin and customer UI
 
 **Files:**
+
 - Modify: `src/components/admin/SettingsManager.tsx`
 - Modify: `src/components/card-order/OrderCardExperience.tsx`
 
@@ -39,6 +41,7 @@
 ### Task 3: Configure and verify `FOUNDING`
 
 **Files:**
+
 - Local demo admin settings in the browser profile used for the current order flow.
 
 - [x] Edit or add the `FOUNDING` referral entry at a fixed card price of ₱299 and confirm it remains active.

@@ -138,10 +138,7 @@ export const placeOrder = mutation({
     const discountCentavos =
       referral === null
         ? 0
-        : calculateReferralDiscountForPriceCentavos(
-            cardPriceCentavos,
-            referral.fixedPriceCentavos,
-          );
+        : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
     const commissionCentavos =
       referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
     const orderId = await ctx.db.insert("cardOrders", {

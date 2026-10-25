@@ -424,11 +424,10 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
           });
           for (const key of currentAssetKeys) {
             if (
-              erasedState.cardOrders.some(
-                (order) =>
-                  [order.designSource, order.backDesignSource].some(
-                    (source) => source?.kind === "upload" && source.assetKey === key,
-                  ),
+              erasedState.cardOrders.some((order) =>
+                [order.designSource, order.backDesignSource].some(
+                  (source) => source?.kind === "upload" && source.assetKey === key,
+                ),
               )
             ) {
               transaction.abort();

@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuthToken, useConvexAuth } from "@convex-dev/auth/react";
-import { ArrowLeftIcon, ArrowRightIcon, UploadSimpleIcon } from "@phosphor-icons/react";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -13,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { StatusChip } from "@/components/ui/Chip";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { getCardPriceCentavos, manilaStartOfDayTimestamp } from "@/lib/card-ordering";
 import { CARD_DESIGN_ACCEPT, validateCardOrderDesignFile } from "@/lib/card-design";
@@ -450,43 +450,45 @@ function CustomerOrderForm({
   }
 
   return (
-    <div className="min-h-[70dvh] bg-tapit-paper px-4 py-7 text-tapit-ink sm:px-8 sm:py-10">
+    <div className="min-h-[70dvh] bg-tapit-paper px-4 py-8 text-tapit-ink sm:px-8 sm:py-8">
       <div className="mx-auto w-full max-w-[1260px]">
         <Link
           className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-tapit-muted transition-colors hover:text-tapit-accent"
           href={BUILD_CARD_PATH}
         >
-          <ArrowLeftIcon aria-hidden="true" size={17} />
+          <Icon aria-hidden="true" name="arrowLeft" size={17} />
           Back to card design
         </Link>
 
-        <header className="mt-5 max-w-3xl">
-          <h1 className="tapit-display text-4xl font-medium tracking-[-0.055em] sm:text-5xl">
+        <header className="mt-4 max-w-3xl">
+          <h1 className="tapit-display text-2xl font-medium tracking-[-0.055em]">
             Order your card
           </h1>
         </header>
 
         <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-8">
-          <form className="grid min-w-0 gap-5 lg:col-start-1" onSubmit={handleSubmit}>
+          <form className="grid min-w-0 gap-4 lg:col-start-1" onSubmit={handleSubmit}>
             <Card className="gap-0" title="01 · Card design">
               <div className="mt-4 grid grid-cols-2 gap-2" role="group" aria-label="Card side">
                 {(["front", "back"] as const).map((side) => (
                   <button
                     aria-pressed={activeSide === side}
-                    className={`min-h-11 rounded-xl border px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${activeSide === side ? "border-tapit-accent bg-tapit-accent-soft text-tapit-ink" : "border-tapit-line text-tapit-muted"}`}
+                    className={`min-h-11 rounded-control px-4 text-sm font-semibold capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus ${activeSide === side ? "bg-tapit-accent-soft text-tapit-ink" : "bg-tapit-soft-surface text-tapit-muted"}`}
                     key={side}
                     onClick={() => setActiveSide(side)}
                     type="button"
                   >
                     {side}
                     {fieldErrors[side] ? (
-                      <span className="ml-2 text-xs font-medium text-tapit-danger">Needs attention</span>
+                      <span className="ml-2 text-xs font-medium text-tapit-danger">
+                        Needs attention
+                      </span>
                     ) : null}
                   </button>
                 ))}
               </div>
               <figure className="mt-4 w-full max-w-lg">
-                <div className="overflow-hidden rounded-card border border-tapit-line bg-tapit-surface shadow-card">
+                <div className="overflow-hidden rounded-card bg-tapit-surface shadow-card">
                   {artwork[activeSide].previewUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -519,7 +521,7 @@ function CustomerOrderForm({
                 />
               </div>
               {artwork[activeSide].kind === "upload" ? (
-                <div className="mt-4 rounded-[18px] border border-dashed border-tapit-line bg-tapit-paper/65 p-4 sm:p-5">
+                <div className="mt-4 rounded-card bg-tapit-paper/65 p-4 sm:p-6">
                   <input
                     accept={CARD_DESIGN_ACCEPT}
                     aria-label={`Upload ${activeSide} artwork`}
@@ -553,7 +555,7 @@ function CustomerOrderForm({
                         type="button"
                         variant="secondary"
                       >
-                        <UploadSimpleIcon aria-hidden="true" className="mr-2" size={17} />
+                        <Icon aria-hidden="true" className="mr-2" name="upload" size={17} />
                         {artwork[activeSide].file ? "Replace" : "Choose file"}
                       </Button>
                       {artwork[activeSide].file ? (
@@ -612,7 +614,7 @@ function CustomerOrderForm({
             </Card>
 
             <Card className="gap-0" title="02 · Delivery details">
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
                   autoComplete="name"
                   error={fieldErrors.deliveryName}
@@ -662,7 +664,7 @@ function CustomerOrderForm({
             </Card>
 
             <Card className="gap-0" title="03 · Payment">
-              <div className="mt-4 grid gap-5 sm:grid-cols-2">
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <SelectField
                   disabled={paymentMethods.length === 0}
                   id="payment-method"
@@ -684,7 +686,7 @@ function CustomerOrderForm({
                   ))}
                 </SelectField>
                 {selectedPaymentMethod ? (
-                  <div className="sm:col-span-2 rounded-[14px] bg-tapit-paper p-4">
+                  <div className="sm:col-span-2 rounded-control bg-tapit-paper p-4">
                     <p className="text-xs font-semibold tracking-[0.12em] text-tapit-muted uppercase">
                       {selectedPaymentMethod.label} · {selectedPaymentMethod.provider}
                     </p>
@@ -726,7 +728,7 @@ function CustomerOrderForm({
             {submitError ? <Notice tone="error">{submitError}</Notice> : null}
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Link
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] px-4 py-2.5 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-control px-4 py-3 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
                 href={BUILD_CARD_PATH}
               >
                 Cancel
@@ -738,22 +740,22 @@ function CustomerOrderForm({
                 type="submit"
               >
                 Place order
-                <ArrowRightIcon aria-hidden="true" className="ml-2" size={17} />
+                <Icon aria-hidden="true" className="ml-2" name="arrowRight" size={17} />
               </Button>
             </div>
           </form>
 
-          <aside className="order-first grid gap-5 lg:sticky lg:top-8 lg:order-none lg:col-start-2 lg:row-start-1">
-            <Card className="gap-0 overflow-hidden border-tapit-accent/25 bg-tapit-surface p-0">
-              <div className="rounded-t-card border-b border-tapit-accent-strong bg-tapit-accent px-5 py-4 text-tapit-accent-foreground sm:px-6">
-                <p className="text-[11px] font-semibold tracking-[0.18em] text-tapit-accent-foreground uppercase">
+          <aside className="order-first grid gap-4 lg:sticky lg:top-8 lg:order-none lg:col-start-2 lg:row-start-1">
+            <Card className="gap-0 overflow-hidden bg-tapit-surface p-0">
+              <div className="rounded-t-card bg-tapit-accent px-4 py-4 text-tapit-accent-foreground sm:px-6">
+                <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent-foreground uppercase">
                   Price preview
                 </p>
-                <h2 className="tapit-display mt-1.5 text-2xl font-medium tracking-tight">
+                <h2 className="tapit-display mt-2 text-2xl font-medium tracking-tight">
                   {currentCardPrice === null ? "—" : formatPHP(currentCardPrice)}
                 </h2>
               </div>
-              <div className="grid gap-3 p-5 sm:p-6">
+              <div className="grid gap-3 p-4 sm:p-6">
                 <dl className="grid gap-3">
                   <PriceLine
                     label="Card"
@@ -767,9 +769,8 @@ function CustomerOrderForm({
                   />
                   <PriceLine label="Shipping" value="Pending quote" />
                 </dl>
-                <div className="my-1 border-t border-dashed border-tapit-line" />
                 {launchCutoff !== null ? (
-                  <p className="mt-1 border-t border-tapit-line pt-3 text-xs leading-5 text-tapit-muted">
+                  <p className="mt-2 rounded-control bg-tapit-soft-surface p-3 text-xs leading-5 text-tapit-muted">
                     ₱599 launch price applies before {formatManilaCutoff(launchCutoff)} Manila time.
                     The card price is ₱799 on or after that cutoff.
                   </p>
@@ -795,13 +796,13 @@ function CustomerOrderForm({
             ) : null}
           </aside>
         </div>
-        <footer className="mt-10 flex items-center justify-between gap-4 border-t border-tapit-line pt-5 text-xs text-tapit-muted">
+        <footer className="mt-8 flex items-center justify-between gap-4 pt-4 text-xs text-tapit-muted">
           <span>Front and back artwork use the CR80 card ratio.</span>
           <Link
             className="inline-flex min-h-10 items-center gap-1 font-semibold hover:text-tapit-accent"
             href={BUILD_CARD_PATH}
           >
-            Back to design <ArrowLeftIcon aria-hidden="true" size={14} />
+            Back to design <Icon aria-hidden="true" name="arrowLeft" size={14} />
           </Link>
         </footer>
       </div>
@@ -822,7 +823,7 @@ function DesignChoice({
 }) {
   return (
     <label
-      className={`flex min-h-[86px] cursor-pointer items-start gap-3 rounded-[16px] border p-4 transition-colors focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-surface ${checked ? "border-tapit-accent bg-tapit-accent-soft/35" : "border-tapit-line bg-tapit-surface hover:border-tapit-accent/50"}`}
+      className={`flex min-h-[86px] cursor-pointer items-start gap-3 rounded-control p-4 transition-colors focus-within:ring-2 focus-within:ring-tapit-focus focus-within:ring-offset-2 focus-within:ring-offset-tapit-surface ${checked ? "bg-tapit-accent-soft" : "bg-tapit-soft-surface hover:bg-tapit-paper"}`}
     >
       <input
         checked={checked}
@@ -994,7 +995,7 @@ function OrderSummaryCard({
       ? "Amount due"
       : "Order total";
   return (
-    <Card className={`gap-0 ${prominent ? "border-tapit-success/40" : "p-4 sm:p-5"}`}>
+    <Card className={`gap-0 ${prominent ? "bg-tapit-success-soft" : "p-4 sm:p-6"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium text-tapit-muted">
@@ -1005,7 +1006,7 @@ function OrderSummaryCard({
         <StatusChip status={formatStatus(order.fulfillmentStatus)} />
       </div>
       <div className="mt-4 grid gap-0 text-sm">
-        <dl className="grid gap-2.5">
+        <dl className="grid gap-3">
           <PriceLine label="Card price" value={formatPHP(order.cardPriceCentavos)} />
           {order.discountCentavos > 0 ? (
             <PriceLine label="Referral discount" value={`−${formatPHP(order.discountCentavos)}`} />
@@ -1019,8 +1020,7 @@ function OrderSummaryCard({
             }
           />
         </dl>
-        <div className="my-1 border-t border-dashed border-tapit-line" />
-        <dl className="grid gap-2.5">
+        <dl className="mt-2 grid gap-3">
           <PriceLine
             label={amountLabel}
             value={totalDue === null ? `${formatPHP(cardTotal)} + shipping` : formatPHP(totalDue)}
@@ -1028,7 +1028,7 @@ function OrderSummaryCard({
           />
         </dl>
       </div>
-      <div className="mt-4 rounded-[14px] bg-tapit-paper p-4">
+      <div className="mt-4 rounded-control bg-tapit-paper p-4">
         <p className="text-xs font-semibold tracking-[0.12em] text-tapit-muted uppercase">
           {order.paymentSnapshot.label} · {formatStatus(order.paymentStatus)}
         </p>

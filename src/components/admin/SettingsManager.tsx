@@ -6,7 +6,6 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { CheckCircleIcon, GearSixIcon } from "@phosphor-icons/react";
 
 import {
   deactivateDemoCardOrderPaymentMethod,
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Chip } from "@/components/ui/Chip";
 import { Field, TextareaField } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Tile } from "@/components/ui/Tile";
 
@@ -174,7 +174,7 @@ function CardOrderSettings({
         title="Card ordering launch"
       >
         <form
-          className="mt-5 flex max-w-xl flex-col items-start gap-4 sm:flex-row sm:items-end"
+          className="mt-4 flex max-w-xl flex-col items-start gap-4 sm:flex-row sm:items-end"
           onSubmit={saveLaunchEndDate}
         >
           <div className="w-full sm:max-w-xs">
@@ -199,7 +199,7 @@ function CardOrderSettings({
         description="Add multiple payment destinations for each provider. Customers see active payment methods and their instructions."
         title="Payment methods"
       >
-        <form className="mt-5 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={savePaymentMethod}>
+        <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={savePaymentMethod}>
           <Field
             id="payment-provider"
             label="Provider"
@@ -247,7 +247,7 @@ function CardOrderSettings({
           ) : (
             settings.paymentMethods.map((method) => (
               <div
-                className="flex flex-col gap-4 rounded-tapit border border-tapit-line bg-tapit-paper/60 p-4 sm:flex-row sm:items-start sm:justify-between"
+                className="flex flex-col gap-4 rounded-card bg-tapit-paper/60 p-4 sm:flex-row sm:items-start sm:justify-between"
                 key={method.id}
               >
                 <div className="min-w-0">
@@ -300,7 +300,7 @@ function CardOrderSettings({
         description="Referral codes are unique across active and inactive codes. Keep the referrer label recognizable to your team."
         title="Referral codes"
       >
-        <form className="mt-5 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={saveReferralCode}>
+        <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={saveReferralCode}>
           <Field
             autoCapitalize="characters"
             id="referral-code"
@@ -345,7 +345,7 @@ function CardOrderSettings({
           ) : (
             settings.referralCodes.map((referral) => (
               <div
-                className="flex flex-col gap-4 rounded-tapit border border-tapit-line bg-tapit-paper/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-4 rounded-card bg-tapit-paper/60 p-4 sm:flex-row sm:items-center sm:justify-between"
                 key={referral.id}
               >
                 <div>
@@ -458,12 +458,13 @@ function DemoSettingsManager() {
           description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
           title="Support contact"
         >
-          <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
+          <form className="mt-6 grid max-w-xl gap-4" onSubmit={save}>
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
-            <div className="flex items-start gap-3 rounded-tapit border border-tapit-line bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
-              <GearSixIcon
+            <div className="flex items-start gap-3 rounded-card bg-tapit-paper/70 p-4 text-sm leading-6 text-tapit-muted">
+              <Icon
                 aria-hidden="true"
-                className="mt-0.5 shrink-0 text-tapit-accent"
+                className="mt-1 shrink-0 text-tapit-accent"
+                name="settings"
                 size={22}
               />
               <span>One destination is used for public support states and account help.</span>
@@ -476,7 +477,7 @@ function DemoSettingsManager() {
             />
             <div>
               <Button type="submit">
-                <CheckCircleIcon aria-hidden="true" className="mr-2" size={18} />
+                <Icon aria-hidden="true" className="mr-2" name="check" size={18} />
                 Save settings
               </Button>
             </div>
@@ -604,7 +605,7 @@ function LiveSettingsManager() {
           description="This destination is used for generic support states and account help."
           title="Support contact"
         >
-          <form className="mt-6 grid max-w-xl gap-5" onSubmit={save}>
+          <form className="mt-6 grid max-w-xl gap-4" onSubmit={save}>
             {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
             <Field
               id="support-url"
