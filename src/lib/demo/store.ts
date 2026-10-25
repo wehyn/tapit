@@ -3,10 +3,14 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
+import { isCardOrderLaunchEndDate, isValidReferralFixedPriceCentavos } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
+  type DemoCardOrder,
+  type DemoCardOrderPaymentMethod,
+  type DemoCardOrderReferralCode,
   type DemoCustomer,
   type DemoProfile,
   type DemoState,
@@ -94,6 +98,125 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isNonNegativeSafeInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && typeof value === "number" && value >= 0;
+}
+
+function isHttpsCardDesignUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.username === "" && url.password === "";
+  } catch {
+    return false;
+  }
+}
+
+function isCardOrderPaymentMethod(value: unknown): value is DemoCardOrderPaymentMethod {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.provider === "string" &&
+    typeof value.label === "string" &&
+    typeof value.accountDetails === "string" &&
+    typeof value.instructions === "string" &&
+    typeof value.active === "boolean" &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferralCode {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.code === "string" &&
+    typeof value.referrerLabel === "string" &&
+    (value.fixedPriceCentavos === undefined ||
+      isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    typeof value.active === "boolean" &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function isCardOrder(value: unknown): value is DemoCardOrder {
+  if (!isRecord(value) || !isRecord(value.paymentSnapshot) || !isRecord(value.designSource)) {
+    return false;
+  }
+
+  const { designSource, backDesignSource, paymentSnapshot, referralSnapshot } = value;
+  const isCardOrderDesignSource = (source: unknown): boolean => {
+    if (!isRecord(source)) return false;
+    return (
+      (source.kind === "upload" &&
+        !("url" in source) &&
+        typeof source.assetKey === "string" &&
+        typeof source.fileName === "string" &&
+        (source.contentType === "image/jpeg" || source.contentType === "image/png") &&
+        isNonNegativeSafeInteger(source.byteSize)) ||
+      (source.kind === "url" &&
+        !("assetKey" in source) &&
+        !("fileName" in source) &&
+        !("contentType" in source) &&
+        !("byteSize" in source) &&
+        isHttpsCardDesignUrl(source.url))
+    );
+  };
+  const hasValidReferralSnapshot =
+    referralSnapshot === undefined ||
+    (isRecord(referralSnapshot) &&
+      typeof referralSnapshot.code === "string" &&
+      typeof referralSnapshot.referrerLabel === "string");
+
+  return (
+    typeof value.id === "string" &&
+    typeof value.customerId === "string" &&
+    value.quantity === 1 &&
+    isCardOrderDesignSource(designSource) &&
+    (backDesignSource === undefined || isCardOrderDesignSource(backDesignSource)) &&
+    typeof value.deliveryName === "string" &&
+    typeof value.deliveryPhone === "string" &&
+    typeof value.deliveryAddress === "string" &&
+    isNonNegativeSafeInteger(value.cardPriceCentavos) &&
+    isNonNegativeSafeInteger(value.discountCentavos) &&
+    (value.shippingQuoteCentavos === undefined ||
+      isNonNegativeSafeInteger(value.shippingQuoteCentavos)) &&
+    typeof value.paymentMethodId === "string" &&
+    typeof paymentSnapshot.provider === "string" &&
+    typeof paymentSnapshot.label === "string" &&
+    typeof paymentSnapshot.accountDetails === "string" &&
+    typeof paymentSnapshot.instructions === "string" &&
+    (value.referralCodeId === undefined || typeof value.referralCodeId === "string") &&
+    hasValidReferralSnapshot &&
+    (value.paymentStatus === "unpaid" ||
+      value.paymentStatus === "received" ||
+      value.paymentStatus === "refunded") &&
+    (value.fulfillmentStatus === "awaiting_shipping_quote" ||
+      value.fulfillmentStatus === "awaiting_payment" ||
+      value.fulfillmentStatus === "processing" ||
+      value.fulfillmentStatus === "delivered" ||
+      value.fulfillmentStatus === "cancelled") &&
+    (value.commissionStatus === "none" ||
+      value.commissionStatus === "pending" ||
+      value.commissionStatus === "eligible" ||
+      value.commissionStatus === "paid" ||
+      value.commissionStatus === "void") &&
+    isNonNegativeSafeInteger(value.commissionCentavos) &&
+    (value.payoutReference === undefined || typeof value.payoutReference === "string") &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function normalizeCollection<T>(value: unknown, isItem: (item: unknown) => item is T): T[] {
+  return Array.isArray(value) ? value.filter(isItem) : [];
+}
+
 function normalizeStoredState(raw: string): StateStorageRead {
   let decoded: unknown;
   try {
@@ -145,6 +268,18 @@ function normalizeStoredState(raw: string): StateStorageRead {
     ...fallback,
     ...parsed,
     cards,
+    cardOrderLaunchEndDate: isCardOrderLaunchEndDate(parsed.cardOrderLaunchEndDate)
+      ? parsed.cardOrderLaunchEndDate
+      : null,
+    cardOrderPaymentMethods: normalizeCollection(
+      parsed.cardOrderPaymentMethods,
+      isCardOrderPaymentMethod,
+    ),
+    cardOrderReferralCodes: normalizeCollection(
+      parsed.cardOrderReferralCodes,
+      isCardOrderReferralCode,
+    ),
+    cardOrders: normalizeCollection(parsed.cardOrders, isCardOrder),
     customers,
     profiles,
     themes: { ...fallback.themes, ...themes },
@@ -205,7 +340,7 @@ function isSameStorageBlock(previous: StateWriteBlock | null, next: StateWriteBl
 function installStoredState(read: StateStorageRead): boolean {
   if (read.kind === "supported") {
     const changed = read.raw !== persistedRaw || storageWriteBlock !== null;
-    state = read.state;
+    if (changed) state = read.state;
     persistedRaw = read.raw;
     storageWriteBlock = null;
     return changed;
@@ -235,7 +370,7 @@ function sameSession(left: DemoSession | null, right: DemoSession | null): boole
 function installStoredSession(read: SessionStorageRead): boolean {
   const nextSession = read.kind === "supported" ? read.session : null;
   const changed = !sameSession(session, nextSession);
-  session = nextSession;
+  if (changed) session = nextSession;
   sessionLoaded = true;
   return changed;
 }

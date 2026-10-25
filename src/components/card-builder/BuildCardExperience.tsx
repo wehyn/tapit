@@ -22,49 +22,25 @@ const CARD_DESIGN_UPLOAD_ERROR_ID = "card-design-upload-error";
 
 export function BuildCardExperience({ embedded = false }: { embedded?: boolean } = {}) {
   const showPublicHeader = !embedded;
-  const loginReturnPath = embedded ? "/app/card" : "/build-card";
 
   if (isLocalDemoMode()) {
-    return (
-      <LocalDemoBuildCardExperience
-        loginReturnPath={loginReturnPath}
-        showPublicHeader={showPublicHeader}
-      />
-    );
+    return <LocalDemoBuildCardExperience showPublicHeader={showPublicHeader} />;
   }
-  return (
-    <LiveBuildCardExperience
-      loginReturnPath={loginReturnPath}
-      showPublicHeader={showPublicHeader}
-    />
-  );
+  return <LiveBuildCardExperience showPublicHeader={showPublicHeader} />;
 }
 
-function LocalDemoBuildCardExperience({
-  loginReturnPath,
-  showPublicHeader,
-}: {
-  loginReturnPath: string;
-  showPublicHeader: boolean;
-}) {
+function LocalDemoBuildCardExperience({ showPublicHeader }: { showPublicHeader: boolean }) {
   const session = useDemoSession();
   return (
     <BuildCardWorkspace
       authLoading={false}
       isAuthenticated={session !== null}
-      loginReturnPath={loginReturnPath}
       showPublicHeader={showPublicHeader}
     />
   );
 }
 
-function LiveBuildCardExperience({
-  loginReturnPath,
-  showPublicHeader,
-}: {
-  loginReturnPath: string;
-  showPublicHeader: boolean;
-}) {
+function LiveBuildCardExperience({ showPublicHeader }: { showPublicHeader: boolean }) {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const authLoading = isLoading || (isAuthenticated && access === undefined);
@@ -73,7 +49,6 @@ function LiveBuildCardExperience({
     <BuildCardWorkspace
       authLoading={authLoading}
       isAuthenticated={access?.authenticated === true}
-      loginReturnPath={loginReturnPath}
       showPublicHeader={showPublicHeader}
     />
   );
@@ -157,12 +132,10 @@ function DesignOptions({
 export function BuildCardWorkspace({
   authLoading,
   isAuthenticated,
-  loginReturnPath = "/build-card",
   showPublicHeader = true,
 }: {
   authLoading: boolean;
   isAuthenticated: boolean;
-  loginReturnPath?: string;
   showPublicHeader?: boolean;
 }) {
   const router = useRouter();
@@ -170,7 +143,6 @@ export function BuildCardWorkspace({
   const objectUrlRef = useRef<string | null>(null);
   const [preview, setPreview] = useState<CardDesignPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [orderingComingSoon, setOrderingComingSoon] = useState(false);
 
   const revokePreviewUrl = useCallback(() => {
     if (objectUrlRef.current === null) return;
@@ -182,7 +154,6 @@ export function BuildCardWorkspace({
     revokePreviewUrl();
     setPreview(null);
     setError(null);
-    setOrderingComingSoon(false);
     if (inputRef.current !== null) inputRef.current.value = "";
   }, [revokePreviewUrl]);
 
@@ -194,7 +165,6 @@ export function BuildCardWorkspace({
     if (validationError !== null) {
       revokePreviewUrl();
       setPreview(null);
-      setOrderingComingSoon(false);
       setError(validationError);
       event.target.value = "";
       return;
@@ -205,17 +175,16 @@ export function BuildCardWorkspace({
     const url = URL.createObjectURL(file);
     objectUrlRef.current = url;
     setError(null);
-    setOrderingComingSoon(false);
     setPreview({ name: file.name, size: file.size, url });
   }
 
   function handleOrder() {
     if (authLoading) return;
     if (!isAuthenticated) {
-      router.push(`/login?next=${encodeURIComponent(loginReturnPath)}`);
+      router.push(`/login?next=${encodeURIComponent("/app/card/order-card")}`);
       return;
     }
-    setOrderingComingSoon(true);
+    router.push("/app/card/order-card");
   }
 
   const Root = showPublicHeader ? "main" : "div";
@@ -243,12 +212,12 @@ export function BuildCardWorkspace({
           <section className="flex flex-1 items-center py-12">
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
               <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
-                <Chip tone="accent">Custom ordering coming soon</Chip>
+                <Chip tone="accent">Design your physical card</Chip>
                 <h1 className="tapit-display text-2xl font-medium tracking-tight sm:text-2xl">
                   Bring your card to life
                 </h1>
                 <p className="max-w-xl text-base text-tapit-muted sm:text-lg">
-                  Design preparation is available now. Custom ordering is not open yet.
+                  Create or upload a design, preview it here, then continue to the order form.
                 </p>
               </div>
               {designOptions("card")}
@@ -266,7 +235,7 @@ export function BuildCardWorkspace({
               Bring your card to life
             </h1>
             <p className="text-base text-tapit-muted">
-              Design preparation is available now. Custom ordering is not open yet.
+              Create or upload a design, preview it here, then continue to the order form.
             </p>
           </div>
           <div className="grid gap-4 xl:grid-cols-3">
@@ -275,10 +244,10 @@ export function BuildCardWorkspace({
               {errorNotice}
             </Card>
             <Card
-              description="Custom ordering is coming soon. Upload a design now and we will use it."
+              description="Choose a design, add delivery details, and arrange payment on the order form."
               title="Order printed cards"
             >
-              <Chip>Coming soon</Chip>
+              <Chip tone="accent">Choose a design first</Chip>
             </Card>
           </div>
         </div>
@@ -290,7 +259,6 @@ export function BuildCardWorkspace({
           onChooseAnother={clearSelection}
           onClose={clearSelection}
           onOrder={handleOrder}
-          orderingComingSoon={orderingComingSoon}
         />
       ) : null}
     </Root>

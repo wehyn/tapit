@@ -1,12 +1,19 @@
 import { httpRouter } from "convex/server";
 
 import { auth } from "./auth";
+import { upload as uploadCardOrderDesign } from "./cardOrderDesignUploadHttp";
 import { upload as uploadImage, uploadAdmin as uploadAdminImage } from "./profileImageUploadHttp";
 import { upload as uploadMedia, uploadAdmin as uploadAdminMedia } from "./profileMediaUploadHttp";
 
 const http = httpRouter();
 
 auth.addHttpRoutes(http);
+http.route({ path: "/card-order-design-upload", method: "POST", handler: uploadCardOrderDesign });
+http.route({
+  path: "/card-order-design-upload",
+  method: "OPTIONS",
+  handler: uploadCardOrderDesign,
+});
 http.route({ path: "/profile-image-upload", method: "POST", handler: uploadImage });
 http.route({ path: "/profile-image-upload", method: "OPTIONS", handler: uploadImage });
 http.route({ path: "/admin-profile-image-upload", method: "POST", handler: uploadAdminImage });

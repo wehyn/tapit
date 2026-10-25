@@ -18,7 +18,6 @@ function renderDialog(overrides: Partial<React.ComponentProps<typeof CardPreview
       onChooseAnother={vi.fn()}
       onClose={vi.fn()}
       onOrder={vi.fn()}
-      orderingComingSoon={false}
       {...overrides}
     />,
   );
@@ -34,7 +33,7 @@ describe("CardPreviewDialog", () => {
       "src",
       file.url,
     );
-    expect(screen.getByRole("button", { name: "Ordering is not open yet" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Continue to order" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Choose another design" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Close card preview" })).toBeVisible();
   });
@@ -109,7 +108,6 @@ describe("CardPreviewDialog", () => {
         onChooseAnother={vi.fn()}
         onClose={replacementOnClose}
         onOrder={vi.fn()}
-        orderingComingSoon={false}
       />,
     );
     fireEvent.keyDown(document, { key: "Escape" });
@@ -118,14 +116,13 @@ describe("CardPreviewDialog", () => {
     expect(replacementOnClose).toHaveBeenCalledOnce();
   });
 
-  it("keeps both actions available and announces when ordering is coming soon", () => {
+  it("keeps both actions available and starts the order flow", () => {
     const onChooseAnother = vi.fn();
     const onOrder = vi.fn();
 
-    renderDialog({ orderingComingSoon: true, onChooseAnother, onOrder });
+    renderDialog({ onChooseAnother, onOrder });
 
-    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
-    fireEvent.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue to order" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose another design" }));
     expect(onOrder).toHaveBeenCalledOnce();
     expect(onChooseAnother).toHaveBeenCalledOnce();

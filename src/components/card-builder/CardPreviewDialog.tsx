@@ -6,7 +6,6 @@ import type { CardDesignPreview } from "@/lib/card-design";
 
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
-import { Notice } from "../ui/Notice";
 
 const titleId = "card-preview-title";
 
@@ -15,13 +14,11 @@ export function CardPreviewDialog({
   onChooseAnother,
   onClose,
   onOrder,
-  orderingComingSoon,
 }: {
   file: CardDesignPreview;
   onChooseAnother: () => void;
   onClose: () => void;
   onOrder: () => void;
-  orderingComingSoon: boolean;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -113,17 +110,12 @@ export function CardPreviewDialog({
         </div>
         <div className="mt-6 flex flex-col gap-3">
           <Button className="w-full" onClick={onOrder} type="button">
-            Ordering is not open yet <Icon name="caretRight" size={16} />
+            Continue to order <Icon name="caretRight" size={16} />
           </Button>
           <Button className="w-full" onClick={onChooseAnother} type="button" variant="secondary">
             Choose another design
           </Button>
         </div>
-        {orderingComingSoon ? (
-          <div className="mt-4">
-            <Notice tone="neutral">Ordering is coming soon</Notice>
-          </div>
-        ) : null}
       </div>
     </div>
   );

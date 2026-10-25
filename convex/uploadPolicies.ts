@@ -52,6 +52,19 @@ export const CARD_DESIGN_POLICY: UploadPolicy = {
   allowedDomainTypes: ["card-design"],
 };
 
+export const CARD_ORDER_DESIGN_MAX_BYTES_EXCLUSIVE = 5 * 1024 * 1024;
+export const CARD_ORDER_DESIGN_MAX_PIXELS = 6_000_000;
+export const CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE = "Choose an image under 5 MB.";
+export const CARD_ORDER_DESIGN_DIMENSIONS_EXCEEDED_MESSAGE =
+  "Choose an image with 6 megapixels or fewer and no side over 12,000 pixels.";
+
+export const CARD_ORDER_DESIGN_POLICY: UploadPolicy = {
+  ...CARD_DESIGN_POLICY,
+  version: "card-order-design-v1",
+  maxBytesExclusive: CARD_ORDER_DESIGN_MAX_BYTES_EXCLUSIVE,
+  maxPixels: CARD_ORDER_DESIGN_MAX_PIXELS,
+};
+
 /** Compatibility documentation for the isolated legacy profile-image pipeline. */
 export const PROFILE_PHOTO_COMPATIBILITY_POLICY: UploadPolicy = {
   kind: "profile-photo",

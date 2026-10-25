@@ -11,6 +11,7 @@ export type StorageExclusion =
   | { kind: "uploadAssetVariant"; id: Id<"uploadAssetVariants"> };
 
 export type StorageInspectionIntent =
+  | { kind: "cardOrderDesignUpload" }
   | { kind: "profileImageCleanup"; currentJobId: Id<"profileImageUploadJobs"> }
   | {
       kind: "profileImageRelease";

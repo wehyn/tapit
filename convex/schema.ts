@@ -56,6 +56,29 @@ const publishedProfile = v.object({
   publishedAt: v.number(),
 });
 
+const cardOrderDesignSource = v.union(
+  v.object({
+    kind: v.literal("upload"),
+    uploadId: v.id("cardOrderDesignUploads"),
+  }),
+  v.object({
+    kind: v.literal("url"),
+    url: v.string(),
+  }),
+);
+
+const cardOrderPaymentSnapshot = v.object({
+  provider: v.string(),
+  label: v.string(),
+  accountDetails: v.string(),
+  instructions: v.string(),
+});
+
+const cardOrderReferralSnapshot = v.object({
+  code: v.string(),
+  referrerLabel: v.string(),
+});
+
 export default defineSchema({
   ...authTables,
   authVerifiers: authTables.authVerifiers.index("by_sessionId", ["sessionId"]),
@@ -466,4 +489,85 @@ export default defineSchema({
     .index("by_key", ["key"])
     .index("by_scope", ["scope"])
     .index("by_scope_and_key", ["scope", "key"]),
+  cardOrderPaymentMethods: defineTable({
+    scope: v.optional(v.literal("demo")),
+    provider: v.string(),
+    label: v.string(),
+    accountDetails: v.string(),
+    instructions: v.string(),
+    active: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedByUserId: v.optional(v.id("users")),
+  }).index("by_scope_and_active", ["scope", "active"]),
+  cardOrderReferralCodes: defineTable({
+    scope: v.optional(v.literal("demo")),
+    code: v.string(),
+    referrerLabel: v.string(),
+    fixedPriceCentavos: v.optional(v.number()),
+    active: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedByUserId: v.optional(v.id("users")),
+  })
+    .index("by_scope_and_code", ["scope", "code"])
+    .index("by_scope_and_active", ["scope", "active"]),
+  cardOrderDesignUploads: defineTable({
+    scope: v.optional(v.literal("demo")),
+    ownerId: v.id("customers"),
+    storageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    contentType: v.optional(v.union(v.literal("image/jpeg"), v.literal("image/png"))),
+    byteSize: v.optional(v.number()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("available"),
+      v.literal("attached"),
+    ),
+    orderId: v.optional(v.id("cardOrders")),
+    createdAt: v.number(),
+    processingAt: v.optional(v.number()),
+    availableAt: v.optional(v.number()),
+  })
+    .index("by_ownerId_and_status", ["ownerId", "status"])
+    .index("by_storageId", ["storageId"]),
+  cardOrders: defineTable({
+    scope: v.optional(v.literal("demo")),
+    customerId: v.id("customers"),
+    quantity: v.literal(1),
+    designSource: cardOrderDesignSource,
+    backDesignSource: v.optional(cardOrderDesignSource),
+    deliveryName: v.string(),
+    deliveryPhone: v.string(),
+    deliveryAddress: v.string(),
+    cardPriceCentavos: v.number(),
+    discountCentavos: v.number(),
+    shippingQuoteCentavos: v.optional(v.number()),
+    paymentMethodId: v.id("cardOrderPaymentMethods"),
+    paymentSnapshot: cardOrderPaymentSnapshot,
+    referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
+    referralSnapshot: v.optional(cardOrderReferralSnapshot),
+    paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
+    fulfillmentStatus: v.union(
+      v.literal("awaiting_shipping_quote"),
+      v.literal("awaiting_payment"),
+      v.literal("processing"),
+      v.literal("delivered"),
+      v.literal("cancelled"),
+    ),
+    commissionStatus: v.union(
+      v.literal("none"),
+      v.literal("pending"),
+      v.literal("eligible"),
+      v.literal("paid"),
+      v.literal("void"),
+    ),
+    commissionCentavos: v.number(),
+    payoutReference: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_scope_and_customerId_and_createdAt", ["scope", "customerId", "createdAt"])
+    .index("by_scope_and_createdAt", ["scope", "createdAt"]),
 });

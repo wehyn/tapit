@@ -303,12 +303,12 @@ describe("BuildCardExperience auth-aware order action", () => {
     return user;
   }
 
-  it("pushes the exact login return URL when logged out", async () => {
+  it("returns logged-out customers to the order form after sign-in", async () => {
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(push).toHaveBeenCalledWith("/login?next=%2Fbuild-card");
+    expect(push).toHaveBeenCalledWith("/login?next=%2Fapp%2Fcard%2Forder-card");
   });
 
   it("reuses the builder without the public header in the customer workspace", () => {
@@ -318,45 +318,42 @@ describe("BuildCardExperience auth-aware order action", () => {
     expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
 
-  it("shows the coming-soon status for an authenticated customer without pushing", async () => {
+  it("routes authenticated customers to the order form", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
     useQuery.mockReturnValue({ authenticated: true, role: "customer" });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
-  it("shows the coming-soon status for a demo admin without pushing", async () => {
+  it("routes signed-in demo admins to the order form", async () => {
     isLocalDemoMode.mockReturnValue(true);
     useDemoSession.mockReturnValue({ email: "admin@tapit.local", role: "admin" });
     useHydratedDemoState.mockReturnValue({ hydrated: true, state: createDefaultDemoState() });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
-  it("shows the coming-soon status for a live admin without pushing", async () => {
+  it("routes signed-in live admins to the order form", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
     useQuery.mockReturnValue({ authenticated: true, role: "admin" });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent("Ordering is coming soon");
-    expect(push).not.toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/app/card/order-card");
   });
 
   it("does nothing while auth is loading", async () => {
     useConvexAuth.mockReturnValue({ isAuthenticated: false, isLoading: true });
     const user = await openPreview();
 
-    await user.click(screen.getByRole("button", { name: "Ordering is not open yet" }));
+    await user.click(screen.getByRole("button", { name: "Continue to order" }));
 
     expect(push).not.toHaveBeenCalled();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();

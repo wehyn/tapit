@@ -1,4 +1,5 @@
 import type { CardRecord, ProfileRecord } from "@/lib/domain";
+import type { CardOrderLaunchEndDate } from "../card-ordering";
 
 import { DEFAULT_DEMO_PASSWORD_HASH } from "./password";
 
@@ -52,6 +53,68 @@ export type DemoAuditEvent = {
   after?: string;
 };
 
+export type DemoCardOrderPaymentMethod = {
+  id: string;
+  provider: string;
+  label: string;
+  accountDetails: string;
+  instructions: string;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DemoCardOrderReferralCode = {
+  id: string;
+  code: string;
+  referrerLabel: string;
+  fixedPriceCentavos?: number;
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DemoCardOrderDesignSource =
+  | {
+      kind: "upload";
+      assetKey: string;
+      fileName: string;
+      contentType: "image/jpeg" | "image/png";
+      byteSize: number;
+    }
+  | { kind: "url"; url: string };
+
+export type DemoCardOrder = {
+  id: string;
+  customerId: string;
+  quantity: 1;
+  designSource: DemoCardOrderDesignSource;
+  backDesignSource?: DemoCardOrderDesignSource;
+  deliveryName: string;
+  deliveryPhone: string;
+  deliveryAddress: string;
+  cardPriceCentavos: number;
+  discountCentavos: number;
+  shippingQuoteCentavos?: number;
+  paymentMethodId: string;
+  paymentSnapshot: {
+    provider: string;
+    label: string;
+    accountDetails: string;
+    instructions: string;
+  };
+  referralCodeId?: string;
+  referralSnapshot?: { code: string; referrerLabel: string };
+  paymentStatus: "unpaid" | "received" | "refunded";
+  fulfillmentStatus:
+    "awaiting_shipping_quote" | "awaiting_payment" | "processing" | "delivered" | "cancelled";
+  commissionStatus: "none" | "pending" | "eligible" | "paid" | "void";
+  commissionCentavos: number;
+  payoutReference?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export type DemoState = {
   customers: DemoCustomer[];
   profiles: DemoProfile[];
@@ -59,6 +122,10 @@ export type DemoState = {
   themes: Record<string, ProfileTheme>;
   theme: ProfileTheme;
   cards: DemoCard[];
+  cardOrderLaunchEndDate: CardOrderLaunchEndDate | null;
+  cardOrderPaymentMethods: DemoCardOrderPaymentMethod[];
+  cardOrderReferralCodes: DemoCardOrderReferralCode[];
+  cardOrders: DemoCardOrder[];
   analytics: AnalyticsBucket[];
   audits: DemoAuditEvent[];
   supportUrl: string;
@@ -218,6 +285,10 @@ export function createDefaultDemoState(): DemoState {
         profileId: "profile-mara",
       },
     ],
+    cardOrderLaunchEndDate: null,
+    cardOrderPaymentMethods: [],
+    cardOrderReferralCodes: [],
+    cardOrders: [],
     analytics: [
       {
         profileId: "profile-mara",

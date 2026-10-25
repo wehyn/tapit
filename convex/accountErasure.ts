@@ -241,6 +241,55 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
   if (profile !== null) return await eraseProfilePass(ctx, profile._id);
   if (await eraseAssetPass(ctx, customerId)) return true;
 
+  const orders = await ctx.db
+    .query("cardOrders")
+    .withIndex("by_scope_and_customerId_and_createdAt", (q) =>
+      q.eq("scope", customer.scope).eq("customerId", customerId),
+    )
+    .take(BATCH);
+  if (orders.length > 0) {
+    for (const order of orders) await ctx.db.delete(order._id);
+    return true;
+  }
+  const uploads = await ctx.db
+    .query("cardOrderDesignUploads")
+    .withIndex("by_ownerId_and_status", (q) => q.eq("ownerId", customerId))
+    .take(BATCH);
+  if (uploads.length > 0) {
+    for (const upload of uploads) {
+      const order = upload.orderId === undefined ? null : await ctx.db.get(upload.orderId);
+      if (
+        order !== null &&
+        ((order.designSource.kind === "upload" && order.designSource.uploadId === upload._id) ||
+          (order.backDesignSource?.kind === "upload" &&
+            order.backDesignSource.uploadId === upload._id))
+      )
+        throw new Error("A card order still references this design upload.");
+      if (upload.storageId !== undefined) {
+        const [otherUploads, metadata, inspection] = await Promise.all([
+          ctx.db
+            .query("cardOrderDesignUploads")
+            .withIndex("by_storageId", (q) => q.eq("storageId", upload.storageId))
+            .take(2),
+          ctx.db.system.get("_storage", upload.storageId),
+          inspectProfileStorage(ctx, upload.storageId, {
+            kind: "accountErasure",
+            excluded: { kind: "none" },
+          }),
+        ]);
+        if (
+          metadata !== null &&
+          metadata._creationTime >= upload.createdAt &&
+          !otherUploads.some((other) => other._id !== upload._id) &&
+          inspection.kind === "unreferenced"
+        )
+          await ctx.storage.delete(upload.storageId);
+      }
+      await ctx.db.delete(upload._id);
+    }
+    return true;
+  }
+
   const [invitations, requests, designs, accountLogs, actorLogs] = await Promise.all([
     ctx.db
       .query("invitations")
