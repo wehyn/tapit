@@ -172,6 +172,19 @@ describe("Google OAuth login", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(copy);
     expect(screen.getByRole("button", { name: "Continue with Google" })).toBeInTheDocument();
   });
+
+  it("holds a busy, disabled Google button while sign-in is in flight", async () => {
+    const LoginForm = await loadLogin();
+    signIn.mockReturnValue(new Promise(() => undefined));
+    const user = userEvent.setup();
+
+    render(<LoginForm />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+
+    const pendingButton = await screen.findByRole("button", { name: "Connecting to Google" });
+    expect(pendingButton).toHaveAttribute("aria-busy", "true");
+    expect(pendingButton).toBeDisabled();
+  });
 });
 
 describe("demo auth isolation", () => {

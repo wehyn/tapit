@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { Button } from "@/components/ui/Button";
-import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
@@ -52,19 +52,7 @@ export function GoogleLoginForm({
         ) : error ? (
           <Notice tone="error">{error}</Notice>
         ) : null}
-        <Button
-          aria-busy={pending}
-          disabled={pending}
-          onClick={() => void continueWithGoogle()}
-          type="button"
-        >
-          <Icon name="google" size={20} weight="bold" />
-          {pending
-            ? "Connecting to Google"
-            : signupIntent
-              ? "Create your profile with Google"
-              : "Continue with Google"}
-        </Button>
+        <GoogleSignInButton pending={pending} onClick={() => void continueWithGoogle()} />
         <Button
           onClick={() => {
             setPending(false);
