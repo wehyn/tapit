@@ -90,8 +90,8 @@ export const replaceDraft = mutation({
     profileId: v.id("profiles"),
     links: v.array(linkValidator),
     redirect: v.optional(profileRedirectValidator),
-    // Clients still running older code send this field; keep it declared or their saves fail.
-    featuredLinkId: v.optional(v.string()),
+    // Older clients send a string or null for this field; accept and ignore both values.
+    featuredLinkId: v.optional(v.union(v.string(), v.null())),
     expectedDraftRevision: v.number(),
   },
   returns: v.object({ updatedAt: v.number(), draftRevision: v.number() }),

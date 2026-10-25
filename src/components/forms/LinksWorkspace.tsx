@@ -2,7 +2,13 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
-import type { LinkIcon, ProfileLink, ProfileRedirect, PublicProfileProjection } from "@/lib/domain";
+import {
+  validEnabledLinks,
+  type LinkIcon,
+  type ProfileLink,
+  type ProfileRedirect,
+  type PublicProfileProjection,
+} from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
 import { displayDestination, linkKind } from "./LinkDestination";
@@ -241,9 +247,10 @@ export function LinksWorkspace({
               </p>
             )}
           </Card>
-          {redirect.enabled && Object.keys(validation).length > 0 ? (
+          {redirect.enabled &&
+          (Object.keys(validation).length > 0 || validEnabledLinks(links).length === 0) ? (
             <Notice tone="error">
-              Switch to Tapit profile to fix the highlighted links before publishing.
+              Switch to Tapit profile to fix your links before publishing.
             </Notice>
           ) : null}
           {redirect.enabled && !isDirty && hasUnpublishedChanges && pendingAction === null ? (

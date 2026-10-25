@@ -251,6 +251,24 @@ describe("content hardening", () => {
     });
   });
 
+  it("accepts links.replaceDraft calls from tabs that clear featuredLinkId with null", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await expect(
+      owner.mutation(api.links.replaceDraft, {
+        profileId: data.profileId,
+        links: [validLink("kept")],
+        featuredLinkId: null,
+        expectedDraftRevision: await draftRevision(t, data.profileId),
+      }),
+    ).resolves.toMatchObject({ draftRevision: 1 });
+    await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
+      draft: { links: [{ id: "kept" }] },
+    });
+  });
+
   it("loads legacy featuredLinkId profiles and saves them without the field", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

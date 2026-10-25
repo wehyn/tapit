@@ -35,7 +35,7 @@ test("published profile destination controls where the slug link goes", async ({
     .filter({ has: page.getByRole("textbox", { name: "Label for LinkedIn" }) });
   await expect(page.getByRole("button", { name: "Add link" })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Label for LinkedIn" })).toHaveCount(0);
-  await expect(page.getByText("Profile links are paused")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Editable profile links" })).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft" }).click();
   const redirectInput = page.getByRole("textbox", { name: "HTTPS destination URL" });
   await expect(redirectInput).toHaveAttribute("aria-invalid", "true");

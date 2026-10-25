@@ -291,7 +291,7 @@ function DemoLinksEditor() {
       setMessage({
         tone: "error",
         text: redirect.enabled
-          ? "Switch to Tapit profile to fix the highlighted links before saving the draft."
+          ? "Switch to Tapit profile to fix your links before saving the draft."
           : "Fix each highlighted link before saving the draft.",
       });
       return {
@@ -338,7 +338,7 @@ function DemoLinksEditor() {
         text:
           Object.keys(validation).length > 0
             ? redirect.enabled
-              ? "Switch to Tapit profile to fix the highlighted links before publishing."
+              ? "Switch to Tapit profile to fix your links before publishing."
               : "Fix each highlighted link before publishing."
             : publicationErrors.join(" "),
       });
@@ -514,7 +514,10 @@ export function LiveLinksEditorContent({
     }
     // Compare against the last server value we observed, not the incoming one, so a
     // redirect saved elsewhere is not mistaken for a local edit.
-    const hasLocalRedirectEdits = !areProfileRedirectsEqual(redirect, serverRedirectRef.current);
+    // A local edit already matching the incoming redirect is not a conflict.
+    const hasLocalRedirectEdits =
+      !areProfileRedirectsEqual(redirect, serverRedirectRef.current) &&
+      !areProfileRedirectsEqual(redirect, incomingRedirect);
     if (
       !hasLocalLinkEdits &&
       !hasLocalRedirectEdits &&
@@ -632,7 +635,7 @@ export function LiveLinksEditorContent({
       setMessage({
         tone: "error",
         text: redirect.enabled
-          ? "Switch to Tapit profile to fix the highlighted links before saving."
+          ? "Switch to Tapit profile to fix your links before saving."
           : "Fix each highlighted link before saving.",
       });
       return {
@@ -676,7 +679,7 @@ export function LiveLinksEditorContent({
         text:
           Object.keys(validation).length > 0
             ? redirect.enabled
-              ? "Switch to Tapit profile to fix the highlighted links before publishing."
+              ? "Switch to Tapit profile to fix your links before publishing."
               : "Fix each highlighted link before publishing."
             : publicationErrors.join(" "),
       });
