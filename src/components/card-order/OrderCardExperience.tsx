@@ -283,15 +283,16 @@ function CustomerOrderForm({
   const validationIdsRef = useRef<Record<DesignSide, number>>({ front: 0, back: 0 });
 
   useEffect(() => {
+    const previewUrls = previewUrlsRef.current;
+    const validationIds = validationIdsRef.current;
     const updateTime = () => setNow(Date.now());
     const interval = window.setInterval(updateTime, 30_000);
     return () => {
       window.clearInterval(interval);
-      validationIdsRef.current.front += 1;
-      validationIdsRef.current.back += 1;
+      validationIds.front += 1;
+      validationIds.back += 1;
       for (const side of ["front", "back"] as const) {
-        if (previewUrlsRef.current[side] !== null)
-          URL.revokeObjectURL(previewUrlsRef.current[side]!);
+        if (previewUrls[side] !== null) URL.revokeObjectURL(previewUrls[side]!);
       }
     };
   }, []);
