@@ -4,9 +4,9 @@ This is the maintained map for the first five priority journeys in Tapit's local
 
 ## Baseline preconditions
 
-- Run feature recipes with `npm run test:e2e:demo`; it starts the current checkout on `127.0.0.1:3001` with local demo mode and local storage, then stops the server it owns.
+- Run feature recipes with `npm run test:e2e:demo` (the `prove` subcommand of `../scripts/tapit-verify.sh` wraps it and keeps evidence in one run directory); it starts the current checkout on `127.0.0.1:3001` with local demo mode and local storage, then stops the server it owns.
 - Do not prestart or reuse a server on port `3001`. If that port is occupied, stop and identify the listener rather than driving an unknown instance.
-- For a standalone Doctor check or manual inspection, use the port-3000 launch command in `../SKILL.md`, refuse to reuse an occupied port, and stop that server before finishing.
+- The Doctor server on port `3000` (`../scripts/tapit-verify.sh launch`) must be stopped before any recipe runs: Next's `.next` lock makes Playwright's `3001` server fail to start otherwise. Run `../scripts/tapit-verify.sh stop` first.
 - Each Playwright test gets an isolated browser context and local demo state. Do not run the hosted-demo or live project for these recipes.
 - `README.md` documents the fictional local demo accounts: `mara@example.test` and `admin@tapit.local`, both with password `tapit-demo`. Do not use these credentials outside local demo mode.
 

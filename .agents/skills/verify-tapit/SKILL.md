@@ -1,64 +1,98 @@
 ---
 name: verify-tapit
-description: "Drive Tapit's local demo web app with Playwright to verify public profiles, customer editing, and admin flows. Use for UI behavior checks in this repository."
+description: "Drive Tapit's web app in its deterministic local demo (Next.js, browser-local storage) with Playwright to prove public profile, customer profile and links, and administrator flows. Use when asked to verify, prove, screenshot, or check a Tapit UI behavior end to end, or before reporting a web-facing change complete."
 ---
 
 # Verify Tapit in the local demo
 
-Use this skill to prove Tapit's user-facing web behavior in the deterministic local demo. It drives the app through its real pages with the repository's Playwright suite. It does not prove hosted-demo, Convex deployment, Google OAuth, Production, NFC hardware, or physical-device behavior.
+This skill proves Tapit's user-facing web behavior through its real pages, in the local demo only (`NEXT_PUBLIC_DEMO_MODE=true`, `NEXT_PUBLIC_DEMO_STORAGE=local`). The demo needs no Convex deployment, Google OAuth, email, or production data.
 
-Read [the feature map](./features/README.md) before choosing a journey. Start from the current checkout, keep the server and browser on loopback, and record which feature file and entry point were exercised.
+It does **not** prove hosted demo (Convex-backed), live/Preview/Production, Google sign-in, NFC or QR hardware, or physical-device behavior. Name the environment in every report.
+
+Read the [feature map](./features/README.md) before choosing a journey. Every command below runs from the repository root through one helper, `scripts/tapit-verify.sh`.
 
 ## Launch
 
-Tapit is a Next.js web app. The local demo is the primary repeatable surface: it uses browser-local demo state and does not need Convex, Google OAuth, email, or production data.
+Prerequisites: Node.js 22.12+ and npm 11+. If `node_modules` is missing, run `npm ci`. If Playwright reports a missing browser, run `npx playwright install chromium`.
 
-Prerequisites are Node.js 22.12 or newer and npm 11 or newer. If dependencies are absent, run `npm ci`. If Playwright reports that Chromium is missing, run `npx playwright install chromium`.
-
-Before starting, verify the port can be bound. This probe opens and immediately closes a loopback socket without changing app data:
+Start the verification server on loopback port 3000 and wait until it serves the demo home page:
 
 ```bash
-node --input-type=module -e 'import net from "node:net"; const probe=net.createServer(); probe.once("error",(error)=>{console.error(`127.0.0.1:3000 is unavailable: ${error.code}`); process.exit(1);}); probe.listen(3000,"127.0.0.1",()=>probe.close(()=>console.log("127.0.0.1:3000 is free")));'
+.claude/skills/verify-tapit/scripts/tapit-verify.sh launch
 ```
 
-If the check fails, stop and identify the listener; do not reuse a server you did not start for this verification. Start the app in its own terminal from the repository root:
+Ready means `launch` printed `ready:` and the Doctor passes. The local demo has no migration or seed step: each Playwright test gets a fresh browser context, and the fixture loads when a page opens. The helper refuses to start when `127.0.0.1:3000` is occupied; identify that listener and leave it alone.
 
-```bash
-NEXT_PUBLIC_DEMO_MODE=true NEXT_PUBLIC_DEMO_STORAGE=local npm run dev -- --hostname 127.0.0.1 --port 3000
-```
-
-Keep that terminal open. Wait for Next.js to report readiness on port `3000`, then run Doctor. The app has no database migration step in local demo mode; a fresh Playwright browser context loads the deterministic fixture when the user opens a page. Do not point local verification at hosted demo storage.
+Port 3001 is not started by `launch`. `prove` (below) starts its own server on 3001 through Playwright's `webServer`, and Playwright stops it after the run.
 
 ## Doctor
 
-Run this read-only check before driving if the server looks unhealthy, the page is unexpected, or a login journey fails. It checks that the intended loopback app is responding in demo mode and that the public and login pages are reachable:
+Run this read-only check first whenever the app looks wrong or a journey fails for no obvious reason:
 
 ```bash
-node --input-type=module -e 'const base="http://127.0.0.1:3000"; const [contract, home, login]=await Promise.all([fetch(`${base}/api/live-contract`),fetch(base),fetch(`${base}/login`)]); const mode=await contract.json(); const homeHtml=await home.text(); if(!contract.ok||mode.mode!=="demo"||!home.ok||!homeHtml.includes("Share with a tap")||!login.ok) { console.error({contractStatus:contract.status,mode:mode.mode,homeStatus:home.status,loginStatus:login.status}); process.exit(1); } console.log("Tapit local demo is ready at http://127.0.0.1:3000");'
+.claude/skills/verify-tapit/scripts/tapit-verify.sh doctor
 ```
 
-The local-contract route reports the demo mode but does not expose a commit SHA. Confirm build ownership from the launch terminal and current worktree; the port preflight plus the server started in that terminal establishes which process is being driven. Customer/admin recipes sign in through the real local demo form using the fictional credentials listed in `README.md`; if sign-in fails, stop and diagnose rather than trying live credentials.
+It exits 0 only when all of these hold:
+
+- the `launch` pidfile names a live process this helper started (ownership);
+- `/api/live-contract` reports `"mode":"demo"`;
+- `/` returns 200 and contains `Share with a tap`;
+- `/login` returns 200.
+
+A non-zero exit means stop and diagnose: read `test-results/verify-tapit/state/dev-3000.log`, or run `stop` and then `launch` again. Do not sign in with any non-demo credential to get past a failure.
 
 ## Drive
 
-Use the exact command in the feature recipe. It calls `npm run test:e2e:demo`, which sets local demo mode and local storage, then starts and owns the Playwright server on `127.0.0.1:3001` for that run. Do not prestart another server on that port or reuse a server you did not start. The port-3000 command above is for standalone Doctor checks or manual inspection; stop that server before invoking a feature recipe. Do not run the hosted-demo or live project for local feature proof.
+Run one journey at a time. `prove` refuses to run while the Doctor server on 3000 is still up, because Next allows only one dev server per checkout (`.next` lock) and Playwright's own 3001 server would fail to start. Stop the launch server first:
 
-Each feature recipe gives the exact `npm run test:e2e:demo` command, route, accessible handles, and visible end state. The cited spec is the user-action sequence; run it as written rather than editing localStorage or calling internal app functions. Use one worker so the action order and artifacts are easy to inspect.
+```bash
+.claude/skills/verify-tapit/scripts/tapit-verify.sh stop
+.claude/skills/verify-tapit/scripts/tapit-verify.sh prove "<exact test title>" <run-id>
+```
+
+`<run-id>` must be new; the helper refuses to reuse a run directory. The title comes from the feature file's `--grep` text. Each `prove` call wraps `npm run test:e2e:demo -- --grep "<title>" --workers=1 --trace=on`, so it runs one test with one worker and retains a trace. Playwright's `webServer` starts the app on 127.0.0.1:3001 with local demo mode and stops it when the run ends.
+
+The journeys are scripted user action sequences in `e2e/*.spec.ts`: they navigate by visible links, buttons, and form fields, and they assert the resulting visible state. Do not edit localStorage, call internal app functions, or add test-only endpoints to get a journey to pass. If a precondition is missing from the fixture, the test fails; record the failure and its reason in that feature's `Gotchas`, and do not weaken the test.
+
+Use `e2e/` specs as the source of truth for handles. The stable ones are accessible names (`Customer navigation`, `Add link`, `Save draft`, `Publish changes`), routes (`/app/links`, `/mara-velasquez`, `/c/mara-card-7f2q`), and visible headings. Avoid coordinates.
 
 ## Evidence
 
-Keep Playwright output under ignored `test-results/`. Use `--trace=on` for the selected journey; the trace records the browser actions and DOM snapshots around the assertions. The configured JSON reporter records the test result. When the journey's spec writes a screenshot, retain it alongside the report.
+`prove` writes everything for one run under ignored `test-results/verify-tapit/<run-id>/`:
 
-For each proof, report the feature ID, exact test title and command, URL/route, visible state, pass/fail result, trace/report paths, screenshot path if produced, and whether the evidence is ignored or tracked. A successful page load alone is not a pass: require the test's resulting-state assertions. Do not present local-demo evidence as hosted, live, accessibility certification, or device evidence.
+- `report.json`: Playwright JSON result (`stats` line printed by the helper: expected, unexpected, skipped, flaky);
+- `run.log`: the full console output of the run;
+- `artifacts/<test-folder>/trace.zip`: the Playwright trace (open with `npx playwright show-trace <path>`);
+- any `*.png` the spec wrote to `test-results/` during the run, copied into the run directory.
+
+Proof standards:
+
+- A journey passes only when its assertions on the resulting state pass. A page that loads is not a pass.
+- Exercise the real user path. Sign-in goes through the demo form with the fictional credentials in `README.md`.
+- Capture the action and its result, not only the final screen. The trace holds both.
+- Verify side effects alongside what is visible. For example, a saved draft must still be there after reload, and a publish must show on the public route.
+- Mocks are acceptable only where a production boundary already isolates the external system. The local demo already does this for storage and auth.
+- Dry-run and demo modes: verify what they skip by observing rather than trusting the name. Local demo never sends invitations, uses OAuth, or touches production; check `e2e/` assertions before claiming an email or network effect.
+
+Report, for each proof: feature ID, exact title and command, route, visible state asserted, pass/fail counts from `stats`, and the paths to `report.json`, `trace.zip`, and any screenshot. State that it is local-demo evidence.
 
 ## Cleanup
 
-The `test:e2e:demo` wrapper stops the server it starts after the Playwright run. If you also started a port-3000 server for Doctor or manual inspection, stop it with Ctrl-C in the terminal where this verification started it before invoking the recipe. Do not use process-name kills or stop a server owned by another session. Playwright closes its browser contexts after each test; demo browser data is isolated to those contexts. Keep `test-results/` intact so the trace, JSON result, and any screenshots survive cleanup.
+```bash
+.claude/skills/verify-tapit/scripts/tapit-verify.sh stop
+```
+
+`stop` signals only the process group of the dev server that `launch` recorded in `test-results/verify-tapit/state/dev-3000.pid`. It refuses to signal a group it did not start, and it never kills by process name. It deletes the pidfile and the dev log.
+
+Playwright stops its own 3001 server and closes its browser contexts at the end of each run; no cleanup is needed for it. If a run crashed and 3001 stays occupied, identify that listener with `lsof -nP -iTCP:3001 -sTCP:LISTEN` and stop only the process you can trace to this run. Confirm both ports are free afterwards.
+
+Cleanup removes instances and scratch state only. Never delete `test-results/verify-tapit/<run-id>/`; those directories are the proof and survive cleanup by design.
 
 ## Helpers
 
-This skill ships no helper scripts. The commands above invoke the app and the repository's existing Playwright harness directly.
+- `scripts/tapit-verify.sh launch | doctor | prove <title> <run-id> | stop` (executable). Usage errors print the subcommand list and exit 2.
 
 ## Maintenance
 
-Keep the feature map aligned with routes, navigation, and the selectors in `e2e/`. When a route, user entry point, demo precondition, or observable result changes, update the matching feature file and run its recipe. See `/maintain-verification-skill` for a periodic map review.
+Keep the feature map aligned with routes, navigation, and the `e2e/` titles it cites. When a title is renamed, a route moves, or a precondition changes, update the matching feature file and rerun its recipe. Use `/maintain-verification-skill` for a periodic review of the map.
