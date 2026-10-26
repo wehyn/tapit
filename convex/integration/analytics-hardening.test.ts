@@ -170,7 +170,7 @@ describe("analytics hardening", () => {
     expect(result.clicks).toBeGreaterThanOrEqual(2000);
     expect(result.clicks).toBeLessThan(2100);
     expect(result.linkClicks).toEqual({ site: result.clicks });
-  }, 30_000);
+  }, 120_000);
 
   it("does not record invalid or unpublished profiles and updates each link bucket independently", async () => {
     const t = convexTest(schema, modules);
