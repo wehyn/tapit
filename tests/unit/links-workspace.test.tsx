@@ -118,6 +118,34 @@ describe("LinksWorkspace", () => {
     ).toBeVisible();
   });
 
+  it("shows the row-level draft safety error for a nonblank disabled link", () => {
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[
+          { id: "disabled", label: "Old link", destination: "javascript:alert(1)", enabled: false },
+        ]}
+        preview={null}
+        validation={{ disabled: "Link destination is unsafe." }}
+        publicationErrors={[]}
+        message={null}
+        pendingAction={null}
+        isDirty={false}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Link destination is unsafe.")).toBeVisible();
+  });
+
   it("exposes invalid rows and a loading save state", () => {
     render(
       <LinksWorkspace

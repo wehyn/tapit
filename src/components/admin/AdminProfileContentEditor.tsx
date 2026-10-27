@@ -48,7 +48,11 @@ const linkIcons: readonly { value: LinkIcon; label: string }[] = [
 ];
 
 function getLinkError(link: ProfileLink, links: readonly ProfileLink[]): string | undefined {
-  if (!link.enabled) return undefined;
+  if (!link.enabled) {
+    return link.destination.trim()
+      ? (validateLinkDestination(link.destination) ?? undefined)
+      : undefined;
+  }
   if (!link.label.trim()) return "Add a label so visitors know where this link goes.";
   const destinationError = validateLinkDestination(link.destination);
   if (destinationError) return destinationError;
@@ -360,7 +364,7 @@ function LinksAndRedirectEditor({
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field
-                  error={getLinkError(link, draft.links)}
+                  error={link.enabled ? getLinkError(link, draft.links) : undefined}
                   id={`admin-link-label-${index}`}
                   label="Label"
                   onChange={(event) => updateLink(link.id, { label: event.target.value })}
@@ -368,7 +372,7 @@ function LinksAndRedirectEditor({
                   value={link.label}
                 />
                 <Field
-                  error={getLinkError(link, draft.links)}
+                  error={link.enabled ? getLinkError(link, draft.links) : undefined}
                   id={`admin-link-destination-${index}`}
                   label="Destination"
                   onChange={(event) => updateLink(link.id, { destination: event.target.value })}
@@ -399,6 +403,11 @@ function LinksAndRedirectEditor({
                   Enabled
                 </label>
               </div>
+              {!link.enabled && getLinkError(link, draft.links) ? (
+                <p className="text-xs font-medium text-tapit-danger" role="alert">
+                  {getLinkError(link, draft.links)}
+                </p>
+              ) : null}
             </article>
           ))}
         </div>

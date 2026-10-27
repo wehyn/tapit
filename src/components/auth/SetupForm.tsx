@@ -351,11 +351,12 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
 
 function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }) {
   const router = useRouter();
-  const { signIn } = useAuthActions();
+  const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const acceptInvitation = useMutation(api.customers.acceptInvitation);
   const [tokenHash, setTokenHash] = useState<string>();
   const [error, setError] = useState("");
+  const [wrongAccount, setWrongAccount] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const invitation = useInvitationStatus(tokenHash);
 
@@ -387,6 +388,9 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
       })
       .catch((cause) => {
         if (cancelled) return;
+        setWrongAccount(
+          cause instanceof Error && cause.message.toLowerCase().includes("does not match"),
+        );
         setError(invitationErrorCopy(cause));
         setSubmitting(false);
       });
@@ -418,6 +422,19 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
       await signIn("google", { redirectTo: `/setup/${token}` });
     } catch {
       setError("Google sign-in could not be completed. Try again.");
+      setSubmitting(false);
+    }
+  }
+
+  async function switchGoogleAccount() {
+    setSubmitting(true);
+    try {
+      await signOut();
+      setError("");
+      setWrongAccount(false);
+    } catch {
+      setError("Could not sign out. Try again to switch Google accounts.");
+    } finally {
       setSubmitting(false);
     }
   }
@@ -459,7 +476,17 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
           </p>
           {error ? <Notice tone="error">{error}</Notice> : null}
           {isAuthenticated ? (
-            <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
+            error ? (
+              <div className="grid gap-3">
+                {wrongAccount ? (
+                  <Button disabled={submitting} onClick={switchGoogleAccount} type="button">
+                    {submitting ? "Signing out…" : "Sign out and switch Google account"}
+                  </Button>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-tapit-muted">Finishing your invitation…</p>
+            )
           ) : (
             <GoogleSignInButton pending={submitting} onClick={continueWithGoogle} />
           )}

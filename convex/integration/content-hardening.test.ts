@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { api } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { DEFAULT_WARM_STUDIO_CUSTOMIZATION } from "../../src/lib/profile-customization";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
 
@@ -140,6 +141,44 @@ describe("content hardening", () => {
         expectedDraftRevision: await draftRevision(t, data.profileId),
       }),
     ).rejects.toThrow("Duplicate link IDs");
+  });
+
+  it("rejects unsafe nonblank destinations even when a link is disabled", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: data.profileId,
+        draft: validDraft([
+          { id: "disabled", label: "Old link", destination: "javascript:alert(1)", enabled: false },
+        ]),
+        expectedDraftRevision: await draftRevision(t, data.profileId),
+      }),
+    ).rejects.toThrow("Every nonblank link needs a safe destination.");
+  });
+
+  it("allows white identity text with the night theme in server draft validation", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const draft = {
+      ...validDraft(),
+      theme: "night" as const,
+      customization: {
+        ...DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+        identityColors: { name: { kind: "custom" as const, hex: "#ffffff" } },
+      },
+    };
+
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: data.profileId,
+        draft,
+        expectedDraftRevision: await draftRevision(t, data.profileId),
+      }),
+    ).resolves.toMatchObject({ draftRevision: expect.any(Number) });
   });
 
   it("rejects credential-bearing profile websites in draft validation", async () => {

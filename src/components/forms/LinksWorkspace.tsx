@@ -11,7 +11,7 @@ import {
 } from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
-import { displayDestination, linkKind } from "./LinkDestination";
+import { displayDestination, formatDestination, linkKind } from "./LinkDestination";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -418,12 +418,10 @@ export function LinksWorkspace({
                           id={`${link.id}-destination`}
                           onChange={(event) =>
                             onUpdateLink(link.id, {
-                              destination:
-                                linkKind(link.destination) === "email"
-                                  ? `mailto:${event.target.value}`
-                                  : linkKind(link.destination) === "phone"
-                                    ? `tel:${event.target.value}`
-                                    : event.target.value,
+                              destination: formatDestination(
+                                linkKind(link.destination),
+                                event.target.value,
+                              ),
                             })
                           }
                           placeholder={

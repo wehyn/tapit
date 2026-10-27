@@ -491,12 +491,21 @@ describe("Convex authentication and ownership", () => {
       tokenHash: "claim-replay",
     });
     const acceptedAt = await t.run(async (ctx) => (await ctx.db.get(invitationId))?.acceptedAt);
-    const second = await user.mutation(api.customers.acceptInvitation, {
-      tokenHash: "claim-replay",
-    });
-    expect(second).toEqual(first);
+    for (let retry = 0; retry < 5; retry += 1) {
+      const result = await user.mutation(api.customers.acceptInvitation, {
+        tokenHash: "claim-replay",
+      });
+      expect(result).toEqual(first);
+    }
     await t.run(async (ctx) => {
       expect((await ctx.db.get(invitationId))?.acceptedAt).toBe(acceptedAt);
+      const invitation = await ctx.db.get(invitationId);
+      expect(
+        await ctx.db
+          .query("auditLogs")
+          .withIndex("by_accountId", (q) => q.eq("accountId", invitation!.customerId))
+          .take(10),
+      ).toHaveLength(1);
     });
   });
 
@@ -618,40 +627,6 @@ describe("Convex authentication and ownership", () => {
     });
   });
 
-  it("rate-limits the fourth invitation claim attempt for one identity and token", async () => {
-    const t = testConvex();
-    const data = await seed(t);
-    const userId = await t.run(async (ctx) => {
-      const userId = await ctx.db.insert("users", {
-        email: "rate@example.com",
-        emailVerificationTime: 1,
-      });
-      const customerId = await ctx.db.insert("customers", {
-        email: "rate@example.com",
-        role: "customer",
-        status: "invited",
-        deletionStatus: "active",
-        createdAt: 1,
-        updatedAt: 1,
-      });
-      await ctx.db.insert("invitations", {
-        customerId,
-        email: "rate@example.com",
-        tokenHash: "rate-token",
-        createdByUserId: data.adminUserId,
-        createdAt: 1,
-      });
-      return userId;
-    });
-    const user = t.withIdentity(identity(userId));
-    for (let attempt = 0; attempt < 3; attempt += 1)
-      await user.mutation(api.customers.acceptInvitation, { tokenHash: "rate-token" });
-    await expect(
-      user.mutation(api.customers.acceptInvitation, { tokenHash: "rate-token" }),
-    ).rejects.toThrow("Too many");
-    expect(data.ownerCustomerId).toBeDefined();
-  });
-
   it("exposes pending access and completes onboarding from the server identity", async () => {
     const t = testConvex();
     const userId = await t.run(async (ctx) =>
@@ -695,6 +670,57 @@ describe("Convex authentication and ownership", () => {
       accountId: completed.customerId,
       profileId: completed.profileId,
     });
+  });
+
+  it("allows onboarding retries after completion without consuming the attempt limit or adding audits", async () => {
+    const t = testConvex();
+    const { userId, user } = await createPendingOnboardingUser(t, "onboarding-retry@example.com");
+    const completed = await user.mutation(api.customers.completeSelfServiceOnboarding, {
+      name: "Retry Person",
+    });
+    for (let retry = 0; retry < 5; retry += 1) {
+      await expect(
+        user.mutation(api.customers.completeSelfServiceOnboarding, { name: "Ignored Retry" }),
+      ).resolves.toEqual(completed);
+    }
+    await t.run(async (ctx) => {
+      const audits = await ctx.db
+        .query("auditLogs")
+        .withIndex("by_accountId", (q) => q.eq("accountId", completed.customerId))
+        .take(10);
+      expect(
+        audits.filter((entry) => entry.action === "customer.onboarding_completed"),
+      ).toHaveLength(1);
+      expect(await ctx.db.get(userId)).not.toBeNull();
+    });
+  });
+
+  it("does not let promoteUser attach an Auth user to a second customer", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await expect(
+      t.mutation(internal.bootstrap.promoteUser, {
+        userId: data.ownerUserId,
+        email: "new-address@example.com",
+      }),
+    ).rejects.toThrow("already linked to another customer");
+  });
+
+  it("uses shared slug rules when bootstrapping", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await expect(
+      t.mutation(internal.bootstrap.bootstrap, {
+        adminUserId: data.adminUserId,
+        customerUserId: data.ownerUserId,
+        adminEmail: "admin@example.com",
+        customerEmail: "owner@example.com",
+        customerSlug: "admin",
+        publishedBio: "Owner bootstrap bio",
+        cardUrl: "https://tapit.test/c/bootstrap-reserved-token",
+        cardToken: "bootstrap-reserved-token",
+      }),
+    ).rejects.toThrow("reserved");
   });
 
   it("keeps invitation status reusable after acceptance and reports explicit states", async () => {
