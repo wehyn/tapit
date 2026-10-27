@@ -1,4 +1,6 @@
 import { v } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
@@ -16,13 +18,17 @@ import {
 } from "../src/lib/card-ordering";
 
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
+const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
 const paymentFields = v.object({
   provider: v.string(),
   label: v.string(),
   accountDetails: v.string(),
   instructions: v.string(),
 });
-const customerPayment = paymentFields.extend({ _id: v.id("cardOrderPaymentMethods") });
+const customerPayment = paymentFields.extend({
+  _id: v.id("cardOrderPaymentMethods"),
+  qrUrl: v.union(v.string(), v.null()),
+});
 
 export async function activeOrderCustomer(ctx: QueryCtx | MutationCtx) {
   const userId = await requireUser(ctx);
@@ -47,6 +53,18 @@ function requiredText(value: string, label: string, max: number) {
   return trimmed;
 }
 
+async function paymentQrUrl(
+  ctx: QueryCtx,
+  scope: Doc<"cardOrderPaymentMethods">["scope"],
+  uploadId: Doc<"cardOrderPaymentMethods">["qrUploadId"],
+) {
+  if (uploadId === undefined) return null;
+  const upload = await ctx.db.get(uploadId);
+  return upload?.storageId === undefined || upload.scope !== scope
+    ? null
+    : await ctx.storage.getUrl(upload.storageId);
+}
+
 export const adminSettings = query({
   args: {},
   returns: v.object({
@@ -59,51 +77,152 @@ export const adminSettings = query({
         accountDetails: v.string(),
         instructions: v.string(),
         active: v.boolean(),
-      }),
-    ),
-    referralCodes: v.array(
-      v.object({
-        _id: v.id("cardOrderReferralCodes"),
-        code: v.string(),
-        referrerLabel: v.string(),
-        fixedPriceCentavos: v.optional(v.number()),
-        active: v.boolean(),
+        qrUrl: v.union(v.string(), v.null()),
       }),
     ),
   }),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
-    const [date, payments, referrals] = await Promise.all([
+    const [date, payments] = await Promise.all([
       launchEndDate(ctx, account),
       ctx.db
         .query("cardOrderPaymentMethods")
         .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
         .take(500),
-      ctx.db
-        .query("cardOrderReferralCodes")
-        .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
-        .take(500),
     ]);
     return {
       launchEndDate: date,
-      paymentMethods: payments.map(
-        ({ _id, provider, label, accountDetails, instructions, active }) => ({
-          _id,
-          provider,
-          label,
-          accountDetails,
-          instructions,
-          active,
-        }),
+      paymentMethods: await Promise.all(
+        payments.map(
+          async ({ _id, provider, label, accountDetails, instructions, active, qrUploadId }) => ({
+            _id,
+            provider,
+            label,
+            accountDetails,
+            instructions,
+            active,
+            qrUrl: await paymentQrUrl(ctx, account.scope, qrUploadId),
+          }),
+        ),
       ),
-      referralCodes: referrals.map(({ _id, code, referrerLabel, fixedPriceCentavos, active }) => ({
-        _id,
-        code,
-        referrerLabel,
-        ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
-        active,
-      })),
     };
+  },
+});
+
+export const adminReferralCodes = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("cardOrderReferralCodes"),
+      code: v.string(),
+      referrerLabel: v.string(),
+      fixedPriceCentavos: v.optional(v.number()),
+      active: v.boolean(),
+      usageCount: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const { account } = await requireAdministrator(ctx);
+    const codes = await ctx.db
+      .query("cardOrderReferralCodes")
+      .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
+      .take(500);
+    return codes.map(({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount }) => ({
+      _id,
+      code,
+      referrerLabel,
+      fixedPriceCentavos,
+      active,
+      usageCount: usageCount ?? 0,
+    }));
+  },
+});
+
+export const startReferralUsageBackfill = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const existing = await ctx.db
+      .query("settings")
+      .withIndex("by_scope_and_key", (q) =>
+        q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
+      )
+      .first();
+    if (existing !== null) return null;
+    await ctx.db.insert("settings", {
+      scope: account.scope,
+      key: REFERRAL_USAGE_BACKFILL_KEY,
+      value: "started",
+      updatedAt: Date.now(),
+      updatedByUserId: userId,
+    });
+    await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
+      cursor: null,
+    });
+    return null;
+  },
+});
+
+const referralUsageItem = v.object({
+  date: v.number(),
+  orderId: v.id("cardOrders"),
+  customerName: v.optional(v.string()),
+  customerEmail: v.optional(v.string()),
+  paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
+  fulfillmentStatus: v.union(
+    v.literal("awaiting_shipping_quote"),
+    v.literal("awaiting_payment"),
+    v.literal("processing"),
+    v.literal("delivered"),
+    v.literal("cancelled"),
+  ),
+  commissionStatus: v.union(
+    v.literal("none"),
+    v.literal("pending"),
+    v.literal("eligible"),
+    v.literal("paid"),
+    v.literal("void"),
+  ),
+});
+
+export const adminReferralCodeUsage = query({
+  args: { codeId: v.id("cardOrderReferralCodes"), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(referralUsageItem),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    if (
+      !Number.isSafeInteger(args.paginationOpts.numItems) ||
+      args.paginationOpts.numItems < 1 ||
+      args.paginationOpts.numItems > 100
+    )
+      throw new Error("Page size must be 1–100.");
+    const code = await ctx.db.get(args.codeId);
+    if (code === null || !sameScope(account, code)) throw new Error("Referral code unavailable.");
+    const page = await ctx.db
+      .query("cardOrders")
+      .withIndex("by_scope_and_referralCodeId_and_createdAt", (q) =>
+        q.eq("scope", account.scope).eq("referralCodeId", code._id),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const items = await Promise.all(
+      page.page.map(async (order) => {
+        const customer = await ctx.db.get(order.customerId);
+        return {
+          date: order.createdAt,
+          orderId: order._id,
+          ...(customer?.onboardingName === undefined
+            ? {}
+            : { customerName: customer.onboardingName }),
+          ...(customer?.email === undefined ? {} : { customerEmail: customer.email }),
+          paymentStatus: order.paymentStatus,
+          fulfillmentStatus: order.fulfillmentStatus,
+          commissionStatus: order.commissionStatus,
+        };
+      }),
+    );
+    return { ...page, page: items };
   },
 });
 
@@ -124,13 +243,18 @@ export const customerSettings = query({
     ]);
     return {
       launchEndDate: date,
-      paymentMethods: payments.map(({ _id, provider, label, accountDetails, instructions }) => ({
-        _id,
-        provider,
-        label,
-        accountDetails,
-        instructions,
-      })),
+      paymentMethods: await Promise.all(
+        payments.map(
+          async ({ _id, provider, label, accountDetails, instructions, qrUploadId }) => ({
+            _id,
+            provider,
+            label,
+            accountDetails,
+            instructions,
+            qrUrl: await paymentQrUrl(ctx, customer.scope, qrUploadId),
+          }),
+        ),
+      ),
     };
   },
 });
@@ -286,6 +410,7 @@ export const saveReferralCode = mutation({
     code: v.string(),
     referrerLabel: v.string(),
     fixedPriceCentavos: v.optional(v.number()),
+    active: v.boolean(),
   },
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
@@ -316,7 +441,7 @@ export const saveReferralCode = mutation({
             code,
             referrerLabel,
             fixedPriceCentavos: args.fixedPriceCentavos,
-            active: true,
+            active: args.active,
             createdAt: now,
             updatedAt: now,
             updatedByUserId: userId,
@@ -327,6 +452,7 @@ export const saveReferralCode = mutation({
         code,
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
+        active: args.active,
         updatedAt: now,
         updatedByUserId: userId,
       });
@@ -343,6 +469,7 @@ export const saveReferralCode = mutation({
         code,
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
+        active: args.active,
       }),
     });
     return id;
@@ -369,6 +496,32 @@ export const deactivateReferralCode = mutation({
       before: JSON.stringify(existing),
       after: JSON.stringify({ ...existing, active: false }),
     });
+    return null;
+  },
+});
+
+export const activateReferralCode = mutation({
+  args: { id: v.id("cardOrderReferralCodes") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (existing === null || !sameScope(account, existing))
+      throw new Error("Referral code unavailable.");
+    if (!existing.active) {
+      const now = Date.now();
+      await ctx.db.patch(args.id, { active: true, updatedAt: now, updatedByUserId: userId });
+      await ctx.db.insert("auditLogs", {
+        scope: account.scope,
+        actorUserId: userId,
+        actorLabel: "Administrator",
+        action: "card_order.referral_code_activated",
+        accountId: account._id,
+        occurredAt: now,
+        before: JSON.stringify(existing),
+        after: JSON.stringify({ ...existing, active: true }),
+      });
+    }
     return null;
   },
 });

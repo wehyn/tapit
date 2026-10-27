@@ -38,6 +38,7 @@ describe("workspace navigation model", () => {
       "Customers",
       "Profiles",
       "Cards",
+      "Codes",
     ]);
     expect(navItemsFor("admin", "sidebar").some((item) => item.href.startsWith("/app/"))).toBe(
       false,
