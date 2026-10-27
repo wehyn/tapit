@@ -36,6 +36,7 @@ import type * as crons from "../crons.js";
 import type * as customers from "../customers.js";
 import type * as demo from "../demo.js";
 import type * as http from "../http.js";
+import type * as invitationAcceptance from "../invitationAcceptance.js";
 import type * as invitations from "../invitations.js";
 import type * as links from "../links.js";
 import type * as profileAccess from "../profileAccess.js";
@@ -93,6 +94,7 @@ declare const fullApi: ApiFromModules<{
   customers: typeof customers;
   demo: typeof demo;
   http: typeof http;
+  invitationAcceptance: typeof invitationAcceptance;
   invitations: typeof invitations;
   links: typeof links;
   profileAccess: typeof profileAccess;

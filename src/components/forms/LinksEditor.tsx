@@ -170,7 +170,13 @@ function DemoLinksEditor() {
     const errors: Record<string, string> = {};
     const destinations = new Map<string, string>();
     for (const link of links) {
-      if (!link.enabled) continue;
+      if (!link.enabled) {
+        if (link.destination.trim()) {
+          const destinationError = validateLinkDestination(link.destination);
+          if (destinationError) errors[link.id] = destinationError;
+        }
+        continue;
+      }
       if (!link.label.trim()) {
         errors[link.id] = "Add a label so visitors know where this link goes.";
       } else {
@@ -482,7 +488,13 @@ export function LiveLinksEditorContent({
   const validation = useMemo(() => {
     const seen = new Set<string>();
     return currentDraft.links.reduce<Record<string, string>>((result, link) => {
-      if (!link.enabled) return result;
+      if (!link.enabled) {
+        if (link.destination.trim()) {
+          const destinationError = validateLinkDestination(link.destination);
+          if (destinationError) result[link.id] = destinationError;
+        }
+        return result;
+      }
       const key = link.destination.trim().toLowerCase();
       if (!link.label.trim())
         result[link.id] = "Add a label so visitors know where this link goes.";

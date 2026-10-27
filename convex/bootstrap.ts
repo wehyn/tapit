@@ -2,6 +2,7 @@ import { v } from "convex/values";
 
 import { env, internalMutation } from "./_generated/server";
 import { ensureAdminPersonalProfile } from "./adminProfile";
+import { normalizeProfileSlug, validateProfileSlugValue } from "./validators";
 
 const emailArg = v.string();
 
@@ -12,9 +13,9 @@ function normalizeEmail(email: string): string {
 }
 
 function validateSlug(slug: string): string {
-  const normalized = slug.trim().toLowerCase();
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized))
-    throw new Error("The bootstrap profile slug is invalid.");
+  const normalized = normalizeProfileSlug(slug);
+  const error = validateProfileSlugValue(normalized);
+  if (error !== null) throw new Error(error);
   return normalized;
 }
 
@@ -31,6 +32,12 @@ export const promoteUser = internalMutation({
       .query("customers")
       .withIndex("by_email", (query) => query.eq("email", email))
       .unique();
+    const userCustomer = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (query) => query.eq("userId", args.userId))
+      .unique();
+    if (userCustomer !== null && userCustomer._id !== existing?._id)
+      throw new Error("That authenticated user is already linked to another customer.");
     if (existing !== null && existing.userId !== undefined && existing.userId !== args.userId)
       throw new Error("That email is already linked to another authenticated user.");
     if (existing !== null && existing.scope !== undefined && existing.scope !== scope)

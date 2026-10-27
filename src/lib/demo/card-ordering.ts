@@ -3,6 +3,9 @@
 import {
   calculateCommissionCentavos,
   calculateReferralDiscountForPriceCentavos,
+  cardOrderAmountCentavos,
+  type CardOrderPlacementResult,
+  type CardOrderPrice,
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
   isValidReferralFixedPriceCentavos,
@@ -34,7 +37,16 @@ type PlaceOrderInput = {
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
+  /** Comparison precondition only; never persisted. */
+  expectedCardAmountCentavos: number;
 };
+
+/** Private signal that unwinds the locked commit before any order state is written. */
+class DemoCardOrderPriceChanged extends Error {
+  constructor(readonly price: CardOrderPrice) {
+    super("The card price changed.");
+  }
+}
 
 function activeAccount(state: DemoState, role: "customer" | "admin") {
   const access = resolveDemoSessionAccess(state, getDemoSession());
@@ -398,7 +410,15 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
   };
 }
 
-export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string> {
+export async function placeDemoCardOrder(
+  input: PlaceOrderInput,
+): Promise<CardOrderPlacementResult> {
+  if (
+    !Number.isSafeInteger(input.expectedCardAmountCentavos) ||
+    input.expectedCardAmountCentavos < 0
+  ) {
+    throw new Error("Expected card amount must be non-negative integer centavos.");
+  }
   const state = currentOrderState();
   const customer = activeOrderAccount(state);
   const frontSource = validateDesignSource(input.designSource);
@@ -450,6 +470,14 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
     }
     const now = Date.now();
     const cardPriceCentavos = getCardPriceCentavos(current.cardOrderLaunchEndDate, now);
+    const discountCentavos = referral
+      ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
+      : 0;
+    // Same rule as the live mutation: nothing is written unless the reviewed amount still holds.
+    const price = { cardPriceCentavos, discountCentavos };
+    if (cardOrderAmountCentavos(price) !== input.expectedCardAmountCentavos) {
+      throw new DemoCardOrderPriceChanged(price);
+    }
     const order: DemoCardOrder = {
       id,
       customerId: owner.id,
@@ -460,9 +488,7 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       deliveryPhone,
       deliveryAddress,
       cardPriceCentavos,
-      discountCentavos: referral
-        ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
-        : 0,
+      discountCentavos,
       paymentMethodId: payment.id,
       paymentSnapshot: {
         provider: payment.provider,
@@ -493,9 +519,18 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       updateDemoState(updateOrder);
       return id;
     });
-  return uploads.length > 0
-    ? withDemoCardOrderAssetReservation(uploads, id, customer.id, persistOrder)
-    : persistOrder();
+  try {
+    const orderId =
+      uploads.length > 0
+        ? await withDemoCardOrderAssetReservation(uploads, id, customer.id, persistOrder)
+        : await persistOrder();
+    return { kind: "created", orderId };
+  } catch (error) {
+    // Reached only after the reservation's exception path has released temporary artwork.
+    if (error instanceof DemoCardOrderPriceChanged)
+      return { kind: "price_changed", price: error.price };
+    throw error;
+  }
 }
 
 export function getMyDemoCardOrders() {

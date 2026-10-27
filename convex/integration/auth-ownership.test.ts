@@ -363,7 +363,7 @@ describe("Convex authentication and ownership", () => {
       ctx.db.insert("users", { email: "claimant@example.com", emailVerificationTime: 1 }),
     );
     await expect(
-      t.withIdentity(identity(userId)).mutation(api.customers.acceptInvitation, {
+      t.withIdentity(identity(userId)).action(api.customers.acceptInvitation, {
         tokenHash: "admin-target-token",
       }),
     ).rejects.toThrow("unavailable");
@@ -487,17 +487,80 @@ describe("Convex authentication and ownership", () => {
       });
     });
     const user = t.withIdentity(identity(claimantId));
-    const first = await user.mutation(api.customers.acceptInvitation, {
+    const first = await user.action(api.customers.acceptInvitation, {
       tokenHash: "claim-replay",
     });
     const acceptedAt = await t.run(async (ctx) => (await ctx.db.get(invitationId))?.acceptedAt);
-    const second = await user.mutation(api.customers.acceptInvitation, {
-      tokenHash: "claim-replay",
-    });
-    expect(second).toEqual(first);
+    for (let retry = 0; retry < 5; retry += 1) {
+      const result = await user.action(api.customers.acceptInvitation, {
+        tokenHash: "claim-replay",
+      });
+      expect(result).toEqual(first);
+    }
     await t.run(async (ctx) => {
       expect((await ctx.db.get(invitationId))?.acceptedAt).toBe(acceptedAt);
+      const invitation = await ctx.db.get(invitationId);
+      expect(
+        await ctx.db
+          .query("auditLogs")
+          .withIndex("by_accountId", (q) => q.eq("accountId", invitation!.customerId))
+          .take(10),
+      ).toHaveLength(1);
     });
+  });
+
+  it("rate-limits the fourth verified-email mismatch for one identity and invitation", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const { userId } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", {
+        email: "wrong-email@example.com",
+        emailVerificationTime: 1,
+      });
+      const customerId = await ctx.db.insert("customers", {
+        email: "invited-email@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.insert("invitations", {
+        customerId,
+        email: "invited-email@example.com",
+        tokenHash: "mismatch-rate-token",
+        createdByUserId: data.adminUserId,
+        createdAt: 1,
+      });
+      return { userId };
+    });
+    const user = t.withIdentity(identity(userId));
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(
+        user.action(api.customers.acceptInvitation, { tokenHash: "mismatch-rate-token" }),
+      ).rejects.toThrow("does not match");
+    }
+    await expect(
+      user.action(api.customers.acceptInvitation, { tokenHash: "mismatch-rate-token" }),
+    ).rejects.toThrow("Too many invitation attempts.");
+  });
+
+  it("rate-limits invalid invitation attempts across distinct token hashes for one identity", async () => {
+    const t = testConvex();
+    const userId = await t.run(async (ctx) =>
+      ctx.db.insert("users", { email: "claimant@example.com", emailVerificationTime: 1 }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    for (const tokenHash of ["bogus-1", "bogus-2", "bogus-3"]) {
+      await expect(user.action(api.customers.acceptInvitation, { tokenHash })).rejects.toThrow(
+        "invalid or expired",
+      );
+    }
+    await expect(
+      user.action(api.customers.acceptInvitation, { tokenHash: "bogus-4" }),
+    ).rejects.toThrow("Too many invitation attempts.");
   });
 
   it("rejects mismatched, revoked, expired, and already-linked invitation claims", async () => {
@@ -509,14 +572,14 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(wrongId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
     ).rejects.toThrow("does not match");
     await t.withIdentity(identity(data.adminUserId)).mutation(api.invitations.revoke, {
       invitationId: data.invitationId,
     });
     const owner = t.withIdentity(identity(data.ownerUserId));
     await expect(
-      owner.mutation(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
+      owner.action(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
     ).rejects.toThrow("invalid");
     const expiredId = await t.run(async (ctx) => {
       const customerId = await ctx.db.insert("customers", {
@@ -542,7 +605,7 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(expiredUserId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "expired-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "expired-token" }),
     ).rejects.toThrow("invalid");
     expect(expiredId).toBeDefined();
     const linkedId = await t.run(async (ctx) =>
@@ -578,7 +641,7 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(linkedId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "already-linked-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "already-linked-token" }),
     ).rejects.toThrow("already linked");
   });
 
@@ -616,40 +679,6 @@ describe("Convex authentication and ownership", () => {
         expect.arrayContaining([expect.objectContaining({ action: "customer.role_changed" })]),
       );
     });
-  });
-
-  it("rate-limits the fourth invitation claim attempt for one identity and token", async () => {
-    const t = testConvex();
-    const data = await seed(t);
-    const userId = await t.run(async (ctx) => {
-      const userId = await ctx.db.insert("users", {
-        email: "rate@example.com",
-        emailVerificationTime: 1,
-      });
-      const customerId = await ctx.db.insert("customers", {
-        email: "rate@example.com",
-        role: "customer",
-        status: "invited",
-        deletionStatus: "active",
-        createdAt: 1,
-        updatedAt: 1,
-      });
-      await ctx.db.insert("invitations", {
-        customerId,
-        email: "rate@example.com",
-        tokenHash: "rate-token",
-        createdByUserId: data.adminUserId,
-        createdAt: 1,
-      });
-      return userId;
-    });
-    const user = t.withIdentity(identity(userId));
-    for (let attempt = 0; attempt < 3; attempt += 1)
-      await user.mutation(api.customers.acceptInvitation, { tokenHash: "rate-token" });
-    await expect(
-      user.mutation(api.customers.acceptInvitation, { tokenHash: "rate-token" }),
-    ).rejects.toThrow("Too many");
-    expect(data.ownerCustomerId).toBeDefined();
   });
 
   it("exposes pending access and completes onboarding from the server identity", async () => {
@@ -695,6 +724,57 @@ describe("Convex authentication and ownership", () => {
       accountId: completed.customerId,
       profileId: completed.profileId,
     });
+  });
+
+  it("allows onboarding retries after completion without consuming the attempt limit or adding audits", async () => {
+    const t = testConvex();
+    const { userId, user } = await createPendingOnboardingUser(t, "onboarding-retry@example.com");
+    const completed = await user.mutation(api.customers.completeSelfServiceOnboarding, {
+      name: "Retry Person",
+    });
+    for (let retry = 0; retry < 5; retry += 1) {
+      await expect(
+        user.mutation(api.customers.completeSelfServiceOnboarding, { name: "Ignored Retry" }),
+      ).resolves.toEqual(completed);
+    }
+    await t.run(async (ctx) => {
+      const audits = await ctx.db
+        .query("auditLogs")
+        .withIndex("by_accountId", (q) => q.eq("accountId", completed.customerId))
+        .take(10);
+      expect(
+        audits.filter((entry) => entry.action === "customer.onboarding_completed"),
+      ).toHaveLength(1);
+      expect(await ctx.db.get(userId)).not.toBeNull();
+    });
+  });
+
+  it("does not let promoteUser attach an Auth user to a second customer", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await expect(
+      t.mutation(internal.bootstrap.promoteUser, {
+        userId: data.ownerUserId,
+        email: "new-address@example.com",
+      }),
+    ).rejects.toThrow("already linked to another customer");
+  });
+
+  it("uses shared slug rules when bootstrapping", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    await expect(
+      t.mutation(internal.bootstrap.bootstrap, {
+        adminUserId: data.adminUserId,
+        customerUserId: data.ownerUserId,
+        adminEmail: "admin@example.com",
+        customerEmail: "owner@example.com",
+        customerSlug: "admin",
+        publishedBio: "Owner bootstrap bio",
+        cardUrl: "https://tapit.test/c/bootstrap-reserved-token",
+        cardToken: "bootstrap-reserved-token",
+      }),
+    ).rejects.toThrow("reserved");
   });
 
   it("keeps invitation status reusable after acceptance and reports explicit states", async () => {

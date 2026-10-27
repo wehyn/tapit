@@ -382,6 +382,44 @@ describe("LinksEditor controller boundaries", () => {
     expect(saveMutation).not.toHaveBeenCalled();
   });
 
+  it("surfaces unsafe nonblank disabled links before saving the draft", async () => {
+    const user = userEvent.setup();
+    saveMutation.mockClear();
+    render(
+      createElement(LiveLinksEditorContent, {
+        profile: {
+          _id: "profile-1",
+          _creationTime: 1,
+          ownerId: "customer-1",
+          status: "draft",
+          draftRevision: 4,
+          draft: {
+            name: "Mara Velasquez",
+            slug: "mara-velasquez",
+            links: [
+              {
+                id: "disabled",
+                label: "Old link",
+                destination: "javascript:alert(1)",
+                enabled: false,
+              },
+            ],
+          },
+          createdAt: 1,
+          updatedAt: 1,
+        } as never,
+      }),
+    );
+
+    expect(
+      screen.getByText("Link destination must be a valid HTTPS, mailto, or tel address."),
+    ).toBeVisible();
+    await user.type(screen.getByRole("textbox", { name: "Label for Old link" }), " updated");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByText("Fix each highlighted link before saving.")).toBeVisible();
+    expect(saveMutation).not.toHaveBeenCalled();
+  });
+
   it("shows how to fix empty links when redirect is enabled and publishing is blocked", () => {
     const profile = {
       _id: "profile-1",
