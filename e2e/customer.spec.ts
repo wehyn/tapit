@@ -348,7 +348,7 @@ test("sign out stays blocked while a link draft has a validation error", async (
   await page.goto("/app/links");
 
   const destination = page.getByLabel("Destination for LinkedIn");
-  await destination.fill("not-a-url");
+  await destination.fill("javascript:alert(1)");
   await expect(
     page.getByText("Link destination must be a valid HTTPS, mailto, or tel address."),
   ).toBeVisible();
@@ -356,7 +356,7 @@ test("sign out stays blocked while a link draft has a validation error", async (
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await expect(page).toHaveURL(/\/app\/links$/);
-  await expect(destination).toHaveValue("not-a-url");
+  await expect(destination).toHaveValue("javascript:alert(1)");
   await expect(
     page
       .getByRole("alert")
