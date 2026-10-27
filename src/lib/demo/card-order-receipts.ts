@@ -96,7 +96,6 @@ async function validate(file: File) {
 export async function attachDemoCardOrderReceipt(orderId: string, file: File): Promise<Receipt> {
   const before = current();
   const owner = before.account;
-  if (owner.role !== "customer") throw new Error("Active customer account required.");
   const order = before.state.cardOrders.find(
     (item) => item.id === orderId && item.customerId === owner.id,
   );
@@ -116,8 +115,7 @@ export async function attachDemoCardOrderReceipt(orderId: string, file: File): P
     await withDemoCardOrderCommitLock(async () => {
       const latest = current();
       const live = latest.state.cardOrders.find((item) => item.id === orderId);
-      if (latest.account.role !== "customer" || latest.account.id !== owner.id)
-        throw new Error("Customer session changed. Try again.");
+      if (latest.account.id !== owner.id) throw new Error("Account session changed. Try again.");
       if (
         !live ||
         live.customerId !== owner.id ||
@@ -138,12 +136,8 @@ export async function attachDemoCardOrderReceipt(orderId: string, file: File): P
           candidate?.customerId === owner.id &&
           candidate.paymentStatus === "unpaid" &&
           candidate.fulfillmentStatus === "awaiting_payment";
-        if (
-          active.kind !== "active" ||
-          active.account.role !== "customer" ||
-          active.account.id !== owner.id
-        ) {
-          throw new Error("Customer session changed. Try again.");
+        if (active.kind !== "active" || active.account.id !== owner.id) {
+          throw new Error("Account session changed. Try again.");
         }
         if (!canAttach(stateOrder) || !canAttach(persistedOrder)) {
           throw new Error(

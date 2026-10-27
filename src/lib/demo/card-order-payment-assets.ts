@@ -189,23 +189,23 @@ export async function readDemoPaymentMethodQr(methodId: string): Promise<Blob | 
 
 export async function readDemoActivePaymentQr(methodId: string): Promise<Blob | null> {
   const initial = access();
-  if (initial.account.role !== "customer") throw new Error("Active customer account required.");
+  const role = initial.account.role;
   const method = initial.state.cardOrderPaymentMethods.find(
     (item) => item.id === methodId && item.active,
   );
   return method?.qrAssetKey
-    ? readAuthorizedQr(method.qrAssetKey, initial.account.id, "customer", undefined, methodId)
+    ? readAuthorizedQr(method.qrAssetKey, initial.account.id, role, undefined, methodId)
     : null;
 }
 
 export async function readDemoOrderPaymentQr(orderId: string): Promise<Blob | null> {
   const initial = access();
-  if (initial.account.role !== "customer") throw new Error("Active customer account required.");
+  const role = initial.account.role;
   const order = initial.state.cardOrders.find(
     (item) => item.id === orderId && item.customerId === initial.account.id,
   );
   return order?.paymentSnapshot.qrAssetKey
-    ? readAuthorizedQr(order.paymentSnapshot.qrAssetKey, initial.account.id, "customer", orderId)
+    ? readAuthorizedQr(order.paymentSnapshot.qrAssetKey, initial.account.id, role, orderId)
     : null;
 }
 

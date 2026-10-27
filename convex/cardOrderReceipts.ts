@@ -9,7 +9,7 @@ import {
   type MutationCtx,
 } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { activeOrderCustomer } from "./cardOrderSettings";
+import { activeOrderAccount } from "./cardOrderSettings";
 import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
 
 const INTENT_TTL_MS = 60 * 60 * 1000;
@@ -76,7 +76,7 @@ export const createUploadIntent = mutation({
   args: { orderId: v.id("cardOrders") },
   returns: v.id("cardOrderReceiptUploads"),
   handler: async (ctx, { orderId }) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const order = await ctx.db.get(orderId);
     if (
       order === null ||
@@ -102,7 +102,7 @@ export const attach = mutation({
   args: { orderId: v.id("cardOrders"), uploadId: v.id("cardOrderReceiptUploads") },
   returns: v.null(),
   handler: async (ctx, { orderId, uploadId }) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const [order, upload] = await Promise.all([ctx.db.get(orderId), ctx.db.get(uploadId)]);
     if (
       order === null ||
@@ -143,7 +143,7 @@ export const customerReceiptUrl = query({
   args: { orderId: v.id("cardOrders") },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, { orderId }) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const order = await ctx.db.get(orderId);
     if (order === null || order.customerId !== customer._id || !sameScope(customer, order))
       throw new Error("Order unavailable.");
@@ -189,7 +189,6 @@ export const prepareUpload = internalMutation({
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (
       customer === null ||
-      customer.role !== "customer" ||
       !isActiveCustomer(customer) ||
       upload === null ||
       order === null ||
@@ -227,7 +226,6 @@ export const checkUploadIntent = internalQuery({
     const order = upload === null ? null : await ctx.db.get(upload.orderId);
     if (
       customer === null ||
-      customer.role !== "customer" ||
       !isActiveCustomer(customer) ||
       upload === null ||
       order === null ||

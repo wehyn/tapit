@@ -114,15 +114,14 @@ function LocalDemoOrderExperience() {
     methods: Record<string, string>;
     orders: Record<string, string>;
   }>({ accountId: "", methods: {}, orders: {} });
-  const customerId =
-    access.kind === "active" && access.account.role === "customer" ? access.account.id : null;
+  const orderAccountId = access.kind === "active" ? access.account.id : null;
 
   useEffect(() => {
-    if (customerId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
-  }, [customerId]);
+    if (orderAccountId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
+  }, [orderAccountId]);
 
   useEffect(() => {
-    if (customerId === null) return;
+    if (orderAccountId === null) return;
     let active = true;
     const urls: string[] = [];
     const load = async (read: () => Promise<Blob | null>) => {
@@ -153,7 +152,7 @@ function LocalDemoOrderExperience() {
     ]).then(([methods, savedOrders]) => {
       if (active)
         setQrUrls({
-          accountId: customerId,
+          accountId: orderAccountId,
           methods: Object.fromEntries(
             methods.filter((entry): entry is readonly [string, string] => entry[1] !== null),
           ),
@@ -166,7 +165,7 @@ function LocalDemoOrderExperience() {
       active = false;
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [state, session, customerId]);
+  }, [state, session, orderAccountId]);
 
   if (access.kind !== "active") return <AuthLoadingState />;
 
