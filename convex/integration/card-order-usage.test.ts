@@ -165,10 +165,18 @@ describe("card order referral usage", () => {
   it("denies an unrelated customer access to the referral usage view", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
     const unrelated = t.withIdentity(identity(ids.unrelatedUserId));
+    const args = {
+      codeId: ids.codeId,
+      paginationOpts: { numItems: 20, cursor: null },
+    };
 
     await expect(
-      unrelated.query(api.cardOrderSettings.adminReferralCodeUsage, { codeId: ids.codeId }),
-    ).rejects.toThrow();
+      admin.query(api.cardOrderSettings.adminReferralCodeUsage, args),
+    ).resolves.toMatchObject({ page: [], isDone: true });
+    await expect(
+      unrelated.query(api.cardOrderSettings.adminReferralCodeUsage, args),
+    ).rejects.toThrow("Administrator permission required.");
   });
 });

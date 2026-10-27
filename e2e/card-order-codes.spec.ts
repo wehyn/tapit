@@ -108,15 +108,27 @@ test("administrator manages codes and reviews submitted-order usage without deli
   await activeRow.getByRole("button", { name: "Activate", exact: true }).click();
   await expect(activeRow.getByText("Active", { exact: true })).toBeVisible();
 
-  for (const code of ["ACTIVE-HISTORY", "INACTIVE-HISTORY"]) {
+  for (const { code, orderId, absentOrderId } of [
+    {
+      code: "ACTIVE-HISTORY",
+      orderId: "usage-order-unpaid",
+      absentOrderId: "usage-order-refunded",
+    },
+    {
+      code: "INACTIVE-HISTORY",
+      orderId: "usage-order-refunded",
+      absentOrderId: "usage-order-unpaid",
+    },
+  ]) {
     const row = codeRow(code);
     await expect(row).toHaveCount(1);
     await row.getByRole("button", { name: `View usage for ${code}`, exact: true }).click();
     const usage = page.getByRole("dialog", { name: `${code} usage` });
     await expect(usage.getByText("History Customer", { exact: true })).toBeVisible();
-    await expect(usage.getByText(/usage-order-(unpaid|refunded)/)).toBeVisible();
-    await expect(usage.getByText("99 Private Delivery Lane", { exact: true })).toHaveCount(0);
-    await expect(usage.getByText("09171234567", { exact: true })).toHaveCount(0);
+    await expect(usage).toContainText(orderId);
+    await expect(usage).not.toContainText(absentOrderId);
+    await expect(usage).not.toContainText("99 Private Delivery Lane");
+    await expect(usage).not.toContainText("09171234567");
     await usage.getByRole("button", { name: "Close", exact: true }).click();
   }
 });
