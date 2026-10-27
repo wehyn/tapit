@@ -230,12 +230,44 @@ function CardDetail({
   status: string;
   token: string;
 }) {
+  const [copyMessage, setCopyMessage] = useState<{
+    tone: "success" | "error";
+    text: string;
+    url?: string;
+  } | null>(null);
+
+  async function copyCardLink() {
+    const url = cardUrlFromToken(token);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyMessage({ tone: "success", text: "Card link copied." });
+    } catch {
+      setCopyMessage({
+        tone: "error",
+        text: "Clipboard access failed. Copy this URL manually: ",
+        url,
+      });
+    }
+  }
+
   return (
     <Card title={`Card ${token}`}>
       <div className="flex">
         <StatusChip status={status} />
       </div>
       <div className="flex flex-col gap-2">{children}</div>
+      <div className="flex flex-col gap-2">
+        <Button onClick={() => void copyCardLink()} type="button" variant="secondary">
+          <Icon name="copy" size={16} />
+          Copy link
+        </Button>
+        {copyMessage ? (
+          <Notice tone={copyMessage.tone}>
+            {copyMessage.text}
+            {copyMessage.url ? <span className="break-all">{copyMessage.url}</span> : null}
+          </Notice>
+        ) : null}
+      </div>
     </Card>
   );
 }
@@ -731,7 +763,7 @@ function DemoCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail status={detailCard.status} token={detailCard.token}>
+            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
               <DetailRow
@@ -1253,7 +1285,7 @@ function LiveCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail status={detailCard.status} token={detailCard.token}>
+            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
             </CardDetail>
