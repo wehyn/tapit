@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
   released: [] as string[],
+  customerId: "customer-mara",
 }));
 
 vi.mock("@/lib/demo/store", () => ({
@@ -13,7 +14,7 @@ vi.mock("@/lib/demo/store", () => ({
   }),
   resolveDemoSessionAccess: () => ({
     kind: "active",
-    account: { id: "customer-mara", role: "customer" },
+    account: { id: mocks.customerId, role: "customer" },
   }),
   updateDemoState: (updater: (state: typeof mocks.state) => typeof mocks.state) => {
     // Like the real store: the updater runs before persistence, so a throw leaves state unchanged.
@@ -38,7 +39,11 @@ vi.mock("@/lib/demo/card-order-assets", () => ({
   },
 }));
 
-import { placeDemoCardOrder } from "@/lib/demo/card-ordering";
+import {
+  placeDemoCardOrder,
+  previewDemoCardOrderReferral,
+  saveDemoCardOrderReferralCode,
+} from "@/lib/demo/card-ordering";
 
 const delivery = {
   deliveryName: "Mara Santos",
@@ -52,6 +57,7 @@ const urlDesigns = {
 
 beforeEach(() => {
   mocks.released.length = 0;
+  mocks.customerId = "customer-mara";
   mocks.state = {
     cardOrderLaunchEndDate: "2099-12-31",
     cardOrderPaymentMethods: [
@@ -65,7 +71,13 @@ beforeEach(() => {
       },
     ],
     cardOrderReferralCodes: [
-      { id: "code-1", code: "FOUNDING-AHRON", referrerLabel: "Ahron", active: true },
+      {
+        id: "code-1",
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        usageLimit: 1,
+        active: true,
+      },
     ],
     cardOrders: [],
     audits: [],
@@ -73,6 +85,49 @@ beforeEach(() => {
 });
 
 describe("demo card order price confirmation", () => {
+  it("does not preview an exhausted code", () => {
+    mocks.state.cardOrders = [{ id: "prior", customerId: "someone-else", referralCodeId: "code-1" }];
+
+    expect(previewDemoCardOrderReferral("FOUNDING-AHRON", Date.now())).toEqual({
+      valid: false,
+      discountCentavos: 0,
+    });
+  });
+
+  it("allows the final use and rejects a later order from another customer", async () => {
+    const first = await placeDemoCardOrder({
+      paymentMethodId: "method-1",
+      referralCode: "FOUNDING-AHRON",
+      ...urlDesigns,
+      ...delivery,
+      expectedCardAmountCentavos: 53_910,
+    });
+    expect(first.kind).toBe("created");
+
+    mocks.customerId = "customer-another";
+    await expect(
+      placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: "FOUNDING-AHRON",
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    expect(mocks.state.cardOrders).toHaveLength(1);
+  });
+
+  it("rejects an invalid usage limit when saving", async () => {
+    await expect(
+      saveDemoCardOrderReferralCode({
+        code: "LIMITED",
+        referrerLabel: "Test",
+        usageLimit: 0,
+        active: true,
+      }),
+    ).rejects.toThrow("Usage limit must be a positive whole number.");
+  });
+
   it("returns price_changed and writes no order when the reviewed amount is stale", async () => {
     const before = mocks.state;
 
