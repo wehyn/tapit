@@ -122,7 +122,12 @@ describe("card order payment QR", () => {
       });
 
       vi.advanceTimersByTime(15 * 60 * 1000);
-      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await t.finishInProgressScheduledFunctions();
+      expect(await t.run((ctx) => ctx.db.get(uploadId))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).not.toBeNull();
+
+      vi.advanceTimersByTime(15 * 60 * 1000);
+      await t.finishInProgressScheduledFunctions();
 
       await t.run((ctx) =>
         ctx.db.patch(referencedUploadId, {
@@ -201,6 +206,159 @@ describe("card order payment QR", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("scopes QR management, preserves the current QR on rejected replacement, and removes references safely", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const {
+      originalUploadId,
+      originalStorageId,
+      replacementUploadId,
+      foreignAvailableUploadId,
+      foreignAvailableStorageId,
+      foreignMethodId,
+      foreignUploadId,
+      foreignStorageId,
+    } =
+      await t.run(async (ctx) => {
+        const originalStorageId = await ctx.storage.store(new Blob(["local QR"]));
+        const replacementStorageId = await ctx.storage.store(new Blob(["other admin QR"]));
+        const foreignAvailableStorageId = await ctx.storage.store(new Blob(["available foreign QR"]));
+        const foreignStorageId = await ctx.storage.store(new Blob(["foreign scope QR"]));
+        const replacementAdminUserId = await ctx.db.insert("users", {
+          email: "replacement-admin@example.test",
+        });
+        const replacementAdminId = await ctx.db.insert("customers", {
+          userId: replacementAdminUserId,
+          email: "replacement-admin@example.test",
+          role: "admin",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        const foreignAdminUserId = await ctx.db.insert("users", {
+          email: "foreign-admin@example.test",
+        });
+        const foreignAdminId = await ctx.db.insert("customers", {
+          scope: "demo",
+          userId: foreignAdminUserId,
+          email: "foreign-admin@example.test",
+          role: "admin",
+          status: "active",
+          deletionStatus: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+        const originalUploadId = await ctx.db.insert("cardOrderQrUploads", {
+          ownerId: ids.adminId,
+          actorUserId: ids.adminUserId,
+          status: "attached",
+          storageId: originalStorageId,
+          contentType: "image/png",
+          byteSize: 8,
+          createdAt: 1,
+          availableAt: 1,
+          attachedAt: 1,
+        });
+        const replacementUploadId = await ctx.db.insert("cardOrderQrUploads", {
+          ownerId: replacementAdminId,
+          actorUserId: replacementAdminUserId,
+          status: "available",
+          storageId: replacementStorageId,
+          contentType: "image/png",
+          byteSize: 15,
+          createdAt: 1,
+          availableAt: 1,
+        });
+        const foreignMethodId = await ctx.db.insert("cardOrderPaymentMethods", {
+          scope: "demo",
+          provider: "Foreign bank",
+          label: "Foreign method",
+          accountDetails: "Foreign account",
+          instructions: "Transfer after ordering.",
+          active: true,
+          createdAt: 1,
+          updatedAt: 1,
+          updatedByUserId: foreignAdminUserId,
+        });
+        const foreignAvailableUploadId = await ctx.db.insert("cardOrderQrUploads", {
+          ownerId: foreignAdminId,
+          actorUserId: foreignAdminUserId,
+          scope: "demo",
+          status: "available",
+          storageId: foreignAvailableStorageId,
+          contentType: "image/png",
+          byteSize: 25,
+          createdAt: 1,
+          availableAt: 1,
+        });
+        const foreignUploadId = await ctx.db.insert("cardOrderQrUploads", {
+          ownerId: foreignAdminId,
+          actorUserId: foreignAdminUserId,
+          scope: "demo",
+          status: "attached",
+          storageId: foreignStorageId,
+          contentType: "image/png",
+          byteSize: 16,
+          createdAt: 1,
+          availableAt: 1,
+          attachedAt: 1,
+        });
+        await ctx.db.patch(foreignMethodId, { qrUploadId: foreignUploadId });
+        await ctx.db.patch(ids.activeMethodId, { qrUploadId: originalUploadId });
+        return {
+          originalUploadId,
+          originalStorageId,
+          replacementUploadId,
+          foreignAvailableUploadId,
+          foreignAvailableStorageId,
+          foreignMethodId,
+          foreignUploadId,
+          foreignStorageId,
+        };
+      });
+
+    await expect(
+      admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
+        methodId: ids.activeMethodId,
+        uploadId: replacementUploadId,
+      }),
+    ).rejects.toThrow("QR upload unavailable.");
+    await expect(
+      admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
+        methodId: foreignMethodId,
+        uploadId: null,
+      }),
+    ).rejects.toThrow("Payment method unavailable.");
+    await expect(
+      admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
+        methodId: ids.activeMethodId,
+        uploadId: foreignAvailableUploadId,
+      }),
+    ).rejects.toThrow("QR upload unavailable.");
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(ids.activeMethodId))?.qrUploadId).toBe(originalUploadId);
+      expect((await ctx.db.get(originalUploadId))?.status).toBe("attached");
+      expect(await ctx.storage.getUrl(originalStorageId)).not.toBeNull();
+      expect((await ctx.db.get(foreignAvailableUploadId))?.status).toBe("available");
+      expect(await ctx.storage.getUrl(foreignAvailableStorageId)).not.toBeNull();
+      expect((await ctx.db.get(foreignMethodId))?.qrUploadId).toBe(foreignUploadId);
+      expect((await ctx.db.get(foreignUploadId))?.status).toBe("attached");
+      expect(await ctx.storage.getUrl(foreignStorageId)).not.toBeNull();
+    });
+
+    await admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
+      methodId: ids.activeMethodId,
+      uploadId: null,
+    });
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(ids.activeMethodId))?.qrUploadId).toBeUndefined();
+      expect((await ctx.db.get(originalUploadId))?.status).toBe("available");
+      expect(await ctx.storage.getUrl(originalStorageId)).not.toBeNull();
+    });
   });
 
   it("authorizes QR URLs only for active methods and the customer's own order snapshot", async () => {
