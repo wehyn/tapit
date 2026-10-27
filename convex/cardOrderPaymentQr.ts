@@ -209,11 +209,20 @@ export const cleanup = internalMutation({
   handler: async (ctx, { uploadId }) => {
     const upload = await ctx.db.get(uploadId);
     if (
+      upload?.status === "processing" &&
+      Date.now() - (upload.processingAt ?? upload.createdAt) < PROCESSING_TTL_MS
+    ) {
+      await ctx.scheduler.runAfter(
+        PROCESSING_TTL_MS - (Date.now() - (upload.processingAt ?? upload.createdAt)),
+        internal.cardOrderPaymentQr.cleanup,
+        { uploadId },
+      );
+      return null;
+    }
+    if (
       upload === null ||
       upload.status === "attached" ||
       (upload.status === "pending" && Date.now() - upload.createdAt < INTENT_TTL_MS) ||
-      (upload.status === "processing" &&
-        Date.now() - (upload.processingAt ?? upload.createdAt) < PROCESSING_TTL_MS) ||
       (upload.status === "available" &&
         Date.now() - (upload.availableAt ?? upload.createdAt) < RETENTION_MS)
     )

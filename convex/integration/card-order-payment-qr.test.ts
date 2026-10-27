@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -85,6 +85,57 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("card order payment QR", () => {
+  it("reschedules cleanup for processing uploads and preserves referenced QR files", async () => {
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema, modules);
+      const ids = await seed(t);
+      const uploadId = await t.mutation(internal.cardOrderPaymentQr.createUploadIntent, {
+        userId: ids.adminUserId,
+      });
+      vi.advanceTimersByTime(45 * 60 * 1000);
+      const storageId = await t.run((ctx) =>
+        ctx.storage.store(new Blob(["processing QR"])),
+      );
+      await t.mutation(internal.cardOrderPaymentQr.prepareUpload, {
+        uploadId,
+        storageId,
+        fileName: "processing.png",
+      });
+
+      const referencedStorageId = await t.run((ctx) =>
+        ctx.storage.store(new Blob(["referenced QR"])),
+      );
+      const referencedUploadId = await t.run(async (ctx) => {
+        const id = await ctx.db.insert("cardOrderQrUploads", {
+          ownerId: ids.adminId,
+          actorUserId: ids.adminUserId,
+          status: "available",
+          storageId: referencedStorageId,
+          contentType: "image/png",
+          byteSize: 13,
+          createdAt: Date.now() - 2 * 60 * 60 * 1000,
+          availableAt: Date.now() - 2 * 60 * 60 * 1000,
+        });
+        await ctx.db.patch(ids.activeMethodId, { qrUploadId: id });
+        return id;
+      });
+
+      vi.advanceTimersByTime(15 * 60 * 1000);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      expect(await t.run((ctx) => ctx.db.get(uploadId))).toBeNull();
+      expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).toBeNull();
+      expect(await t.run((ctx) => ctx.db.get(referencedUploadId))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.storage.getUrl(referencedStorageId))).not.toBeNull();
+      expect(await t.run(async (ctx) => (await ctx.db.get(ids.activeMethodId))?.qrUploadId)).toBe(
+        referencedUploadId,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("accepts an administrator PNG and rejects unauthorized or invalid uploads", async () => {
     vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
     try {
