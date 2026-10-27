@@ -95,7 +95,13 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await page.reload();
 
   await page.getByRole("link", { name: "Codes", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Referral codes" })).toBeVisible();
+  await expect(page.getByText("Manage codes and review their order usage.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Referral codes" })).toHaveCount(0);
+  await expect(
+    page.getByText(
+      "Codes are unique across active and inactive records. Fixed prices must be no more than ₱599.",
+    ),
+  ).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^ACTIVE-HISTORY/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /^INACTIVE-HISTORY/ })).toBeVisible();
 
@@ -110,6 +116,15 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await page.getByRole("button", { name: "Create code" }).click();
   await expect(page.getByRole("button", { name: /INACTIVE-SAVE.*Inactive/ })).toBeVisible();
   await expect(page.getByLabel("Active")).toBeChecked();
+
+  await page.getByLabel("Referral code").fill("LIMIT-ONE");
+  await page.getByLabel("Referrer label").fill("Limit test");
+  await page.getByLabel("Usage limit (orders, optional)").fill("1");
+  await page.getByRole("button", { name: "Create code" }).click();
+  await expect(page.getByRole("button", { name: /LIMIT-ONE/ })).toContainText(
+    "0 of 1 uses · 1 remaining",
+  );
+
   await created.locator("..").getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Referrer label").fill("Ahron Updated");
   await page.getByRole("button", { name: "Save code" }).click();
