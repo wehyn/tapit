@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import type { FunctionArgs } from "convex/server";
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 
@@ -8,6 +9,17 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+
+type CardOrderTestClient = ReturnType<ReturnType<typeof convexTest>["withIdentity"]>;
+
+async function placeCreatedOrder(
+  customer: CardOrderTestClient,
+  args: FunctionArgs<typeof api.cardOrders.placeOrder>,
+): Promise<Id<"cardOrders">> {
+  const outcome = await customer.mutation(api.cardOrders.placeOrder, args);
+  if (outcome.kind !== "created") throw new Error(`Expected a created order, got ${outcome.kind}.`);
+  return outcome.orderId;
+}
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
   subject: userId,
@@ -120,13 +132,14 @@ describe("card order payment QR", () => {
       methodId: ids.activeMethodId,
       uploadId: originalUploadId,
     });
-    const orderId = await customer.mutation(api.cardOrders.placeOrder, {
+    const orderId = await placeCreatedOrder(customer, {
       paymentMethodId: ids.activeMethodId,
       designSource: { kind: "url", url: "https://example.test/front.png" },
       backDesignSource: { kind: "url", url: "https://example.test/back.png" },
       deliveryName: "Test Customer",
       deliveryPhone: "09123456789",
       deliveryAddress: "1 Test Street",
+      expectedAmountCentavos: 59_900,
     });
 
     const originalUrl = await t.run((ctx) => ctx.storage.getUrl(originalStorageId));

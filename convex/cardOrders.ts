@@ -97,6 +97,8 @@ function deliveryText(value: string, label: string, max: number) {
   return trimmed;
 }
 
+const cardPrice = v.object({ cardPriceCentavos: v.number(), discountCentavos: v.number() });
+
 export const placeOrder = mutation({
   args: {
     paymentMethodId: v.id("cardOrderPaymentMethods"),
@@ -106,10 +108,18 @@ export const placeOrder = mutation({
     deliveryName: v.string(),
     deliveryPhone: v.string(),
     deliveryAddress: v.string(),
+    // Comparison precondition only: the card amount after referral discount that
+    // the customer reviewed. It never populates a stored monetary field.
+    expectedAmountCentavos: v.number(),
   },
-  returns: v.id("cardOrders"),
+  returns: v.union(
+    v.object({ kind: v.literal("created"), orderId: v.id("cardOrders") }),
+    v.object({ kind: v.literal("price_changed"), price: cardPrice }),
+  ),
   handler: async (ctx, args) => {
     const customer = await activeOrderAccount(ctx);
+    if (!Number.isSafeInteger(args.expectedAmountCentavos) || args.expectedAmountCentavos < 0)
+      throw new Error("Expected card amount must be non-negative integer centavos.");
     const now = Date.now();
     const [date, activePayment, selectedPayment, prior] = await Promise.all([
       launchEndDate(ctx, customer),
@@ -191,6 +201,13 @@ export const placeOrder = mutation({
       referral === null
         ? 0
         : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
+    // Checked before the first write: a changed amount creates nothing, so the
+    // customer must review the authoritative price and submit again.
+    if (cardPriceCentavos - discountCentavos !== args.expectedAmountCentavos)
+      return {
+        kind: "price_changed" as const,
+        price: { cardPriceCentavos, discountCentavos },
+      };
     const commissionCentavos =
       referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
     const orderId = await ctx.db.insert("cardOrders", {
@@ -234,7 +251,7 @@ export const placeOrder = mutation({
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);
     if (backDesignSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, backDesignSourceValue.uploadId, customer, orderId);
-    return orderId;
+    return { kind: "created" as const, orderId };
   },
 });
 
