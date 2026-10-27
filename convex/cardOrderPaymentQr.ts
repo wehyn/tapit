@@ -10,13 +10,8 @@ import {
   type QueryCtx,
   type MutationCtx,
 } from "./_generated/server";
-import {
-  customerForAuthUser,
-  isActiveCustomer,
-  requireAdministrator,
-  requireUser,
-  sameScope,
-} from "./admin";
+import { customerForAuthUser, isActiveCustomer, requireAdministrator, sameScope } from "./admin";
+import { activeOrderAccount } from "./cardOrderSettings";
 
 const INTENT_TTL_MS = 60 * 60 * 1000;
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -285,10 +280,7 @@ export const customerPaymentQrUrl = query({
   },
   returns: v.union(v.string(), v.null()),
   handler: async (ctx, args) => {
-    const userId = await requireUser(ctx);
-    const account = await customerForAuthUser(ctx, userId);
-    if (account === null || account.role !== "customer" || !isActiveCustomer(account))
-      throw new Error("Payment method unavailable.");
+    const account = await activeOrderAccount(ctx);
     let uploadId: Id<"cardOrderQrUploads"> | undefined;
     if (args.paymentMethodId !== undefined && args.orderId === undefined) {
       const method = await ctx.db.get(args.paymentMethodId);

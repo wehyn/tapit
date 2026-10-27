@@ -53,6 +53,19 @@ function currentState(role: "customer" | "admin") {
   return refreshed.snapshot.state;
 }
 
+function activeOrderAccount(state: DemoState) {
+  const access = resolveDemoSessionAccess(state, getDemoSession());
+  if (access.kind !== "active") throw new Error("An active account is required.");
+  return access.account;
+}
+
+function currentOrderState() {
+  const refreshed = refreshDemoAccessSnapshot();
+  if (refreshed.kind !== "ready") throw new Error("Demo account storage is unavailable.");
+  activeOrderAccount(refreshed.snapshot.state);
+  return refreshed.snapshot.state;
+}
+
 async function updateDemoCardOrderAdminState(
   adminId: string,
   update: (state: DemoState) => DemoState,
@@ -184,7 +197,7 @@ export function getDemoCardOrderReferralCodeUsage(
 }
 
 export function getDemoCardOrderCustomerSettings() {
-  const state = currentState("customer");
+  const state = currentOrderState();
   return {
     launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods
@@ -364,8 +377,8 @@ export async function deactivateDemoCardOrderReferralCode(id: string): Promise<v
 }
 
 export function previewDemoCardOrderReferral(code: string, currentTime: number) {
-  const state = currentState("customer");
-  const customer = activeAccount(state, "customer");
+  const state = currentOrderState();
+  const customer = activeOrderAccount(state);
   const referral = state.cardOrderReferralCodes.find(
     (item) => item.code === code.trim().toUpperCase(),
   );
@@ -386,8 +399,8 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
 }
 
 export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string> {
-  const state = currentState("customer");
-  const customer = activeAccount(state, "customer");
+  const state = currentOrderState();
+  const customer = activeOrderAccount(state);
   const frontSource = validateDesignSource(input.designSource);
   const backSource = validateDesignSource(input.backDesignSource);
   const uploads = [frontSource, backSource].filter(
@@ -399,8 +412,8 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   }
   const id = crypto.randomUUID();
   const updateOrder = (current: DemoState) => {
-    const owner = activeAccount(current, "customer");
-    if (owner.id !== customer.id) throw new Error("Customer session changed. Try again.");
+    const owner = activeOrderAccount(current);
+    if (owner.id !== customer.id) throw new Error("Account session changed. Try again.");
     if (
       current.cardOrderLaunchEndDate === null ||
       !current.cardOrderPaymentMethods.some((method) => method.active)
@@ -473,9 +486,9 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   };
   const persistOrder = () =>
     withDemoCardOrderCommitLock(async () => {
-      const refreshedState = currentState("customer");
-      if (activeAccount(refreshedState, "customer").id !== customer.id) {
-        throw new Error("Customer session changed. Try again.");
+      const refreshedState = currentOrderState();
+      if (activeOrderAccount(refreshedState).id !== customer.id) {
+        throw new Error("Account session changed. Try again.");
       }
       updateDemoState(updateOrder);
       return id;
@@ -486,8 +499,8 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
 }
 
 export function getMyDemoCardOrders() {
-  const state = currentState("customer");
-  const owner = activeAccount(state, "customer");
+  const state = currentOrderState();
+  const owner = activeOrderAccount(state);
   return state.cardOrders
     .filter((order) => order.customerId === owner.id)
     .sort((a, b) => b.createdAt - a.createdAt)
