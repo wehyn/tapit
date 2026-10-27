@@ -472,3 +472,29 @@ export const deactivateReferralCode = mutation({
     return null;
   },
 });
+
+export const activateReferralCode = mutation({
+  args: { id: v.id("cardOrderReferralCodes") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const existing = await ctx.db.get(args.id);
+    if (existing === null || !sameScope(account, existing))
+      throw new Error("Referral code unavailable.");
+    if (!existing.active) {
+      const now = Date.now();
+      await ctx.db.patch(args.id, { active: true, updatedAt: now, updatedByUserId: userId });
+      await ctx.db.insert("auditLogs", {
+        scope: account.scope,
+        actorUserId: userId,
+        actorLabel: "Administrator",
+        action: "card_order.referral_code_activated",
+        accountId: account._id,
+        occurredAt: now,
+        before: JSON.stringify(existing),
+        after: JSON.stringify({ ...existing, active: true }),
+      });
+    }
+    return null;
+  },
+});

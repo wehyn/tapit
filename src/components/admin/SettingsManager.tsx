@@ -9,10 +9,8 @@ import type { Id } from "../../../convex/_generated/dataModel";
 
 import {
   deactivateDemoCardOrderPaymentMethod,
-  deactivateDemoCardOrderReferralCode,
   getDemoCardOrderAdminSettings,
   saveDemoCardOrderPaymentMethod,
-  saveDemoCardOrderReferralCode,
   setDemoCardOrderLaunchEndDate,
 } from "@/lib/demo/card-ordering";
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
@@ -42,22 +40,12 @@ type PaymentMethod = {
   active: boolean;
 };
 
-type ReferralCode = {
-  id: string;
-  code: string;
-  referrerLabel: string;
-  fixedPriceCentavos?: number;
-  active: boolean;
-};
-
 type CardOrderSettings = {
   launchEndDate: string | null;
   paymentMethods: PaymentMethod[];
-  referralCodes: ReferralCode[];
 };
 
 type PaymentMethodInput = Omit<PaymentMethod, "id" | "active"> & { id?: string };
-type ReferralCodeInput = Omit<ReferralCode, "id" | "active"> & { id?: string };
 
 function getErrorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -68,15 +56,11 @@ function CardOrderSettings({
   onSetLaunchEndDate,
   onSavePaymentMethod,
   onDeactivatePaymentMethod,
-  onSaveReferralCode,
-  onDeactivateReferralCode,
 }: {
   settings: CardOrderSettings;
   onSetLaunchEndDate: (date: string | null) => Promise<void>;
   onSavePaymentMethod: (input: PaymentMethodInput) => Promise<void>;
   onDeactivatePaymentMethod: (id: string) => Promise<void>;
-  onSaveReferralCode: (input: ReferralCodeInput) => Promise<void>;
-  onDeactivateReferralCode: (id: string) => Promise<void>;
 }) {
   const [launchEndDate, setLaunchEndDate] = useState(settings.launchEndDate ?? "");
   const [launchEndDateEdited, setLaunchEndDateEdited] = useState(false);
@@ -86,10 +70,6 @@ function CardOrderSettings({
   const [paymentLabel, setPaymentLabel] = useState("");
   const [paymentAccountDetails, setPaymentAccountDetails] = useState("");
   const [paymentInstructions, setPaymentInstructions] = useState("");
-  const [referralEditId, setReferralEditId] = useState<string | undefined>();
-  const [referralCode, setReferralCode] = useState("");
-  const [referrerLabel, setReferrerLabel] = useState("");
-  const [fixedPricePesos, setFixedPricePesos] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
@@ -133,21 +113,6 @@ function CardOrderSettings({
     if (saved) resetPaymentForm();
   }
 
-  async function saveReferralCode(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const saved = await perform(
-      () =>
-        onSaveReferralCode({
-          id: referralEditId,
-          code: referralCode,
-          referrerLabel,
-          fixedPriceCentavos: fixedPricePesos === "" ? undefined : Number(fixedPricePesos) * 100,
-        }),
-      referralEditId ? "Referral code updated." : "Referral code added.",
-    );
-    if (saved) resetReferralForm();
-  }
-
   function resetPaymentForm() {
     setPaymentEditId(undefined);
     setPaymentProvider("");
@@ -156,17 +121,10 @@ function CardOrderSettings({
     setPaymentInstructions("");
   }
 
-  function resetReferralForm() {
-    setReferralEditId(undefined);
-    setReferralCode("");
-    setReferrerLabel("");
-    setFixedPricePesos("");
-  }
-
   return (
     <>
       <AdminPageHeader
-        description="Manage launch pricing, payment methods, referrals, and support."
+        description="Manage launch pricing, payment methods, and support."
         title="Settings"
       />
       <Card
@@ -296,106 +254,6 @@ function CardOrderSettings({
         </div>
       </Card>
 
-      <Card
-        description="Referral codes are unique across active and inactive codes. Keep the referrer label recognizable to your team."
-        title="Referral codes"
-      >
-        <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={saveReferralCode}>
-          <Field
-            autoCapitalize="characters"
-            id="referral-code"
-            label="Referral code"
-            onChange={(event) => setReferralCode(event.target.value)}
-            placeholder="PARTNER10"
-            required
-            value={referralCode}
-          />
-          <Field
-            id="referrer-label"
-            label="Referrer label"
-            onChange={(event) => setReferrerLabel(event.target.value)}
-            placeholder="Studio Santos"
-            required
-            value={referrerLabel}
-          />
-          <Field
-            id="referral-fixed-price"
-            label="Fixed card price (₱, optional)"
-            min="1"
-            onChange={(event) => setFixedPricePesos(event.target.value)}
-            placeholder="Leave blank for 10% off"
-            step="1"
-            type="number"
-            value={fixedPricePesos}
-          />
-          <div className="flex flex-wrap gap-3 sm:col-span-2">
-            <Button disabled={busy} type="submit">
-              {referralEditId ? "Save referral code" : "Add referral code"}
-            </Button>
-            {referralEditId ? (
-              <Button disabled={busy} onClick={resetReferralForm} type="button" variant="secondary">
-                Stop editing
-              </Button>
-            ) : null}
-          </div>
-        </form>
-        <div className="mt-6 grid gap-3">
-          {settings.referralCodes.length === 0 ? (
-            <p className="text-sm text-tapit-muted">No referral codes configured.</p>
-          ) : (
-            settings.referralCodes.map((referral) => (
-              <div
-                className="flex flex-col gap-4 rounded-card bg-tapit-paper/60 p-4 sm:flex-row sm:items-center sm:justify-between"
-                key={referral.id}
-              >
-                <div>
-                  <p className="font-semibold text-tapit-ink">{referral.code}</p>
-                  <p className="mt-1 text-sm text-tapit-muted">
-                    {referral.referrerLabel} · {referral.active ? "Active" : "Inactive"} ·{" "}
-                    {referral.fixedPriceCentavos === undefined
-                      ? "10% off"
-                      : `Fixed price · ${formatPHP(referral.fixedPriceCentavos)}`}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-2">
-                  <Button
-                    disabled={busy}
-                    onClick={() => {
-                      setReferralEditId(referral.id);
-                      setReferralCode(referral.code);
-                      setReferrerLabel(referral.referrerLabel);
-                      setFixedPricePesos(
-                        referral.fixedPriceCentavos === undefined
-                          ? ""
-                          : String(referral.fixedPriceCentavos / 100),
-                      );
-                    }}
-                    type="button"
-                    variant="secondary"
-                  >
-                    Edit
-                  </Button>
-                  {referral.active ? (
-                    <Button
-                      disabled={busy}
-                      onClick={() =>
-                        void perform(
-                          () => onDeactivateReferralCode(referral.id),
-                          "Referral code deactivated.",
-                        )
-                      }
-                      type="button"
-                      variant="quiet"
-                    >
-                      Deactivate
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </Card>
       {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
     </>
   );
@@ -403,9 +261,9 @@ function CardOrderSettings({
 
 function DemoSettingsManager() {
   const state = useDemoState();
+  const cardOrderSettings = getDemoCardOrderAdminSettings();
   const [supportUrl, setSupportUrl] = useState(state.supportUrl);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const cardOrderSettings = getDemoCardOrderAdminSettings();
 
   function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -443,12 +301,8 @@ function DemoSettingsManager() {
     <div className="flex min-w-0 flex-col gap-8 pt-2">
       <CardOrderSettings
         onDeactivatePaymentMethod={deactivateDemoCardOrderPaymentMethod}
-        onDeactivateReferralCode={deactivateDemoCardOrderReferralCode}
         onSavePaymentMethod={async (input) => {
           await saveDemoCardOrderPaymentMethod(input);
-        }}
-        onSaveReferralCode={async (input) => {
-          await saveDemoCardOrderReferralCode(input);
         }}
         onSetLaunchEndDate={setDemoCardOrderLaunchEndDate}
         settings={cardOrderSettings}
@@ -520,8 +374,6 @@ function LiveSettingsManager() {
   const saveLaunchEndDate = useMutation(api.cardOrderSettings.setLaunchEndDate);
   const savePaymentMethod = useMutation(api.cardOrderSettings.savePaymentMethod);
   const deactivatePaymentMethod = useMutation(api.cardOrderSettings.deactivatePaymentMethod);
-  const saveReferralCode = useMutation(api.cardOrderSettings.saveReferralCode);
-  const deactivateReferralCode = useMutation(api.cardOrderSettings.deactivateReferralCode);
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const value = supportUrl ?? configured ?? "";
@@ -558,10 +410,6 @@ function LiveSettingsManager() {
       id: _id,
       ...method,
     })),
-    referralCodes: cardOrderSettings.referralCodes.map(({ _id, ...referral }) => ({
-      id: _id,
-      ...referral,
-    })),
   };
 
   return (
@@ -571,18 +419,9 @@ function LiveSettingsManager() {
           onDeactivatePaymentMethod={async (id) => {
             await deactivatePaymentMethod({ id: id as Id<"cardOrderPaymentMethods"> });
           }}
-          onDeactivateReferralCode={async (id) => {
-            await deactivateReferralCode({ id: id as Id<"cardOrderReferralCodes"> });
-          }}
           onSavePaymentMethod={async ({ id, ...fields }) => {
             await savePaymentMethod({
               ...(id ? { id: id as Id<"cardOrderPaymentMethods"> } : {}),
-              ...fields,
-            });
-          }}
-          onSaveReferralCode={async ({ id, ...fields }) => {
-            await saveReferralCode({
-              ...(id ? { id: id as Id<"cardOrderReferralCodes"> } : {}),
               ...fields,
             });
           }}

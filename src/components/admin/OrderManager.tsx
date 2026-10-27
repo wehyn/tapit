@@ -717,9 +717,10 @@ function OrdersView({
   );
 }
 
-function DemoOrderManager() {
+function DemoOrderManager({ orderId }: { orderId?: string }) {
   useDemoState();
-  const orders = getAdminDemoCardOrders().map(demoOrder);
+  const allOrders = getAdminDemoCardOrders().map(demoOrder);
+  const orders = orderId ? allOrders.filter((order) => order.id === orderId) : allOrders;
 
   async function onAction(orderId: string, action: OrderAction) {
     switch (action.kind) {
@@ -759,8 +760,12 @@ function DemoOrderManager() {
   );
 }
 
-function LiveOrderManager() {
+function LiveOrderManager({ orderId }: { orderId?: string }) {
   const pages = usePaginatedQuery(api.cardOrders.adminOrders, {}, { initialNumItems: 25 });
+  const selected = useQuery(
+    api.cardOrders.adminOrderById,
+    orderId ? { orderId: orderId as Id<"cardOrders"> } : "skip",
+  );
   const quoteShipping = useMutation(api.cardOrders.quoteShipping);
   const markPaymentReceived = useMutation(api.cardOrders.markPaymentReceived);
   const markDelivered = useMutation(api.cardOrders.markDelivered);
@@ -804,11 +809,11 @@ function LiveOrderManager() {
       loading={pages.status === "LoadingFirstPage"}
       loadingMore={pages.status === "LoadingMore"}
       onAction={onAction}
-      orders={pages.results.map(liveOrder)}
+      orders={orderId ? (selected ? [liveOrder(selected)] : []) : pages.results.map(liveOrder)}
     />
   );
 }
 
-export function OrderManager() {
-  return isLocalDemoMode() ? <DemoOrderManager /> : <LiveOrderManager />;
+export function OrderManager({ orderId }: { orderId?: string }) {
+  return isLocalDemoMode() ? <DemoOrderManager orderId={orderId} /> : <LiveOrderManager orderId={orderId} />;
 }

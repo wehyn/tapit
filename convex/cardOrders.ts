@@ -237,6 +237,17 @@ export const adminOrders = query({
   },
 });
 
+export const adminOrderById = query({
+  args: { orderId: v.id("cardOrders") },
+  returns: schema.doc("cardOrders"),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    const order = await ctx.db.get(args.orderId);
+    if (order === null || !sameScope(account, order)) throw new Error("Order unavailable.");
+    return order;
+  },
+});
+
 async function adminOrder(ctx: MutationCtx, orderId: Id<"cardOrders">) {
   const { userId, account } = await requireAdministrator(ctx);
   const order = await ctx.db.get(orderId);
