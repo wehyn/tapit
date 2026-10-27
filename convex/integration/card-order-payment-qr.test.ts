@@ -103,7 +103,7 @@ describe("card order payment QR", () => {
             "Content-Type": type,
             "X-File-Name": "payment-qr.png",
           },
-          body: bytes,
+          body: Buffer.from(bytes),
         });
 
       const uploaded = await send(ids.adminUserId, png);
