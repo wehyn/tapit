@@ -3,6 +3,9 @@
 import {
   calculateCommissionCentavos,
   calculateReferralDiscountForPriceCentavos,
+  cardOrderAmountCentavos,
+  type CardOrderPlacementResult,
+  type CardOrderPrice,
   getCardPriceCentavos,
   isCardOrderLaunchEndDate,
   isValidReferralFixedPriceCentavos,
@@ -34,7 +37,16 @@ type PlaceOrderInput = {
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
+  /** Comparison precondition only; never persisted. */
+  expectedCardAmountCentavos: number;
 };
+
+/** Private signal that unwinds the locked commit before any order state is written. */
+class DemoCardOrderPriceChanged extends Error {
+  constructor(readonly price: CardOrderPrice) {
+    super("The card price changed.");
+  }
+}
 
 function activeAccount(state: DemoState, role: "customer" | "admin") {
   const access = resolveDemoSessionAccess(state, getDemoSession());
@@ -50,6 +62,19 @@ function currentState(role: "customer" | "admin") {
   const refreshed = refreshDemoAccessSnapshot();
   if (refreshed.kind !== "ready") throw new Error("Demo account storage is unavailable.");
   activeAccount(refreshed.snapshot.state, role);
+  return refreshed.snapshot.state;
+}
+
+function activeOrderAccount(state: DemoState) {
+  const access = resolveDemoSessionAccess(state, getDemoSession());
+  if (access.kind !== "active") throw new Error("An active account is required.");
+  return access.account;
+}
+
+function currentOrderState() {
+  const refreshed = refreshDemoAccessSnapshot();
+  if (refreshed.kind !== "ready") throw new Error("Demo account storage is unavailable.");
+  activeOrderAccount(refreshed.snapshot.state);
   return refreshed.snapshot.state;
 }
 
@@ -184,7 +209,7 @@ export function getDemoCardOrderReferralCodeUsage(
 }
 
 export function getDemoCardOrderCustomerSettings() {
-  const state = currentState("customer");
+  const state = currentOrderState();
   return {
     launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods
@@ -364,8 +389,8 @@ export async function deactivateDemoCardOrderReferralCode(id: string): Promise<v
 }
 
 export function previewDemoCardOrderReferral(code: string, currentTime: number) {
-  const state = currentState("customer");
-  const customer = activeAccount(state, "customer");
+  const state = currentOrderState();
+  const customer = activeOrderAccount(state);
   const referral = state.cardOrderReferralCodes.find(
     (item) => item.code === code.trim().toUpperCase(),
   );
@@ -385,9 +410,17 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
   };
 }
 
-export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string> {
-  const state = currentState("customer");
-  const customer = activeAccount(state, "customer");
+export async function placeDemoCardOrder(
+  input: PlaceOrderInput,
+): Promise<CardOrderPlacementResult> {
+  if (
+    !Number.isSafeInteger(input.expectedCardAmountCentavos) ||
+    input.expectedCardAmountCentavos < 0
+  ) {
+    throw new Error("Expected card amount must be non-negative integer centavos.");
+  }
+  const state = currentOrderState();
+  const customer = activeOrderAccount(state);
   const frontSource = validateDesignSource(input.designSource);
   const backSource = validateDesignSource(input.backDesignSource);
   const uploads = [frontSource, backSource].filter(
@@ -399,8 +432,8 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   }
   const id = crypto.randomUUID();
   const updateOrder = (current: DemoState) => {
-    const owner = activeAccount(current, "customer");
-    if (owner.id !== customer.id) throw new Error("Customer session changed. Try again.");
+    const owner = activeOrderAccount(current);
+    if (owner.id !== customer.id) throw new Error("Account session changed. Try again.");
     if (
       current.cardOrderLaunchEndDate === null ||
       !current.cardOrderPaymentMethods.some((method) => method.active)
@@ -437,6 +470,14 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
     }
     const now = Date.now();
     const cardPriceCentavos = getCardPriceCentavos(current.cardOrderLaunchEndDate, now);
+    const discountCentavos = referral
+      ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
+      : 0;
+    // Same rule as the live mutation: nothing is written unless the reviewed amount still holds.
+    const price = { cardPriceCentavos, discountCentavos };
+    if (cardOrderAmountCentavos(price) !== input.expectedCardAmountCentavos) {
+      throw new DemoCardOrderPriceChanged(price);
+    }
     const order: DemoCardOrder = {
       id,
       customerId: owner.id,
@@ -447,9 +488,7 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
       deliveryPhone,
       deliveryAddress,
       cardPriceCentavos,
-      discountCentavos: referral
-        ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
-        : 0,
+      discountCentavos,
       paymentMethodId: payment.id,
       paymentSnapshot: {
         provider: payment.provider,
@@ -473,21 +512,30 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
   };
   const persistOrder = () =>
     withDemoCardOrderCommitLock(async () => {
-      const refreshedState = currentState("customer");
-      if (activeAccount(refreshedState, "customer").id !== customer.id) {
-        throw new Error("Customer session changed. Try again.");
+      const refreshedState = currentOrderState();
+      if (activeOrderAccount(refreshedState).id !== customer.id) {
+        throw new Error("Account session changed. Try again.");
       }
       updateDemoState(updateOrder);
       return id;
     });
-  return uploads.length > 0
-    ? withDemoCardOrderAssetReservation(uploads, id, customer.id, persistOrder)
-    : persistOrder();
+  try {
+    const orderId =
+      uploads.length > 0
+        ? await withDemoCardOrderAssetReservation(uploads, id, customer.id, persistOrder)
+        : await persistOrder();
+    return { kind: "created", orderId };
+  } catch (error) {
+    // Reached only after the reservation's exception path has released temporary artwork.
+    if (error instanceof DemoCardOrderPriceChanged)
+      return { kind: "price_changed", price: error.price };
+    throw error;
+  }
 }
 
 export function getMyDemoCardOrders() {
-  const state = currentState("customer");
-  const owner = activeAccount(state, "customer");
+  const state = currentOrderState();
+  const owner = activeOrderAccount(state);
   return state.cardOrders
     .filter((order) => order.customerId === owner.id)
     .sort((a, b) => b.createdAt - a.createdAt)

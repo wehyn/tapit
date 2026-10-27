@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
-import { activeOrderCustomer, launchEndDate } from "./cardOrderSettings";
+import { activeOrderAccount, launchEndDate } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
 import {
   calculateCommissionCentavos,
@@ -97,6 +97,8 @@ function deliveryText(value: string, label: string, max: number) {
   return trimmed;
 }
 
+const cardPrice = v.object({ cardPriceCentavos: v.number(), discountCentavos: v.number() });
+
 export const placeOrder = mutation({
   args: {
     paymentMethodId: v.id("cardOrderPaymentMethods"),
@@ -106,10 +108,19 @@ export const placeOrder = mutation({
     deliveryName: v.string(),
     deliveryPhone: v.string(),
     deliveryAddress: v.string(),
+    expectedCardAmountCentavos: v.number(),
   },
-  returns: v.id("cardOrders"),
+  returns: v.union(
+    v.object({ kind: v.literal("created"), orderId: v.id("cardOrders") }),
+    v.object({ kind: v.literal("price_changed"), price: cardPrice }),
+  ),
   handler: async (ctx, args) => {
-    const customer = await activeOrderCustomer(ctx);
+    if (
+      !Number.isSafeInteger(args.expectedCardAmountCentavos) ||
+      args.expectedCardAmountCentavos < 0
+    )
+      throw new Error("Expected card amount must be non-negative integer centavos.");
+    const customer = await activeOrderAccount(ctx);
     const now = Date.now();
     const [date, activePayment, selectedPayment, prior] = await Promise.all([
       launchEndDate(ctx, customer),
@@ -191,6 +202,13 @@ export const placeOrder = mutation({
       referral === null
         ? 0
         : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
+    // Checked before the first write: a changed amount creates nothing, so the
+    // customer must review the authoritative price and submit again.
+    if (cardPriceCentavos - discountCentavos !== args.expectedCardAmountCentavos)
+      return {
+        kind: "price_changed" as const,
+        price: { cardPriceCentavos, discountCentavos },
+      };
     const commissionCentavos =
       referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
     const orderId = await ctx.db.insert("cardOrders", {
@@ -234,7 +252,7 @@ export const placeOrder = mutation({
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);
     if (backDesignSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, backDesignSourceValue.uploadId, customer, orderId);
-    return orderId;
+    return { kind: "created" as const, orderId };
   },
 });
 
@@ -242,7 +260,7 @@ export const myOrders = query({
   args: {},
   returns: v.array(customerOrder),
   handler: async (ctx) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const orders = await ctx.db
       .query("cardOrders")
       .withIndex("by_scope_and_customerId_and_createdAt", (q) =>

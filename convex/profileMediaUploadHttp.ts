@@ -2,6 +2,7 @@ import { httpAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { readBoundedRequestBody } from "./profileUploadBody";
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -45,9 +46,6 @@ async function handleUpload(
   const contentType = request.headers.get("Content-Type");
   if (contentType === null || !allowedTypes.has(contentType))
     return new Response("Media must be JPEG, PNG, or WebP.", { status: 415, headers: cors });
-  const length = request.headers.get("Content-Length");
-  if (length !== null && Number(length) > MAX_UPLOAD_SIZE)
-    return new Response("Media must be 5 MB or smaller.", { status: 413, headers: cors });
   let jobId: Id<"profileMediaUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
@@ -55,8 +53,16 @@ async function handleUpload(
     const access = adminOnly
       ? await ctx.runQuery(internal.profileMedia.getAdminAccess, accessArgs)
       : await ctx.runQuery(internal.profileMedia.getOwnerAccess, accessArgs);
-    const body = await request.arrayBuffer();
-    if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_SIZE)
+    const bodyResult = await readBoundedRequestBody(request, MAX_UPLOAD_SIZE);
+    if (bodyResult.kind === "invalid-length" || bodyResult.kind === "length-mismatch")
+      return new Response("Content-Length does not match the request body.", {
+        status: 400,
+        headers: cors,
+      });
+    if (bodyResult.kind === "too-large")
+      return new Response("Media must be 5 MB or smaller.", { status: 413, headers: cors });
+    const body = bodyResult.bytes;
+    if (body.byteLength === 0)
       return new Response("Media must be 5 MB or smaller.", { status: 413, headers: cors });
     const digest = await crypto.subtle.digest("SHA-256", body);
     const sha256 = Array.from(new Uint8Array(digest), (byte) =>

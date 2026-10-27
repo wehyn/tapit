@@ -2,6 +2,7 @@ import { httpAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { readBoundedRequestBody } from "./profileUploadBody";
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 
@@ -55,10 +56,6 @@ async function handleUpload(
   const contentType = request.headers.get("Content-Type");
   if (contentType !== "image/jpeg" && contentType !== "image/png")
     return errorResponse("Profile images must be JPEG or PNG.", 415, headers);
-  const contentLength = request.headers.get("Content-Length");
-  if (contentLength !== null && Number(contentLength) > MAX_UPLOAD_SIZE)
-    return errorResponse("Images must be 5 MB or smaller.", 413, headers);
-
   let jobId: Id<"profileImageUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
@@ -68,8 +65,13 @@ async function handleUpload(
         profileId: profileId as Id<"profiles">,
       },
     );
-    const body = await request.arrayBuffer();
-    if (body.byteLength === 0 || body.byteLength > MAX_UPLOAD_SIZE)
+    const bodyResult = await readBoundedRequestBody(request, MAX_UPLOAD_SIZE);
+    if (bodyResult.kind === "invalid-length" || bodyResult.kind === "length-mismatch")
+      return errorResponse("Content-Length does not match the request body.", 400, headers);
+    if (bodyResult.kind === "too-large")
+      return errorResponse("Images must be 5 MB or smaller.", 413, headers);
+    const body = bodyResult.bytes;
+    if (body.byteLength === 0)
       return errorResponse("Images must be 5 MB or smaller.", 413, headers);
     const digest = await crypto.subtle.digest("SHA-256", body);
     const largeSha256 = Array.from(new Uint8Array(digest), (byte) =>

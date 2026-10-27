@@ -3,7 +3,8 @@ import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 
-import { internalQuery, mutation, query } from "./_generated/server";
+import { action, internalQuery, mutation, query } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import {
   isActiveCustomer,
   isHostedDemo,
@@ -237,10 +238,6 @@ export const completeSelfServiceOnboarding = mutation({
       throw new Error("A server-verified Google email is required.");
     if (email === undefined || !authEmailPattern.test(email))
       throw new Error("A valid authenticated email is required.");
-    const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
-      key: `onboarding:${userId}`,
-    });
-    if (!limit.ok) throw new Error("Too many account creation attempts. Try again later.");
     const customer = await ctx.db
       .query("customers")
       .withIndex("by_userId", (q) => q.eq("userId", userId))
@@ -254,6 +251,10 @@ export const completeSelfServiceOnboarding = mutation({
     }
     if (customer.status !== "pending" || customer.profileId !== undefined)
       throw new Error("Pending customer account required.");
+    const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
+      key: `onboarding:${userId}`,
+    });
+    if (!limit.ok) throw new Error("Too many account creation attempts. Try again later.");
     const name = args.name.trim();
     if (name.length === 0) throw new Error("A nonblank profile name is required.");
     const bio = args.bio?.trim();
@@ -330,66 +331,26 @@ export const deletePendingAccount = mutation({
   },
 });
 
-export const acceptInvitation = mutation({
+export const acceptInvitation = action({
   args: { tokenHash: v.string() },
   returns: v.object({ profileId: v.union(v.id("profiles"), v.null()) }),
-  handler: async (ctx, args) => {
-    const userId = await requireUser(ctx);
-    const user = await ctx.db.get(userId);
-    const email = user?.email?.trim().toLowerCase();
-    if (user?.emailVerificationTime === undefined)
-      throw new Error("A server-verified Google email is required.");
-    if (email === undefined || !authEmailPattern.test(email))
-      throw new Error("A valid authenticated email is required.");
-    const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
-      key: `invitation:${userId}:${args.tokenHash}`,
+  handler: async (ctx, args): Promise<{ profileId: Id<"profiles"> | null }> => {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Authentication required.");
+    const attempt: {
+      alreadyAccepted: boolean;
+      allowed: boolean;
+      profileId: Id<"profiles"> | null;
+    } = await ctx.runMutation(internal.invitationAcceptance.consumeAttempt, {
+      tokenHash: args.tokenHash,
+      userId,
     });
-    if (!limit.ok) throw new Error("Too many invitation attempts. Try again later.");
-    const invitation = await ctx.db
-      .query("invitations")
-      .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
-      .unique();
-    if (
-      invitation === null ||
-      invitation.invalidatedAt !== undefined ||
-      (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
-    )
-      throw new Error("This invitation is invalid or expired.");
-    if (email === undefined || email !== invitation.email.trim().toLowerCase())
-      throw new Error("This authenticated account does not match the invitation email.");
-    const customer = await ctx.db.get(invitation.customerId);
-    if (
-      customer === null ||
-      customer.role !== "customer" ||
-      customer.deletionStatus !== "active" ||
-      !sameScope(customer, invitation)
-    )
-      throw new Error("Customer account unavailable.");
-    if (customer.status !== "invited" && customer.status !== "active")
-      throw new Error("Customer account unavailable.");
-    if (customer.userId !== undefined && customer.userId !== userId)
-      throw new Error("This invitation is linked to another user.");
-    const linked = await ctx.db
-      .query("customers")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
-      .unique();
-    if (linked !== null && linked._id !== customer._id)
-      throw new Error("This authenticated account is already linked to another customer.");
-    const now = Date.now();
-    await ctx.db.patch(customer._id, { userId, status: "active", updatedAt: now });
-    if (invitation.acceptedAt === undefined)
-      await ctx.db.patch(invitation._id, { acceptedAt: now });
-    await ctx.db.insert("auditLogs", {
-      scope: customer.scope,
-      actorUserId: userId,
-      actorLabel: customer.email,
-      action: "invitation.accepted",
-      accountId: customer._id,
-      profileId: customer.profileId,
-      occurredAt: now,
-      after: "active",
+    if (attempt.alreadyAccepted) return { profileId: attempt.profileId };
+    if (!attempt.allowed) throw new Error("Too many invitation attempts. Try again later.");
+    return await ctx.runMutation(internal.invitationAcceptance.finishAcceptance, {
+      tokenHash: args.tokenHash,
+      userId,
     });
-    return { profileId: customer.profileId ?? null };
   },
 });
 

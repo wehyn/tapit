@@ -8,6 +8,8 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
 const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
+const useInvalidCustomization = vi.hoisted(() => ({ current: false }));
+const profileRevisions = vi.hoisted(() => ({ draft: 0, image: 3, media: 3 }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -20,8 +22,9 @@ vi.mock("convex/react", () => ({
     ownerId: "customer-1",
     scope: "default",
     status: "draft",
-    imageRevision: 3,
-    mediaRevision: 3,
+    draftRevision: profileRevisions.draft,
+    imageRevision: profileRevisions.image,
+    mediaRevision: profileRevisions.media,
     draft: {
       name: "Mara Velasquez",
       slug: "mara-velasquez",
@@ -33,20 +36,25 @@ vi.mock("convex/react", () => ({
             typeScale: "comfortable",
             linkTreatment: "filled",
             contentOrder: "links-first",
+            ...(useInvalidCustomization.current
+              ? { identityColors: { name: { kind: "custom", hex: "#ffffff" } } }
+              : {}),
           },
       imageStorageId: "storage-old",
       imageUrl: "https://image.test/old",
-      media: {
-        heroHeight: 320,
-        autoplay: true,
-        background: {
-          assetId: "media-old",
-          altText: "Existing backdrop",
-          positionX: 50,
-          positionY: 50,
-        },
-        slideshow: [],
-      },
+      media: useInvalidCustomization.current
+        ? undefined
+        : {
+            heroHeight: 320,
+            autoplay: true,
+            background: {
+              assetId: "media-old",
+              altText: "Existing backdrop",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [],
+          },
       links: [
         {
           id: "site",
@@ -92,9 +100,14 @@ vi.mock("@/components/forms/ProfileImageCropDialog", () => ({
 }));
 
 import { ProfileEditor } from "@/components/forms/ProfileEditor";
+import { DraftSaveProvider } from "@/components/layout/DraftSaveContext";
 
 beforeEach(() => {
   useUncustomizedProfile.current = false;
+  useInvalidCustomization.current = false;
+  profileRevisions.draft = 0;
+  profileRevisions.image = 3;
+  profileRevisions.media = 3;
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://preview-123.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://preview-123.convex.site");
   mutation.mockClear();
@@ -157,6 +170,93 @@ it("keeps the existing image when the upload fails", async () => {
   for (const image of screen.getAllByRole("img", { name: "Mara Velasquez profile" }))
     expect(image).toHaveAttribute("src", "https://image.test/old");
   expect(screen.getByRole("dialog")).toBeVisible();
+});
+
+it("warns before leaving when profile fields are dirty", () => {
+  render(<ProfileEditor />);
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Unsaved name" } });
+
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+});
+
+it("does not warn before leaving a clean profile draft", () => {
+  render(<ProfileEditor />);
+
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+});
+
+it("offers explicit recovery after a revision conflict without retrying on the stale revision", async () => {
+  useInvalidCustomization.current = true;
+  mutation.mockRejectedValueOnce(
+    new Error("The profile draft changed while you were editing. Refresh and try again."),
+  );
+  render(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My local edit" } });
+  fireEvent.click(screen.getByRole("link", { name: "Open Customize" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Stay here" }));
+
+  expect(
+    await screen.findByRole("button", { name: "Discard my edits and load the latest draft" }),
+  ).toBeVisible();
+  expect(mutation).toHaveBeenCalledWith(expect.objectContaining({ expectedDraftRevision: 0 }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discard my edits and load the latest draft" }),
+  );
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez"));
+  expect(mutation).toHaveBeenCalledOnce();
+});
+
+it("saves a new edit with current revisions after discarding a conflicting draft", async () => {
+  useInvalidCustomization.current = true;
+  mutation.mockRejectedValueOnce(
+    new Error("The profile draft changed while you were editing. Refresh and try again."),
+  );
+  const { rerender } = render(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My local edit" } });
+  fireEvent.click(screen.getByRole("link", { name: "Open Customize" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Stay here" }));
+
+  const discardButton = await screen.findByRole("button", {
+    name: "Discard my edits and load the latest draft",
+  });
+  profileRevisions.draft = 8;
+  profileRevisions.image = 6;
+  profileRevisions.media = 7;
+  rerender(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
+  fireEvent.click(discardButton);
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez"));
+
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Recovered edit" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalledTimes(2));
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedDraftRevision: 8,
+      expectedImageRevision: 6,
+      expectedMediaRevision: 7,
+      draft: expect.objectContaining({ name: "Recovered edit" }),
+    }),
+  );
+  expect(
+    await screen.findByText("Draft saved. Visitors still see the last published version."),
+  ).toBeVisible();
 });
 
 it("uploads live profile media with the media revision and strips URLs before saving", async () => {

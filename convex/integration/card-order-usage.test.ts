@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import type { FunctionArgs } from "convex/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { api, internal } from "../_generated/api";
@@ -7,6 +8,17 @@ import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+
+type CardOrderTestClient = ReturnType<ReturnType<typeof convexTest>["withIdentity"]>;
+
+async function placeCreatedOrder(
+  customer: CardOrderTestClient,
+  args: FunctionArgs<typeof api.cardOrders.placeOrder>,
+): Promise<Id<"cardOrders">> {
+  const outcome = await customer.mutation(api.cardOrders.placeOrder, args);
+  if (outcome.kind !== "created") throw new Error(`Expected a created order, got ${outcome.kind}.`);
+  return outcome.orderId;
+}
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
   subject: userId,
@@ -95,7 +107,7 @@ describe("card order referral usage", () => {
     });
     expect(preview).toEqual({ valid: true, discountCentavos: 5_990 });
 
-    const orderId = await customer.mutation(api.cardOrders.placeOrder, {
+    const orderId = await placeCreatedOrder(customer, {
       paymentMethodId: ids.paymentMethodId,
       referralCode: " founding-ahron ",
       designSource: { kind: "url", url: "https://example.test/front.png" },
@@ -103,6 +115,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
     });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
       {
@@ -125,7 +138,7 @@ describe("card order referral usage", () => {
     const ids = await seed(t);
     const admin = t.withIdentity(identity(ids.adminUserId));
     const customer = t.withIdentity(identity(ids.customerUserId));
-    const orderId = await customer.mutation(api.cardOrders.placeOrder, {
+    const orderId = await placeCreatedOrder(customer, {
       paymentMethodId: ids.paymentMethodId,
       referralCode: "FOUNDING-AHRON",
       designSource: { kind: "url", url: "https://example.test/front.png" },
@@ -133,6 +146,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
     });
 
     await admin.mutation(api.cardOrders.cancelOrder, { orderId });

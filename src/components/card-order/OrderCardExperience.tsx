@@ -3,7 +3,7 @@
 import { useAuthToken, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -14,7 +14,14 @@ import { StatusChip } from "@/components/ui/Chip";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
-import { getCardPriceCentavos, manilaStartOfDayTimestamp } from "@/lib/card-ordering";
+import {
+  cardOrderAmountCentavos,
+  type CardOrderPlacementResult,
+  type CardOrderPrice,
+  type Centavos,
+  getCardPriceCentavos,
+  manilaStartOfDayTimestamp,
+} from "@/lib/card-ordering";
 import { CARD_DESIGN_ACCEPT, validateCardOrderDesignFile } from "@/lib/card-design";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
 import {
@@ -97,9 +104,92 @@ type PlaceOrderInput = {
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
+  expectedCardAmountCentavos: Centavos;
 };
 
-type PlaceOrder = (input: PlaceOrderInput) => Promise<string>;
+type PlaceOrder = (input: PlaceOrderInput) => Promise<CardOrderPlacementResult>;
+
+type DemoUpload = Extract<DemoCardOrderDesignSource, { kind: "upload" }>;
+type LiveUpload = { kind: "upload"; uploadId: Id<"cardOrderDesignUploads"> };
+type ArtworkUploadCache<Upload> = Partial<
+  Record<DesignSide, { actorKey: string; file: File; source: Upload }>
+>;
+
+type ReferralResult =
+  | { kind: "valid"; discountCentavos: number }
+  | { kind: "invalid" }
+  | { kind: "error"; message: string };
+type ReferralState = { kind: "none" } | { kind: "checking" } | ReferralResult;
+
+type QuoteState = { kind: "preview" } | { kind: "reconfirmed"; price: CardOrderPrice };
+
+function referralPreviewKey(code: string, currentTime: number) {
+  return `${code}|${currentTime}`;
+}
+
+/**
+ * Bumps whenever the adapter's actor changes or it unmounts. An in-flight submit
+ * captures the value first and treats any later mismatch as a stale submission.
+ */
+function useActorGeneration(actorKey: string) {
+  const generation = useRef(0);
+  useEffect(() => () => void (generation.current += 1), [actorKey]);
+  return generation;
+}
+
+function useSubmitLock() {
+  const held = useRef(false);
+  return {
+    isHeld: () => held.current,
+    hold: () => {
+      held.current = true;
+    },
+    release: () => {
+      held.current = false;
+    },
+  };
+}
+
+function staleSubmissionError() {
+  return new Error("Your account changed while the order was being placed. Sign in and try again.");
+}
+
+function takeArtworkHandles<Upload>(cache: { current: ArtworkUploadCache<Upload> }): Upload[] {
+  const handles = Object.values(cache.current).map((entry) => entry.source);
+  cache.current = {};
+  return handles;
+}
+
+async function designSourceFor<Upload extends { kind: "upload" }>(
+  cache: { current: ArtworkUploadCache<Upload> },
+  side: DesignSide,
+  actorKey: string,
+  isCurrent: () => boolean,
+  design: OrderDesign,
+  upload: (file: File) => Promise<Upload>,
+  discard?: (source: Upload) => void,
+): Promise<Upload | { kind: "url"; url: string }> {
+  if (design.kind === "url") return { kind: "url", url: design.url };
+  const cached = cache.current[side];
+  if (cached?.actorKey === actorKey && cached.file === design.file) return cached.source;
+  if (cached !== undefined) {
+    delete cache.current[side];
+    if (cached.actorKey === actorKey) discard?.(cached.source);
+  }
+  // Sequential on purpose: the backend allows one active upload intent per owner.
+  const source = await upload(design.file);
+  if (!isCurrent()) {
+    // Best effort: owner-checked release is refused once the session has moved on.
+    discard?.(source);
+    throw staleSubmissionError();
+  }
+  cache.current[side] = { actorKey, file: design.file, source };
+  return source;
+}
+
+function isUnavailableArtworkError(error: unknown) {
+  return error instanceof Error && error.message.includes("uploaded card design is unavailable");
+}
 
 export function OrderCardExperience() {
   return isLocalDemoMode() ? <LocalDemoOrderExperience /> : <LiveOrderExperience />;
@@ -114,15 +204,25 @@ function LocalDemoOrderExperience() {
     methods: Record<string, string>;
     orders: Record<string, string>;
   }>({ accountId: "", methods: {}, orders: {} });
-  const customerId =
-    access.kind === "active" && access.account.role === "customer" ? access.account.id : null;
+  const orderAccountId = access.kind === "active" ? access.account.id : null;
+  const artworkCache = useRef<ArtworkUploadCache<DemoUpload>>({});
+  const actorKey = orderAccountId ?? "";
+  const generation = useActorGeneration(actorKey);
+  useEffect(() => {
+    // Ownership ends with the session, so the owner-checked release may be refused; handles drop regardless.
+    return () => {
+      for (const source of takeArtworkHandles(artworkCache)) {
+        void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined);
+      }
+    };
+  }, [actorKey]);
 
   useEffect(() => {
-    if (customerId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
-  }, [customerId]);
+    if (orderAccountId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
+  }, [orderAccountId]);
 
   useEffect(() => {
-    if (customerId === null) return;
+    if (orderAccountId === null) return;
     let active = true;
     const urls: string[] = [];
     const load = async (read: () => Promise<Blob | null>) => {
@@ -153,7 +253,7 @@ function LocalDemoOrderExperience() {
     ]).then(([methods, savedOrders]) => {
       if (active)
         setQrUrls({
-          accountId: customerId,
+          accountId: orderAccountId,
           methods: Object.fromEntries(
             methods.filter((entry): entry is readonly [string, string] => entry[1] !== null),
           ),
@@ -166,12 +266,9 @@ function LocalDemoOrderExperience() {
       active = false;
       urls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [state, session, customerId]);
+  }, [state, session, orderAccountId]);
 
   if (access.kind !== "active") return <AuthLoadingState />;
-  if (access.account.role !== "customer") {
-    return <AccessMessage>Card ordering is available to customer accounts.</AccessMessage>;
-  }
 
   let settings: OrderSettings;
   let orders: CustomerOrder[];
@@ -206,19 +303,35 @@ function LocalDemoOrderExperience() {
 
   return (
     <CustomerOrderForm
+      key={access.account.id}
       mode="demo"
       onPlaceOrder={async (input) => {
-        const savedAssets: Extract<DemoCardOrderDesignSource, { kind: "upload" }>[] = [];
+        const started = generation.current;
+        const isCurrent = () => generation.current === started;
+        const discardAsset = (source: DemoUpload) =>
+          void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined);
         try {
-          const saveSource = async (design: OrderDesign) => {
-            if (design.kind === "url") return { kind: "url" as const, url: design.url };
-            const asset = await saveDemoCardOrderAsset(design.file);
-            savedAssets.push(asset);
-            return asset;
-          };
-          const designSource = await saveSource(input.design);
-          const backDesignSource = await saveSource(input.backDesign);
-          return await placeDemoCardOrder({
+          const designSource = await designSourceFor(
+            artworkCache,
+            "front",
+            actorKey,
+            isCurrent,
+            input.design,
+            saveDemoCardOrderAsset,
+            discardAsset,
+          );
+          const backDesignSource = await designSourceFor(
+            artworkCache,
+            "back",
+            actorKey,
+            isCurrent,
+            input.backDesign,
+            saveDemoCardOrderAsset,
+            discardAsset,
+          );
+          // Checked after every await, so URL-only artwork cannot place for a changed actor.
+          if (!isCurrent()) throw staleSubmissionError();
+          const outcome = await placeDemoCardOrder({
             paymentMethodId: input.paymentMethodId,
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
             designSource,
@@ -226,13 +339,13 @@ function LocalDemoOrderExperience() {
             deliveryName: input.deliveryName,
             deliveryPhone: input.deliveryPhone,
             deliveryAddress: input.deliveryAddress,
+            expectedCardAmountCentavos: input.expectedCardAmountCentavos,
           });
+          // Attached artwork is no longer a reusable handle. A price change keeps it.
+          if (outcome.kind === "created") artworkCache.current = {};
+          return outcome;
         } catch (error) {
-          await Promise.all(
-            savedAssets.map((asset) =>
-              replaceDemoCardOrderAsset(asset.assetKey, null).catch(() => undefined),
-            ),
-          );
+          if (isUnavailableArtworkError(error)) artworkCache.current = {};
           throw error;
         }
       }}
@@ -245,19 +358,28 @@ function LocalDemoOrderExperience() {
 function LiveOrderExperience() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
-  const isCustomer =
+  const canOrder =
     access?.authenticated === true &&
     access.accountStatus === "active" &&
-    access.role === "customer";
-  const settings = useQuery(api.cardOrderSettings.customerSettings, isCustomer ? {} : "skip");
-  const liveOrders = useQuery(api.cardOrders.myOrders, isCustomer ? {} : "skip");
+    (access.role === "customer" || access.role === "admin");
+  const settings = useQuery(api.cardOrderSettings.customerSettings, canOrder ? {} : "skip");
+  const liveOrders = useQuery(api.cardOrders.myOrders, canOrder ? {} : "skip");
   const placeOrder = useMutation(api.cardOrders.placeOrder);
   const authToken = useAuthToken();
+  const artworkCache = useRef<ArtworkUploadCache<LiveUpload>>({});
+  const actorKey = access?.accountId ?? "";
+  const generation = useActorGeneration(actorKey);
+  useEffect(() => {
+    // Uploads are unattached server records that expire on their own; dropping handles is the release.
+    return () => {
+      takeArtworkHandles(artworkCache);
+    };
+  }, [actorKey]);
 
   if (isLoading || (isAuthenticated && access === undefined)) return <AuthLoadingState />;
   if (!isAuthenticated) return <AuthLoadingState />;
-  if (!isCustomer)
-    return <AccessMessage>Card ordering is available to customer accounts.</AccessMessage>;
+  if (!canOrder)
+    return <AccessMessage>An active Tapit account is required to order cards.</AccessMessage>;
 
   const normalizedSettings: OrderSettings | undefined = settings && {
     launchEndDate: settings.launchEndDate,
@@ -273,16 +395,17 @@ function LiveOrderExperience() {
 
   return (
     <CustomerOrderForm
+      key={access?.accountId ?? "customer"}
       mode="live"
       onPlaceOrder={async (input) => {
-        const uploadDesign = async (design: OrderDesign) => {
-          if (design.kind === "url") return { kind: "url" as const, url: design.url };
+        const started = generation.current;
+        const isCurrent = () => generation.current === started;
+        const uploadFile = async (file: File): Promise<LiveUpload> => {
           if (authToken === null) throw new Error("Authentication is required to upload artwork.");
           const siteUrl = requirePairedConvexSiteUrl(
             process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
             process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
           );
-          const file = design.file;
           const response = await fetch(`${siteUrl}/card-order-design-upload`, {
             method: "POST",
             body: file,
@@ -302,17 +425,41 @@ function LiveOrderExperience() {
             uploadId: uploaded.uploadId as Id<"cardOrderDesignUploads">,
           };
         };
-        const designSource = await uploadDesign(input.design);
-        const backDesignSource = await uploadDesign(input.backDesign);
-        return await placeOrder({
-          paymentMethodId: input.paymentMethodId as Id<"cardOrderPaymentMethods">,
-          ...(input.referralCode ? { referralCode: input.referralCode } : {}),
-          designSource,
-          backDesignSource,
-          deliveryName: input.deliveryName,
-          deliveryPhone: input.deliveryPhone,
-          deliveryAddress: input.deliveryAddress,
-        });
+        try {
+          const designSource = await designSourceFor(
+            artworkCache,
+            "front",
+            actorKey,
+            isCurrent,
+            input.design,
+            uploadFile,
+          );
+          const backDesignSource = await designSourceFor(
+            artworkCache,
+            "back",
+            actorKey,
+            isCurrent,
+            input.backDesign,
+            uploadFile,
+          );
+          if (!isCurrent()) throw staleSubmissionError();
+          const outcome = await placeOrder({
+            paymentMethodId: input.paymentMethodId as Id<"cardOrderPaymentMethods">,
+            ...(input.referralCode ? { referralCode: input.referralCode } : {}),
+            designSource,
+            backDesignSource,
+            deliveryName: input.deliveryName,
+            deliveryPhone: input.deliveryPhone,
+            deliveryAddress: input.deliveryAddress,
+            expectedCardAmountCentavos: input.expectedCardAmountCentavos,
+          });
+          if (outcome.kind === "price_changed") return outcome;
+          artworkCache.current = {};
+          return { kind: "created", orderId: outcome.orderId };
+        } catch (error) {
+          if (isUnavailableArtworkError(error)) artworkCache.current = {};
+          throw error;
+        }
       }}
       orders={orders}
       settings={normalizedSettings}
@@ -369,6 +516,17 @@ function CustomerOrderForm({
   const [submitError, setSubmitError] = useState("");
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [quote, setQuote] = useState<QuoteState>({ kind: "preview" });
+  const [referralPreview, setReferralPreview] = useState<{
+    key: string;
+    result: ReferralResult;
+  } | null>(null);
+  const submitLock = useSubmitLock();
+  const priceInputRevisionRef = useRef(0);
+  const publishReferralPreview = useCallback(
+    (key: string, result: ReferralResult) => setReferralPreview({ key, result }),
+    [],
+  );
   const inputRefs = useRef<Record<DesignSide, HTMLInputElement | null>>({
     front: null,
     back: null,
@@ -404,6 +562,33 @@ function CustomerOrderForm({
       ? null
       : manilaStartOfDayTimestamp(settings.launchEndDate);
   const isConfigured = settings?.launchEndDate !== null && paymentMethods.length > 0;
+  const normalizedReferralCode = referralCode.trim();
+  const referral: ReferralState =
+    normalizedReferralCode === ""
+      ? { kind: "none" }
+      : referralPreview?.key === referralPreviewKey(normalizedReferralCode, now)
+        ? referralPreview.result
+        : { kind: "checking" };
+  const estimatedPrice: CardOrderPrice | null =
+    currentCardPrice === null
+      ? null
+      : {
+          cardPriceCentavos: currentCardPrice,
+          discountCentavos: referral.kind === "valid" ? referral.discountCentavos : 0,
+        };
+  const displayedPrice = quote.kind === "reconfirmed" ? quote.price : estimatedPrice;
+  // Null while the referral result is unresolved: the customer cannot confirm an unknown amount.
+  const submitPrice =
+    quote.kind === "reconfirmed"
+      ? quote.price
+      : referral.kind === "checking" || referral.kind === "error"
+        ? null
+        : estimatedPrice;
+
+  function invalidateReconfirmation() {
+    priceInputRevisionRef.current += 1;
+    setQuote({ kind: "preview" });
+  }
 
   function clearSidePreview(side: DesignSide) {
     if (previewUrlsRef.current[side] !== null) URL.revokeObjectURL(previewUrlsRef.current[side]!);
@@ -412,6 +597,7 @@ function CustomerOrderForm({
   }
 
   function changeDesignKind(side: DesignSide, kind: "upload" | "url") {
+    invalidateReconfirmation();
     validationIdsRef.current[side] += 1;
     clearSidePreview(side);
     setArtwork((current) => ({
@@ -426,6 +612,7 @@ function CustomerOrderForm({
   async function handleFileChange(side: DesignSide, event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file === undefined) return;
+    invalidateReconfirmation();
     const requestId = ++validationIdsRef.current[side];
     clearSidePreview(side);
     setArtwork((current) => ({
@@ -463,6 +650,7 @@ function CustomerOrderForm({
   }
 
   function removeFile(side: DesignSide) {
+    invalidateReconfirmation();
     validationIdsRef.current[side] += 1;
     clearSidePreview(side);
     setArtwork((current) => ({
@@ -474,7 +662,10 @@ function CustomerOrderForm({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting || artwork.front.validating || artwork.back.validating) return;
+    if (submitLock.isHeld() || artwork.front.validating || artwork.back.validating) return;
+    // Capture the amount the customer sees before any await.
+    const capturedPrice = submitPrice;
+    const priceRevision = priceInputRevisionRef.current;
     const nextErrors: Record<string, string> = {};
     const name = deliveryName.trim();
     const phone = deliveryPhone.trim();
@@ -512,24 +703,45 @@ function CustomerOrderForm({
       setSubmitError("Card ordering is not configured yet. Please try again later.");
       return;
     }
+    if (capturedPrice === null) {
+      setSubmitError(
+        referral.kind === "error"
+          ? referral.message
+          : "Referral status is still being checked. Try again in a moment.",
+      );
+      return;
+    }
 
+    submitLock.hold();
     setSubmitting(true);
     setSubmittedOrderId("");
     try {
-      const orderId = await onPlaceOrder({
+      const outcome = await onPlaceOrder({
         paymentMethodId: selectedPaymentMethodId,
-        ...(referralCode.trim() ? { referralCode: referralCode.trim() } : {}),
+        ...(normalizedReferralCode ? { referralCode: normalizedReferralCode } : {}),
         design,
         backDesign,
         deliveryName: name,
         deliveryPhone: phone,
         deliveryAddress: address,
+        expectedCardAmountCentavos: cardOrderAmountCentavos(capturedPrice),
       });
-      setSubmittedOrderId(orderId);
+      if (outcome.kind === "price_changed") {
+        // No order exists. Pin the authoritative amount until the customer confirms it.
+        if (priceRevision === priceInputRevisionRef.current)
+          setQuote({ kind: "reconfirmed", price: outcome.price });
+        else
+          setSubmitError(
+            "Your details changed while the order was being checked. Review them and place the order again.",
+          );
+        return;
+      }
+      setSubmittedOrderId(outcome.orderId);
       for (const side of ["front", "back"] as const) removeFile(side);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Your order could not be saved.");
     } finally {
+      submitLock.release();
       setSubmitting(false);
     }
   }
@@ -605,12 +817,14 @@ function CustomerOrderForm({
                 <DesignChoice
                   checked={artwork[activeSide].kind === "upload"}
                   description="Select a PNG or JPG from this device."
+                  disabled={submitting}
                   label="Upload an image"
                   onChange={() => changeDesignKind(activeSide, "upload")}
                 />
                 <DesignChoice
                   checked={artwork[activeSide].kind === "url"}
                   description="Provide an HTTPS link to your image."
+                  disabled={submitting}
                   label="Use a design link"
                   onChange={() => changeDesignKind(activeSide, "url")}
                 />
@@ -623,6 +837,7 @@ function CustomerOrderForm({
                     aria-describedby={`${activeSide}-file-guidance`}
                     aria-invalid={Boolean(artwork[activeSide].error || fieldErrors[activeSide])}
                     className="sr-only"
+                    disabled={submitting}
                     id={`order-card-${activeSide}-file`}
                     key={activeSide}
                     onChange={(event) => void handleFileChange(activeSide, event)}
@@ -687,12 +902,14 @@ function CustomerOrderForm({
                 <div className="mt-4">
                   <Field
                     autoComplete="url"
+                    disabled={submitting}
                     error={artwork[activeSide].error || fieldErrors[activeSide]}
                     help="Use an HTTPS URL without username or password. The image is not fetched during order submission."
                     id={`order-card-${activeSide}-url`}
                     label={`${activeSide === "front" ? "Front" : "Back"} design URL`}
                     maxLength={2048}
                     onChange={(event) => {
+                      invalidateReconfirmation();
                       const url = event.target.value;
                       setArtwork((current) => ({
                         ...current,
@@ -712,6 +929,7 @@ function CustomerOrderForm({
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
                   autoComplete="name"
+                  disabled={submitting}
                   error={fieldErrors.deliveryName}
                   id="delivery-name"
                   label="Delivery name"
@@ -726,6 +944,7 @@ function CustomerOrderForm({
                 />
                 <Field
                   autoComplete="tel"
+                  disabled={submitting}
                   error={fieldErrors.deliveryPhone}
                   id="delivery-phone"
                   label="Phone number"
@@ -742,6 +961,7 @@ function CustomerOrderForm({
                 <div className="sm:col-span-2">
                   <TextareaField
                     autoComplete="street-address"
+                    disabled={submitting}
                     error={fieldErrors.deliveryAddress}
                     id="delivery-address"
                     label="Delivery address"
@@ -761,10 +981,11 @@ function CustomerOrderForm({
             <Card className="gap-0" title="03 · Payment">
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <SelectField
-                  disabled={paymentMethods.length === 0}
+                  disabled={paymentMethods.length === 0 || submitting}
                   id="payment-method"
                   label="Payment method"
                   onChange={(event) => {
+                    invalidateReconfirmation();
                     setPaymentMethodId(event.target.value);
                     setFieldErrors((current) => ({ ...current, paymentMethod: "" }));
                   }}
@@ -809,10 +1030,14 @@ function CustomerOrderForm({
                 <div className="sm:col-span-2">
                   <Field
                     autoCapitalize="characters"
+                    disabled={submitting}
                     id="referral-code"
                     label="Referral code"
                     maxLength={40}
-                    onChange={(event) => setReferralCode(event.target.value.toUpperCase())}
+                    onChange={(event) => {
+                      invalidateReconfirmation();
+                      setReferralCode(event.target.value.toUpperCase());
+                    }}
                     value={referralCode}
                   />
                 </div>
@@ -828,6 +1053,12 @@ function CustomerOrderForm({
               ) : null}
             </Card>
 
+            {quote.kind === "reconfirmed" ? (
+              <Notice>
+                The card amount changed to {formatPHP(cardOrderAmountCentavos(quote.price))} +
+                shipping. Review it and confirm again. Your order has not been placed.
+              </Notice>
+            ) : null}
             {submitError ? <Notice tone="error">{submitError}</Notice> : null}
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Link
@@ -838,11 +1069,18 @@ function CustomerOrderForm({
               </Link>
               <Button
                 className="sm:min-w-48"
-                disabled={!isConfigured || artwork.front.validating || artwork.back.validating}
+                disabled={
+                  !isConfigured ||
+                  artwork.front.validating ||
+                  artwork.back.validating ||
+                  submitPrice === null
+                }
                 loading={submitting}
                 type="submit"
               >
-                Place order
+                {quote.kind === "reconfirmed"
+                  ? `Confirm ${formatPHP(cardOrderAmountCentavos(quote.price))} + shipping`
+                  : "Place order"}
                 <Icon aria-hidden="true" className="ml-2" name="arrowRight" size={17} />
               </Button>
             </div>
@@ -855,23 +1093,25 @@ function CustomerOrderForm({
                   Price preview
                 </p>
                 <h2 className="tapit-display mt-2 text-2xl font-medium tracking-tight">
-                  {currentCardPrice === null ? "—" : formatPHP(currentCardPrice)}
+                  {displayedPrice === null
+                    ? "—"
+                    : formatPHP(cardOrderAmountCentavos(displayedPrice))}
                 </h2>
               </div>
               <div className="grid gap-3 p-4 sm:p-6">
-                <dl className="grid gap-3">
-                  <PriceLine
-                    label="Card"
-                    value={currentCardPrice === null ? "—" : formatPHP(currentCardPrice)}
-                  />
-                  <ReferralPriceSummary
-                    code={referralCode}
+                <PriceBreakdown
+                  pinned={quote.kind === "reconfirmed"}
+                  price={displayedPrice}
+                  referral={quote.kind === "preview" ? referral : { kind: "none" }}
+                />
+                {normalizedReferralCode ? (
+                  <ReferralPreviewReporter
+                    code={normalizedReferralCode}
                     currentTime={now}
-                    currentPrice={currentCardPrice ?? 0}
                     mode={mode}
+                    onPreview={publishReferralPreview}
                   />
-                  <PriceLine label="Shipping" value="Pending quote" />
-                </dl>
+                ) : null}
                 {launchCutoff !== null ? (
                   <p className="mt-2 rounded-control bg-tapit-soft-surface p-3 text-xs leading-5 text-tapit-muted">
                     ₱599 launch price applies before {formatManilaCutoff(launchCutoff)} Manila time.
@@ -918,11 +1158,13 @@ function CustomerOrderForm({
 function DesignChoice({
   checked,
   description,
+  disabled,
   label,
   onChange,
 }: {
   checked: boolean;
   description: string;
+  disabled: boolean;
   label: string;
   onChange: () => void;
 }) {
@@ -933,6 +1175,7 @@ function DesignChoice({
       <input
         checked={checked}
         className="mt-1 size-4 accent-[var(--color-tapit-accent)]"
+        disabled={disabled}
         name="design-kind"
         onChange={onChange}
         type="radio"
@@ -945,118 +1188,97 @@ function DesignChoice({
   );
 }
 
-function ReferralPriceSummary({
+type ReferralPreviewProps = {
+  code: string;
+  currentTime: number;
+  onPreview: (key: string, result: ReferralResult) => void;
+};
+
+/** Publishes a referral result keyed by code and time; it renders nothing itself. */
+function ReferralPreviewReporter({
   mode,
-  code,
-  currentTime,
-  currentPrice,
-}: {
-  mode: "demo" | "live";
-  code: string;
-  currentTime: number;
-  currentPrice: number;
-}) {
-  if (!code.trim()) return <ReferralPriceLines currentPrice={currentPrice} />;
+  ...props
+}: ReferralPreviewProps & { mode: "demo" | "live" }) {
   return mode === "demo" ? (
-    <DemoReferralPriceLines code={code} currentTime={currentTime} currentPrice={currentPrice} />
+    <DemoReferralPreviewReporter {...props} />
   ) : (
-    <LiveReferralPriceLines code={code} currentTime={currentTime} currentPrice={currentPrice} />
+    <LiveReferralPreviewReporter {...props} />
   );
 }
 
-function DemoReferralPriceLines({
-  code,
-  currentTime,
-  currentPrice,
+function DemoReferralPreviewReporter({ code, currentTime, onPreview }: ReferralPreviewProps) {
+  useEffect(() => {
+    let result: ReferralResult;
+    try {
+      const preview = previewDemoCardOrderReferral(code, currentTime);
+      result = preview.valid
+        ? { kind: "valid", discountCentavos: preview.discountCentavos }
+        : { kind: "invalid" };
+    } catch {
+      result = { kind: "error", message: "Referral status could not be checked." };
+    }
+    onPreview(referralPreviewKey(code, currentTime), result);
+  }, [code, currentTime, onPreview]);
+  return null;
+}
+
+function LiveReferralPreviewReporter({ code, currentTime, onPreview }: ReferralPreviewProps) {
+  const preview = useQuery(api.cardOrderSettings.previewReferral, { code, currentTime });
+  useEffect(() => {
+    if (preview === undefined) return;
+    onPreview(
+      referralPreviewKey(code, currentTime),
+      preview.valid
+        ? { kind: "valid", discountCentavos: preview.discountCentavos }
+        : { kind: "invalid" },
+    );
+  }, [code, currentTime, preview, onPreview]);
+  return null;
+}
+
+function PriceBreakdown({
+  price,
+  referral,
+  pinned,
 }: {
-  code: string;
-  currentTime: number;
-  currentPrice: number;
+  price: CardOrderPrice | null;
+  referral: ReferralState;
+  pinned: boolean;
 }) {
-  let valid = false;
-  let discountCentavos = 0;
-  let error: string | undefined;
-  try {
-    const preview = previewDemoCardOrderReferral(code, currentTime);
-    valid = preview.valid;
-    discountCentavos = preview.discountCentavos;
-  } catch {
-    error = "Referral status could not be checked.";
+  if (price === null) {
+    return (
+      <dl className="grid gap-3">
+        <PriceLine label="Card" value="—" />
+        <PriceLine label="Referral discount" value="—" />
+        <PriceLine label="Estimated amount" value="—" strong />
+        <PriceLine label="Shipping" value="Pending quote" />
+      </dl>
+    );
   }
+  const discountValue =
+    price.discountCentavos > 0
+      ? `−${formatPHP(price.discountCentavos)}`
+      : referral.kind === "checking"
+        ? "Checking…"
+        : referral.kind === "invalid"
+          ? "Not available"
+          : referral.kind === "error"
+            ? "Unavailable"
+            : "—";
   return (
-    <ReferralPriceLines
-      currentPrice={currentPrice}
-      discountCentavos={discountCentavos}
-      error={error}
-      hasCode
-      valid={valid}
-    />
-  );
-}
-
-function LiveReferralPriceLines({
-  code,
-  currentTime,
-  currentPrice,
-}: {
-  code: string;
-  currentTime: number;
-  currentPrice: number;
-}) {
-  const preview = useQuery(api.cardOrderSettings.previewReferral, {
-    code: code.trim(),
-    currentTime,
-  });
-  if (preview === undefined) {
-    return <ReferralPriceLines currentPrice={currentPrice} checking hasCode />;
-  }
-  return (
-    <ReferralPriceLines
-      currentPrice={currentPrice}
-      discountCentavos={preview.discountCentavos}
-      hasCode
-      valid={preview.valid}
-    />
-  );
-}
-
-function ReferralPriceLines({
-  valid,
-  discountCentavos,
-  currentPrice,
-  checking = false,
-  error,
-  hasCode = false,
-}: {
-  valid?: boolean;
-  discountCentavos?: number;
-  currentPrice: number;
-  checking?: boolean;
-  error?: string;
-  hasCode?: boolean;
-}) {
-  const appliedDiscount = valid ? (discountCentavos ?? 0) : 0;
-  return valid ? (
     <>
-      <PriceLine label="Referral discount" value={`−${formatPHP(appliedDiscount)}`} />
-      <PriceLine
-        label="Estimated amount"
-        value={`${formatPHP(currentPrice - appliedDiscount)} + shipping`}
-        strong
-      />
-    </>
-  ) : (
-    <>
-      <PriceLine
-        label="Referral discount"
-        value={checking ? "Checking…" : error ? "Unavailable" : hasCode ? "Not available" : "—"}
-      />
-      <PriceLine label="Estimated amount" value={`${formatPHP(currentPrice)} + shipping`} strong />
-      {error ? (
-        <div>
-          <dt className="sr-only">Referral status</dt>
-          <dd className="text-xs text-tapit-danger">{error}</dd>
-        </div>
+      <dl className="grid gap-3">
+        <PriceLine label="Card" value={formatPHP(price.cardPriceCentavos)} />
+        <PriceLine label="Referral discount" value={discountValue} />
+        <PriceLine
+          label={pinned ? "Card amount" : "Estimated amount"}
+          strong
+          value={`${formatPHP(cardOrderAmountCentavos(price))} + shipping`}
+        />
+        <PriceLine label="Shipping" value="Pending quote" />
+      </dl>
+      {referral.kind === "error" ? (
+        <p className="text-xs text-tapit-danger">{referral.message}</p>
       ) : null}
     </>
   );

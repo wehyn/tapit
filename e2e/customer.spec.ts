@@ -348,7 +348,7 @@ test("sign out stays blocked while a link draft has a validation error", async (
   await page.goto("/app/links");
 
   const destination = page.getByLabel("Destination for LinkedIn");
-  await destination.fill("not-a-url");
+  await destination.fill("javascript:alert(1)");
   await expect(
     page.getByText("Link destination must be a valid HTTPS, mailto, or tel address."),
   ).toBeVisible();
@@ -356,7 +356,7 @@ test("sign out stays blocked while a link draft has a validation error", async (
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
 
   await expect(page).toHaveURL(/\/app\/links$/);
-  await expect(destination).toHaveValue("not-a-url");
+  await expect(destination).toHaveValue("javascript:alert(1)");
   await expect(
     page
       .getByRole("alert")
@@ -1295,6 +1295,39 @@ test("the Links draft action is hidden while clean and appears after an edit", a
   await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
 });
 
+for (const navigation of [
+  { name: "desktop logo", width: 1440, target: "sidebar" },
+  { name: "mobile logo", width: 390, target: "header" },
+  { name: "breadcrumb", width: 1440, target: "breadcrumb" },
+] as const) {
+  test(`saving unsaved link edits before navigation from the ${navigation.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: navigation.width, height: 900 });
+    await resetDemoHarness(page);
+    await signInAsCustomer(page);
+    await page.goto("/app/links");
+    await page
+      .getByRole("textbox", { name: "Label for Portfolio" })
+      .fill(`${navigation.name} draft`);
+
+    const destination =
+      navigation.target === "sidebar"
+        ? page.getByTestId("workspace-sidebar").getByRole("link", { name: "Tapit home" })
+        : navigation.target === "header"
+          ? page.locator("header").getByRole("link", { name: "Tapit home" })
+          : page
+              .getByRole("navigation", { name: "Breadcrumb" })
+              .getByRole("link", { name: "Workspace" });
+    await destination.click();
+    await expect(page).toHaveURL(/\/app\/profile$/);
+    await page.goto("/app/links");
+    await expect(
+      page.getByRole("textbox", { name: `Label for ${navigation.name} draft` }),
+    ).toHaveValue(`${navigation.name} draft`);
+  });
+}
+
 test("guided link creation adds email and phone without scheme typing", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -1312,6 +1345,9 @@ test("guided link creation adds email and phone without scheme typing", async ({
   await page.getByLabel("Email address", { exact: true }).fill("hello@example.com");
   await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("hello@example.com");
+  const emailDestination = page.getByRole("textbox", { name: "Destination for Work email" });
+  await emailDestination.fill("");
+  await emailDestination.fill("updated@example.com");
 
   await page.getByRole("button", { name: "Add link", exact: true }).first().click();
   await page.getByRole("button", { name: "Phone number" }).click();
@@ -1319,14 +1355,21 @@ test("guided link creation adds email and phone without scheme typing", async ({
   await page.getByLabel("Phone number", { exact: true }).fill("+1 555 123 4567");
   await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("+1 555 123 4567");
+  const phoneDestination = page.getByRole("textbox", { name: "Destination for Call me" });
+  await phoneDestination.fill("");
+  await phoneDestination.fill("+15551234567");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Destination for Work email" })).toHaveValue(
-    "hello@example.com",
+    "updated@example.com",
   );
   await expect(page.getByRole("textbox", { name: "Destination for Call me" })).toHaveValue(
-    "+1 555 123 4567",
+    "+15551234567",
   );
+  await page.screenshot({
+    path: "test-results/tapit-contact-destination-editing.png",
+    fullPage: true,
+  });
 });
 
 test("the last link action menu stays visible above the draft bar", async ({ page }) => {
