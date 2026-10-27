@@ -9,6 +9,7 @@ const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
 const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
 const useInvalidCustomization = vi.hoisted(() => ({ current: false }));
+const profileRevisions = vi.hoisted(() => ({ draft: 0, image: 3, media: 3 }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -21,8 +22,9 @@ vi.mock("convex/react", () => ({
     ownerId: "customer-1",
     scope: "default",
     status: "draft",
-    imageRevision: 3,
-    mediaRevision: 3,
+    draftRevision: profileRevisions.draft,
+    imageRevision: profileRevisions.image,
+    mediaRevision: profileRevisions.media,
     draft: {
       name: "Mara Velasquez",
       slug: "mara-velasquez",
@@ -103,6 +105,9 @@ import { DraftSaveProvider } from "@/components/layout/DraftSaveContext";
 beforeEach(() => {
   useUncustomizedProfile.current = false;
   useInvalidCustomization.current = false;
+  profileRevisions.draft = 0;
+  profileRevisions.image = 3;
+  profileRevisions.media = 3;
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://preview-123.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://preview-123.convex.site");
   mutation.mockClear();
@@ -207,6 +212,50 @@ it("offers explicit recovery after a revision conflict without retrying on the s
   );
   await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez"));
   expect(mutation).toHaveBeenCalledOnce();
+});
+
+it("saves a new edit with current revisions after discarding a conflicting draft", async () => {
+  mutation.mockRejectedValueOnce(
+    new Error("The profile draft changed while you were editing. Refresh and try again."),
+  );
+  const { rerender } = render(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My local edit" } });
+  fireEvent.click(screen.getByRole("link", { name: "Open Customize" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Stay here" }));
+
+  const discardButton = await screen.findByRole("button", {
+    name: "Discard my edits and load the latest draft",
+  });
+  profileRevisions.draft = 8;
+  profileRevisions.image = 6;
+  profileRevisions.media = 7;
+  rerender(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
+  fireEvent.click(discardButton);
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez"));
+
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Recovered edit" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  await waitFor(() => expect(mutation).toHaveBeenCalledTimes(2));
+  expect(mutation).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      expectedDraftRevision: 8,
+      expectedImageRevision: 6,
+      expectedMediaRevision: 7,
+      draft: expect.objectContaining({ name: "Recovered edit" }),
+    }),
+  );
+  expect(
+    await screen.findByText("Draft saved. Visitors still see the last published version."),
+  ).toBeVisible();
 });
 
 it("uploads live profile media with the media revision and strips URLs before saving", async () => {

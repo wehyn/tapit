@@ -1197,6 +1197,10 @@ function LiveProfileEditorContent({
   }
 
   function discardConflictingDraft() {
+    serverDraftProfileIdRef.current = liveProfile._id;
+    serverDraftRevisionRef.current = liveProfile.draftRevision ?? 0;
+    imageRevisionRef.current = liveProfile.imageRevision ?? 0;
+    mediaRevisionRef.current = liveProfile.mediaRevision ?? 0;
     setDraft(null);
     setDraftConflict(false);
     setMessage({ tone: "success", text: "Showing the latest saved profile draft." });
