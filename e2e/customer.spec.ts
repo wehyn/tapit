@@ -1345,6 +1345,9 @@ test("guided link creation adds email and phone without scheme typing", async ({
   await page.getByLabel("Email address", { exact: true }).fill("hello@example.com");
   await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("hello@example.com");
+  const emailDestination = page.getByRole("textbox", { name: "Destination for Work email" });
+  await emailDestination.fill("");
+  await emailDestination.fill("updated@example.com");
 
   await page.getByRole("button", { name: "Add link", exact: true }).first().click();
   await page.getByRole("button", { name: "Phone number" }).click();
@@ -1352,14 +1355,21 @@ test("guided link creation adds email and phone without scheme typing", async ({
   await page.getByLabel("Phone number", { exact: true }).fill("+1 555 123 4567");
   await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
   await expect(rows.last().locator('input[id$="-destination"]')).toHaveValue("+1 555 123 4567");
+  const phoneDestination = page.getByRole("textbox", { name: "Destination for Call me" });
+  await phoneDestination.fill("");
+  await phoneDestination.fill("+15551234567");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await page.reload();
   await expect(page.getByRole("textbox", { name: "Destination for Work email" })).toHaveValue(
-    "hello@example.com",
+    "updated@example.com",
   );
   await expect(page.getByRole("textbox", { name: "Destination for Call me" })).toHaveValue(
-    "+1 555 123 4567",
+    "+15551234567",
   );
+  await page.screenshot({
+    path: "test-results/tapit-contact-destination-editing.png",
+    fullPage: true,
+  });
 });
 
 test("the last link action menu stays visible above the draft bar", async ({ page }) => {
