@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
@@ -17,6 +18,7 @@ import {
 } from "../src/lib/card-ordering";
 
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
+const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
 const paymentFields = v.object({
   provider: v.string(),
   label: v.string(),
@@ -114,6 +116,32 @@ export const adminReferralCodes = query({
       active,
       usageCount: usageCount ?? 0,
     }));
+  },
+});
+
+export const startReferralUsageBackfill = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const existing = await ctx.db
+      .query("settings")
+      .withIndex("by_scope_and_key", (q) =>
+        q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
+      )
+      .first();
+    if (existing !== null) return null;
+    await ctx.db.insert("settings", {
+      scope: account.scope,
+      key: REFERRAL_USAGE_BACKFILL_KEY,
+      value: "started",
+      updatedAt: Date.now(),
+      updatedByUserId: userId,
+    });
+    await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
+      cursor: null,
+    });
+    return null;
   },
 });
 

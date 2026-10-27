@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -209,5 +209,148 @@ describe("card order referral usage", () => {
     await expect(
       unrelated.query(api.cardOrderSettings.adminReferralCodeUsage, args),
     ).rejects.toThrow("Administrator permission required.");
+  });
+
+  it("starts the legacy usage backfill once and resumes across pages without double counting", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 205; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/legacy.png" },
+          deliveryName: "Legacy Customer",
+          deliveryPhone: "09170000000",
+          deliveryAddress: "Private address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Private account details",
+            instructions: "Transfer.",
+          },
+          referralCodeId: ids.codeId,
+          referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index + 1,
+          updatedAt: index + 1,
+        });
+      }
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await expect(
+        admin.query(api.cardOrderSettings.adminReferralCodes, {}),
+      ).resolves.toMatchObject([{ usageCount: 205 }]);
+
+      await t.mutation(internal.cardOrderReferralUsage.backfillUsageCounts, { cursor: null });
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      await expect(
+        admin.query(api.cardOrderSettings.adminReferralCodes, {}),
+      ).resolves.toMatchObject([{ usageCount: 205 }]);
+    } finally {
+      vi.useRealTimers();
+    }
+    const countedOrders = await t.run(async (ctx) => {
+      const orders = await ctx.db
+        .query("cardOrders")
+        .withIndex("by_scope_and_referralCodeId_and_createdAt", (q) =>
+          q.eq("scope", undefined).eq("referralCodeId", ids.codeId),
+        )
+        .take(250);
+      return orders.filter((order) => order.usageCounted === true);
+    });
+    expect(countedOrders).toHaveLength(205);
+  });
+
+  it("paginates referral history with only the approved customer and status fields", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.customerId, { onboardingName: "Test Customer" });
+      for (let index = 1; index <= 3; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/history.png" },
+          deliveryName: "Private delivery name",
+          deliveryPhone: "Private phone",
+          deliveryAddress: "Private address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Private account details",
+            instructions: "Transfer.",
+          },
+          referralCodeId: ids.codeId,
+          referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index,
+          updatedAt: index,
+        });
+      }
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const args = { codeId: ids.codeId, paginationOpts: { numItems: 2, cursor: null } };
+    const first = await admin.query(api.cardOrderSettings.adminReferralCodeUsage, args);
+    expect(first.page).toEqual([
+      {
+        date: 3,
+        orderId: expect.any(String),
+        customerName: "Test Customer",
+        customerEmail: "customer@example.test",
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "pending",
+      },
+      {
+        date: 2,
+        orderId: expect.any(String),
+        customerName: "Test Customer",
+        customerEmail: "customer@example.test",
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "pending",
+      },
+    ]);
+    expect(first.isDone).toBe(false);
+    expect(
+      first.page.every((row) => !("deliveryAddress" in row) && !("deliveryPhone" in row)),
+    ).toBe(true);
+
+    const second = await admin.query(api.cardOrderSettings.adminReferralCodeUsage, {
+      codeId: ids.codeId,
+      paginationOpts: { numItems: 2, cursor: first.continueCursor },
+    });
+    expect(second.page).toEqual([
+      {
+        date: 1,
+        orderId: expect.any(String),
+        customerName: "Test Customer",
+        customerEmail: "customer@example.test",
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "pending",
+      },
+    ]);
+    expect(second.isDone).toBe(true);
   });
 });
