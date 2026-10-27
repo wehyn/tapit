@@ -45,7 +45,7 @@ const cardFilterOptions: readonly { value: CardFilter; label: string }[] = [
 
 const cardRowColumns = "grid-cols-[minmax(0,1.6fr)_112px_minmax(0,1fr)_16px]";
 
-// Registered and claimable cards both still wait for a customer to claim them.
+// Registered and claimable cards both still wait for the profile owner to claim them.
 function cardGroup(status: string): CardGroup {
   if (status === "active") return "claimed";
   if (status === "inactive" || status === "replaced") return "inactive";
@@ -371,12 +371,7 @@ function DemoCardsManager() {
       return;
     }
     const owner = state.customers.find((customer) => customer.id === profile.ownerId);
-    if (
-      owner === undefined ||
-      owner.role !== "customer" ||
-      owner.status === "deleted" ||
-      owner.deletionStatus !== "active"
-    ) {
+    if (owner === undefined || owner.status === "deleted" || owner.deletionStatus !== "active") {
       setMessage({ tone: "error", text: "The profile owner account is not available." });
       return;
     }

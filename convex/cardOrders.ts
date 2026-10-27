@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
-import { activeOrderCustomer, launchEndDate } from "./cardOrderSettings";
+import { activeOrderAccount, launchEndDate } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
 import {
   calculateCommissionCentavos,
@@ -57,7 +57,7 @@ export const placeOrder = mutation({
   },
   returns: v.id("cardOrders"),
   handler: async (ctx, args) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const now = Date.now();
     const [date, activePayment, selectedPayment, prior] = await Promise.all([
       launchEndDate(ctx, customer),
@@ -183,7 +183,7 @@ export const myOrders = query({
   args: {},
   returns: v.array(customerOrder),
   handler: async (ctx) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const orders = await ctx.db
       .query("cardOrders")
       .withIndex("by_scope_and_customerId_and_createdAt", (q) =>

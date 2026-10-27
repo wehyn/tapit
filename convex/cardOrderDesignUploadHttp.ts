@@ -160,7 +160,7 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
     const status =
       message === "Authentication required."
         ? 401
-        : message.includes("Active customer account required")
+        : message.includes("Active account required")
           ? 403
           : message.includes("already being processed") ||
               message.includes("still being cleaned up")

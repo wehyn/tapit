@@ -213,7 +213,6 @@ export const attach = mutation({
     const owner = await ctx.db.get(profile.ownerId);
     if (
       owner === null ||
-      owner.role !== "customer" ||
       !sameScope(account, owner) ||
       !sameScope(owner, profile) ||
       owner.status === "deleted" ||

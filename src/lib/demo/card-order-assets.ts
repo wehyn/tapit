@@ -94,8 +94,8 @@ async function recoverUnreferencedAssetReservations(ownerId: string): Promise<vo
   for (const assetKey of assetKeys.map(String)) {
     await withAssetLock(assetKey, async () => {
       const { state, account } = access();
-      if (account.role !== "customer" || account.id !== ownerId) {
-        throw new Error("Customer session changed. Try again.");
+      if (account.id !== ownerId) {
+        throw new Error("Account session changed. Try again.");
       }
       await withStore("readwrite", async (store) => {
         const asset = await requestValue<StoredAsset | undefined>(store.get(assetKey));
@@ -218,8 +218,8 @@ async function reserveDemoCardOrderAsset(
   ownerId: string,
 ): Promise<void> {
   const { state, account } = access();
-  if (account.role !== "customer" || account.id !== ownerId) {
-    throw new Error("Customer session changed. Try again.");
+  if (account.id !== ownerId) {
+    throw new Error("Account session changed. Try again.");
   }
   if (orderReferencesAsset(state, designSource.assetKey)) {
     throw new Error("The uploaded card design is unavailable.");
@@ -290,7 +290,6 @@ export async function withDemoCardOrderAssetReservation<T>(
 export async function deleteDemoCardOrderAsset(assetKey: string): Promise<void> {
   await withAssetLock(assetKey, async () => {
     const { state, account } = access();
-    if (account.role !== "customer") throw new Error("Customer access required.");
     if (orderReferencesAsset(state, assetKey)) {
       throw new Error("Artwork attached to an order cannot be removed.");
     }
@@ -324,7 +323,6 @@ export async function replaceDemoCardOrderAsset(
   }
 
   const { account } = access();
-  if (account.role !== "customer") throw new Error("An active customer account is required.");
   await validateCardOrderDesignFile(file);
   const assetKey = crypto.randomUUID();
   const asset: StoredAsset = {
@@ -338,8 +336,8 @@ export async function replaceDemoCardOrderAsset(
 
   await withCustomerAssetsLock(account.id, async () => {
     const current = access();
-    if (current.account.role !== "customer" || current.account.id !== account.id) {
-      throw new Error("Customer session changed. Try again.");
+    if (current.account.id !== account.id) {
+      throw new Error("Account session changed. Try again.");
     }
     await recoverUnreferencedAssetReservations(account.id);
     await withAssetLocks(
@@ -347,8 +345,8 @@ export async function replaceDemoCardOrderAsset(
       () =>
         withStore("readwrite", async (store) => {
           const { state, account: owner } = access();
-          if (owner.role !== "customer" || owner.id !== account.id) {
-            throw new Error("Customer session changed. Try again.");
+          if (owner.id !== account.id) {
+            throw new Error("Account session changed. Try again.");
           }
           if (previousAssetKey !== undefined) {
             if (orderReferencesAsset(state, previousAssetKey)) {

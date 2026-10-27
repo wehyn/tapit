@@ -24,11 +24,10 @@ const paymentFields = v.object({
 });
 const customerPayment = paymentFields.extend({ _id: v.id("cardOrderPaymentMethods") });
 
-export async function activeOrderCustomer(ctx: QueryCtx | MutationCtx) {
+export async function activeOrderAccount(ctx: QueryCtx | MutationCtx) {
   const userId = await requireUser(ctx);
   const account = await customerForAuthUser(ctx, userId);
-  if (account === null || account.role !== "customer" || !isActiveCustomer(account))
-    throw new Error("Active customer account required.");
+  if (account === null || !isActiveCustomer(account)) throw new Error("Active account required.");
   return account;
 }
 
@@ -114,7 +113,7 @@ export const customerSettings = query({
     paymentMethods: v.array(customerPayment),
   }),
   handler: async (ctx) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const [date, payments] = await Promise.all([
       launchEndDate(ctx, customer),
       ctx.db
@@ -139,7 +138,7 @@ export const previewReferral = query({
   args: { code: v.string(), currentTime: v.number() },
   returns: v.object({ valid: v.boolean(), discountCentavos: v.number() }),
   handler: async (ctx, args) => {
-    const customer = await activeOrderCustomer(ctx);
+    const customer = await activeOrderAccount(ctx);
     const code = args.code.trim().toUpperCase();
     const [date, referral, prior] = await Promise.all([
       launchEndDate(ctx, customer),

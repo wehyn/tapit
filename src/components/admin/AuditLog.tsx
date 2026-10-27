@@ -43,7 +43,7 @@ const readableActions: Record<string, string> = {
   "card.attached": "Card attached to profile",
   "card.claim_code_generated": "Card claim code generated",
   "card.claim_code_invalidated": "Card claim code deactivated",
-  "card.claimed": "Card claimed by customer",
+  "card.claimed": "Card claimed by profile owner",
   "card.deactivated": "Card deactivated",
   "card.registered": "Card registered",
   "card.replaced": "Card replaced",

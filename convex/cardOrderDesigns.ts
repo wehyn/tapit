@@ -59,8 +59,8 @@ export const createUploadIntent = internalMutation({
   handler: async (ctx, args) => {
     const userId = args.userId;
     const customer = await customerForAuthUser(ctx, userId);
-    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
-      throw new Error("Active customer account required.");
+    if (customer === null || !isActiveCustomer(customer)) {
+      throw new Error("Active account required.");
     }
 
     const now = Date.now();
@@ -116,7 +116,6 @@ export const prepareUpload = internalMutation({
     if (
       customer === null ||
       !isActiveCustomer(customer) ||
-      customer.role !== "customer" ||
       intent === null ||
       intent.status !== "pending" ||
       !sameScope(customer, intent)
@@ -164,7 +163,6 @@ export const register = internalMutation({
     if (
       customer === null ||
       !isActiveCustomer(customer) ||
-      customer.role !== "customer" ||
       intent === null ||
       intent.status !== "processing" ||
       intent.ownerId !== customer._id ||
@@ -420,8 +418,8 @@ export const customerDesignUrl = query({
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx);
     const customer = await customerForAuthUser(ctx, userId);
-    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
-      throw new Error("Active customer account required.");
+    if (customer === null || !isActiveCustomer(customer)) {
+      throw new Error("Active account required.");
     }
     const order = await ctx.db.get(args.orderId);
     if (order === null || order.customerId !== customer._id || !sameScope(customer, order)) {

@@ -93,9 +93,6 @@ function LocalDemoOrderExperience() {
   const access = resolveDemoSessionAccess(state, session);
 
   if (access.kind !== "active") return <AuthLoadingState />;
-  if (access.account.role !== "customer") {
-    return <AccessMessage>Card ordering is available to customer accounts.</AccessMessage>;
-  }
 
   let settings: OrderSettings;
   let orders: CustomerOrder[];
@@ -151,19 +148,19 @@ function LocalDemoOrderExperience() {
 function LiveOrderExperience() {
   const { isAuthenticated, isLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
-  const isCustomer =
+  const canOrder =
     access?.authenticated === true &&
     access.accountStatus === "active" &&
-    access.role === "customer";
-  const settings = useQuery(api.cardOrderSettings.customerSettings, isCustomer ? {} : "skip");
-  const liveOrders = useQuery(api.cardOrders.myOrders, isCustomer ? {} : "skip");
+    (access.role === "customer" || access.role === "admin");
+  const settings = useQuery(api.cardOrderSettings.customerSettings, canOrder ? {} : "skip");
+  const liveOrders = useQuery(api.cardOrders.myOrders, canOrder ? {} : "skip");
   const placeOrder = useMutation(api.cardOrders.placeOrder);
   const authToken = useAuthToken();
 
   if (isLoading || (isAuthenticated && access === undefined)) return <AuthLoadingState />;
   if (!isAuthenticated) return <AuthLoadingState />;
-  if (!isCustomer)
-    return <AccessMessage>Card ordering is available to customer accounts.</AccessMessage>;
+  if (!canOrder)
+    return <AccessMessage>An active Tapit account is required to order cards.</AccessMessage>;
 
   const normalizedSettings: OrderSettings | undefined = settings && {
     launchEndDate: settings.launchEndDate,
