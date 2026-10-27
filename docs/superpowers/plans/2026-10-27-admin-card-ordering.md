@@ -4,6 +4,8 @@
 
 **Goal:** Let active administrators use the existing card ordering flow with orders and uploaded artwork owned by their own account.
 
+**Issue:** [#159](https://github.com/wehyn/tapit/issues/159)
+
 **Architecture:** Reuse the existing `/app/card/order-card` flow and existing `cardOrders.customerId` ownership field. Permit active admin accounts at the shared order and upload authorization gates, preserving server-derived identity, same-scope checks, and per-account order/design access. Apply the same rules in local demo mode; keep the admin Orders queue as the cross-account operations view.
 
 **Tech Stack:** Next.js 16 App Router, React 19, Convex 1.45, Convex Auth, existing local demo state and IndexedDB artwork storage.
@@ -77,8 +79,8 @@ export async function activeOrderAccount(ctx: QueryCtx | MutationCtx) {
 
 - Create: GitHub issue in `wehyn/tapit`
 
-- [ ] Commit the implementation on the existing `t3/limit-card-owner-access` branch.
-- [ ] Push that branch if it is not already available on `origin`.
-- [ ] Create an issue describing admin card ownership, claim, and order access; include the branch URL in the issue body so the issue directly references this branch.
+- [x] Commit the implementation on the existing `t3/limit-card-owner-access` branch.
+- [x] Push that branch if it is not already available on `origin`.
+- [x] Create an issue describing admin card ownership, claim, and order access; include the branch URL in the issue body so the issue directly references this branch.
 
 **Not included:** Deploying to the Production Convex deployment. A production deploy requires a separate explicit go-ahead after the final diff is ready.
