@@ -168,6 +168,7 @@ function CodesWorkspace({
         <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={submit}>
           <Field
             autoCapitalize="characters"
+            disabled={busy}
             id="referral-code"
             label="Referral code"
             onChange={(event) => setCode(event.target.value)}
@@ -178,6 +179,7 @@ function CodesWorkspace({
           <Field
             id="referrer-label"
             label="Referrer label"
+            disabled={busy}
             onChange={(event) => setLabel(event.target.value)}
             placeholder="Studio Santos"
             required
@@ -186,6 +188,7 @@ function CodesWorkspace({
           <Field
             id="referral-fixed-price"
             label="Fixed card price (₱, optional)"
+            disabled={busy}
             min="0.01"
             max="599"
             onChange={(event) => setPrice(event.target.value)}
@@ -198,6 +201,7 @@ function CodesWorkspace({
             <input
               checked={active}
               onChange={(event) => setActive(event.target.checked)}
+              disabled={busy}
               type="checkbox"
             />{" "}
             Active
@@ -235,6 +239,7 @@ function CodesWorkspace({
                   </span>
                 </button>
                 <Button
+                  disabled={busy}
                   onClick={() => {
                     onSelect(item.id);
                     setEditId(item.id);
