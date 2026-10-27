@@ -135,7 +135,6 @@ export function calculateCommissionCentavos(cardPriceCentavos: number): number {
 
 export type Centavos = number & { readonly __brand: "Centavos" };
 
-/** The card only; shipping is quoted after placement. */
 export type CardOrderPrice = Readonly<{
   cardPriceCentavos: number;
   discountCentavos: number;
@@ -145,7 +144,6 @@ export type CardOrderPlacementResult =
   | Readonly<{ kind: "created"; orderId: string }>
   | Readonly<{ kind: "price_changed"; price: CardOrderPrice }>;
 
-/** The one derivation for display and comparison. */
 export function cardOrderAmountCentavos(price: CardOrderPrice): Centavos {
   return (price.cardPriceCentavos - price.discountCentavos) as Centavos;
 }

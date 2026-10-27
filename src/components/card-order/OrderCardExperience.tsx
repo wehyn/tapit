@@ -121,7 +121,6 @@ type ReferralResult =
   | { kind: "error"; message: string };
 type ReferralState = { kind: "none" } | { kind: "checking" } | ReferralResult;
 
-/** A reconfirmed quote is pinned after price_changed until a price input edit clears it. */
 type QuoteState = { kind: "preview" } | { kind: "reconfirmed"; price: CardOrderPrice };
 
 function referralPreviewKey(code: string, currentTime: number) {
@@ -1103,7 +1102,6 @@ function CustomerOrderForm({
                 <PriceBreakdown
                   pinned={quote.kind === "reconfirmed"}
                   price={displayedPrice}
-                  // A pinned quote is authoritative; a late preview must not change its status lines.
                   referral={quote.kind === "preview" ? referral : { kind: "none" }}
                 />
                 {normalizedReferralCode ? (
