@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
@@ -344,21 +344,17 @@ function DemoCodesManager() {
   const [selectedId, setSelectedId] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
   const [usage, setUsage] = useState<Usage[]>([]);
-  const [usageCodeId, setUsageCodeId] = useState("");
+  const [loadedMore, setLoadedMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
-  useEffect(() => {
-    if (!selectedId) return;
-    const page = getDemoCardOrderReferralCodeUsage(selectedId, { numItems: pageSize, cursor });
-    setUsage((previous) => (cursor === null ? page.page : [...previous, ...page.page]));
-    setUsageCodeId(selectedId);
-    setHasMore(!page.isDone);
-  }, [selectedId, cursor]);
+  const firstPage = selectedId
+    ? getDemoCardOrderReferralCodeUsage(selectedId, { numItems: pageSize, cursor: null })
+    : null;
   function selectCode(id: string) {
     if (id === selectedId) return;
     setSelectedId(id);
     setCursor(null);
     setUsage([]);
-    setUsageCodeId("");
+    setLoadedMore(false);
     setHasMore(false);
   }
   const codes: Code[] = settings.referralCodes.map(
@@ -376,15 +372,18 @@ function DemoCodesManager() {
       codes={codes}
       selectedId={selectedId}
       onSelect={selectCode}
-      usage={usage}
-      usageCodeId={usageCodeId}
-      hasMore={hasMore}
+      usage={[...(firstPage?.page ?? []), ...usage]}
+      usageCodeId={selectedId}
+      hasMore={loadedMore ? hasMore : Boolean(firstPage && !firstPage.isDone)}
       loading={false}
       loadMore={() => {
         const result = getDemoCardOrderReferralCodeUsage(selectedId, {
           numItems: pageSize,
-          cursor,
+          cursor: cursor ?? firstPage?.continueCursor ?? null,
         });
+        setUsage((previous) => [...previous, ...result.page]);
+        setLoadedMore(true);
+        setHasMore(!result.isDone);
         setCursor(result.continueCursor || null);
       }}
       onSave={async (input) => {
@@ -403,13 +402,12 @@ function LiveCodesManager() {
   const deactivate = useMutation(api.cardOrderSettings.deactivateReferralCode);
   const activate = useMutation(api.cardOrderSettings.activateReferralCode);
   const [selectedId, setSelectedId] = useState<Id<"cardOrderReferralCodes"> | null>(null);
-  const [started, setStarted] = useState(false);
+  const backfillStarted = useRef(false);
   useEffect(() => {
-    if (!started) {
-      setStarted(true);
-      void backfill({});
-    }
-  }, [backfill, started]);
+    if (backfillStarted.current) return;
+    backfillStarted.current = true;
+    void backfill({});
+  }, [backfill]);
   const page = usePaginatedQuery(
     api.cardOrderSettings.adminReferralCodeUsage,
     selectedId ? { codeId: selectedId } : "skip",
