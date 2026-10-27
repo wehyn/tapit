@@ -245,6 +245,7 @@ export const setPaymentMethodQr = mutation({
     const method = await ctx.db.get(methodId);
     if (method === null || !sameScope(account, method))
       throw new Error("Payment method unavailable.");
+    if (method.qrUploadId === uploadId) return null;
     let next: Doc<"cardOrderQrUploads"> | null = null;
     if (uploadId !== null) {
       next = await ctx.db.get(uploadId);
@@ -259,7 +260,6 @@ export const setPaymentMethodQr = mutation({
         throw new Error("QR upload unavailable.");
     }
     const previousId = method.qrUploadId;
-    if (previousId === uploadId) return null;
     await ctx.db.patch(methodId, { qrUploadId: uploadId ?? undefined, updatedAt: Date.now() });
     if (next !== null) await ctx.db.patch(next._id, { status: "attached", attachedAt: Date.now() });
     if (previousId !== undefined) {

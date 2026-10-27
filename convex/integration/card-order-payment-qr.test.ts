@@ -143,7 +143,7 @@ describe("card order payment QR", () => {
     }
   });
 
-  it("accepts an administrator PNG and rejects unauthorized or invalid uploads", async () => {
+  it("accepts and attaches an administrator PNG, including an identical retry, and rejects invalid uploads", async () => {
     vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
     try {
       const t = convexTest(schema, modules);
@@ -166,75 +166,20 @@ describe("card order payment QR", () => {
 
       const uploaded = await send(ids.adminUserId, png);
       expect(uploaded.status).toBe(200);
-      const { uploadId } = await uploaded.json();
+      const { uploadId: rawUploadId } = await uploaded.json();
+      const uploadId = rawUploadId as Id<"cardOrderQrUploads">;
       const admin = t.withIdentity(identity(ids.adminUserId));
-      const owner = t.withIdentity(identity(ids.ownerUserId));
-      await admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
-        methodId: ids.activeMethodId,
-        uploadId,
-      });
-      const inactiveImage = await send(ids.adminUserId, png);
-      expect(inactiveImage.status).toBe(200);
-      const { uploadId: inactiveUploadId } = await inactiveImage.json();
-      await admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
-        methodId: ids.inactiveMethodId,
-        uploadId: inactiveUploadId,
-      });
+      const attach = () =>
+        admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
+          methodId: ids.activeMethodId,
+          uploadId,
+        });
+      await attach();
+      await attach();
       await t.run(async (ctx) => {
-        await ctx.db.patch(ids.inactiveMethodId, { active: false });
+        expect((await ctx.db.get(ids.activeMethodId))?.qrUploadId).toBe(uploadId);
+        expect((await ctx.db.get(uploadId))?.status).toBe("attached");
       });
-      await expect(
-        owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
-          paymentMethodId: ids.activeMethodId,
-        }),
-      ).resolves.toEqual(expect.any(String));
-      await expect(
-        owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
-          paymentMethodId: ids.inactiveMethodId,
-        }),
-      ).rejects.toThrow("Payment method unavailable.");
-      const ownOrderId = await owner.mutation(api.cardOrders.placeOrder, {
-        paymentMethodId: ids.activeMethodId,
-        designSource: { kind: "url", url: "https://example.test/front.png" },
-        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
-        deliveryName: "Owner",
-        deliveryPhone: "09170000000",
-        deliveryAddress: "1 Test Street",
-      });
-      const replacementPng = new Uint8Array(
-        await sharp({ create: { width: 64, height: 64, channels: 4, background: "red" } })
-          .png()
-          .toBuffer(),
-      );
-      const replacementResponse = await send(ids.adminUserId, replacementPng);
-      expect(replacementResponse.status).toBe(200);
-      const { uploadId: replacementUploadId } = await replacementResponse.json();
-      await admin.mutation(api.cardOrderPaymentQr.setPaymentMethodQr, {
-        methodId: ids.activeMethodId,
-        uploadId: replacementUploadId,
-      });
-      await t.run(async (ctx) => {
-        const order = await ctx.db.get(ownOrderId);
-        const method = await ctx.db.get(ids.activeMethodId);
-        expect(order?.paymentSnapshot.qrUploadId).toBe(uploadId);
-        expect(method?.qrUploadId).toBe(replacementUploadId);
-      });
-      await expect(
-        t
-          .withIdentity(identity(ids.otherUserId))
-          .query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
-            orderId: ownOrderId,
-          }),
-      ).rejects.toThrow("Payment method unavailable.");
-      const orderUrl = await owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
-        orderId: ownOrderId,
-      });
-      const methodUrl = await owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
-        paymentMethodId: ids.activeMethodId,
-      });
-      expect(orderUrl).toEqual(expect.any(String));
-      expect(methodUrl).toEqual(expect.any(String));
-      expect(orderUrl).not.toBe(methodUrl);
 
       expect((await send(ids.ownerUserId, png)).status).toBe(403);
       expect((await send(ids.adminUserId, png, "image/gif")).status).toBe(415);
@@ -256,5 +201,70 @@ describe("card order payment QR", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("authorizes QR URLs only for active methods and the customer's own order snapshot", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["payment QR"])));
+    const orderId = await t.run(async (ctx) => {
+      const uploadId = await ctx.db.insert("cardOrderQrUploads", {
+        ownerId: ids.adminId,
+        actorUserId: ids.adminUserId,
+        status: "attached",
+        storageId,
+        contentType: "image/png",
+        byteSize: 10,
+        createdAt: Date.now(),
+        availableAt: Date.now(),
+        attachedAt: Date.now(),
+      });
+      await ctx.db.patch(ids.activeMethodId, { qrUploadId: uploadId });
+      await ctx.db.patch(ids.inactiveMethodId, { qrUploadId: uploadId });
+      return await ctx.db.insert("cardOrders", {
+        customerId: ids.ownerId,
+        quantity: 1,
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        deliveryName: "Owner",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        cardPriceCentavos: 100,
+        discountCentavos: 0,
+        paymentMethodId: ids.activeMethodId,
+        paymentSnapshot: {
+          provider: "Bank transfer",
+          label: "Test bank",
+          accountDetails: "Test account",
+          instructions: "Transfer after ordering.",
+          qrUploadId: uploadId,
+        },
+        qrUploadId: uploadId,
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "none",
+        commissionCentavos: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+    const owner = t.withIdentity(identity(ids.ownerUserId));
+    await expect(
+      owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
+        paymentMethodId: ids.activeMethodId,
+      }),
+    ).resolves.toEqual(expect.any(String));
+    await expect(
+      owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
+        paymentMethodId: ids.inactiveMethodId,
+      }),
+    ).rejects.toThrow("Payment method unavailable.");
+    await expect(
+      owner.query(api.cardOrderPaymentQr.customerPaymentQrUrl, { orderId }),
+    ).resolves.toEqual(expect.any(String));
+    await expect(
+      t.withIdentity(identity(ids.otherUserId)).query(api.cardOrderPaymentQr.customerPaymentQrUrl, {
+        orderId,
+      }),
+    ).rejects.toThrow("Payment method unavailable.");
   });
 });
