@@ -63,6 +63,12 @@ async function seed(t: ReturnType<typeof convexTest>) {
       updatedAt: 1,
       updatedByUserId: adminUserId,
     });
+    await ctx.db.insert("settings", {
+      key: "cardOrderReferralUsageBackfillStarted",
+      value: "completed",
+      updatedAt: 1,
+      updatedByUserId: adminUserId,
+    });
     const paymentMethodId = await ctx.db.insert("cardOrderPaymentMethods", {
       provider: "Bank transfer",
       label: "Test bank",
@@ -293,6 +299,161 @@ describe("card order referral usage", () => {
     ]);
   });
 
+  it("blocks caps until the global backfill counts historical orders", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const customer = t.withIdentity(identity(ids.unrelatedUserId));
+    const historicalOrderId = await t.run(async (ctx) => {
+      await ctx.db.patch(
+        (await ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first())!._id,
+        { value: "started" },
+      );
+      return await ctx.db.insert("cardOrders", {
+        customerId: ids.customerId,
+        quantity: 1,
+        designSource: { kind: "url", url: "https://example.test/historical.png" },
+        deliveryName: "Historical Customer",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "Historical address",
+        cardPriceCentavos: 59_900,
+        discountCentavos: 5_990,
+        paymentMethodId: ids.paymentMethodId,
+        paymentSnapshot: {
+          provider: "Bank transfer",
+          label: "Test bank",
+          accountDetails: "Test account",
+          instructions: "Transfer.",
+        },
+        referralCodeId: ids.codeId,
+        referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "pending",
+        commissionCentavos: 5_990,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    });
+    const saveLimit = () =>
+      admin.mutation(api.cardOrderSettings.saveReferralCode, {
+        id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageLimit: 1,
+      });
+    await expect(saveLimit()).rejects.toThrow("Referral usage backfill must complete");
+
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 1 },
+    ]);
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first(),
+      ),
+    ).resolves.toMatchObject({ value: "completed" });
+    await saveLimit();
+    expect(
+      await customer.query(api.cardOrderSettings.previewReferral, {
+        code: "FOUNDING-AHRON",
+        currentTime: Date.UTC(2099, 0, 1),
+      }),
+    ).toEqual({ valid: false, discountCentavos: 0 });
+    await expect(
+      customer.mutation(api.cardOrders.placeOrder, {
+        paymentMethodId: ids.paymentMethodId,
+        referralCode: "FOUNDING-AHRON",
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+        deliveryName: "Test Customer",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    await expect(t.run((ctx) => ctx.db.get(historicalOrderId))).resolves.toMatchObject({
+      usageCounted: true,
+      referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+    });
+  });
+
+  it("applies limit changes to the existing count without changing order snapshots", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const customer = t.withIdentity(identity(ids.customerUserId));
+    const nextCustomer = t.withIdentity(identity(ids.unrelatedUserId));
+    const saveLimit = (usageLimit?: number) =>
+      admin.mutation(api.cardOrderSettings.saveReferralCode, {
+        id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageLimit,
+      });
+    await saveLimit(2);
+    const orderId = await placeCreatedOrder(customer, {
+      paymentMethodId: ids.paymentMethodId,
+      referralCode: "FOUNDING-AHRON",
+      designSource: { kind: "url", url: "https://example.test/front.png" },
+      backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+      deliveryName: "Test Customer",
+      deliveryPhone: "09170000000",
+      deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
+    });
+    const snapshot = await t.run((ctx) => ctx.db.get(orderId));
+    await saveLimit(1);
+    const previewArgs = { code: "FOUNDING-AHRON", currentTime: Date.UTC(2099, 0, 1) };
+    expect(await nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs)).toEqual({
+      valid: false,
+      discountCentavos: 0,
+    });
+    await expect(
+      nextCustomer.mutation(api.cardOrders.placeOrder, {
+        paymentMethodId: ids.paymentMethodId,
+        referralCode: "FOUNDING-AHRON",
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+        deliveryName: "Next Customer",
+        deliveryPhone: "09171111111",
+        deliveryAddress: "2 Test Street",
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    await saveLimit(2);
+    await expect(
+      nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs),
+    ).resolves.toMatchObject({
+      valid: true,
+    });
+    await saveLimit(undefined);
+    await expect(
+      nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs),
+    ).resolves.toMatchObject({
+      valid: true,
+    });
+    await expect(t.run((ctx) => ctx.db.get(orderId))).resolves.toEqual(snapshot);
+  });
+
   it("allows only one of two customers to claim the remaining use", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -349,6 +510,13 @@ describe("card order referral usage", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.delete(marker._id);
       for (let index = 0; index < 205; index++) {
         await ctx.db.insert("cardOrders", {
           customerId: ids.customerId,

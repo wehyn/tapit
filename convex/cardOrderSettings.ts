@@ -152,15 +152,24 @@ export const startReferralUsageBackfill = mutation({
         q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
       )
       .first();
-    if (existing !== null) return null;
-    await ctx.db.insert("settings", {
-      scope: account.scope,
-      key: REFERRAL_USAGE_BACKFILL_KEY,
-      value: "started",
-      updatedAt: Date.now(),
-      updatedByUserId: userId,
-    });
+    if (existing?.value === "running" || existing?.value === "completed") return null;
+    if (existing === null) {
+      await ctx.db.insert("settings", {
+        scope: account.scope,
+        key: REFERRAL_USAGE_BACKFILL_KEY,
+        value: "running",
+        updatedAt: Date.now(),
+        updatedByUserId: userId,
+      });
+    } else {
+      await ctx.db.patch(existing._id, {
+        value: "running",
+        updatedAt: Date.now(),
+        updatedByUserId: userId,
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
+      ...(account.scope === undefined ? {} : { scope: account.scope }),
       cursor: null,
     });
     return null;
@@ -420,6 +429,16 @@ export const saveReferralCode = mutation({
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
+    if (args.usageLimit !== undefined) {
+      const backfill = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
+        )
+        .first();
+      if (backfill?.value !== "completed")
+        throw new Error("Referral usage backfill must complete before setting a usage limit.");
+    }
     const existing = args.id === undefined ? null : await ctx.db.get(args.id);
     if (args.id !== undefined && (existing === null || !sameScope(account, existing)))
       throw new Error("Referral code unavailable.");

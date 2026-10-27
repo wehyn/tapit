@@ -5,13 +5,15 @@ import { internalMutation } from "./_generated/server";
 const PAGE_SIZE = 100;
 
 export const backfillUsageCounts = internalMutation({
-  args: { cursor: v.union(v.string(), v.null()) },
+  args: { scope: v.optional(v.literal("demo")), cursor: v.union(v.string(), v.null()) },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const page = await ctx.db
-      .query("cardOrders")
-      .withIndex("by_scope_and_createdAt")
-      .paginate({ numItems: PAGE_SIZE, cursor: args.cursor });
+    const query = ctx.db.query("cardOrders");
+    const page = await (
+      args.scope === undefined
+        ? query.withIndex("by_scope_and_createdAt")
+        : query.withIndex("by_scope_and_createdAt", (q) => q.eq("scope", args.scope))
+    ).paginate({ numItems: PAGE_SIZE, cursor: args.cursor });
 
     for (const order of page.page) {
       if (order.referralCodeId === undefined || order.usageCounted === true) continue;
@@ -23,8 +25,19 @@ export const backfillUsageCounts = internalMutation({
 
     if (!page.isDone)
       await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
+        ...(args.scope === undefined ? {} : { scope: args.scope }),
         cursor: page.continueCursor,
       });
+    else {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", args.scope).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null && marker.value !== "completed")
+        await ctx.db.patch(marker._id, { value: "completed", updatedAt: Date.now() });
+    }
     return null;
   },
 });
