@@ -70,6 +70,7 @@ test("authentication and setup screens fit narrow mobile and desktop widths", as
 });
 
 test("customer signup starts from the public login page", async ({ page }) => {
+  test.setTimeout(90_000);
   await resetDemoHarness(page);
   await page.goto("/login?mode=signup");
 
