@@ -2,6 +2,7 @@ import { httpRouter } from "convex/server";
 
 import { auth } from "./auth";
 import { upload as uploadCardOrderDesign } from "./cardOrderDesignUploadHttp";
+import { upload as uploadCardOrderPaymentQr } from "./cardOrderPaymentQrUploadHttp";
 import { upload as uploadImage, uploadAdmin as uploadAdminImage } from "./profileImageUploadHttp";
 import { upload as uploadMedia, uploadAdmin as uploadAdminMedia } from "./profileMediaUploadHttp";
 
@@ -9,6 +10,16 @@ const http = httpRouter();
 
 auth.addHttpRoutes(http);
 http.route({ path: "/card-order-design-upload", method: "POST", handler: uploadCardOrderDesign });
+http.route({
+  path: "/card-order-payment-qr-upload",
+  method: "POST",
+  handler: uploadCardOrderPaymentQr,
+});
+http.route({
+  path: "/card-order-payment-qr-upload",
+  method: "OPTIONS",
+  handler: uploadCardOrderPaymentQr,
+});
 http.route({
   path: "/card-order-design-upload",
   method: "OPTIONS",

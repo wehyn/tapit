@@ -1,4 +1,4 @@
-export type AssetKind = "profile-photo" | "card-design";
+export type AssetKind = "profile-photo" | "card-design" | "card-order-payment-qr";
 
 export type UploadStatus =
   | "initiated"
@@ -65,6 +65,13 @@ export const CARD_ORDER_DESIGN_POLICY: UploadPolicy = {
   maxPixels: CARD_ORDER_DESIGN_MAX_PIXELS,
 };
 
+export const CARD_ORDER_PAYMENT_QR_POLICY: UploadPolicy = {
+  ...CARD_ORDER_DESIGN_POLICY,
+  kind: "card-order-payment-qr",
+  version: "card-order-payment-qr-v1",
+  allowedDomainTypes: ["card-order-payment-qr"],
+};
+
 /** Compatibility documentation for the isolated legacy profile-image pipeline. */
 export const PROFILE_PHOTO_COMPATIBILITY_POLICY: UploadPolicy = {
   kind: "profile-photo",
@@ -83,6 +90,7 @@ export const PROFILE_PHOTO_COMPATIBILITY_POLICY: UploadPolicy = {
 const UPLOAD_POLICIES: Record<AssetKind, UploadPolicy> = {
   "profile-photo": PROFILE_PHOTO_COMPATIBILITY_POLICY,
   "card-design": CARD_DESIGN_POLICY,
+  "card-order-payment-qr": CARD_ORDER_PAYMENT_QR_POLICY,
 };
 
 export function getUploadPolicy(kind: AssetKind): UploadPolicy {
