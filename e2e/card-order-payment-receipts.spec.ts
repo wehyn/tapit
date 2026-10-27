@@ -236,10 +236,14 @@ test("card order receipts stay private and never mark payment received", async (
   const receiptInput = customerOrder.locator('input[type="file"]');
   await receiptInput.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
   await page.getByRole("button", { name: "Upload receipt", exact: true }).click();
-  await expect(customerOrder.getByText(/opaque-landscape\.png/)).toBeVisible();
+  await expect(
+    customerOrder.getByText("Receipt attached: opaque-landscape.png", { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect.poll(() => storedReceiptCount(page)).toBe(1);
-  await expect(customerOrder.getByText(/opaque-landscape\.png/)).toBeVisible();
+  await expect(
+    customerOrder.getByText("Receipt attached: opaque-landscape.png", { exact: true }),
+  ).toBeVisible();
   await expect(customerOrder).toContainText("Receipt test bank · Unpaid");
   await receiptInput.setInputFiles({
     name: "invalid.txt",
@@ -250,7 +254,9 @@ test("card order receipts stay private and never mark payment received", async (
     page.getByRole("alert").filter({ hasText: /file|type|format|receipt/i }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Replace receipt", exact: true })).toBeVisible();
-  await expect(customerOrder.getByText(/opaque-landscape\.png/)).toBeVisible();
+  await expect(
+    customerOrder.getByText("Receipt attached: opaque-landscape.png", { exact: true }),
+  ).toBeVisible();
   await receiptInput.setInputFiles({
     name: "oversized.png",
     mimeType: "image/png",
@@ -260,7 +266,9 @@ test("card order receipts stay private and never mark payment received", async (
     page.getByRole("alert").filter({ hasText: /5\s?MB|5 MiB|too large|under/i }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Replace receipt", exact: true })).toBeVisible();
-  await expect(customerOrder.getByText(/opaque-landscape\.png/)).toBeVisible();
+  await expect(
+    customerOrder.getByText("Receipt attached: opaque-landscape.png", { exact: true }),
+  ).toBeVisible();
 
   await switchCustomerDuringReceiptWrite(page);
   await receiptInput.setInputFiles({
@@ -283,7 +291,7 @@ test("card order receipts stay private and never mark payment received", async (
   await expect(
     page
       .getByRole("region", { name: "Your recent card orders" })
-      .getByText(/opaque-landscape\.png/),
+      .getByText("Receipt attached: opaque-landscape.png", { exact: true }),
   ).toBeVisible();
   await expect.poll(() => storedReceiptCount(page)).toBe(1);
 

@@ -224,7 +224,7 @@ function CardOrderSettings({
             ? (() => {
                 const method = settings.paymentMethods.find((item) => item.id === paymentEditId);
                 return (
-                  <div className="sm:col-span-2 grid gap-3 rounded-control bg-tapit-paper p-4">
+                  <div className="grid min-w-0 gap-3 rounded-control bg-tapit-paper p-4 sm:col-span-2">
                     <label className="text-sm font-medium text-tapit-ink" htmlFor="payment-qr-file">
                       Payment QR image
                     </label>
@@ -239,6 +239,7 @@ function CardOrderSettings({
                         setQrFile(file);
                         setQrPreviewUrl(file ? URL.createObjectURL(file) : null);
                       }}
+                      className="min-w-0 max-w-full"
                       type="file"
                     />
                     {method?.qrUrl ? (
