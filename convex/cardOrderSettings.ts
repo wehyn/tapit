@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
@@ -61,26 +62,13 @@ export const adminSettings = query({
         active: v.boolean(),
       }),
     ),
-    referralCodes: v.array(
-      v.object({
-        _id: v.id("cardOrderReferralCodes"),
-        code: v.string(),
-        referrerLabel: v.string(),
-        fixedPriceCentavos: v.optional(v.number()),
-        active: v.boolean(),
-      }),
-    ),
   }),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
-    const [date, payments, referrals] = await Promise.all([
+    const [date, payments] = await Promise.all([
       launchEndDate(ctx, account),
       ctx.db
         .query("cardOrderPaymentMethods")
-        .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
-        .take(500),
-      ctx.db
-        .query("cardOrderReferralCodes")
         .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
         .take(500),
     ]);
@@ -96,14 +84,87 @@ export const adminSettings = query({
           active,
         }),
       ),
-      referralCodes: referrals.map(({ _id, code, referrerLabel, fixedPriceCentavos, active }) => ({
-        _id,
-        code,
-        referrerLabel,
-        ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
-        active,
-      })),
     };
+  },
+});
+
+export const adminReferralCodes = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      code: v.string(),
+      usageCount: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const { account } = await requireAdministrator(ctx);
+    const codes = await ctx.db
+      .query("cardOrderReferralCodes")
+      .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
+      .take(500);
+    return codes.map(({ code, usageCount }) => ({ code, usageCount: usageCount ?? 0 }));
+  },
+});
+
+const referralUsageItem = v.object({
+  date: v.number(),
+  orderId: v.id("cardOrders"),
+  customerName: v.optional(v.string()),
+  customerEmail: v.optional(v.string()),
+  paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
+  fulfillmentStatus: v.union(
+    v.literal("awaiting_shipping_quote"),
+    v.literal("awaiting_payment"),
+    v.literal("processing"),
+    v.literal("delivered"),
+    v.literal("cancelled"),
+  ),
+  commissionStatus: v.union(
+    v.literal("none"),
+    v.literal("pending"),
+    v.literal("eligible"),
+    v.literal("paid"),
+    v.literal("void"),
+  ),
+});
+
+export const adminReferralCodeUsage = query({
+  args: { codeId: v.id("cardOrderReferralCodes"), paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(referralUsageItem),
+  handler: async (ctx, args) => {
+    const { account } = await requireAdministrator(ctx);
+    if (
+      !Number.isSafeInteger(args.paginationOpts.numItems) ||
+      args.paginationOpts.numItems < 1 ||
+      args.paginationOpts.numItems > 100
+    )
+      throw new Error("Page size must be 1–100.");
+    const code = await ctx.db.get(args.codeId);
+    if (code === null || !sameScope(account, code)) throw new Error("Referral code unavailable.");
+    const page = await ctx.db
+      .query("cardOrders")
+      .withIndex("by_scope_and_referralCodeId_and_createdAt", (q) =>
+        q.eq("scope", account.scope).eq("referralCodeId", code._id),
+      )
+      .order("desc")
+      .paginate(args.paginationOpts);
+    const items = await Promise.all(
+      page.page.map(async (order) => {
+        const customer = await ctx.db.get(order.customerId);
+        return {
+          date: order.createdAt,
+          orderId: order._id,
+          ...(customer?.onboardingName === undefined
+            ? {}
+            : { customerName: customer.onboardingName }),
+          ...(customer?.email === undefined ? {} : { customerEmail: customer.email }),
+          paymentStatus: order.paymentStatus,
+          fulfillmentStatus: order.fulfillmentStatus,
+          commissionStatus: order.commissionStatus,
+        };
+      }),
+    );
+    return { ...page, page: items };
   },
 });
 

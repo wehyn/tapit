@@ -21,6 +21,7 @@ import type * as cardClaims from "../cardClaims.js";
 import type * as cardOrderDesignProcessing from "../cardOrderDesignProcessing.js";
 import type * as cardOrderDesignUploadHttp from "../cardOrderDesignUploadHttp.js";
 import type * as cardOrderDesigns from "../cardOrderDesigns.js";
+import type * as cardOrderReferralUsage from "../cardOrderReferralUsage.js";
 import type * as cardOrderSettings from "../cardOrderSettings.js";
 import type * as cardOrders from "../cardOrders.js";
 import type * as cards from "../cards.js";
@@ -71,6 +72,7 @@ declare const fullApi: ApiFromModules<{
   cardOrderDesignProcessing: typeof cardOrderDesignProcessing;
   cardOrderDesignUploadHttp: typeof cardOrderDesignUploadHttp;
   cardOrderDesigns: typeof cardOrderDesigns;
+  cardOrderReferralUsage: typeof cardOrderReferralUsage;
   cardOrderSettings: typeof cardOrderSettings;
   cardOrders: typeof cardOrders;
   cards: typeof cards;

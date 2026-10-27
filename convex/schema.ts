@@ -506,6 +506,7 @@ export default defineSchema({
     referrerLabel: v.string(),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
+    usageCount: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
     updatedByUserId: v.optional(v.id("users")),
@@ -547,6 +548,7 @@ export default defineSchema({
     paymentMethodId: v.id("cardOrderPaymentMethods"),
     paymentSnapshot: cardOrderPaymentSnapshot,
     referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
+    usageCounted: v.optional(v.boolean()),
     referralSnapshot: v.optional(cardOrderReferralSnapshot),
     paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
     fulfillmentStatus: v.union(
@@ -569,5 +571,6 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_scope_and_customerId_and_createdAt", ["scope", "customerId", "createdAt"])
-    .index("by_scope_and_createdAt", ["scope", "createdAt"]),
+    .index("by_scope_and_createdAt", ["scope", "createdAt"])
+    .index("by_scope_and_referralCodeId_and_createdAt", ["scope", "referralCodeId", "createdAt"]),
 });

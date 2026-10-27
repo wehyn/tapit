@@ -168,9 +168,12 @@ export const placeOrder = mutation({
       fulfillmentStatus: "awaiting_shipping_quote",
       commissionStatus: referral === null ? "none" : "pending",
       commissionCentavos,
+      ...(referral === null ? {} : { usageCounted: true }),
       createdAt: now,
       updatedAt: now,
     });
+    if (referral !== null)
+      await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
     if (designSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);
     if (backDesignSourceValue.kind === "upload")
@@ -238,6 +241,13 @@ async function adminOrder(ctx: MutationCtx, orderId: Id<"cardOrders">) {
   const { userId, account } = await requireAdministrator(ctx);
   const order = await ctx.db.get(orderId);
   if (order === null || !sameScope(account, order)) throw new Error("Order unavailable.");
+  if (order.referralCodeId !== undefined && order.usageCounted !== true) {
+    const referral = await ctx.db.get(order.referralCodeId);
+    if (referral !== null)
+      await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
+    await ctx.db.patch(order._id, { usageCounted: true });
+    return { userId, account, order: { ...order, usageCounted: true } };
+  }
   return { userId, account, order };
 }
 
