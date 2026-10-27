@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -81,24 +82,41 @@ describe("WorkspaceChrome sidebar", () => {
     for (const name of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
       expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
     }
+    const accountMenu = within(sidebar).getByRole("button", {
+      name: "Account menu for mara@example.test",
+    });
+    expect(within(sidebar).queryByRole("link", { name: "Account" })).not.toBeInTheDocument();
+    fireEvent.click(accountMenu);
     expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveAttribute(
       "href",
       "/app/account",
     );
     expect(within(sidebar).getByRole("link", { name: "Help" })).toBeInTheDocument();
-    expect(
-      within(sidebar).getByRole("button", { name: "Account menu for mara@example.test" }),
-    ).toBeInTheDocument();
   });
 
-  it("shows the live status card for a published profile", () => {
+  it("lets keyboard users tab from the account menu button into Account and Help", async () => {
+    const user = userEvent.setup();
     renderChrome();
 
-    expect(screen.getByText("Live")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "/mara-velasquez" })).toHaveAttribute(
-      "href",
-      "/mara-velasquez",
-    );
+    const sidebar = screen.getByTestId("workspace-sidebar");
+    const trigger = within(sidebar).getByRole("button", {
+      name: "Account menu for mara@example.test",
+    });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await user.tab();
+
+    expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveFocus();
+  });
+
+  it("does not show a live status card in the sidebar", () => {
+    renderChrome();
+
+    const sidebar = screen.getByTestId("workspace-sidebar");
+    expect(within(sidebar).queryByText("Live")).not.toBeInTheDocument();
+    expect(
+      within(sidebar).queryByRole("link", { name: "/mara-velasquez" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the current destination and shows it in the breadcrumb", () => {

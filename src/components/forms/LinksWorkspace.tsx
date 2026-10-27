@@ -16,7 +16,7 @@ import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Icon } from "@/components/ui/Icon";
-import { Field } from "@/components/ui/Field";
+import { HttpsUrlField } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
 import type { DraftSaveOutcome } from "@/components/layout/DraftSaveContext";
@@ -31,6 +31,7 @@ export type LinksWorkspaceProps = {
   links: ProfileLink[];
   redirect?: ProfileRedirect;
   redirectError?: string | null;
+  revealRedirectError?: boolean;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
   publicationErrors: string[];
@@ -65,6 +66,7 @@ export function LinksWorkspace({
   links,
   redirect = { enabled: false, destination: "" },
   redirectError = null,
+  revealRedirectError = false,
   preview,
   validation,
   publicationErrors,
@@ -84,6 +86,7 @@ export function LinksWorkspace({
 }: LinksWorkspaceProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [redirectTouched, setRedirectTouched] = useState(false);
   const [draggedLinkId, setDraggedLinkId] = useState<string | null>(null);
   const draggedLinkIdRef = useRef<string | null>(null);
   const dropCompletedRef = useRef(false);
@@ -100,6 +103,7 @@ export function LinksWorkspace({
         : isDirty
           ? "Unsaved changes"
           : "Draft saved";
+  const otherPublicationErrors = publicationErrors.filter((error) => error !== redirectError);
   const publishDisabled =
     publicationErrors.length > 0 ||
     Object.keys(validation).length > 0 ||
@@ -228,16 +232,18 @@ export function LinksWorkspace({
               </div>
             </div>
             {redirect.enabled ? (
-              <Field
-                error={redirectError ?? undefined}
+              <HttpsUrlField
+                error={
+                  redirectTouched || revealRedirectError || redirect.destination !== ""
+                    ? (redirectError ?? undefined)
+                    : undefined
+                }
                 help="When published, your Tapit profile link and card taps or scans will send visitors here."
                 id="profile-redirect-destination"
                 label="HTTPS destination URL"
-                onChange={(event) =>
-                  onRedirectChange({ ...redirect, destination: event.target.value })
-                }
-                placeholder="https://www.yourwebsite.com"
-                type="url"
+                onBlur={() => setRedirectTouched(true)}
+                onValueChange={(destination) => onRedirectChange({ ...redirect, destination })}
+                placeholder="www.yourwebsite.com"
                 value={redirect.destination}
               />
             ) : (
@@ -504,9 +510,9 @@ export function LinksWorkspace({
               </div>
             </section>
           )}
-          {publicationErrors.length > 0 ? (
+          {otherPublicationErrors.length > 0 ? (
             <ul className="grid gap-2 text-sm text-tapit-muted">
-              {publicationErrors.map((error) => (
+              {otherPublicationErrors.map((error) => (
                 <li key={error}>{error}</li>
               ))}
             </ul>
@@ -541,7 +547,10 @@ export function LinksWorkspace({
                 <Button
                   disabled={!isDirty || pendingAction !== null}
                   loading={pendingAction === "save"}
-                  onClick={onSaveDraft}
+                  onClick={() => {
+                    setRedirectTouched(true);
+                    void onSaveDraft();
+                  }}
                   type="button"
                   variant="secondary"
                 >

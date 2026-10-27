@@ -16,7 +16,7 @@ import {
 // Failure modes covered by this isolated component test:
 // - identity/contact controls can drift from the existing labels, IDs, placeholders, or limits;
 // - clearing optional fields can incorrectly persist empty strings instead of undefined;
-// - slug locking and the Public URL copy action can be lost during extraction;
+// - slug locking can be lost during extraction;
 // - About/Services updates can drop unrelated customization values;
 // - Services item edits can mutate the previous nested array instead of cloning it;
 // - visual customization controls can accidentally remain on the Profile details surface;
@@ -59,12 +59,10 @@ function ControlledDetails({
   return (
     <ProfileDetailsEditor
       customization={customization}
-      copyMessage=""
       draft={draft}
       errors={errors}
       links={links}
       onChange={onChange}
-      onCopyUrl={vi.fn()}
       onCustomizationChange={(next) => {
         onCustomizationChange(next);
         setCustomization(next);
@@ -82,19 +80,16 @@ describe("ProfileDetailsEditor", () => {
   it("renders identity/contact fields, normalizes optional values, and keeps the slug locked", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const onCopyUrl = vi.fn();
 
     render(
       <ProfileDetailsEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
-        copyMessage=""
         draft={draft}
         imageContent={<div>Profile image slot</div>}
         links={links}
         message={<div>Draft message</div>}
         onboarding={<div>Onboarding slot</div>}
         onChange={onChange}
-        onCopyUrl={onCopyUrl}
         onCustomizationChange={vi.fn()}
         slugLocked
       />,
@@ -120,8 +115,7 @@ describe("ProfileDetailsEditor", () => {
       "https://example.com",
     );
     expect(screen.getByLabelText("Stable profile slug")).toBeDisabled();
-    expect(screen.getByText("The slug is immutable after first publication.")).toBeInTheDocument();
-    expect(screen.getByText("Public URL")).toBeInTheDocument();
+    expect(screen.queryByText("Public URL")).not.toBeInTheDocument();
 
     await user.clear(screen.getByLabelText("Bio or role"));
     await user.clear(screen.getByLabelText("Email"));
@@ -132,9 +126,6 @@ describe("ProfileDetailsEditor", () => {
     expect(onChange).toHaveBeenCalledWith("email", undefined);
     expect(onChange).toHaveBeenCalledWith("phone", undefined);
     expect(onChange).toHaveBeenCalledWith("website", undefined);
-
-    await user.click(screen.getByRole("button", { name: "Copy" }));
-    expect(onCopyUrl).toHaveBeenCalledOnce();
   });
 
   it("supports About and Services content with cloned service items and exact limits", async () => {
@@ -324,11 +315,9 @@ describe("ProfileDetailsEditor", () => {
     const { rerender } = render(
       <ProfileDetailsEditor
         customization={DEFAULT_WARM_STUDIO_CUSTOMIZATION}
-        copyMessage=""
         draft={draft}
         links={links}
         onChange={() => undefined}
-        onCopyUrl={vi.fn()}
         onCustomizationChange={onCustomizationChange}
         slugLocked={false}
       />,
@@ -343,12 +332,10 @@ describe("ProfileDetailsEditor", () => {
 
     rerender(
       <ProfileDetailsEditor
-        copyMessage=""
         customization={undefined}
         draft={draft}
         links={links}
         onChange={() => undefined}
-        onCopyUrl={vi.fn()}
         onCustomizationChange={onCustomizationChange}
         slugLocked={false}
       />,

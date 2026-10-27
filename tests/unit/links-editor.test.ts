@@ -196,7 +196,7 @@ describe("LinksEditor controller boundaries", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByLabelText("HTTPS destination URL")).toHaveValue("https://new.example.com");
+      expect(screen.getByLabelText("HTTPS destination URL")).toHaveValue("new.example.com");
       expect(screen.getByText("saved", { selector: "output" })).toBeVisible();
     });
     await user.clear(screen.getByLabelText("HTTPS destination URL"));

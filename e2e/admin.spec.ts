@@ -795,6 +795,7 @@ test("administrator is asked before switching profiles with an unsaved slug", as
 
 test("administrator approves a customer deletion request", async ({ page }) => {
   await signInAsCustomer(page);
+  await page.getByRole("button", { name: /^Account menu for / }).click();
   await page.getByRole("link", { name: "Account" }).click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();

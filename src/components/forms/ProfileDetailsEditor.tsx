@@ -1,7 +1,6 @@
 "use client";
 
 import { useId, useState, type ReactNode } from "react";
-import Link from "next/link";
 
 import { validateProfileRedirect, type ProfileContent, type ProfileLink } from "@/lib/domain";
 import {
@@ -26,14 +25,12 @@ export type ProfileDetailsEditorProps = {
   errors?: readonly string[];
   customizationErrors?: readonly string[];
   links: readonly ProfileLink[];
-  copyMessage: string;
   slugLocked: boolean;
   imageContent?: ReactNode;
   message?: ReactNode;
   onboarding?: ReactNode;
   onChange: ProfileFieldChange;
   onCustomizationChange: (next: ProfileCustomization | undefined) => void;
-  onCopyUrl: () => void;
   onOpenCustomize?: ReactNode;
 };
 
@@ -187,14 +184,12 @@ export function ProfileDetailsEditor({
   draft,
   errors = [],
   customizationErrors = [],
-  copyMessage,
   slugLocked,
   imageContent,
   message,
   onboarding,
   onChange,
   onCustomizationChange,
-  onCopyUrl,
   onOpenCustomize,
 }: ProfileDetailsEditorProps) {
   const baseId = useId();
@@ -310,35 +305,13 @@ export function ProfileDetailsEditor({
       <Card title="Profile link">
         <Field
           disabled={slugLocked}
-          help={
-            slugLocked
-              ? "The slug is immutable after first publication."
-              : "Use lowercase letters, numbers, and hyphens."
-          }
+          help={slugLocked ? undefined : "Use lowercase letters, numbers, and hyphens."}
           id="profile-slug"
           label="Stable profile slug"
           onChange={(event) => onChange("slug", event.target.value)}
           placeholder="alex-morgan"
           value={draft.slug}
         />
-        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm sm:flex sm:flex-wrap sm:gap-3">
-          <span className="font-semibold text-tapit-ink">Public URL</span>
-          <Link
-            aria-label={`Open public profile /${draft.slug}`}
-            className="col-span-2 flex min-h-11 min-w-0 items-center break-all text-xs text-tapit-accent-strong underline-offset-4 hover:underline focus-visible:rounded-control sm:flex-1"
-            href={`/${draft.slug}`}
-          >
-            <code className="break-all">
-              {typeof window === "undefined"
-                ? `/${draft.slug}`
-                : `${window.location.origin}/${draft.slug}`}
-            </code>
-          </Link>
-          <Button onClick={onCopyUrl} type="button" variant="secondary">
-            <Icon className="size-4" name="copy" weight="bold" />
-            {copyMessage || "Copy"}
-          </Button>
-        </div>
       </Card>
 
       <SectionRow

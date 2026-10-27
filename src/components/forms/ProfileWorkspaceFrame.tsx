@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileCustomizationCategory } from "@/lib/profile-workspace";
 import { Button, ButtonLink } from "@/components/ui/Button";
-import { Chip } from "@/components/ui/Chip";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
@@ -67,7 +66,6 @@ export type ProfileWorkspaceFrameProps = {
   publishLabel: string;
   publishRequirements?: readonly PublishRequirement[];
   firstVisitRequirementKey?: string;
-  draftStatus?: ReactNode;
   cropDialog?: ReactNode;
   departureState?: DraftDepartureState;
   onSaveAndContinue?: () => void;
@@ -92,7 +90,6 @@ export function ProfileWorkspaceFrame({
   publishLabel,
   publishRequirements = [],
   firstVisitRequirementKey,
-  draftStatus,
   cropDialog,
   departureState,
   onSaveAndContinue,
@@ -154,24 +151,8 @@ export function ProfileWorkspaceFrame({
       <div className="col-span-full flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
           <h1 className="tapit-display text-xl font-semibold text-tapit-ink">{title}</h1>
-          <div className="flex flex-wrap items-center gap-2">
-            <Chip tone={hasPublishedProfile ? "ok" : "neutral"}>
-              {hasPublishedProfile ? "Published" : "Draft"}
-            </Chip>
-            {draftStatus != null ? (
-              <span aria-live="polite" className="text-base text-tapit-muted" role="status">
-                {draftStatus}
-              </span>
-            ) : null}
-          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {hasPublishedProfile ? (
-            <ButtonLink href={profileUrl} variant="secondary">
-              <Icon className="size-4" name="eye" />
-              View live
-            </ButtonLink>
-          ) : null}
           <div className="xl:hidden">
             <Segmented
               label={`${title} view`}
@@ -197,7 +178,7 @@ export function ProfileWorkspaceFrame({
                 role="region"
               >
                 <Button
-                  className="grow"
+                  className="min-w-0 flex-1 basis-0"
                   disabled={saveDisabled}
                   loading={saveLoading}
                   onClick={onSave}
@@ -208,7 +189,7 @@ export function ProfileWorkspaceFrame({
                 </Button>
                 <Button
                   aria-haspopup="dialog"
-                  className="grow"
+                  className="min-w-0 flex-1 basis-0"
                   disabled={publishDisabled}
                   loading={publishLoading}
                   onClick={handlePublish}

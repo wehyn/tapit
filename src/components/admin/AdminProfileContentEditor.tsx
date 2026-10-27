@@ -10,7 +10,7 @@ import { ProfileCustomizationEditor } from "@/components/forms/ProfileCustomizat
 import { ProfileDetailsEditor } from "@/components/forms/ProfileDetailsEditor";
 import { ProfileImageCropDialog } from "@/components/forms/ProfileImageCropDialog";
 import { Button } from "@/components/ui/Button";
-import { Field, SelectField } from "@/components/ui/Field";
+import { Field, HttpsUrlField, SelectField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Card } from "@/components/ui/Card";
@@ -289,13 +289,12 @@ function LinksAndRedirectEditor({
             />
             Redirect card taps and scans
           </label>
-          <Field
+          <HttpsUrlField
             error={redirect.enabled ? (redirectError ?? undefined) : undefined}
             id="admin-profile-redirect-destination"
             label="HTTPS destination URL"
-            onChange={(event) => updateRedirect({ destination: event.target.value })}
-            placeholder="https://www.example.com"
-            type="url"
+            onValueChange={(destination) => updateRedirect({ destination })}
+            placeholder="www.example.com"
             value={redirect.destination}
           />
         </section>
@@ -408,18 +407,6 @@ function LinksAndRedirectEditor({
   );
 }
 
-function copyToClipboard(slug: string, setMessage: (value: string) => void) {
-  const url = `${window.location.origin}/${slug}`;
-  if (!navigator.clipboard) {
-    setMessage(url);
-    return;
-  }
-  void navigator.clipboard.writeText(url).then(
-    () => setMessage("Copied"),
-    () => setMessage(url),
-  );
-}
-
 export function AdminProfileContentEditor({
   profileId,
   draft,
@@ -429,7 +416,6 @@ export function AdminProfileContentEditor({
   onUploadMedia,
   onBusyChange,
 }: AdminProfileContentEditorProps) {
-  const [copyMessage, setCopyMessage] = useState("");
   const [mediaBusy, setMediaBusy] = useState(false);
   const [mediaError, setMediaError] = useState("");
   const [photoBusy, setPhotoBusy] = useState(false);
@@ -468,13 +454,11 @@ export function AdminProfileContentEditor({
     <div className="grid gap-4">
       <ProfileDetailsEditor
         customization={draft.customization}
-        copyMessage={copyMessage}
         draft={draft}
         imageContent={imageContent}
         links={draft.links}
         onChange={onChange}
         onCustomizationChange={(next) => onChange("customization", next)}
-        onCopyUrl={() => copyToClipboard(draft.slug, setCopyMessage)}
         slugLocked
       />
       <LinksAndRedirectEditor draft={draft} onChange={onChange} />

@@ -256,7 +256,6 @@ function DemoProfileEditor({
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
   const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
-  const [copyMessage, setCopyMessage] = useState("");
   const [imageError, setImageError] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
@@ -327,12 +326,6 @@ function DemoProfileEditor({
         ? "Publish changes"
         : "Published"
       : "Publish";
-  const publicationState = isDirty
-    ? "Unsaved draft changes"
-    : profile.status === "published" && hasChangesSincePublish
-      ? "Changes ready to publish"
-      : "Draft saved";
-
   function updateField<K extends keyof ProfileContent>(field: K, value: ProfileContent[K]) {
     setDraft((current) => ({ ...current, [field]: value }));
     setMessage(null);
@@ -508,16 +501,6 @@ function DemoProfileEditor({
     }
   }
 
-  function copyUrl() {
-    const url = `${window.location.origin}/${draft.slug}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(
-        () => setCopyMessage("Copied"),
-        () => setCopyMessage(url),
-      );
-    } else setCopyMessage(url);
-  }
-
   function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -669,7 +652,6 @@ function DemoProfileEditor({
             <ProfileChecklist draft={draft} published={profile.status === "published"} />
             <ProfileDetailsEditor
               customization={draft.customization}
-              copyMessage={copyMessage}
               draft={draft}
               errors={profileErrors}
               customizationErrors={customizationErrors}
@@ -682,7 +664,6 @@ function DemoProfileEditor({
               }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
-              onCopyUrl={copyUrl}
               onOpenCustomize={
                 <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
@@ -776,7 +757,6 @@ function DemoProfileEditor({
         hasUnresolvedMedia
       }
       title={view === "profile" ? "Your profile" : "Customize your profile"}
-      draftStatus={publicationState}
     />
   );
 }
@@ -868,7 +848,6 @@ function LiveProfileEditorContent({
   const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
   const [imageError, setImageError] = useState("");
-  const [copyMessage, setCopyMessage] = useState("");
   const [imageApplied, setImageApplied] = useState(false);
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [mediaBusy, setMediaBusy] = useState(false);
@@ -967,11 +946,6 @@ function LiveProfileEditorContent({
         ? "Publish changes"
         : "Published"
       : "Publish";
-  const publicationState = isDirty
-    ? "Unsaved draft changes"
-    : liveProfile.status === "published" && hasChangesSincePublish
-      ? "Changes ready to publish"
-      : "Draft saved";
   const latestDraftRef = useRef(currentDraft);
 
   useLayoutEffect(() => {
@@ -982,16 +956,6 @@ function LiveProfileEditorContent({
     draftRevisionRef.current += 1;
     setDraft((value_) => ({ ...(value_ ?? currentDraft), [field]: value }));
     setMessage(null);
-  }
-
-  function copyUrl() {
-    const url = `${window.location.origin}/${currentDraft.slug}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(
-        () => setCopyMessage("Copied"),
-        () => setCopyMessage(url),
-      );
-    } else setCopyMessage(url);
   }
 
   function chooseImage(event: React.ChangeEvent<HTMLInputElement>) {
@@ -1405,7 +1369,6 @@ function LiveProfileEditorContent({
             <ProfileChecklist draft={currentDraft} published={liveProfile.status === "published"} />
             <ProfileDetailsEditor
               customization={currentDraft.customization}
-              copyMessage={copyMessage}
               draft={currentDraft}
               errors={profileErrors}
               customizationErrors={customizationErrors}
@@ -1418,7 +1381,6 @@ function LiveProfileEditorContent({
               }
               onChange={updateField}
               onCustomizationChange={(customization) => updateField("customization", customization)}
-              onCopyUrl={copyUrl}
               onOpenCustomize={
                 <DraftSaveButtonLink href="/app/customize">Open Customize</DraftSaveButtonLink>
               }
@@ -1517,7 +1479,6 @@ function LiveProfileEditorContent({
       }
       saveLoading={pending === "save"}
       title={view === "profile" ? "Your profile" : "Customize your profile"}
-      draftStatus={publicationState}
       publishLoading={pending === "publish"}
     />
   );

@@ -163,6 +163,7 @@ function DemoLinksEditor() {
     if (!hasLocalRedirectEdits) setRedirect(incomingRedirect);
   }, [profile.draft.redirect, redirect]);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [revealRedirectError, setRevealRedirectError] = useState(false);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
 
   const validation = useMemo(() => {
@@ -217,7 +218,10 @@ function DemoLinksEditor() {
       ? ["Claim the attached card before publishing this profile."]
       : []),
   ];
-  const preview = canPreviewLinks(validation, publicationErrors)
+  const preview = canPreviewLinks(
+    validation,
+    publicationErrors.filter((error) => error !== redirectError),
+  )
     ? previewForLinks(profile, links, redirect, legacyTheme)
     : null;
   const isDirty =
@@ -300,7 +304,7 @@ function DemoLinksEditor() {
       };
     }
     if (redirectError !== null) {
-      setMessage({ tone: "error", text: redirectError });
+      setRevealRedirectError(true);
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -398,6 +402,7 @@ function DemoLinksEditor() {
       links={links}
       redirect={redirect}
       redirectError={redirectError}
+      revealRedirectError={revealRedirectError}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
@@ -441,6 +446,7 @@ export function LiveLinksEditorContent({
     () => profile.draft.redirect ?? { enabled: false, destination: "" },
   );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [revealRedirectError, setRevealRedirectError] = useState(false);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<DraftSaveHandler>(async () => ({ kind: "saved" }));
   const registeredSave = useCallback((href?: string) => navigationSaveRef.current(href), []);
@@ -490,7 +496,11 @@ export function LiveLinksEditorContent({
       return result;
     }, {});
   }, [currentDraft.links]);
-  const preview = canPreviewLinks(validation, publicationErrors)
+  const currentRedirectError = validateProfileRedirect(redirect);
+  const preview = canPreviewLinks(
+    validation,
+    publicationErrors.filter((error) => error !== currentRedirectError),
+  )
     ? projectPublicProfile({
         id: "preview",
         ownerId: "preview",
@@ -645,7 +655,7 @@ export function LiveLinksEditorContent({
     }
     const redirectError = validateProfileRedirect(redirect);
     if (redirectError !== null) {
-      setMessage({ tone: "error", text: redirectError });
+      setRevealRedirectError(true);
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -716,7 +726,8 @@ export function LiveLinksEditorContent({
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
       redirect={redirect}
-      redirectError={validateProfileRedirect(redirect)}
+      redirectError={currentRedirectError}
+      revealRedirectError={revealRedirectError}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
