@@ -139,7 +139,10 @@ export function WorkspaceChrome({
         className="hidden min-h-0 flex-col gap-6 rounded-card bg-tapit-surface p-6 shadow-card lg:sticky lg:top-4 lg:flex lg:h-[calc(100dvh-2rem)] lg:self-start"
         data-testid="workspace-sidebar"
       >
-        <Brand href={audienceCopy.home} />
+        <Brand
+          href={audienceCopy.home}
+          onClick={(event) => handleNavigation(event, audienceCopy.home)}
+        />
         {showAudienceSwitch ? (
           <AudienceSwitch audience={audience} onNavigate={handleNavigation} />
         ) : null}
@@ -175,7 +178,10 @@ export function WorkspaceChrome({
       <div className="flex min-w-0 flex-col max-lg:[&_.fixed.inset-x-0]:bottom-20 lg:[&_.fixed.inset-x-0]:left-[264px]">
         <header className="flex min-h-16 flex-wrap items-center gap-3 bg-tapit-paper px-4 py-3 sm:px-8 lg:px-8">
           <div className="lg:hidden">
-            <Brand href={audienceCopy.home} />
+            <Brand
+              href={audienceCopy.home}
+              onClick={(event) => handleNavigation(event, audienceCopy.home)}
+            />
           </div>
           <nav
             aria-label="Breadcrumb"
@@ -184,6 +190,7 @@ export function WorkspaceChrome({
             <Link
               className="inline-flex items-center text-tapit-muted hover:text-tapit-ink"
               href={audienceCopy.home}
+              onClick={(event) => handleNavigation(event, audienceCopy.home)}
             >
               {audienceCopy.breadcrumbRoot}
             </Link>
