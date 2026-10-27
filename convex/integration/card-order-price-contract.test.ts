@@ -89,7 +89,7 @@ describe("card order price confirmation on the server", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedAmountCentavos: LAUNCH_NET_WITHOUT_REFERRAL,
+      expectedCardAmountCentavos: LAUNCH_NET_WITHOUT_REFERRAL,
     });
 
     expect(outcome).toEqual({
@@ -142,7 +142,7 @@ describe("card order price confirmation on the server", () => {
     await expect(
       customer.mutation(api.cardOrders.placeOrder, {
         ...placement,
-        expectedAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
+        expectedCardAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
       }),
     ).resolves.toEqual({
       kind: "price_changed",
@@ -155,7 +155,7 @@ describe("card order price confirmation on the server", () => {
 
     const retry = await customer.mutation(api.cardOrders.placeOrder, {
       ...placement,
-      expectedAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
+      expectedCardAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
       referralCode: "FOUNDING-AHRON",
     });
     expect(retry.kind).toBe("created");
@@ -171,7 +171,7 @@ describe("card order price confirmation on the server", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
+      expectedCardAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
     });
 
     if (outcome.kind !== "created") throw new Error(`Expected created, got ${outcome.kind}.`);
@@ -188,13 +188,13 @@ describe("card order price confirmation on the server", () => {
     const ids = await seed(t);
     const customer = t.withIdentity(identity(ids.customerUserId));
 
-    for (const expectedAmountCentavos of [-1, 1.5, Number.MAX_SAFE_INTEGER + 2]) {
+    for (const expectedCardAmountCentavos of [-1, 1.5, Number.MAX_SAFE_INTEGER + 2]) {
       await expect(
         customer.mutation(api.cardOrders.placeOrder, {
           paymentMethodId: ids.paymentMethodId,
           ...urlDesigns,
           ...delivery,
-          expectedAmountCentavos,
+          expectedCardAmountCentavos,
         }),
       ).rejects.toThrow("Expected card amount must be non-negative integer centavos.");
     }

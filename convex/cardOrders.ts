@@ -110,16 +110,16 @@ export const placeOrder = mutation({
     deliveryAddress: v.string(),
     // Comparison precondition only: the card amount after referral discount that
     // the customer reviewed. It never populates a stored monetary field.
-    expectedAmountCentavos: v.number(),
+    expectedCardAmountCentavos: v.number(),
   },
   returns: v.union(
     v.object({ kind: v.literal("created"), orderId: v.id("cardOrders") }),
     v.object({ kind: v.literal("price_changed"), price: cardPrice }),
   ),
   handler: async (ctx, args) => {
-    const customer = await activeOrderAccount(ctx);
-    if (!Number.isSafeInteger(args.expectedAmountCentavos) || args.expectedAmountCentavos < 0)
+    if (!Number.isSafeInteger(args.expectedCardAmountCentavos) || args.expectedCardAmountCentavos < 0)
       throw new Error("Expected card amount must be non-negative integer centavos.");
+    const customer = await activeOrderAccount(ctx);
     const now = Date.now();
     const [date, activePayment, selectedPayment, prior] = await Promise.all([
       launchEndDate(ctx, customer),
@@ -203,7 +203,7 @@ export const placeOrder = mutation({
         : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
     // Checked before the first write: a changed amount creates nothing, so the
     // customer must review the authoritative price and submit again.
-    if (cardPriceCentavos - discountCentavos !== args.expectedAmountCentavos)
+    if (cardPriceCentavos - discountCentavos !== args.expectedCardAmountCentavos)
       return {
         kind: "price_changed" as const,
         price: { cardPriceCentavos, discountCentavos },

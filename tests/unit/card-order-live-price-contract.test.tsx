@@ -109,7 +109,7 @@ describe("live card order price confirmation", () => {
     expect(mocks.place).toHaveBeenCalledWith(
       expect.objectContaining({
         referralCode: "FOUNDING-AHRON",
-        expectedAmountCentavos: 53_910,
+        expectedCardAmountCentavos: 53_910,
       }),
     );
   });

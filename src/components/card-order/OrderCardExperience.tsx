@@ -104,7 +104,7 @@ type PlaceOrderInput = {
   deliveryPhone: string;
   deliveryAddress: string;
   /** The card amount the customer reviewed; a comparison precondition, not a price. */
-  expectedAmountCentavos: number;
+  expectedCardAmountCentavos: number;
 };
 
 type PlaceOrder = (input: PlaceOrderInput) => Promise<CardOrderPlacementResult>;
@@ -330,7 +330,7 @@ function LocalDemoOrderExperience() {
             deliveryName: input.deliveryName,
             deliveryPhone: input.deliveryPhone,
             deliveryAddress: input.deliveryAddress,
-            expectedAmountCentavos: input.expectedAmountCentavos,
+            expectedCardAmountCentavos: input.expectedCardAmountCentavos,
           });
           // Attached artwork is no longer a reusable handle. A price change keeps it.
           if (outcome.kind === "created") artworkCache.current = {};
@@ -442,7 +442,7 @@ function LiveOrderExperience() {
             deliveryName: input.deliveryName,
             deliveryPhone: input.deliveryPhone,
             deliveryAddress: input.deliveryAddress,
-            expectedAmountCentavos: input.expectedAmountCentavos,
+            expectedCardAmountCentavos: input.expectedCardAmountCentavos,
           });
           if (outcome.kind === "price_changed") return outcome;
           artworkCache.current = {};
@@ -714,7 +714,7 @@ function CustomerOrderForm({
         deliveryName: name,
         deliveryPhone: phone,
         deliveryAddress: address,
-        expectedAmountCentavos: cardOrderAmountCentavos(capturedPrice),
+        expectedCardAmountCentavos: cardOrderAmountCentavos(capturedPrice),
       });
       if (outcome.kind === "price_changed") {
         // No order exists. Pin the authoritative amount until the customer confirms it.

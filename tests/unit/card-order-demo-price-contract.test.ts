@@ -81,7 +81,7 @@ describe("demo card order price confirmation", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedAmountCentavos: 59_900,
+      expectedCardAmountCentavos: 59_900,
     });
 
     expect(outcome).toEqual({
@@ -107,7 +107,7 @@ describe("demo card order price confirmation", () => {
       designSource: upload,
       backDesignSource: { ...urlDesigns.backDesignSource },
       ...delivery,
-      expectedAmountCentavos: 59_900,
+      expectedCardAmountCentavos: 59_900,
     });
 
     expect(outcome.kind).toBe("price_changed");
@@ -121,7 +121,7 @@ describe("demo card order price confirmation", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 53_910,
     });
 
     expect(outcome.kind).toBe("created");
@@ -140,7 +140,7 @@ describe("demo card order price confirmation", () => {
         paymentMethodId: "method-1",
         ...urlDesigns,
         ...delivery,
-        expectedAmountCentavos: 59_900.5,
+        expectedCardAmountCentavos: 59_900.5,
       }),
     ).rejects.toThrow("Expected card amount must be non-negative integer centavos.");
     expect(mocks.state.cardOrders).toHaveLength(0);

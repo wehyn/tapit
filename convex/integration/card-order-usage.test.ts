@@ -115,7 +115,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 53_910,
     });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
       {
@@ -146,7 +146,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 53_910,
     });
 
     await admin.mutation(api.cardOrders.cancelOrder, { orderId });

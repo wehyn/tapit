@@ -154,7 +154,7 @@ describe("card order price confirmation", () => {
     await user.click(screen.getByRole("button", { name: "Place order" }));
 
     expect(mocks.place).toHaveBeenCalledTimes(1);
-    expect(mocks.place.mock.calls[0]![0]).toMatchObject({ expectedAmountCentavos: 59_900 });
+    expect(mocks.place.mock.calls[0]![0]).toMatchObject({ expectedCardAmountCentavos: 59_900 });
     expect(await screen.findByText(/The card amount changed to ₱719\.10/)).toBeInTheDocument();
     expect(screen.getByText(/Your order has not been placed/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: CONFIRM_REPRICED })).toBeInTheDocument();
@@ -165,7 +165,7 @@ describe("card order price confirmation", () => {
     await user.click(screen.getByRole("button", { name: CONFIRM_REPRICED }));
 
     expect(mocks.place).toHaveBeenCalledTimes(2);
-    expect(mocks.place.mock.calls[1]![0]).toMatchObject({ expectedAmountCentavos: 71_910 });
+    expect(mocks.place.mock.calls[1]![0]).toMatchObject({ expectedCardAmountCentavos: 71_910 });
     expect(await screen.findByText(/Your card order has been saved/)).toBeInTheDocument();
   });
 
@@ -181,7 +181,7 @@ describe("card order price confirmation", () => {
     await user.click(screen.getByRole("button", { name: "Place order" }));
 
     expect(mocks.place).toHaveBeenCalledWith(
-      expect.objectContaining({ referralCode: "FOUNDING-AHRON", expectedAmountCentavos: 53_910 }),
+      expect.objectContaining({ referralCode: "FOUNDING-AHRON", expectedCardAmountCentavos: 53_910 }),
     );
   });
 

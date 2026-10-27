@@ -38,7 +38,7 @@ type PlaceOrderInput = {
   deliveryPhone: string;
   deliveryAddress: string;
   /** Comparison precondition only; never persisted. */
-  expectedAmountCentavos: number;
+  expectedCardAmountCentavos: number;
 };
 
 /** Private signal that unwinds the locked commit before any order state is written. */
@@ -413,7 +413,7 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
 export async function placeDemoCardOrder(
   input: PlaceOrderInput,
 ): Promise<CardOrderPlacementResult> {
-  if (!Number.isSafeInteger(input.expectedAmountCentavos) || input.expectedAmountCentavos < 0) {
+  if (!Number.isSafeInteger(input.expectedCardAmountCentavos) || input.expectedCardAmountCentavos < 0) {
     throw new Error("Expected card amount must be non-negative integer centavos.");
   }
   const state = currentOrderState();
@@ -472,7 +472,7 @@ export async function placeDemoCardOrder(
       : 0;
     // Same rule as the live mutation: nothing is written unless the reviewed amount still holds.
     const price = { cardPriceCentavos, discountCentavos };
-    if (cardOrderAmountCentavos(price) !== input.expectedAmountCentavos) {
+    if (cardOrderAmountCentavos(price) !== input.expectedCardAmountCentavos) {
       throw new DemoCardOrderPriceChanged(price);
     }
     const order: DemoCardOrder = {
