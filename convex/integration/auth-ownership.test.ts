@@ -546,6 +546,23 @@ describe("Convex authentication and ownership", () => {
     ).rejects.toThrow("Too many invitation attempts.");
   });
 
+  it("rate-limits invalid invitation attempts across distinct token hashes for one identity", async () => {
+    const t = testConvex();
+    const userId = await t.run(async (ctx) =>
+      ctx.db.insert("users", { email: "claimant@example.com", emailVerificationTime: 1 }),
+    );
+    const user = t.withIdentity(identity(userId));
+
+    for (const tokenHash of ["bogus-1", "bogus-2", "bogus-3"]) {
+      await expect(user.action(api.customers.acceptInvitation, { tokenHash })).rejects.toThrow(
+        "invalid or expired",
+      );
+    }
+    await expect(
+      user.action(api.customers.acceptInvitation, { tokenHash: "bogus-4" }),
+    ).rejects.toThrow("Too many invitation attempts.");
+  });
+
   it("rejects mismatched, revoked, expired, and already-linked invitation claims", async () => {
     const t = testConvex();
     const data = await seed(t);
