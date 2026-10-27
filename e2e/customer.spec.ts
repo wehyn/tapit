@@ -1295,6 +1295,39 @@ test("the Links draft action is hidden while clean and appears after an edit", a
   await expect(page.getByRole("region", { name: "Draft actions", exact: true })).toHaveCount(0);
 });
 
+for (const navigation of [
+  { name: "desktop logo", width: 1440, target: "sidebar" },
+  { name: "mobile logo", width: 390, target: "header" },
+  { name: "breadcrumb", width: 1440, target: "breadcrumb" },
+] as const) {
+  test(`saving unsaved link edits before navigation from the ${navigation.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: navigation.width, height: 900 });
+    await resetDemoHarness(page);
+    await signInAsCustomer(page);
+    await page.goto("/app/links");
+    await page
+      .getByRole("textbox", { name: "Label for Portfolio" })
+      .fill(`${navigation.name} draft`);
+
+    const destination =
+      navigation.target === "sidebar"
+        ? page.getByTestId("workspace-sidebar").getByRole("link", { name: "Tapit home" })
+        : navigation.target === "header"
+          ? page.locator("header").getByRole("link", { name: "Tapit home" })
+          : page
+              .getByRole("navigation", { name: "Breadcrumb" })
+              .getByRole("link", { name: "Workspace" });
+    await destination.click();
+    await expect(page).toHaveURL(/\/app\/profile$/);
+    await page.goto("/app/links");
+    await expect(
+      page.getByRole("textbox", { name: `Label for ${navigation.name} draft` }),
+    ).toHaveValue(`${navigation.name} draft`);
+  });
+}
+
 test("guided link creation adds email and phone without scheme typing", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
