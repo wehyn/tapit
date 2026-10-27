@@ -115,7 +115,7 @@ describe("card order payment QR", () => {
           contentType: "image/png",
           byteSize: 13,
           createdAt: Date.now() - 2 * 60 * 60 * 1000,
-          availableAt: Date.now() - 2 * 60 * 60 * 1000,
+          availableAt: Date.now() - 48 * 60 * 60 * 1000,
         });
         await ctx.db.patch(ids.activeMethodId, { qrUploadId: id });
         return id;
@@ -124,6 +124,13 @@ describe("card order payment QR", () => {
       vi.advanceTimersByTime(15 * 60 * 1000);
       await t.finishAllScheduledFunctions(vi.runAllTimers);
 
+      await t.run((ctx) =>
+        ctx.db.patch(referencedUploadId, {
+          status: "available",
+          availableAt: Date.now() - 48 * 60 * 60 * 1000,
+        }),
+      );
+      await t.mutation(internal.cardOrderPaymentQr.cleanup, { uploadId: referencedUploadId });
       expect(await t.run((ctx) => ctx.db.get(uploadId))).toBeNull();
       expect(await t.run((ctx) => ctx.storage.getUrl(storageId))).toBeNull();
       expect(await t.run((ctx) => ctx.db.get(referencedUploadId))).not.toBeNull();
