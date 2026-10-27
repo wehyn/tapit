@@ -121,9 +121,11 @@ describe("live card URL mutations", () => {
       render(<CardsManager />);
       fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent(
+      const alert = await screen.findByRole("alert");
+      expect(alert).toHaveTextContent(
         `Clipboard access failed. Copy this URL manually: ${url}`,
       );
+      expect(alert.querySelector("span")).toHaveClass("break-all");
     },
   );
 

@@ -233,6 +233,7 @@ function CardDetail({
   const [copyMessage, setCopyMessage] = useState<{
     tone: "success" | "error";
     text: string;
+    url?: string;
   } | null>(null);
 
   async function copyCardLink() {
@@ -243,7 +244,8 @@ function CardDetail({
     } catch {
       setCopyMessage({
         tone: "error",
-        text: `Clipboard access failed. Copy this URL manually: ${url}`,
+        text: "Clipboard access failed. Copy this URL manually: ",
+        url,
       });
     }
   }
@@ -259,7 +261,12 @@ function CardDetail({
           <Icon name="copy" size={16} />
           Copy link
         </Button>
-        {copyMessage ? <Notice tone={copyMessage.tone}>{copyMessage.text}</Notice> : null}
+        {copyMessage ? (
+          <Notice tone={copyMessage.tone}>
+            {copyMessage.text}
+            {copyMessage.url ? <span className="break-all">{copyMessage.url}</span> : null}
+          </Notice>
+        ) : null}
       </div>
     </Card>
   );
