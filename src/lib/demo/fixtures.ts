@@ -115,6 +115,16 @@ export type DemoCardOrder = {
   updatedAt: number;
 };
 
+export type DemoCardOrderReferralCodeUsage = {
+  date: number;
+  orderId: string;
+  customerName?: string;
+  customerEmail?: string;
+  paymentStatus: DemoCardOrder["paymentStatus"];
+  fulfillmentStatus: DemoCardOrder["fulfillmentStatus"];
+  commissionStatus: DemoCardOrder["commissionStatus"];
+};
+
 export type DemoState = {
   customers: DemoCustomer[];
   profiles: DemoProfile[];

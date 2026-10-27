@@ -16,6 +16,7 @@ import type {
   DemoCardOrderDesignSource,
   DemoCardOrderPaymentMethod,
   DemoCardOrderReferralCode,
+  DemoCardOrderReferralCodeUsage,
   DemoState,
 } from "./fixtures";
 import {
@@ -129,7 +130,56 @@ export function getDemoCardOrderAdminSettings() {
   return {
     launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods,
-    referralCodes: state.cardOrderReferralCodes,
+    referralCodes: state.cardOrderReferralCodes.map((code) => ({
+      ...code,
+      usageCount: state.cardOrders.filter((order) => order.referralCodeId === code.id).length,
+    })),
+  };
+}
+
+export function getDemoCardOrderReferralCodeUsage(
+  codeId: string,
+  paginationOpts: { numItems: number; cursor: string | null },
+): {
+  page: DemoCardOrderReferralCodeUsage[];
+  isDone: boolean;
+  continueCursor: string;
+} {
+  const state = currentState("admin");
+  if (!state.cardOrderReferralCodes.some((code) => code.id === codeId)) {
+    throw new Error("Referral code unavailable.");
+  }
+  const { numItems, cursor } = paginationOpts;
+  if (!Number.isSafeInteger(numItems) || numItems < 1 || numItems > 100) {
+    throw new Error("Page size must be 1–100.");
+  }
+  const offset = cursor === null ? 0 : Number(cursor);
+  if (!Number.isSafeInteger(offset) || offset < 0) throw new Error("Invalid pagination cursor.");
+
+  const orders = state.cardOrders
+    .filter((order) => order.referralCodeId === codeId)
+    .sort((left, right) => right.createdAt - left.createdAt || right.id.localeCompare(left.id));
+  const page = orders.slice(offset, offset + numItems).map((order) => {
+    const customer = state.customers.find((item) => item.id === order.customerId);
+    const profile = customer?.profileId
+      ? state.profiles.find((item) => item.id === customer.profileId)
+      : undefined;
+    const customerName = profile?.draft.name?.trim();
+    return {
+      date: order.createdAt,
+      orderId: order.id,
+      ...(customerName ? { customerName } : {}),
+      ...(customer?.email ? { customerEmail: customer.email } : {}),
+      paymentStatus: order.paymentStatus,
+      fulfillmentStatus: order.fulfillmentStatus,
+      commissionStatus: order.commissionStatus,
+    };
+  });
+  const nextOffset = offset + page.length;
+  return {
+    page,
+    isDone: nextOffset >= orders.length,
+    continueCursor: nextOffset >= orders.length ? "" : String(nextOffset),
   };
 }
 
@@ -281,19 +331,34 @@ export async function saveDemoCardOrderReferralCode(input: {
   return id;
 }
 
-export async function deactivateDemoCardOrderReferralCode(id: string): Promise<void> {
+export async function setDemoCardOrderReferralCodeActive(
+  id: string,
+  active: boolean,
+): Promise<void> {
   const adminId = activeAccount(currentState("admin"), "admin").id;
   await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
     if (!existing) throw new Error("Referral code unavailable.");
+    if (existing.active === active) return state;
+    const action = active ? "activated" : "deactivated";
     return {
       ...state,
       cardOrderReferralCodes: state.cardOrderReferralCodes.map((referral) =>
-        referral.id === id ? { ...referral, active: false, updatedAt: Date.now() } : referral,
+        referral.id === id ? { ...referral, active, updatedAt: Date.now() } : referral,
       ),
-      audits: audit(state, "referral_code_deactivated", id, JSON.stringify(existing), "inactive"),
+      audits: audit(
+        state,
+        `referral_code_${action}`,
+        id,
+        JSON.stringify(existing),
+        active ? "active" : "inactive",
+      ),
     };
   });
+}
+
+export async function deactivateDemoCardOrderReferralCode(id: string): Promise<void> {
+  return setDemoCardOrderReferralCodeActive(id, false);
 }
 
 export function previewDemoCardOrderReferral(code: string, currentTime: number) {
