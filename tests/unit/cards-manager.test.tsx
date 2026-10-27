@@ -63,6 +63,70 @@ beforeEach(() => {
 });
 
 describe("live card URL mutations", () => {
+  it.each(["registered", "claimable", "active", "inactive", "replaced"] as const)(
+    "copies the current-origin URL for a %s card",
+    async (status) => {
+      const token = `card-${status}`;
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText },
+      });
+      configureCardQueries([
+        {
+          _id: `cards:${token}`,
+          _creationTime: 1,
+          cardUrl: `https://stored-origin.test/c/${token}`,
+          token,
+          status,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+
+      render(<CardsManager />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+
+      await waitFor(() =>
+        expect(writeText).toHaveBeenCalledWith(
+          new URL(`/c/${token}`, window.location.origin).toString(),
+        ),
+      );
+      expect(await screen.findByRole("status")).toHaveTextContent("Card link copied.");
+    },
+  );
+
+  it.each(["denied", "unavailable"] as const)(
+    "shows a manual-copy URL when clipboard access is %s",
+    async (condition) => {
+      const token = "existing-card";
+      const url = new URL(`/c/${token}`, window.location.origin).toString();
+      const writeText = vi.fn().mockRejectedValue(new Error("blocked"));
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: condition === "denied" ? { writeText } : undefined,
+      });
+      configureCardQueries([
+        {
+          _id: `cards:${token}`,
+          _creationTime: 1,
+          cardUrl: `https://stored-origin.test/c/${token}`,
+          token,
+          status: "active",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+
+      render(<CardsManager />);
+      fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Clipboard access failed. Copy this URL manually: ${url}`,
+      );
+    },
+  );
+
   it("resolves a relative registration URL against the current origin", async () => {
     render(<CardsManager />);
 
@@ -105,6 +169,29 @@ describe("live card URL mutations", () => {
         newCardUrl: new URL("/c/replacement-88", window.location.origin).toString(),
         newToken: "replacement-88",
       }),
+    );
+  });
+});
+
+describe("local-demo card links", () => {
+  it("copies the current-origin URL from card details", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+
+    render(<CardsManager />);
+    fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
+    await screen.findByRole("heading", { name: "Card mara-card-7f2q" });
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        new URL("/c/mara-card-7f2q", window.location.origin).toString(),
+      ),
     );
   });
 });
