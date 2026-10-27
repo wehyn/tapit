@@ -761,7 +761,9 @@ function DemoOrderManager({ orderId }: { orderId?: string }) {
 }
 
 function LiveOrderManager({ orderId }: { orderId?: string }) {
-  const pages = usePaginatedQuery(api.cardOrders.adminOrders, orderId ? "skip" : {}, { initialNumItems: 25 });
+  const pages = usePaginatedQuery(api.cardOrders.adminOrders, orderId ? "skip" : {}, {
+    initialNumItems: 25,
+  });
   const selected = useQuery(
     api.cardOrders.adminOrderById,
     orderId ? { orderId: orderId as Id<"cardOrders"> } : "skip",
@@ -815,5 +817,9 @@ function LiveOrderManager({ orderId }: { orderId?: string }) {
 }
 
 export function OrderManager({ orderId }: { orderId?: string }) {
-  return isLocalDemoMode() ? <DemoOrderManager orderId={orderId} /> : <LiveOrderManager orderId={orderId} />;
+  return isLocalDemoMode() ? (
+    <DemoOrderManager orderId={orderId} />
+  ) : (
+    <LiveOrderManager orderId={orderId} />
+  );
 }

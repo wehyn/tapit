@@ -9,28 +9,86 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await page.evaluate((serializedState) => {
     const state = JSON.parse(serializedState);
     const now = Date.now();
-    state.cardOrderPaymentMethods = [{
-      id: "usage-test-payment", provider: "Bank transfer", label: "Usage test bank",
-      accountDetails: "Test account", instructions: "Transfer after ordering.", active: true,
-      createdAt: now, updatedAt: now,
-    }];
-    state.cardOrderReferralCodes = [
-      { id: "usage-active-code", code: "ACTIVE-HISTORY", referrerLabel: "Active referrer", active: true, createdAt: now, updatedAt: now },
-      { id: "usage-inactive-code", code: "INACTIVE-HISTORY", referrerLabel: "Inactive referrer", active: false, createdAt: now, updatedAt: now },
+    state.cardOrderPaymentMethods = [
+      {
+        id: "usage-test-payment",
+        provider: "Bank transfer",
+        label: "Usage test bank",
+        accountDetails: "Test account",
+        instructions: "Transfer after ordering.",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
-    const order = (id: string, codeId: string, code: string, paymentStatus: string, fulfillmentStatus: string) => ({
-      id, customerId: "customer-mara", quantity: 1,
+    state.cardOrderReferralCodes = [
+      {
+        id: "usage-active-code",
+        code: "ACTIVE-HISTORY",
+        referrerLabel: "Active referrer",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
+      {
+        id: "usage-inactive-code",
+        code: "INACTIVE-HISTORY",
+        referrerLabel: "Inactive referrer",
+        active: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ];
+    const order = (
+      id: string,
+      codeId: string,
+      code: string,
+      paymentStatus: string,
+      fulfillmentStatus: string,
+    ) => ({
+      id,
+      customerId: "customer-mara",
+      quantity: 1,
       designSource: { kind: "url", url: "https://example.test/front.png" },
-      deliveryName: "History Customer", deliveryPhone: "09171234567", deliveryAddress: "99 Private Delivery Lane",
-      cardPriceCentavos: 59900, discountCentavos: 5990, paymentMethodId: "usage-test-payment",
-      paymentSnapshot: { provider: "Bank transfer", label: "Usage test bank", accountDetails: "Test account", instructions: "Transfer after ordering." },
-      referralCodeId: codeId, referralSnapshot: { code, referrerLabel: code === "ACTIVE-HISTORY" ? "Active referrer" : "Inactive referrer" },
-      paymentStatus, fulfillmentStatus, commissionStatus: paymentStatus === "refunded" ? "void" : "pending",
-      commissionCentavos: 5990, createdAt: now, updatedAt: now,
+      deliveryName: "History Customer",
+      deliveryPhone: "09171234567",
+      deliveryAddress: "99 Private Delivery Lane",
+      cardPriceCentavos: 59900,
+      discountCentavos: 5990,
+      paymentMethodId: "usage-test-payment",
+      paymentSnapshot: {
+        provider: "Bank transfer",
+        label: "Usage test bank",
+        accountDetails: "Test account",
+        instructions: "Transfer after ordering.",
+      },
+      referralCodeId: codeId,
+      referralSnapshot: {
+        code,
+        referrerLabel: code === "ACTIVE-HISTORY" ? "Active referrer" : "Inactive referrer",
+      },
+      paymentStatus,
+      fulfillmentStatus,
+      commissionStatus: paymentStatus === "refunded" ? "void" : "pending",
+      commissionCentavos: 5990,
+      createdAt: now,
+      updatedAt: now,
     });
     state.cardOrders = [
-      order("usage-order-unpaid", "usage-active-code", "ACTIVE-HISTORY", "unpaid", "awaiting_payment"),
-      order("usage-order-refunded", "usage-inactive-code", "INACTIVE-HISTORY", "refunded", "cancelled"),
+      order(
+        "usage-order-unpaid",
+        "usage-active-code",
+        "ACTIVE-HISTORY",
+        "unpaid",
+        "awaiting_payment",
+      ),
+      order(
+        "usage-order-refunded",
+        "usage-inactive-code",
+        "INACTIVE-HISTORY",
+        "refunded",
+        "cancelled",
+      ),
     ];
     window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
   }, initialState);
