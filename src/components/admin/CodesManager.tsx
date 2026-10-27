@@ -104,6 +104,7 @@ function DemoCodesManager() {
     setHasMore(!page.isDone);
   }, [selectedId, cursor]);
   function selectCode(id: string) {
+    if (id === selectedId) return;
     setSelectedId(id);
     setCursor(null);
     setUsage([]);

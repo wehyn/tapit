@@ -76,6 +76,12 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await active.click();
   const activeUsage = page.getByRole("row", { name: /usage-order-unpaid/ });
   await expect(activeUsage).toBeVisible();
+  await active.click();
+  await expect(activeUsage).toBeVisible();
+  await activeEntry.getByRole("button", { name: "Edit" }).click();
+  await page.getByLabel("Referrer label").fill("Active referrer updated");
+  await page.getByRole("button", { name: "Save code" }).click();
+  await expect(activeUsage).toBeVisible();
   await expect(page.getByRole("row", { name: /usage-order-refunded/ })).toHaveCount(0);
   await expect(page.getByRole("main")).not.toContainText("99 Private Delivery Lane");
   await expect(page.getByRole("main")).not.toContainText("09171234567");
