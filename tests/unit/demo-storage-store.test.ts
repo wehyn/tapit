@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createDefaultDemoState } from "../../src/lib/demo/fixtures";
+import { serializeDemoState } from "../../src/lib/demo/storage-codec";
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -24,6 +26,27 @@ describe("demo storage store", () => {
 
     expect(getDemoState().profile.id).toBeDefined();
     expect(localStorage.getItem(STORAGE_KEY)).toBe(futureVersionState);
+  });
+
+  it("preserves code usage limits when saved demo state is reloaded", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "limited-code",
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        usageLimit: 25,
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cardOrderReferralCodes).toMatchObject([
+      { id: "limited-code", code: "FOUNDING-AHRON", usageLimit: 25 },
+    ]);
   });
 
   it("rejects updates that would overwrite a future-version state", async () => {

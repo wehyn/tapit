@@ -4,17 +4,28 @@ const mocks = vi.hoisted(() => ({
   state: {} as Record<string, unknown>,
   released: [] as string[],
   customerId: "customer-mara",
+  role: "customer" as "customer" | "admin",
+  beforeCommit: undefined as (() => void) | undefined,
 }));
 
 vi.mock("@/lib/demo/store", () => ({
-  getDemoSession: () => ({ email: "mara@example.test", role: "customer" }),
+  getDemoSession: () => ({
+    email: mocks.role === "admin" ? "admin@example.test" : "mara@example.test",
+    role: mocks.role,
+  }),
   refreshDemoAccessSnapshot: () => ({
     kind: "ready",
-    snapshot: { state: mocks.state, session: { email: "mara@example.test", role: "customer" } },
+    snapshot: {
+      state: mocks.state,
+      session: {
+        email: mocks.role === "admin" ? "admin@example.test" : "mara@example.test",
+        role: mocks.role,
+      },
+    },
   }),
   resolveDemoSessionAccess: () => ({
     kind: "active",
-    account: { id: mocks.customerId, role: "customer" },
+    account: { id: mocks.customerId, role: mocks.role },
   }),
   updateDemoState: (updater: (state: typeof mocks.state) => typeof mocks.state) => {
     // Like the real store: the updater runs before persistence, so a throw leaves state unchanged.
@@ -22,7 +33,12 @@ vi.mock("@/lib/demo/store", () => ({
   },
 }));
 vi.mock("@/lib/demo/card-order-assets", () => ({
-  withDemoCardOrderCommitLock: (operation: () => Promise<unknown>) => operation(),
+  withDemoCardOrderCommitLock: async (operation: () => Promise<unknown>) => {
+    const beforeCommit = mocks.beforeCommit;
+    mocks.beforeCommit = undefined;
+    beforeCommit?.();
+    return operation();
+  },
   // Mirrors the real reservation helper: exception-only release, then rethrow.
   withDemoCardOrderAssetReservation: async (
     sources: { assetKey: string }[],
@@ -40,6 +56,7 @@ vi.mock("@/lib/demo/card-order-assets", () => ({
 }));
 
 import {
+  getDemoCardOrderAdminSettings,
   placeDemoCardOrder,
   previewDemoCardOrderReferral,
   saveDemoCardOrderReferralCode,
@@ -58,6 +75,8 @@ const urlDesigns = {
 beforeEach(() => {
   mocks.released.length = 0;
   mocks.customerId = "customer-mara";
+  mocks.role = "customer";
+  mocks.beforeCommit = undefined;
   mocks.state = {
     cardOrderLaunchEndDate: "2099-12-31",
     cardOrderPaymentMethods: [
@@ -117,7 +136,52 @@ describe("demo card order price confirmation", () => {
     expect(mocks.state.cardOrders).toHaveLength(1);
   });
 
+  it("rechecks the limit when another order consumes the last use before commit", async () => {
+    expect(previewDemoCardOrderReferral("FOUNDING-AHRON", Date.now()).valid).toBe(true);
+    mocks.beforeCommit = () => {
+      (mocks.state.cardOrders as { id: string; customerId: string; referralCodeId: string }[]).push(
+        { id: "competing-order", customerId: "customer-other", referralCodeId: "code-1" },
+      );
+    };
+
+    await expect(
+      placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: "FOUNDING-AHRON",
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    expect(mocks.state.cardOrders).toHaveLength(1);
+  });
+
+  it("saves and reloads a configured limit for an administrator", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
+    const input = {
+      code: "LIMITED",
+      referrerLabel: "Ahron",
+      active: true,
+    };
+    const id = await saveDemoCardOrderReferralCode({ ...input, usageLimit: 25 });
+    expect(getDemoCardOrderAdminSettings().referralCodes).toContainEqual(
+      expect.objectContaining({ id, usageLimit: 25, usageCount: 0 }),
+    );
+
+    await saveDemoCardOrderReferralCode({ id, ...input, usageLimit: 20 });
+    expect(getDemoCardOrderAdminSettings().referralCodes).toContainEqual(
+      expect.objectContaining({ id, usageLimit: 20, usageCount: 0 }),
+    );
+
+    await saveDemoCardOrderReferralCode({ id, ...input, usageLimit: undefined });
+    const cleared = getDemoCardOrderAdminSettings().referralCodes.find((code) => code.id === id);
+    expect(cleared?.usageLimit).toBeUndefined();
+  });
+
   it("rejects an invalid usage limit when saving", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
     await expect(
       saveDemoCardOrderReferralCode({
         code: "LIMITED",
