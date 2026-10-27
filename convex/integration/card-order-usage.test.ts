@@ -576,6 +576,79 @@ describe("card order referral usage", () => {
     expect(countedOrders).toHaveLength(205);
   });
 
+  it("restarts a stalled backfill from the beginning without double counting", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.codeId, { usageCount: 100 });
+      for (let index = 0; index < 101; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/stalled.png" },
+          deliveryName: "Historical Customer",
+          deliveryPhone: "09170000000",
+          deliveryAddress: "Historical address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Test account",
+            instructions: "Transfer.",
+          },
+          referralCodeId: ids.codeId,
+          referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index + 1,
+          updatedAt: index + 1,
+          ...(index < 100 ? { usageCounted: true } : {}),
+        });
+      }
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.patch(marker._id, { value: "running", updatedAt: 1 });
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 101 },
+    ]);
+    await expect(
+      t.run(async (ctx) => {
+        const orders = await ctx.db
+          .query("cardOrders")
+          .withIndex("by_scope_and_referralCodeId_and_createdAt", (q) =>
+            q.eq("scope", undefined).eq("referralCodeId", ids.codeId),
+          )
+          .take(101);
+        const marker = await ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first();
+        return { counted: orders.filter((order) => order.usageCounted === true).length, marker };
+      }),
+    ).resolves.toMatchObject({ counted: 101, marker: { value: "completed" } });
+  });
+
   it("paginates referral history with only the approved customer and status fields", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

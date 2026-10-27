@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 
 const PAGE_SIZE = 100;
+const BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
 
 export const backfillUsageCounts = internalMutation({
   args: { scope: v.optional(v.literal("demo")), cursor: v.union(v.string(), v.null()) },
@@ -23,21 +24,24 @@ export const backfillUsageCounts = internalMutation({
       await ctx.db.patch(order._id, { usageCounted: true });
     }
 
+    const marker = await ctx.db
+      .query("settings")
+      .withIndex("by_scope_and_key", (q) =>
+        q.eq("scope", args.scope).eq("key", BACKFILL_KEY),
+      )
+      .first();
+
     if (!page.isDone)
       await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
         ...(args.scope === undefined ? {} : { scope: args.scope }),
         cursor: page.continueCursor,
       });
     else {
-      const marker = await ctx.db
-        .query("settings")
-        .withIndex("by_scope_and_key", (q) =>
-          q.eq("scope", args.scope).eq("key", "cardOrderReferralUsageBackfillStarted"),
-        )
-        .first();
       if (marker !== null && marker.value !== "completed")
         await ctx.db.patch(marker._id, { value: "completed", updatedAt: Date.now() });
     }
+    if (!page.isDone && marker !== null && marker.value !== "completed")
+      await ctx.db.patch(marker._id, { updatedAt: Date.now() });
     return null;
   },
 });

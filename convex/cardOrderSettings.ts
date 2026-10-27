@@ -19,6 +19,7 @@ import {
 
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
 const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
+const REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS = 5 * 60 * 1000;
 const paymentFields = v.object({
   provider: v.string(),
   label: v.string(),
@@ -152,19 +153,26 @@ export const startReferralUsageBackfill = mutation({
         q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
       )
       .first();
-    if (existing?.value === "running" || existing?.value === "completed") return null;
+    const now = Date.now();
+    if (existing?.value === "completed") return null;
+    // Five minutes without a page heartbeat is treated as a stalled backfill.
+    if (
+      existing?.value === "running" &&
+      now - existing.updatedAt <= REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS
+    )
+      return null;
     if (existing === null) {
       await ctx.db.insert("settings", {
         scope: account.scope,
         key: REFERRAL_USAGE_BACKFILL_KEY,
         value: "running",
-        updatedAt: Date.now(),
+        updatedAt: now,
         updatedByUserId: userId,
       });
     } else {
       await ctx.db.patch(existing._id, {
         value: "running",
-        updatedAt: Date.now(),
+        updatedAt: now,
         updatedByUserId: userId,
       });
     }
