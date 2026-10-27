@@ -272,14 +272,14 @@ function DemoProfileEditor({
     setMediaError("");
   }, []);
   useEffect(() => {
-    if (!hasUnresolvedMedia) return;
+    if (!hasUnresolvedMedia && JSON.stringify(draft) === JSON.stringify(profile.draft)) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnresolvedMedia]);
+  }, [draft, hasUnresolvedMedia, profile.draft]);
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
@@ -844,6 +844,7 @@ function LiveProfileEditorContent({
   const authToken = useAuthToken();
   const [draft, setDraft] = useState<ProfileContent | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [draftConflict, setDraftConflict] = useState(false);
   const [departureState, setDepartureState] = useState<DraftDepartureState>({ kind: "idle" });
   const [showCustomizationRecovery, setShowCustomizationRecovery] = useState(false);
   const [pending, setPending] = useState<"save" | "publish" | "image" | null>(null);
@@ -879,16 +880,6 @@ function LiveProfileEditorContent({
     setMediaBusy(false);
     setMediaError("");
   }, []);
-  useEffect(() => {
-    if (!hasUnresolvedMedia) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnresolvedMedia]);
-
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
@@ -928,6 +919,15 @@ function LiveProfileEditorContent({
     splitProfileWorkspaceErrors(errors);
   const preview = profileForPreview(currentDraft, undefined, pendingMediaPreview);
   const isDirty = JSON.stringify(currentDraft) !== JSON.stringify(liveProfile.draft);
+  useEffect(() => {
+    if (!hasUnresolvedMedia && !isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnresolvedMedia, isDirty]);
   useDraftStatusReport(pending !== null ? "saving" : isDirty ? "unsaved" : "saved");
   useEffect(() => {
     const incomingRevision = liveProfile.draftRevision ?? 0;
@@ -1180,6 +1180,7 @@ function LiveProfileEditorContent({
       throw new Error("Your draft changed while it was saving. Try again.");
     } catch (error) {
       const text = error instanceof Error ? error.message : "Draft could not be saved.";
+      setDraftConflict(text.includes("profile draft changed while you were editing"));
       setMessage({
         tone: "error",
         text,
@@ -1193,6 +1194,12 @@ function LiveProfileEditorContent({
   async function saveFromButton() {
     const outcome = await saveDraft();
     if (outcome.kind === "saved") setDepartureState({ kind: "idle" });
+  }
+
+  function discardConflictingDraft() {
+    setDraft(null);
+    setDraftConflict(false);
+    setMessage({ tone: "success", text: "Showing the latest saved profile draft." });
   }
 
   async function saveForNavigation(href?: string): Promise<DraftSaveOutcome> {
@@ -1376,7 +1383,14 @@ function LiveProfileEditorContent({
               links={currentDraft.links}
               message={
                 message && departureState.kind === "idle" ? (
-                  <Notice tone={message.tone}>{message.text}</Notice>
+                  <div className="grid gap-2">
+                    <Notice tone={message.tone}>{message.text}</Notice>
+                    {draftConflict ? (
+                      <Button onClick={discardConflictingDraft} type="button" variant="secondary">
+                        Discard my edits and load the latest draft
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null
               }
               onChange={updateField}
@@ -1427,7 +1441,14 @@ function LiveProfileEditorContent({
       }
       message={
         view === "customize" && message && departureState.kind === "idle" ? (
-          <Notice tone={message.tone}>{message.text}</Notice>
+          <div className="grid gap-2">
+            <Notice tone={message.tone}>{message.text}</Notice>
+            {draftConflict ? (
+              <Button onClick={discardConflictingDraft} type="button" variant="secondary">
+                Discard my edits and load the latest draft
+              </Button>
+            ) : null}
+          </div>
         ) : null
       }
       cropDialog={

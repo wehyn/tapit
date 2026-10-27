@@ -58,6 +58,38 @@ describe("demo storage store", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe(futureVersionState);
   });
 
+  it.each([
+    [
+      "malformed nested profile data",
+      JSON.stringify({
+        profile: { id: "legacy", draft: null },
+        cards: [],
+        customers: [],
+      }),
+    ],
+    [
+      "an unresolved media sidecar reference",
+      JSON.stringify({
+        profile: { id: "legacy", draft: { imageUrl: "\u0001tapit-media:4" } },
+        cards: [],
+        customers: [],
+        __tapitMediaDataUrls: ["data:image/png;base64,abc"],
+      }),
+    ],
+  ])("preserves raw data and blocks destructive writes for %s", async (_case, raw) => {
+    localStorage.setItem(STORAGE_KEY, raw);
+    const { refreshDemoAccessSnapshot, resetDemoState, updateDemoState } =
+      await import("../../src/lib/demo/store");
+
+    expect(refreshDemoAccessSnapshot()).toEqual({
+      kind: "unavailable",
+      reason: "saved-demo-data-unreadable",
+    });
+    expect(() => updateDemoState((current) => ({ ...current, supportUrl: "/stale" }))).toThrow();
+    expect(() => resetDemoState()).toThrow();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+  });
+
   it("does not overwrite storage changed by another tab", async () => {
     const initialState = JSON.stringify({
       profile: { id: "current-profile", draft: {} },

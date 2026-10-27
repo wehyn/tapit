@@ -233,8 +233,19 @@ function normalizeStoredState(raw: string): StateStorageRead {
     !isRecord(decoded) ||
     !isRecord(decoded.profile) ||
     typeof decoded.profile.id !== "string" ||
+    (decoded.profile.draft !== undefined && !isRecord(decoded.profile.draft)) ||
     !Array.isArray(decoded.cards) ||
-    !Array.isArray(decoded.customers)
+    !Array.isArray(decoded.customers) ||
+    (decoded.profiles !== undefined &&
+      (!Array.isArray(decoded.profiles) ||
+        decoded.profiles.some(
+          (profile) =>
+            !isRecord(profile) ||
+            (profile.draft !== undefined && !isRecord(profile.draft)) ||
+            (profile.published !== undefined &&
+              profile.published !== null &&
+              !isRecord(profile.published)),
+        )))
   ) {
     return { kind: "malformed", raw };
   }

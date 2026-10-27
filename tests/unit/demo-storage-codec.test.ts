@@ -68,7 +68,6 @@ describe("demo storage codec", () => {
   it.each([
     ["non-numeric suffix", "\u0001tapit-media:notes"],
     ["whitespace suffix", "\u0001tapit-media: 0"],
-    ["out-of-range index", "\u0001tapit-media:9"],
     ["trailing newline", "\u0001tapit-media:0\n"],
   ])("preserves invalid legacy marker text (%s)", (_case, marker) => {
     const raw = JSON.stringify({
@@ -85,7 +84,17 @@ describe("demo storage codec", () => {
     });
   });
 
-  it("preserves profile data when its media sidecar is malformed", () => {
+  it("rejects an out-of-range legacy media reference", () => {
+    const raw = JSON.stringify({
+      profile: { id: "legacy", draft: { bio: "\u0001tapit-media:9" } },
+      cards: [],
+      customers: [],
+      __tapitMediaDataUrls: ["data:image/png;base64,abc"],
+    });
+    expect(() => deserializeDemoState(raw)).toThrow(/media data is malformed/i);
+  });
+
+  it("rejects a malformed media sidecar", () => {
     const raw = JSON.stringify({
       profile: { id: "legacy", draft: { bio: "\u0001tapit-media:0" } },
       cards: [],
@@ -93,10 +102,16 @@ describe("demo storage codec", () => {
       __tapitMediaDataUrls: [null],
     });
 
-    expect(deserializeDemoState(raw)).toEqual({
-      profile: { id: "legacy", draft: { bio: "\u0001tapit-media:0" } },
+    expect(() => deserializeDemoState(raw)).toThrow(/media data is malformed/i);
+  });
+
+  it("rejects a nested media reference that has no matching sidecar value", () => {
+    const raw = JSON.stringify({
+      profile: { id: "legacy", draft: { imageUrl: "\u0001tapit-media:2" } },
       cards: [],
       customers: [],
+      __tapitMediaDataUrls: ["data:image/png;base64,abc"],
     });
+    expect(() => deserializeDemoState(raw)).toThrow(/media data is malformed/i);
   });
 });

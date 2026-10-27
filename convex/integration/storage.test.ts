@@ -112,6 +112,42 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("profile image storage", () => {
+  it("enforces the streamed request cap and validates Content-Length", async () => {
+    const { readBoundedRequestBody } = await import("../profileUploadBody");
+    const makeRequest = (size: number, length?: string) => {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const chunk = new Uint8Array(64 * 1024);
+          let remaining = size;
+          while (remaining > 0) {
+            const next = chunk.subarray(0, Math.min(chunk.byteLength, remaining));
+            controller.enqueue(next);
+            remaining -= next.byteLength;
+          }
+          controller.close();
+        },
+      });
+      return new Request("https://example.test/upload", {
+        method: "POST",
+        body,
+        duplex: "half",
+        headers: length === undefined ? {} : { "Content-Length": length },
+      } as RequestInit);
+    };
+    const max = 5 * 1024 * 1024;
+    expect(await readBoundedRequestBody(makeRequest(max, String(max)), max)).toMatchObject({
+      kind: "ok",
+      bytes: expect.any(Uint8Array),
+    });
+    expect(await readBoundedRequestBody(makeRequest(max + 1), max)).toEqual({ kind: "too-large" });
+    expect(await readBoundedRequestBody(makeRequest(8, "7"), max)).toEqual({
+      kind: "length-mismatch",
+    });
+    expect(await readBoundedRequestBody(makeRequest(8, "not-a-number"), max)).toEqual({
+      kind: "invalid-length",
+    });
+  });
+
   it("creates a pending upload job before either storage ID exists", async () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);

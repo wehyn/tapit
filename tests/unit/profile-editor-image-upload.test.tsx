@@ -159,6 +159,34 @@ it("keeps the existing image when the upload fails", async () => {
   expect(screen.getByRole("dialog")).toBeVisible();
 });
 
+it("warns before leaving when profile fields are dirty", () => {
+  render(<ProfileEditor />);
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Unsaved name" } });
+
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(true);
+});
+
+it("offers explicit recovery after a revision conflict without retrying on the stale revision", async () => {
+  mutation.mockRejectedValueOnce(
+    new Error("The profile draft changed while you were editing. Refresh and try again."),
+  );
+  render(<ProfileEditor />);
+  fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My local edit" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  expect(
+    await screen.findByRole("button", { name: "Discard my edits and load the latest draft" }),
+  ).toBeVisible();
+  expect(mutation).toHaveBeenCalledWith(expect.objectContaining({ expectedDraftRevision: 0 }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Discard my edits and load the latest draft" }),
+  );
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez"));
+  expect(mutation).toHaveBeenCalledOnce();
+});
+
 it("uploads live profile media with the media revision and strips URLs before saving", async () => {
   fetchMock.mockResolvedValueOnce(
     new Response(
