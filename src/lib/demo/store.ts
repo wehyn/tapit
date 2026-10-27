@@ -125,6 +125,7 @@ function isCardOrderPaymentMethod(value: unknown): value is DemoCardOrderPayment
     typeof value.accountDetails === "string" &&
     typeof value.instructions === "string" &&
     typeof value.active === "boolean" &&
+    (value.qrAssetKey === undefined || typeof value.qrAssetKey === "string") &&
     isFiniteNumber(value.createdAt) &&
     isFiniteNumber(value.updatedAt)
   );
@@ -191,6 +192,7 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     typeof paymentSnapshot.label === "string" &&
     typeof paymentSnapshot.accountDetails === "string" &&
     typeof paymentSnapshot.instructions === "string" &&
+    (paymentSnapshot.qrAssetKey === undefined || typeof paymentSnapshot.qrAssetKey === "string") &&
     (value.referralCodeId === undefined || typeof value.referralCodeId === "string") &&
     hasValidReferralSnapshot &&
     (value.paymentStatus === "unpaid" ||

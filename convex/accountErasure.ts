@@ -251,6 +251,32 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
     for (const order of orders) await ctx.db.delete(order._id);
     return true;
   }
+  const receipts = await ctx.db
+    .query("cardOrderReceiptUploads")
+    .withIndex("by_ownerId", (q) => q.eq("ownerId", customerId))
+    .take(BATCH);
+  let removedReceipt = false;
+  for (const receipt of receipts) {
+    const references = await ctx.db
+      .query("cardOrders")
+      .withIndex("by_receiptUploadId", (q) => q.eq("receiptUploadId", receipt._id))
+      .take(1);
+    if (references.length > 0) continue;
+    if (receipt.storageId !== undefined) {
+      const [otherReceipts, metadata] = await Promise.all([
+        ctx.db
+          .query("cardOrderReceiptUploads")
+          .withIndex("by_storageId", (q) => q.eq("storageId", receipt.storageId))
+          .take(2),
+        ctx.db.system.get("_storage", receipt.storageId),
+      ]);
+      if (metadata !== null && !otherReceipts.some((other) => other._id !== receipt._id))
+        await ctx.storage.delete(receipt.storageId);
+    }
+    await ctx.db.delete(receipt._id);
+    removedReceipt = true;
+  }
+  if (removedReceipt) return true;
   const uploads = await ctx.db
     .query("cardOrderDesignUploads")
     .withIndex("by_ownerId_and_status", (q) => q.eq("ownerId", customerId))

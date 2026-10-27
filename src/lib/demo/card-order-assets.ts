@@ -2,6 +2,7 @@
 
 import { validateCardOrderDesignFile } from "../card-design";
 import type { DemoCardOrderDesignSource, DemoState } from "./fixtures";
+import { deleteDemoCardOrderReceiptsForCustomer } from "./card-order-receipts";
 import { refreshDemoAccessSnapshot, resolveDemoSessionAccess, updateDemoState } from "./store";
 
 const DATABASE_NAME = "tapit-card-order-assets";
@@ -10,6 +11,7 @@ const STORE_NAME = "originals";
 type StoredAsset = {
   assetKey: string;
   ownerId: string;
+  kind?: "card-design" | "payment-qr";
   attachedOrderId?: string;
   fileName: string;
   contentType: "image/jpeg" | "image/png";
@@ -84,6 +86,13 @@ function orderReferencesAsset(
     [order.designSource, order.backDesignSource].some(
       (source) => source?.kind === "upload" && source.assetKey === assetKey,
     ),
+  );
+}
+
+function paymentQrReferenced(state: DemoState, assetKey: string): boolean {
+  return (
+    state.cardOrderPaymentMethods.some((method) => method.qrAssetKey === assetKey) ||
+    state.cardOrders.some((order) => order.paymentSnapshot.qrAssetKey === assetKey)
   );
 }
 
@@ -206,6 +215,7 @@ export async function readDemoCardOrderAsset(assetKey: string): Promise<StoredAs
   if (currentAccount.role !== initialAccount.role || currentAccount.id !== initialAccount.id) {
     throw new Error("Demo account changed. Try again.");
   }
+  if (asset?.kind === "payment-qr") throw new Error("Artwork unavailable.");
   if (asset && currentAccount.role !== "admin" && asset.ownerId !== currentAccount.id) {
     throw new Error("Artwork unavailable.");
   }
@@ -228,6 +238,7 @@ async function reserveDemoCardOrderAsset(
     const asset = await requestValue<StoredAsset | undefined>(store.get(designSource.assetKey));
     if (
       !asset ||
+      asset.kind === "payment-qr" ||
       asset.ownerId !== ownerId ||
       asset.attachedOrderId !== undefined ||
       asset.fileName !== designSource.fileName ||
@@ -397,6 +408,13 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
             .filter((order) => order.customerId === customerId)
             .map((order) => order.id),
         );
+        const erasedQrKeys = new Set(
+          state.cardOrders
+            .filter((order) => erasedOrderIds.has(order.id))
+            .flatMap((order) =>
+              order.paymentSnapshot.qrAssetKey ? [order.paymentSnapshot.qrAssetKey] : [],
+            ),
+        );
         const erasedState: DemoState = {
           ...state,
           cardOrders: state.cardOrders.filter((order) => order.customerId !== customerId),
@@ -405,6 +423,7 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
               !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
           ),
         };
+        let ordersRemovedState: DemoState | undefined;
         await withStore("readwrite", async (store, transaction) => {
           const currentKeys = await requestValue<IDBValidKey[]>(
             store.index("by_ownerId").getAllKeys(customerId),
@@ -421,6 +440,14 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
             return key;
           });
           for (const key of currentAssetKeys) {
+            const stored = await requestValue<Record<string, unknown> | undefined>(store.get(key));
+            if (
+              stored?.kind === "payment-qr" &&
+              (erasedState.cardOrderPaymentMethods.some((method) => method.qrAssetKey === key) ||
+                erasedState.cardOrders.some((order) => order.paymentSnapshot.qrAssetKey === key))
+            ) {
+              continue;
+            }
             if (
               erasedState.cardOrders.some((order) =>
                 [order.designSource, order.backDesignSource].some(
@@ -434,25 +461,51 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
           }
           assertDemoCardOrderDeletionAccess(customerId, expectedAdminId);
           for (const key of currentAssetKeys) {
-            await requestValue(store.delete(key));
+            const stored = await requestValue<Record<string, unknown> | undefined>(store.get(key));
+            const retainedQr =
+              stored?.kind === "payment-qr" &&
+              (erasedState.cardOrderPaymentMethods.some((method) => method.qrAssetKey === key) ||
+                erasedState.cardOrders.some((order) => order.paymentSnapshot.qrAssetKey === key));
+            if (!retainedQr) await requestValue(store.delete(key));
+          }
+          updateDemoState((current) => {
+            const currentErasedOrderIds = new Set(
+              current.cardOrders
+                .filter((order) => order.customerId === customerId)
+                .map((order) => order.id),
+            );
+            const withoutCustomerOrders: DemoState = {
+              ...current,
+              cardOrders: current.cardOrders.filter((order) => order.customerId !== customerId),
+              audits: current.audits.filter(
+                (event) =>
+                  !(
+                    event.action.startsWith("card_order.") &&
+                    currentErasedOrderIds.has(event.target)
+                  ),
+              ),
+            };
+            ordersRemovedState = withoutCustomerOrders;
+            return ordersRemovedState;
+          });
+          if (!ordersRemovedState) throw new Error("Account deletion could not be prepared.");
+          for (const key of erasedQrKeys) {
+            if (paymentQrReferenced(ordersRemovedState, key)) continue;
+            const stored = await requestValue<Record<string, unknown> | undefined>(store.get(key));
+            if (stored?.kind === "payment-qr") await requestValue(store.delete(key));
           }
         });
-        updateDemoState((current) => {
-          const erasedOrderIds = new Set(
-            current.cardOrders
-              .filter((order) => order.customerId === customerId)
-              .map((order) => order.id),
-          );
-          const withoutCustomerOrders: DemoState = {
-            ...current,
-            cardOrders: current.cardOrders.filter((order) => order.customerId !== customerId),
-            audits: current.audits.filter(
-              (event) =>
-                !(event.action.startsWith("card_order.") && erasedOrderIds.has(event.target)),
+        if (!ordersRemovedState) throw new Error("Account deletion could not be prepared.");
+        await deleteDemoCardOrderReceiptsForCustomer(
+          customerId,
+          new Set(
+            access().state.cardOrders.flatMap((order) =>
+              order.receipt ? [order.receipt.receiptKey] : [],
             ),
-          };
-          return finalizeDeletion(withoutCustomerOrders);
-        });
+          ),
+        );
+        assertDemoCardOrderDeletionAccess(customerId, expectedAdminId);
+        updateDemoState((current) => finalizeDeletion(current));
       });
     });
   });

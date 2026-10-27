@@ -144,6 +144,15 @@ export const navItems: readonly NavItem[] = [
     surfaces: ["sidebar", "more"],
   },
   {
+    href: "/admin/codes",
+    label: "Codes",
+    icon: "link",
+    audience: "admin",
+    section: "operations",
+    match: "prefix",
+    surfaces: ["sidebar", "tabs", "more"],
+  },
+  {
     href: "/admin/analytics",
     label: "Analytics",
     icon: "chart",
