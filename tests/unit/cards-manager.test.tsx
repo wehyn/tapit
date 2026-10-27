@@ -122,9 +122,7 @@ describe("live card URL mutations", () => {
       fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(
-        `Clipboard access failed. Copy this URL manually: ${url}`,
-      );
+      expect(alert).toHaveTextContent(`Clipboard access failed. Copy this URL manually: ${url}`);
       expect(alert.querySelector("span")).toHaveClass("break-all");
     },
   );
