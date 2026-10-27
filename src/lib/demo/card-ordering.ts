@@ -413,7 +413,10 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
 export async function placeDemoCardOrder(
   input: PlaceOrderInput,
 ): Promise<CardOrderPlacementResult> {
-  if (!Number.isSafeInteger(input.expectedCardAmountCentavos) || input.expectedCardAmountCentavos < 0) {
+  if (
+    !Number.isSafeInteger(input.expectedCardAmountCentavos) ||
+    input.expectedCardAmountCentavos < 0
+  ) {
     throw new Error("Expected card amount must be non-negative integer centavos.");
   }
   const state = currentOrderState();

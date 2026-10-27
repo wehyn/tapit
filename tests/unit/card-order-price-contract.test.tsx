@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   replace: vi.fn(),
   actorId: "customer-mara",
+  demoState: {},
+  demoSession: { email: "mara@example.test", role: "customer" },
 }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => true }));
@@ -15,12 +17,9 @@ vi.mock("@/lib/card-design", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/card-design")>()),
   validateCardOrderDesignFile: vi.fn(async () => undefined),
 }));
-// Stable references: the form's QR effect depends on these, so fresh objects re-run it forever.
-const demoState = {};
-const demoSession = { email: "mara@example.test", role: "customer" };
 vi.mock("@/lib/demo/store", () => ({
-  useDemoState: () => demoState,
-  useDemoSession: () => demoSession,
+  useDemoState: () => mocks.demoState,
+  useDemoSession: () => mocks.demoSession,
   resolveDemoSessionAccess: () => ({
     kind: "active",
     account: { id: mocks.actorId, role: "customer" },
@@ -74,7 +73,6 @@ async function fillForm(user: ReturnType<typeof userEvent.setup>, front: File, b
   await user.upload(screen.getByLabelText("Upload back artwork"), back);
 }
 
-/** Fills the form with fireEvent so each field is one update, not one re-render per keystroke. */
 function fillFast(artwork: { front?: File; back?: File; frontUrl?: string; backUrl?: string }) {
   fireEvent.change(screen.getByLabelText("Delivery name"), { target: { value: "Mara Santos" } });
   fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "09170000000" } });
@@ -159,7 +157,6 @@ describe("card order price confirmation", () => {
     expect(screen.getByText(/Your order has not been placed/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: CONFIRM_REPRICED })).toBeInTheDocument();
     expect(screen.queryByText("Your card order has been saved.")).not.toBeInTheDocument();
-    // The price change alone never places an order.
     expect(mocks.place).toHaveBeenCalledTimes(1);
 
     await user.click(screen.getByRole("button", { name: CONFIRM_REPRICED }));
@@ -181,7 +178,10 @@ describe("card order price confirmation", () => {
     await user.click(screen.getByRole("button", { name: "Place order" }));
 
     expect(mocks.place).toHaveBeenCalledWith(
-      expect.objectContaining({ referralCode: "FOUNDING-AHRON", expectedCardAmountCentavos: 53_910 }),
+      expect.objectContaining({
+        referralCode: "FOUNDING-AHRON",
+        expectedCardAmountCentavos: 53_910,
+      }),
     );
   });
 
@@ -201,7 +201,6 @@ describe("card order price confirmation", () => {
   });
 
   it("keeps a pinned quote's status lines when a late preview changes", async () => {
-    // Capture the form's 30-second clock so the test can fire one tick deliberately.
     let tick: (() => void) | undefined;
     const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation(((
       handler: TimerHandler,
@@ -225,7 +224,6 @@ describe("card order price confirmation", () => {
       });
       expect(await screen.findByText(/The card amount changed to ₱599\.00/)).toBeInTheDocument();
 
-      // A later preview publication (the next clock tick) must not change the pinned quote.
       mocks.preview.mockImplementation(() => {
         throw new Error("late failure");
       });

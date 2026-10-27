@@ -13,11 +13,12 @@ const identity = (userId: Id<"users">) => ({
   tokenIdentifier: `https://tapit.test|${userId}`,
 });
 
-// Launch pricing runs through 2099, so the server's live price is ₱599 (59_900).
 const LAUNCH_NET_WITH_REFERRAL = 53_910;
 const LAUNCH_NET_WITHOUT_REFERRAL = 59_900;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 async function seed(t: ReturnType<typeof convexTest>) {
+  const launchEndDate = new Date(Date.now() + 365 * DAY_MS).toISOString().slice(0, 10);
   return await t.run(async (ctx) => {
     const adminUserId = await ctx.db.insert("users", { email: "admin@example.test" });
     const customerUserId = await ctx.db.insert("users", { email: "customer@example.test" });
@@ -41,7 +42,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
     });
     await ctx.db.insert("settings", {
       key: "cardOrderLaunchEndDate",
-      value: "2099-12-31",
+      value: launchEndDate,
       updatedAt: 1,
       updatedByUserId: adminUserId,
     });
@@ -138,7 +139,6 @@ describe("card order price confirmation on the server", () => {
       ...delivery,
     };
 
-    // The customer reviewed the discounted amount, but this attempt has no referral.
     await expect(
       customer.mutation(api.cardOrders.placeOrder, {
         ...placement,

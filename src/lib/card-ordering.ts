@@ -133,7 +133,9 @@ export function calculateCommissionCentavos(cardPriceCentavos: number): number {
   return percentageCentavos(cardPriceCentavos, COMMISSION_PERCENT);
 }
 
-/** Integer centavos for the card only; shipping is quoted after placement. */
+export type Centavos = number & { readonly __brand: "Centavos" };
+
+/** The card only; shipping is quoted after placement. */
 export type CardOrderPrice = Readonly<{
   cardPriceCentavos: number;
   discountCentavos: number;
@@ -143,7 +145,7 @@ export type CardOrderPlacementResult =
   | Readonly<{ kind: "created"; orderId: string }>
   | Readonly<{ kind: "price_changed"; price: CardOrderPrice }>;
 
-/** The card amount after referral discount; the one derivation for display and comparison. */
-export function cardOrderAmountCentavos(price: CardOrderPrice): number {
-  return price.cardPriceCentavos - price.discountCentavos;
+/** The one derivation for display and comparison. */
+export function cardOrderAmountCentavos(price: CardOrderPrice): Centavos {
+  return (price.cardPriceCentavos - price.discountCentavos) as Centavos;
 }

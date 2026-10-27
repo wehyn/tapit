@@ -18,6 +18,7 @@ import {
   cardOrderAmountCentavos,
   type CardOrderPlacementResult,
   type CardOrderPrice,
+  type Centavos,
   getCardPriceCentavos,
   manilaStartOfDayTimestamp,
 } from "@/lib/card-ordering";
@@ -103,8 +104,7 @@ type PlaceOrderInput = {
   deliveryName: string;
   deliveryPhone: string;
   deliveryAddress: string;
-  /** The card amount the customer reviewed; a comparison precondition, not a price. */
-  expectedCardAmountCentavos: number;
+  expectedCardAmountCentavos: Centavos;
 };
 
 type PlaceOrder = (input: PlaceOrderInput) => Promise<CardOrderPlacementResult>;
@@ -121,6 +121,9 @@ type ReferralResult =
   | { kind: "error"; message: string };
 type ReferralState = { kind: "none" } | { kind: "checking" } | ReferralResult;
 
+/** A reconfirmed quote is pinned after price_changed until a price input edit clears it. */
+type QuoteState = { kind: "preview" } | { kind: "reconfirmed"; price: CardOrderPrice };
+
 function referralPreviewKey(code: string, currentTime: number) {
   return `${code}|${currentTime}`;
 }
@@ -135,22 +138,29 @@ function useActorGeneration(actorKey: string) {
   return generation;
 }
 
+function useSubmitLock() {
+  const held = useRef(false);
+  return {
+    isHeld: () => held.current,
+    hold: () => {
+      held.current = true;
+    },
+    release: () => {
+      held.current = false;
+    },
+  };
+}
+
 function staleSubmissionError() {
   return new Error("Your account changed while the order was being placed. Sign in and try again.");
 }
 
-/** Takes every cached handle out of the cache so each can be released once. */
 function takeArtworkHandles<Upload>(cache: { current: ArtworkUploadCache<Upload> }): Upload[] {
   const handles = Object.values(cache.current).map((entry) => entry.source);
   cache.current = {};
   return handles;
 }
 
-/**
- * Reuses the upload for this side only when actor and File object match. A
- * different File replaces the side's handle; discard releases the superseded one.
- * A response that arrives after the actor changed is discarded, never cached.
- */
 async function designSourceFor<Upload extends { kind: "upload" }>(
   cache: { current: ArtworkUploadCache<Upload> },
   side: DesignSide,
@@ -507,13 +517,12 @@ function CustomerOrderForm({
   const [submitError, setSubmitError] = useState("");
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  // Pinned authoritative amount after a price_changed outcome; cleared by any price input edit.
-  const [reconfirmation, setReconfirmation] = useState<CardOrderPrice | null>(null);
+  const [quote, setQuote] = useState<QuoteState>({ kind: "preview" });
   const [referralPreview, setReferralPreview] = useState<{
     key: string;
     result: ReferralResult;
   } | null>(null);
-  const submittingRef = useRef(false);
+  const submitLock = useSubmitLock();
   const priceInputRevisionRef = useRef(0);
   const publishReferralPreview = useCallback(
     (key: string, result: ReferralResult) => setReferralPreview({ key, result }),
@@ -568,15 +577,18 @@ function CustomerOrderForm({
           cardPriceCentavos: currentCardPrice,
           discountCentavos: referral.kind === "valid" ? referral.discountCentavos : 0,
         };
-  const displayedPrice = reconfirmation ?? estimatedPrice;
+  const displayedPrice = quote.kind === "reconfirmed" ? quote.price : estimatedPrice;
   // Null while the referral result is unresolved: the customer cannot confirm an unknown amount.
   const submitPrice =
-    reconfirmation ??
-    (referral.kind === "checking" || referral.kind === "error" ? null : estimatedPrice);
+    quote.kind === "reconfirmed"
+      ? quote.price
+      : referral.kind === "checking" || referral.kind === "error"
+        ? null
+        : estimatedPrice;
 
   function invalidateReconfirmation() {
     priceInputRevisionRef.current += 1;
-    setReconfirmation(null);
+    setQuote({ kind: "preview" });
   }
 
   function clearSidePreview(side: DesignSide) {
@@ -651,8 +663,7 @@ function CustomerOrderForm({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    // Synchronous guard: a second submit event cannot start before React re-renders.
-    if (submittingRef.current || artwork.front.validating || artwork.back.validating) return;
+    if (submitLock.isHeld() || artwork.front.validating || artwork.back.validating) return;
     // Capture the amount the customer sees before any await.
     const capturedPrice = submitPrice;
     const priceRevision = priceInputRevisionRef.current;
@@ -702,7 +713,7 @@ function CustomerOrderForm({
       return;
     }
 
-    submittingRef.current = true;
+    submitLock.hold();
     setSubmitting(true);
     setSubmittedOrderId("");
     try {
@@ -718,7 +729,8 @@ function CustomerOrderForm({
       });
       if (outcome.kind === "price_changed") {
         // No order exists. Pin the authoritative amount until the customer confirms it.
-        if (priceRevision === priceInputRevisionRef.current) setReconfirmation(outcome.price);
+        if (priceRevision === priceInputRevisionRef.current)
+          setQuote({ kind: "reconfirmed", price: outcome.price });
         else
           setSubmitError(
             "Your details changed while the order was being checked. Review them and place the order again.",
@@ -730,7 +742,7 @@ function CustomerOrderForm({
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Your order could not be saved.");
     } finally {
-      submittingRef.current = false;
+      submitLock.release();
       setSubmitting(false);
     }
   }
@@ -1042,9 +1054,9 @@ function CustomerOrderForm({
               ) : null}
             </Card>
 
-            {reconfirmation ? (
+            {quote.kind === "reconfirmed" ? (
               <Notice>
-                The card amount changed to {formatPHP(cardOrderAmountCentavos(reconfirmation))} +
+                The card amount changed to {formatPHP(cardOrderAmountCentavos(quote.price))} +
                 shipping. Review it and confirm again. Your order has not been placed.
               </Notice>
             ) : null}
@@ -1067,8 +1079,8 @@ function CustomerOrderForm({
                 loading={submitting}
                 type="submit"
               >
-                {reconfirmation
-                  ? `Confirm ${formatPHP(cardOrderAmountCentavos(reconfirmation))} + shipping`
+                {quote.kind === "reconfirmed"
+                  ? `Confirm ${formatPHP(cardOrderAmountCentavos(quote.price))} + shipping`
                   : "Place order"}
                 <Icon aria-hidden="true" className="ml-2" name="arrowRight" size={17} />
               </Button>
@@ -1089,10 +1101,10 @@ function CustomerOrderForm({
               </div>
               <div className="grid gap-3 p-4 sm:p-6">
                 <PriceBreakdown
-                  pinned={reconfirmation !== null}
+                  pinned={quote.kind === "reconfirmed"}
                   price={displayedPrice}
                   // A pinned quote is authoritative; a late preview must not change its status lines.
-                  referral={reconfirmation === null ? referral : { kind: "none" }}
+                  referral={quote.kind === "preview" ? referral : { kind: "none" }}
                 />
                 {normalizedReferralCode ? (
                   <ReferralPreviewReporter

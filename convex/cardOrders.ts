@@ -108,8 +108,6 @@ export const placeOrder = mutation({
     deliveryName: v.string(),
     deliveryPhone: v.string(),
     deliveryAddress: v.string(),
-    // Comparison precondition only: the card amount after referral discount that
-    // the customer reviewed. It never populates a stored monetary field.
     expectedCardAmountCentavos: v.number(),
   },
   returns: v.union(
@@ -117,7 +115,10 @@ export const placeOrder = mutation({
     v.object({ kind: v.literal("price_changed"), price: cardPrice }),
   ),
   handler: async (ctx, args) => {
-    if (!Number.isSafeInteger(args.expectedCardAmountCentavos) || args.expectedCardAmountCentavos < 0)
+    if (
+      !Number.isSafeInteger(args.expectedCardAmountCentavos) ||
+      args.expectedCardAmountCentavos < 0
+    )
       throw new Error("Expected card amount must be non-negative integer centavos.");
     const customer = await activeOrderAccount(ctx);
     const now = Date.now();
