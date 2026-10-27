@@ -246,11 +246,12 @@ describe("card order referral usage", () => {
     expect(cleared[0]).not.toHaveProperty("usageLimit");
   });
 
-  it("marks a capped code unavailable and counts its final use even after cancellation", async () => {
+  it("marks a capped code unavailable to a fresh customer and keeps canceled use counted", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const admin = t.withIdentity(identity(ids.adminUserId));
     const customer = t.withIdentity(identity(ids.customerUserId));
+    const nextCustomer = t.withIdentity(identity(ids.unrelatedUserId));
     await admin.mutation(api.cardOrderSettings.saveReferralCode, {
       id: ids.codeId,
       code: "FOUNDING-AHRON",
@@ -269,14 +270,14 @@ describe("card order referral usage", () => {
       expectedCardAmountCentavos: 53_910,
     });
     expect(
-      await customer.query(api.cardOrderSettings.previewReferral, {
+      await nextCustomer.query(api.cardOrderSettings.previewReferral, {
         code: "FOUNDING-AHRON",
         currentTime: Date.UTC(2099, 0, 1),
       }),
     ).toEqual({ valid: false, discountCentavos: 0 });
     await admin.mutation(api.cardOrders.cancelOrder, { orderId });
     await expect(
-      customer.mutation(api.cardOrders.placeOrder, {
+      nextCustomer.mutation(api.cardOrders.placeOrder, {
         paymentMethodId: ids.paymentMethodId,
         referralCode: "FOUNDING-AHRON",
         designSource: { kind: "url", url: "https://example.test/front.png" },
