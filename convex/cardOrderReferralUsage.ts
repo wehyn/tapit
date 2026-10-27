@@ -26,9 +26,7 @@ export const backfillUsageCounts = internalMutation({
 
     const marker = await ctx.db
       .query("settings")
-      .withIndex("by_scope_and_key", (q) =>
-        q.eq("scope", args.scope).eq("key", BACKFILL_KEY),
-      )
+      .withIndex("by_scope_and_key", (q) => q.eq("scope", args.scope).eq("key", BACKFILL_KEY))
       .first();
 
     if (!page.isDone)

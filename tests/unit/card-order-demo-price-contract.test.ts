@@ -105,7 +105,9 @@ beforeEach(() => {
 
 describe("demo card order price confirmation", () => {
   it("does not preview an exhausted code", () => {
-    mocks.state.cardOrders = [{ id: "prior", customerId: "someone-else", referralCodeId: "code-1" }];
+    mocks.state.cardOrders = [
+      { id: "prior", customerId: "someone-else", referralCodeId: "code-1" },
+    ];
 
     expect(previewDemoCardOrderReferral("FOUNDING-AHRON", Date.now())).toEqual({
       valid: false,

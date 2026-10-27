@@ -1,3 +1,10 @@
+# Change log
+
+## 2026-10-28 — Card-order code usage limits and admin copy
+
+- Admins can configure optional order-use caps for combined discount and referral codes. The Codes page shows uses consumed and remaining, and its copy now describes codes more generally.
+- Convex and local demo checkout enforce the same cap, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
+
 ## 2026-10-26 — Remove inert workspace search
 
 - The workspace top bar no longer shows the ⌘K search button, which had no behaviour.
@@ -14,8 +21,6 @@ Validation for this change:
 - `npx tsc --noEmit`, `npm run lint` (0 errors, 3 existing warnings), `npm run build`
 - `npx vitest run` — 58 files, 573 tests passed
 - `npm run test:e2e:demo` — 152 passed, 1 skipped, 1 failed on a browser protocol error in the focus-style spec that passed when rerun alone
-
-# Change log
 
 ## 2026-09-24 — Public profile customization
 

@@ -1,7 +1,7 @@
 # Card-order code limits and admin Codes copy
 
 **Date:** 2026-10-28
-**Status:** Draft
+**Status:** Approved
 **Issues:** #166, #167
 
 ## Goal
@@ -34,11 +34,11 @@ Give card-order codes an optional usage limit and make the `/admin/codes` wordin
 
 Make only these copy changes:
 
-| Location | Current copy | Required change |
-| --- | --- | --- |
-| Page description | `Manage referral codes and review their order usage.` | Replace with `Manage codes and review their order usage.` |
-| Card heading | `Referral codes` | Remove the heading. |
-| Card description | `Codes are unique across active and inactive records. Fixed prices must be no more than ₱599.` | Remove the description. |
+| Location         | Current copy                                                                                   | Required change                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Page description | `Manage referral codes and review their order usage.`                                          | Replace with `Manage codes and review their order usage.` |
+| Card heading     | `Referral codes`                                                                               | Remove the heading.                                       |
+| Card description | `Codes are unique across active and inactive records. Fixed prices must be no more than ₱599.` | Remove the description.                                   |
 
 The page title remains `Codes`. Other field labels, validation, and code management behavior are outside this copy change.
 
