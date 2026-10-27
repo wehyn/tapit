@@ -52,7 +52,7 @@ export const consumeAttempt = internalMutation({
         profileId: retryCustomer.profileId ?? null,
       };
     const limit = await invitationAttemptLimiter.limit(ctx, "selfServiceSignup", {
-      key: `invitation:${args.userId}:${args.tokenHash}`,
+      key: `invitation:${args.userId}`,
     });
     return { alreadyAccepted: false, allowed: limit.ok, profileId: null };
   },
