@@ -97,15 +97,21 @@ test("administrator manages codes and reviews submitted-order usage without deli
   await expect(page.getByText("Referral code already exists.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
 
-  const activeRow = page.getByRole("row").filter({ hasText: "ACTIVE-HISTORY" });
-  await activeRow.getByRole("button", { name: "Deactivate" }).click();
+  const codeRow = (code: string) =>
+    page
+      .getByRole("row")
+      .filter({ has: page.getByRole("cell", { name: code, exact: true }) });
+  const activeRow = codeRow("ACTIVE-HISTORY");
+  await expect(activeRow).toHaveCount(1);
+  await activeRow.getByRole("button", { name: "Deactivate", exact: true }).click();
   await expect(activeRow.getByText("Inactive", { exact: true })).toBeVisible();
-  await activeRow.getByRole("button", { name: "Activate" }).click();
+  await activeRow.getByRole("button", { name: "Activate", exact: true }).click();
   await expect(activeRow.getByText("Active", { exact: true })).toBeVisible();
 
   for (const code of ["ACTIVE-HISTORY", "INACTIVE-HISTORY"]) {
-    const row = page.getByRole("row").filter({ hasText: code });
-    await row.getByRole("button", { name: `View usage for ${code}` }).click();
+    const row = codeRow(code);
+    await expect(row).toHaveCount(1);
+    await row.getByRole("button", { name: `View usage for ${code}`, exact: true }).click();
     const usage = page.getByRole("dialog", { name: `${code} usage` });
     await expect(usage.getByText("History Customer", { exact: true })).toBeVisible();
     await expect(usage.getByText(/usage-order-(unpaid|refunded)/)).toBeVisible();
