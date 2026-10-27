@@ -163,6 +163,7 @@ function DemoLinksEditor() {
     if (!hasLocalRedirectEdits) setRedirect(incomingRedirect);
   }, [profile.draft.redirect, redirect]);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [revealRedirectError, setRevealRedirectError] = useState(false);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
 
   const validation = useMemo(() => {
@@ -303,6 +304,7 @@ function DemoLinksEditor() {
       };
     }
     if (redirectError !== null) {
+      setRevealRedirectError(true);
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -400,6 +402,7 @@ function DemoLinksEditor() {
       links={links}
       redirect={redirect}
       redirectError={redirectError}
+      revealRedirectError={revealRedirectError}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}
@@ -443,6 +446,7 @@ export function LiveLinksEditorContent({
     () => profile.draft.redirect ?? { enabled: false, destination: "" },
   );
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [revealRedirectError, setRevealRedirectError] = useState(false);
   const [pendingAction, setPendingAction] = useState<"save" | "publish" | null>(null);
   const navigationSaveRef = useRef<DraftSaveHandler>(async () => ({ kind: "saved" }));
   const registeredSave = useCallback((href?: string) => navigationSaveRef.current(href), []);
@@ -651,6 +655,7 @@ export function LiveLinksEditorContent({
     }
     const redirectError = validateProfileRedirect(redirect);
     if (redirectError !== null) {
+      setRevealRedirectError(true);
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -722,6 +727,7 @@ export function LiveLinksEditorContent({
       links={currentDraft.links}
       redirect={redirect}
       redirectError={currentRedirectError}
+      revealRedirectError={revealRedirectError}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}

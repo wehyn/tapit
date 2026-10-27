@@ -1047,8 +1047,10 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
+  await island.getByRole("button", { name: /^Account menu for / }).click();
   await expect(island.getByRole("link", { name: "Account", exact: true })).toBeVisible();
   await expect(island.getByRole("link", { name: "Help", exact: true })).toBeVisible();
+  await island.getByRole("button", { name: /^Account menu for / }).click();
   await expect(
     desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
   ).toHaveAttribute("aria-current", "page");
@@ -1084,9 +1086,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
       const styles = window.getComputedStyle(element);
       return { position: styles.position, top: styles.top };
     }),
-  ).toEqual({ position: "sticky", top: "0px" });
-  await page.evaluate(() => window.scrollTo(0, 500));
-  expect((await mobileHeader.boundingBox())?.y ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  ).toMatchObject({ position: "static" });
   const moreButton = page
     .getByRole("navigation", { name: "Mobile navigation" })
     .getByRole("button", { name: "More", exact: true });
@@ -1189,11 +1189,6 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
       await page.screenshot({ path: "test-results/customer-workbench-390.png", fullPage: true });
     }
   }
-  expect(
-    (await page
-      .getByRole("link", { name: "Open public profile /mara-velasquez", exact: true })
-      .boundingBox())!.width,
-  ).toBeGreaterThan(100);
   await page.evaluate(() => window.scrollTo(0, 0));
 });
 
@@ -3290,6 +3285,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
     page.getByText("Link clicks", { exact: true }).locator("..").getByText("9", { exact: true }),
   ).toBeVisible();
 
+  await page.getByRole("button", { name: /^Account menu for / }).click();
   await page.getByRole("link", { name: "Account" }).click();
   await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();

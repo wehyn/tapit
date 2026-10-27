@@ -388,6 +388,21 @@ function AccountMenu({
       }}
       ref={containerRef}
     >
+      <button
+        aria-controls={menuId}
+        aria-expanded={open}
+        aria-label={`Account menu for ${email}`}
+        className="flex min-h-11 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
+        onClick={() => setOpen((current) => !current)}
+        ref={triggerRef}
+        type="button"
+      >
+        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-tapit-accent text-xs font-semibold text-white">
+          {initials}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-tapit-ink">{email}</span>
+        <Icon name={open ? "caretUp" : "caretDown"} size={16} />
+      </button>
       <div
         aria-label="Account options"
         className="absolute inset-x-0 bottom-full mb-2 flex flex-col gap-1 rounded-card bg-tapit-surface p-2 shadow-card"
@@ -421,21 +436,6 @@ function AccountMenu({
           </p>
         ) : null}
       </div>
-      <button
-        aria-controls={menuId}
-        aria-expanded={open}
-        aria-label={`Account menu for ${email}`}
-        className="flex min-h-11 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
-        onClick={() => setOpen((current) => !current)}
-        ref={triggerRef}
-        type="button"
-      >
-        <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-tapit-accent text-xs font-semibold text-white">
-          {initials}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-tapit-ink">{email}</span>
-        <Icon name={open ? "caretUp" : "caretDown"} size={16} />
-      </button>
     </div>
   );
 }

@@ -254,4 +254,36 @@ describe("LinksWorkspace", () => {
     expect(screen.getAllByText(redirectError)).toHaveLength(1);
     expect(screen.getByLabelText("HTTPS destination URL")).toHaveAttribute("aria-invalid", "true");
   });
+
+  it("reveals the redirect error without a touch once a save or navigation was blocked", () => {
+    const redirectError = "Redirect destination must be a valid HTTPS URL without credentials.";
+
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[]}
+        preview={null}
+        redirect={{ enabled: true, destination: "" }}
+        redirectError={redirectError}
+        revealRedirectError
+        validation={{}}
+        publicationErrors={[redirectError]}
+        message={null}
+        pendingAction={null}
+        isDirty={true}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onRedirectChange={vi.fn()}
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText(redirectError)).toHaveLength(1);
+  });
 });

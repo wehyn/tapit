@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -91,6 +92,21 @@ describe("WorkspaceChrome sidebar", () => {
       "/app/account",
     );
     expect(within(sidebar).getByRole("link", { name: "Help" })).toBeInTheDocument();
+  });
+
+  it("lets keyboard users tab from the account menu button into Account and Help", async () => {
+    const user = userEvent.setup();
+    renderChrome();
+
+    const sidebar = screen.getByTestId("workspace-sidebar");
+    const trigger = within(sidebar).getByRole("button", {
+      name: "Account menu for mara@example.test",
+    });
+    trigger.focus();
+    await user.keyboard("{Enter}");
+    await user.tab();
+
+    expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveFocus();
   });
 
   it("does not show a live status card in the sidebar", () => {

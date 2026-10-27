@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
@@ -48,6 +48,9 @@ export function WorkspacePreview({
   theme?: ProfileTheme;
 }) {
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const copyResetRef = useRef<number>(undefined);
+
+  useEffect(() => () => window.clearTimeout(copyResetRef.current), []);
   const [phoneScale, setPhoneScale] = useState(1);
   const [phoneContentScale, setPhoneContentScale] = useState(1);
   const [phoneContentHeight, setPhoneContentHeight] = useState<number>();
@@ -164,7 +167,8 @@ export function WorkspacePreview({
     const absoluteUrl = new URL(profileUrl, window.location.origin).href;
     const copied = await writeClipboard(absoluteUrl);
     setCopyState(copied ? "copied" : "failed");
-    window.setTimeout(() => setCopyState("idle"), 2000);
+    window.clearTimeout(copyResetRef.current);
+    copyResetRef.current = window.setTimeout(() => setCopyState("idle"), 2000);
   }
 
   const publicProfile = (
@@ -303,14 +307,20 @@ export function WorkspacePreview({
             aria-label="Copy URL"
             className="w-11 scroll-mb-44 px-0!"
             onClick={() => void copyUrl()}
+            title={
+              copyState === "failed" ? "Could not copy. Select the link and copy it." : "Copy URL"
+            }
             type="button"
             variant="secondary"
           >
-            <Icon name={copyState === "copied" ? "check" : "copy"} size={17} />
-            <span className="sr-only" role="status">
-              {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : ""}
-            </span>
+            <Icon
+              name={copyState === "copied" ? "check" : copyState === "failed" ? "warning" : "copy"}
+              size={17}
+            />
           </Button>
+          <span className="sr-only" role="status">
+            {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : ""}
+          </span>
         </div>
       ) : null}
     </section>

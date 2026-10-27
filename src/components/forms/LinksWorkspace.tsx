@@ -31,6 +31,7 @@ export type LinksWorkspaceProps = {
   links: ProfileLink[];
   redirect?: ProfileRedirect;
   redirectError?: string | null;
+  revealRedirectError?: boolean;
   preview: PublicProfileProjection | null;
   validation: Record<string, string>;
   publicationErrors: string[];
@@ -65,6 +66,7 @@ export function LinksWorkspace({
   links,
   redirect = { enabled: false, destination: "" },
   redirectError = null,
+  revealRedirectError = false,
   preview,
   validation,
   publicationErrors,
@@ -232,7 +234,7 @@ export function LinksWorkspace({
             {redirect.enabled ? (
               <HttpsUrlField
                 error={
-                  redirectTouched || redirect.destination !== ""
+                  redirectTouched || revealRedirectError || redirect.destination !== ""
                     ? (redirectError ?? undefined)
                     : undefined
                 }
