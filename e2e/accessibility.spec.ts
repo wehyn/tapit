@@ -99,17 +99,6 @@ test("customer workspace has no automated accessibility violations", async ({ pa
     await expect(
       page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
     ).toBeVisible();
-    const publicUrlText = page
-      .getByRole("link", { name: "Open public profile /mara-velasquez" })
-      .locator("code");
-    const publicUrlLayout = await publicUrlText.evaluate((element) => ({
-      clientWidth: element.clientWidth,
-      scrollWidth: element.scrollWidth,
-    }));
-    expect(
-      publicUrlLayout.scrollWidth,
-      `The public profile URL should remain readable at ${width}px.`,
-    ).toBeLessThanOrEqual(publicUrlLayout.clientWidth + 1);
     const layout = await page.evaluate(() => {
       const viewportWidth = document.documentElement.clientWidth;
       const offenders = Array.from(document.querySelectorAll<HTMLElement>("body *"))

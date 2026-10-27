@@ -41,10 +41,7 @@ describe("profile workspace mobile preview", () => {
   it("uses the published mobile spacing and card for the default theme", () => {
     const { mobilePreview, profilePanel } = renderEditorPreview(undefined);
 
-    expect(within(mobilePreview).getByText("Powered by Tapit", { exact: true })).toHaveClass(
-      "mt-auto",
-    );
-    expect(within(mobilePreview).queryByText("Tapit", { exact: true })).not.toBeInTheDocument();
+    expect(within(mobilePreview).queryByText("Powered by Tapit")).not.toBeInTheDocument();
     expect(profilePanel).toHaveClass("flex", "flex-col", "min-h-full");
     expect(profilePanel).toHaveClass("rounded-card", "shadow-card");
     expect(profilePanel).not.toHaveClass("border");
@@ -72,10 +69,7 @@ describe("profile workspace mobile preview", () => {
       contentOrder: "links-first",
     });
 
-    expect(within(mobilePreview).getByText("Powered by Tapit", { exact: true })).toHaveClass(
-      "mt-auto",
-    );
-    expect(within(mobilePreview).queryByText("Tapit", { exact: true })).not.toBeInTheDocument();
+    expect(within(mobilePreview).queryByText("Powered by Tapit")).not.toBeInTheDocument();
     expect(profilePanel).toHaveClass("flex", "flex-col", "min-h-full");
     expect(profilePanel).toHaveClass("rounded-none", "border-0");
     const profileLinks = within(mobilePreview).getByRole("list", { name: "Profile links" });

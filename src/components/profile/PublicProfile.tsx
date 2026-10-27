@@ -644,13 +644,6 @@ export function PublicProfile({
           {contactError}
         </p>
       ) : null}
-      {preview ? (
-        <p
-          className={`mt-auto pt-4 text-xs text-center font-semibold tracking-[0.16em] uppercase ${mutedClasses}`}
-        >
-          Powered by Tapit
-        </p>
-      ) : null}
     </>
   );
   const profileFrameClasses =

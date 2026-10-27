@@ -132,9 +132,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
     "href",
     "/app/links",
   );
-  await expect(
-    page.getByRole("link", { name: "Open public profile /new-tapit-customer" }),
-  ).toHaveAttribute("href", "/new-tapit-customer");
+  await expect(page.getByLabel("Stable profile slug")).toHaveValue("new-tapit-customer");
   await expect(page.getByLabel("Email", { exact: true })).toHaveValue(
     "new-tapit-customer@example.test",
   );

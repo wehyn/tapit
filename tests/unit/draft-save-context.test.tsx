@@ -201,6 +201,11 @@ describe("workspace navigation draft handling", () => {
 
     render(<TestShell beforeNavigate={beforeNavigate}>Content</TestShell>);
 
+    fireEvent.click(
+      within(screen.getByTestId("workspace-sidebar")).getByRole("button", {
+        name: /^Account menu for /,
+      }),
+    );
     fireEvent.click(sidebarLink("Help"));
     expect(beforeNavigate).not.toHaveBeenCalled();
   });
