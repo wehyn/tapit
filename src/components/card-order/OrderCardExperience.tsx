@@ -3,7 +3,7 @@
 import { useAuthToken, useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -24,6 +24,15 @@ import {
   previewDemoCardOrderReferral,
 } from "@/lib/demo/card-ordering";
 import { replaceDemoCardOrderAsset, saveDemoCardOrderAsset } from "@/lib/demo/card-order-assets";
+import {
+  attachDemoCardOrderReceipt,
+  readDemoCardOrderReceipt,
+  recoverDemoCardOrderReceipts,
+} from "@/lib/demo/card-order-receipts";
+import {
+  readDemoActivePaymentQr,
+  readDemoOrderPaymentQr,
+} from "@/lib/demo/card-order-payment-assets";
 import type { DemoCardOrderDesignSource } from "@/lib/demo/fixtures";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { resolveDemoSessionAccess, useDemoSession, useDemoState } from "@/lib/demo/store";
@@ -36,6 +45,7 @@ type PaymentMethod = {
   label: string;
   accountDetails: string;
   instructions: string;
+  qrUrl?: string | null;
 };
 
 type OrderSettings = {
@@ -54,10 +64,18 @@ type CustomerOrder = {
     label: string;
     accountDetails: string;
     instructions: string;
+    qrUrl?: string | null;
   };
   paymentStatus: "unpaid" | "received" | "refunded";
   fulfillmentStatus:
     "awaiting_shipping_quote" | "awaiting_payment" | "processing" | "delivered" | "cancelled";
+  receipt: null | {
+    receiptKey?: string;
+    fileName: string;
+    contentType: "image/jpeg" | "image/png" | "application/pdf";
+    byteSize: number;
+    uploadedAt: number;
+  };
 };
 
 type OrderDesign = { kind: "upload"; file: File } | { kind: "url"; url: string };
@@ -91,6 +109,64 @@ function LocalDemoOrderExperience() {
   const state = useDemoState();
   const session = useDemoSession();
   const access = resolveDemoSessionAccess(state, session);
+  const [qrUrls, setQrUrls] = useState<{
+    accountId: string;
+    methods: Record<string, string>;
+    orders: Record<string, string>;
+  }>({ accountId: "", methods: {}, orders: {} });
+  const customerId =
+    access.kind === "active" && access.account.role === "customer" ? access.account.id : null;
+
+  useEffect(() => {
+    if (customerId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
+  }, [customerId]);
+
+  useEffect(() => {
+    if (customerId === null) return;
+    let active = true;
+    const urls: string[] = [];
+    const load = async (read: () => Promise<Blob | null>) => {
+      try {
+        const blob = await read();
+        if (!blob || !active) return null;
+        const url = URL.createObjectURL(blob);
+        urls.push(url);
+        return url;
+      } catch {
+        return null;
+      }
+    };
+    const settings = getDemoCardOrderCustomerSettings();
+    const orders = getMyDemoCardOrders();
+    void Promise.all([
+      Promise.all(
+        settings.paymentMethods.map(
+          async (method) =>
+            [method.id, await load(() => readDemoActivePaymentQr(method.id))] as const,
+        ),
+      ),
+      Promise.all(
+        orders.map(
+          async (order) => [order.id, await load(() => readDemoOrderPaymentQr(order.id))] as const,
+        ),
+      ),
+    ]).then(([methods, savedOrders]) => {
+      if (active)
+        setQrUrls({
+          accountId: customerId,
+          methods: Object.fromEntries(
+            methods.filter((entry): entry is readonly [string, string] => entry[1] !== null),
+          ),
+          orders: Object.fromEntries(
+            savedOrders.filter((entry): entry is readonly [string, string] => entry[1] !== null),
+          ),
+        });
+    });
+    return () => {
+      active = false;
+      urls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [state, session, customerId]);
 
   if (access.kind !== "active") return <AuthLoadingState />;
   if (access.account.role !== "customer") {
@@ -101,7 +177,25 @@ function LocalDemoOrderExperience() {
   let orders: CustomerOrder[];
   try {
     settings = getDemoCardOrderCustomerSettings();
-    orders = getMyDemoCardOrders();
+    const authorizedQrUrls: typeof qrUrls =
+      qrUrls.accountId === access.account.id
+        ? qrUrls
+        : { accountId: access.account.id, methods: {}, orders: {} };
+    settings = {
+      ...settings,
+      paymentMethods: settings.paymentMethods.map((method) => ({
+        ...method,
+        qrUrl: authorizedQrUrls.methods[method.id] ?? null,
+      })),
+    };
+    orders = getMyDemoCardOrders().map((order) => ({
+      ...order,
+      receipt: order.receipt ?? null,
+      paymentSnapshot: {
+        ...order.paymentSnapshot,
+        qrUrl: authorizedQrUrls.orders[order.id] ?? null,
+      },
+    }));
   } catch (error) {
     return (
       <AccessMessage>
@@ -697,6 +791,14 @@ function CustomerOrderForm({
                     <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-tapit-muted">
                       {selectedPaymentMethod.instructions}
                     </p>
+                    {selectedPaymentMethod.qrUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        alt={`Payment QR code for ${selectedPaymentMethod.label}`}
+                        className="mt-4 max-h-72 w-auto max-w-full rounded-control object-contain"
+                        src={selectedPaymentMethod.qrUrl}
+                      />
+                    ) : null}
                   </div>
                 ) : null}
                 {fieldErrors.paymentMethod ? (
@@ -781,8 +883,10 @@ function CustomerOrderForm({
 
             {submittedOrderId ? (
               <SubmittedOrder
+                live={mode === "live"}
                 order={orders?.find((order) => order.id === submittedOrderId)}
                 loading={orders === undefined}
+                showReceiptControl={!orders?.some((order) => order.id === submittedOrderId)}
               />
             ) : null}
             {orders && orders.length > 0 ? (
@@ -791,7 +895,7 @@ function CustomerOrderForm({
                   Your recent orders
                 </h2>
                 {orders.map((order) => (
-                  <OrderSummaryCard key={order.id} order={order} />
+                  <OrderSummaryCard key={order.id} live={mode === "live"} order={order} />
                 ))}
               </section>
             ) : null}
@@ -961,9 +1065,13 @@ function ReferralPriceLines({
 function SubmittedOrder({
   order,
   loading,
+  live,
+  showReceiptControl,
 }: {
   order: CustomerOrder | undefined;
   loading: boolean;
+  live: boolean;
+  showReceiptControl: boolean;
 }) {
   return (
     <div className="grid gap-3">
@@ -971,7 +1079,12 @@ function SubmittedOrder({
         Your card order has been saved. Please wait for the shipping quote before paying.
       </Notice>
       {order ? (
-        <OrderSummaryCard order={order} prominent />
+        <OrderSummaryCard
+          live={live}
+          order={order}
+          prominent
+          showReceiptControl={showReceiptControl}
+        />
       ) : (
         <Notice>
           {loading ? "Loading your saved total and order status…" : "Your order is saved."}
@@ -984,9 +1097,13 @@ function SubmittedOrder({
 function OrderSummaryCard({
   order,
   prominent = false,
+  live,
+  showReceiptControl = true,
 }: {
   order: CustomerOrder;
   prominent?: boolean;
+  live: boolean;
+  showReceiptControl?: boolean;
 }) {
   const cardTotal = order.cardPriceCentavos - order.discountCentavos;
   const totalDue =
@@ -1039,8 +1156,300 @@ function OrderSummaryCard({
         <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-tapit-muted">
           {order.paymentSnapshot.instructions}
         </p>
+        {order.paymentSnapshot.qrUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt={`Payment QR code for ${order.paymentSnapshot.label}`}
+            className="mt-4 max-h-72 w-auto max-w-full rounded-control object-contain"
+            src={order.paymentSnapshot.qrUrl}
+          />
+        ) : null}
       </div>
+      {showReceiptControl ? (
+        live ? (
+          <LiveCustomerReceipt order={order} />
+        ) : (
+          <DemoCustomerReceipt order={order} />
+        )
+      ) : null}
     </Card>
+  );
+}
+
+const RECEIPT_ACCEPT = ".jpg,.jpeg,.png,.pdf";
+const RECEIPT_MAX_BYTES_EXCLUSIVE = 5 * 1024 * 1024;
+
+function DemoCustomerReceipt({ order }: { order: CustomerOrder }) {
+  const inputId = useId();
+  const [file, setFile] = useState<File | null>(null);
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [selectionError, setSelectionError] = useState("");
+  const [status, setStatus] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    void readDemoCardOrderReceipt(order.id)
+      .then((blob) => {
+        if (blob && active) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [order.id, order.receipt?.receiptKey]);
+  const canUpload =
+    order.paymentStatus === "unpaid" && order.fulfillmentStatus === "awaiting_payment";
+  return (
+    <section aria-label="Payment receipt" className="mt-4 rounded-control bg-tapit-paper p-4">
+      {order.receipt ? (
+        <p className="text-sm font-medium text-tapit-ink">
+          Receipt attached: {order.receipt.fileName}
+        </p>
+      ) : null}
+      {canUpload ? (
+        <div className="mt-2 grid gap-2">
+          <label
+            className="text-sm font-semibold text-tapit-ink"
+            htmlFor={`demo-receipt-${inputId}`}
+          >
+            Payment receipt
+            <input
+              id={`demo-receipt-${inputId}`}
+              accept={RECEIPT_ACCEPT}
+              className="mt-2 block"
+              type="file"
+              onChange={(event) => {
+                const selected = event.currentTarget.files?.[0] ?? null;
+                setFile(selected);
+                setError("");
+                setSelectionError("");
+                setStatus("");
+                if (!selected) return;
+                const extension = selected.name.split(".").pop()?.toLowerCase();
+                const expected =
+                  extension === "pdf"
+                    ? "application/pdf"
+                    : extension === "png"
+                      ? "image/png"
+                      : extension === "jpg" || extension === "jpeg"
+                        ? "image/jpeg"
+                        : null;
+                if (!expected || selected.type !== expected)
+                  setSelectionError("Choose a JPG, PNG, or PDF receipt.");
+                else if (!selected.size) setSelectionError("Choose a non-empty receipt file.");
+                else if (selected.size >= RECEIPT_MAX_BYTES_EXCLUSIVE)
+                  setSelectionError("Choose a receipt under 5 MiB.");
+              }}
+            />
+          </label>
+          {file ? <p className="text-sm text-tapit-muted">Selected: {file.name}</p> : null}
+          {selectionError || error ? (
+            <p role="alert" className="text-sm text-tapit-danger">
+              {selectionError || error}
+            </p>
+          ) : null}
+          {status ? (
+            <p role="status" className="text-sm text-tapit-muted">
+              {status}
+            </p>
+          ) : null}
+          {file ? (
+            <Button
+              disabled={busy}
+              loading={busy}
+              variant="secondary"
+              onClick={() => {
+                if (selectionError) return;
+                setBusy(true);
+                setError("");
+                void attachDemoCardOrderReceipt(order.id, file)
+                  .then(() => {
+                    setFile(null);
+                    setStatus("Receipt uploaded successfully.");
+                  })
+                  .catch((reason: unknown) => {
+                    setError(reason instanceof Error ? reason.message : "Receipt upload failed.");
+                    setStatus("Upload failed. You can retry.");
+                  })
+                  .finally(() => setBusy(false));
+              }}
+            >
+              {status === "Upload failed. You can retry."
+                ? "Retry receipt upload"
+                : order.receipt
+                  ? "Replace receipt"
+                  : "Upload receipt"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {order.receipt && url ? (
+        <a
+          className="mt-2 inline-block text-sm font-semibold underline"
+          href={url}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open attached receipt
+        </a>
+      ) : null}
+    </section>
+  );
+}
+
+function LiveCustomerReceipt({ order }: { order: CustomerOrder }) {
+  const inputId = useId();
+  const authToken = useAuthToken();
+  const createUploadIntent = useMutation(api.cardOrderReceipts.createUploadIntent);
+  const attachReceipt = useMutation(api.cardOrderReceipts.attach);
+  const receiptUrl = useQuery(api.cardOrderReceipts.customerReceiptUrl, {
+    orderId: order.id as Id<"cardOrders">,
+  });
+  const [file, setFile] = useState<File | null>(null);
+  const [status, setStatus] = useState("");
+  const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const canUpload =
+    order.paymentStatus === "unpaid" && order.fulfillmentStatus === "awaiting_payment";
+
+  async function uploadReceipt() {
+    if (file === null || uploading) return;
+    setUploading(true);
+    setError("");
+    try {
+      if (authToken === null) throw new Error("Sign in again to upload your receipt.");
+      setStatus("Preparing receipt upload…");
+      const uploadId = await createUploadIntent({ orderId: order.id as Id<"cardOrders"> });
+      const siteUrl = requirePairedConvexSiteUrl(
+        process.env.NEXT_PUBLIC_CONVEX_URL ?? "",
+        process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "",
+      );
+      setStatus("Uploading receipt…");
+      const response = await fetch(`${siteUrl}/card-order-receipt-upload`, {
+        method: "POST",
+        body: file,
+        headers: {
+          Authorization: `Bearer ${authToken}`,
+          "Content-Type": file.type,
+          "X-File-Name": encodeURIComponent(file.name),
+          "X-Upload-Id": uploadId,
+        },
+      });
+      if (!response.ok)
+        throw new Error((await response.text()) || "Receipt upload failed. Try again.");
+      setStatus("Attaching receipt…");
+      await attachReceipt({ orderId: order.id as Id<"cardOrders">, uploadId });
+      setFile(null);
+      setStatus("Receipt uploaded successfully.");
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error ? uploadError.message : "Receipt upload failed. Try again.",
+      );
+      setStatus("Upload failed. You can retry.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function selectFile(selected: File | null) {
+    setFile(selected);
+    setStatus("");
+    setError("");
+    if (selected === null) return;
+    const extension = selected.name.split(".").pop()?.toLowerCase();
+    const expectedType =
+      extension === "pdf"
+        ? "application/pdf"
+        : extension === "png"
+          ? "image/png"
+          : extension === "jpg" || extension === "jpeg"
+            ? "image/jpeg"
+            : null;
+    if (expectedType === null || selected.type !== expectedType) {
+      setError("Choose a JPG, PNG, or PDF receipt.");
+    } else if (selected.size === 0) {
+      setError("Choose a non-empty receipt file.");
+    } else if (selected.size >= RECEIPT_MAX_BYTES_EXCLUSIVE) {
+      setError("Choose a receipt under 5 MB.");
+    }
+  }
+
+  const validSelection = file !== null && error === "";
+  return (
+    <section aria-label="Payment receipt" className="mt-4 rounded-control bg-tapit-paper p-4">
+      {order.receipt ? (
+        <p className="text-sm font-medium text-tapit-ink">
+          Receipt attached: {order.receipt.fileName}
+        </p>
+      ) : null}
+      {canUpload ? (
+        <div className="mt-2 grid gap-2">
+          <label className="text-sm font-semibold text-tapit-ink" htmlFor={`receipt-${inputId}`}>
+            Payment receipt
+          </label>
+          <input
+            accept={RECEIPT_ACCEPT}
+            className="min-h-11 rounded-control border bg-tapit-surface px-3 py-2 text-sm"
+            disabled={uploading}
+            id={`receipt-${inputId}`}
+            onChange={(event) => selectFile(event.currentTarget.files?.[0] ?? null)}
+            type="file"
+          />
+          {file ? <p className="text-sm text-tapit-muted">Selected: {file.name}</p> : null}
+          {error ? (
+            <p className="text-sm text-tapit-danger" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {status ? (
+            <p className="text-sm text-tapit-muted" role="status">
+              {status}
+            </p>
+          ) : null}
+          {file && !validSelection && status === "Upload failed. You can retry." ? (
+            <Button
+              disabled={uploading}
+              onClick={() => void uploadReceipt()}
+              type="button"
+              variant="secondary"
+            >
+              Retry receipt upload
+            </Button>
+          ) : null}
+          {validSelection ? (
+            <Button
+              disabled={uploading}
+              loading={uploading}
+              onClick={() => void uploadReceipt()}
+              type="button"
+              variant="secondary"
+            >
+              {status === "Upload failed. You can retry."
+                ? "Retry receipt upload"
+                : order.receipt
+                  ? "Replace receipt"
+                  : "Upload receipt"}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {order.receipt && receiptUrl ? (
+        <a
+          className="mt-2 inline-block text-sm font-semibold text-tapit-accent underline"
+          href={receiptUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          Open attached receipt
+        </a>
+      ) : null}
+    </section>
   );
 }
 

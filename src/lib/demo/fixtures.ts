@@ -60,6 +60,7 @@ export type DemoCardOrderPaymentMethod = {
   accountDetails: string;
   instructions: string;
   active: boolean;
+  qrAssetKey?: string;
   createdAt: number;
   updatedAt: number;
 };
@@ -102,6 +103,7 @@ export type DemoCardOrder = {
     label: string;
     accountDetails: string;
     instructions: string;
+    qrAssetKey?: string;
   };
   referralCodeId?: string;
   referralSnapshot?: { code: string; referrerLabel: string };
@@ -113,6 +115,13 @@ export type DemoCardOrder = {
   payoutReference?: string;
   createdAt: number;
   updatedAt: number;
+  receipt?: {
+    receiptKey: string;
+    fileName: string;
+    contentType: "image/jpeg" | "image/png" | "application/pdf";
+    byteSize: number;
+    uploadedAt: number;
+  };
 };
 
 export type DemoCardOrderReferralCodeUsage = {

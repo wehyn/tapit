@@ -574,6 +574,7 @@ export default defineSchema({
     paymentMethodId: v.id("cardOrderPaymentMethods"),
     paymentSnapshot: cardOrderPaymentSnapshot,
     qrUploadId: v.optional(v.id("cardOrderQrUploads")),
+    receiptUploadId: v.optional(v.id("cardOrderReceiptUploads")),
     referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
     usageCounted: v.optional(v.boolean()),
     referralSnapshot: v.optional(cardOrderReferralSnapshot),
@@ -598,8 +599,35 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("by_qrUploadId", ["qrUploadId"])
+    .index("by_receiptUploadId", ["receiptUploadId"])
     .index("by_scope_and_customerId_and_createdAt", ["scope", "customerId", "createdAt"])
     .index("by_scope_and_createdAt", ["scope", "createdAt"])
     .index("by_scope_and_referralCodeId_and_createdAt", ["scope", "referralCodeId", "createdAt"])
     .index("by_paymentSnapshot_qrUploadId", ["paymentSnapshot.qrUploadId"]),
+  cardOrderReceiptUploads: defineTable({
+    ownerId: v.id("customers"),
+    scope: v.optional(v.literal("demo")),
+    orderId: v.id("cardOrders"),
+    storageId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    contentType: v.optional(
+      v.union(v.literal("image/jpeg"), v.literal("image/png"), v.literal("application/pdf")),
+    ),
+    declaredContentType: v.optional(v.string()),
+    byteSize: v.optional(v.number()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("available"),
+      v.literal("failed"),
+      v.literal("attached"),
+      v.literal("replaced"),
+    ),
+    createdAt: v.number(),
+    processingAt: v.optional(v.number()),
+    availableAt: v.optional(v.number()),
+  })
+    .index("by_orderId_and_status", ["orderId", "status"])
+    .index("by_ownerId", ["ownerId"])
+    .index("by_storageId", ["storageId"]),
 });

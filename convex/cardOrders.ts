@@ -1,7 +1,7 @@
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { mutation, query, type MutationCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
 import { activeOrderCustomer, launchEndDate } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
@@ -27,6 +27,7 @@ const customerOrder = v.object({
     label: v.string(),
     accountDetails: v.string(),
     instructions: v.string(),
+    qrUrl: v.union(v.string(), v.null()),
   }),
   paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
   fulfillmentStatus: v.union(
@@ -36,7 +37,58 @@ const customerOrder = v.object({
     v.literal("delivered"),
     v.literal("cancelled"),
   ),
+  receipt: v.union(
+    v.null(),
+    v.object({
+      fileName: v.string(),
+      contentType: v.union(
+        v.literal("image/jpeg"),
+        v.literal("image/png"),
+        v.literal("application/pdf"),
+      ),
+      byteSize: v.number(),
+      uploadedAt: v.number(),
+    }),
+  ),
 });
+const receiptMetadata = v.object({
+  fileName: v.string(),
+  contentType: v.union(
+    v.literal("image/jpeg"),
+    v.literal("image/png"),
+    v.literal("application/pdf"),
+  ),
+  byteSize: v.number(),
+  uploadedAt: v.number(),
+});
+const adminOrderProjection = schema
+  .doc("cardOrders")
+  .omit("receiptUploadId")
+  .extend({
+    receipt: v.union(v.null(), receiptMetadata),
+  });
+
+async function projectAdminOrder(ctx: QueryCtx, order: Doc<"cardOrders">) {
+  const upload =
+    order.receiptUploadId === undefined ? null : await ctx.db.get(order.receiptUploadId);
+  const projected = { ...order };
+  delete projected.receiptUploadId;
+  return {
+    ...projected,
+    receipt:
+      upload?.fileName &&
+      upload.contentType &&
+      upload.byteSize !== undefined &&
+      upload.availableAt !== undefined
+        ? {
+            fileName: upload.fileName,
+            contentType: upload.contentType,
+            byteSize: upload.byteSize,
+            uploadedAt: upload.availableAt,
+          }
+        : null,
+  };
+}
 
 function deliveryText(value: string, label: string, max: number) {
   const trimmed = value.trim();
@@ -153,11 +205,15 @@ export const placeOrder = mutation({
       cardPriceCentavos,
       discountCentavos,
       paymentMethodId: selectedPayment._id,
+      qrUploadId: selectedPayment.qrUploadId,
       paymentSnapshot: {
         provider: selectedPayment.provider,
         label: selectedPayment.label,
         accountDetails: selectedPayment.accountDetails,
         instructions: selectedPayment.instructions,
+        ...(selectedPayment.qrUploadId === undefined
+          ? {}
+          : { qrUploadId: selectedPayment.qrUploadId }),
       },
       referralCodeId: referral?._id,
       referralSnapshot:
@@ -194,33 +250,65 @@ export const myOrders = query({
       )
       .order("desc")
       .take(20);
-    return orders.map(
-      ({
-        _id,
-        createdAt,
-        cardPriceCentavos,
-        discountCentavos,
-        shippingQuoteCentavos,
-        paymentSnapshot,
-        paymentStatus,
-        fulfillmentStatus,
-      }) => ({
-        _id,
-        createdAt,
-        cardPriceCentavos,
-        discountCentavos,
-        shippingQuoteCentavos,
-        paymentSnapshot,
-        paymentStatus,
-        fulfillmentStatus,
-      }),
+    return await Promise.all(
+      orders.map(
+        async ({
+          _id,
+          createdAt,
+          cardPriceCentavos,
+          discountCentavos,
+          shippingQuoteCentavos,
+          paymentSnapshot,
+          qrUploadId: orderQrUploadId,
+          paymentStatus,
+          fulfillmentStatus,
+          receiptUploadId,
+        }) => {
+          const qrUploadId = paymentSnapshot.qrUploadId ?? orderQrUploadId;
+          const [qrUpload, receiptUpload] = await Promise.all([
+            qrUploadId === undefined ? null : ctx.db.get(qrUploadId),
+            receiptUploadId === undefined ? null : ctx.db.get(receiptUploadId),
+          ]);
+          return {
+            _id,
+            createdAt,
+            cardPriceCentavos,
+            discountCentavos,
+            shippingQuoteCentavos,
+            paymentSnapshot: {
+              provider: paymentSnapshot.provider,
+              label: paymentSnapshot.label,
+              accountDetails: paymentSnapshot.accountDetails,
+              instructions: paymentSnapshot.instructions,
+              qrUrl:
+                qrUpload?.storageId === undefined || !sameScope(customer, qrUpload)
+                  ? null
+                  : await ctx.storage.getUrl(qrUpload.storageId),
+            },
+            paymentStatus,
+            fulfillmentStatus,
+            receipt:
+              receiptUpload?.fileName &&
+              receiptUpload.contentType &&
+              receiptUpload.byteSize !== undefined &&
+              receiptUpload.availableAt !== undefined
+                ? {
+                    fileName: receiptUpload.fileName,
+                    contentType: receiptUpload.contentType,
+                    byteSize: receiptUpload.byteSize,
+                    uploadedAt: receiptUpload.availableAt,
+                  }
+                : null,
+          };
+        },
+      ),
     );
   },
 });
 
 export const adminOrders = query({
   args: { paginationOpts: paginationOptsValidator },
-  returns: paginationResultValidator(schema.doc("cardOrders")),
+  returns: paginationResultValidator(adminOrderProjection),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     if (
@@ -229,22 +317,26 @@ export const adminOrders = query({
       args.paginationOpts.numItems > 100
     )
       throw new Error("Page size must be 1–100.");
-    return ctx.db
+    const page = await ctx.db
       .query("cardOrders")
       .withIndex("by_scope_and_createdAt", (q) => q.eq("scope", account.scope))
       .order("desc")
       .paginate(args.paginationOpts);
+    return {
+      ...page,
+      page: await Promise.all(page.page.map((order) => projectAdminOrder(ctx, order))),
+    };
   },
 });
 
 export const adminOrderById = query({
   args: { orderId: v.id("cardOrders") },
-  returns: schema.doc("cardOrders"),
+  returns: adminOrderProjection,
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const order = await ctx.db.get(args.orderId);
     if (order === null || !sameScope(account, order)) throw new Error("Order unavailable.");
-    return order;
+    return await projectAdminOrder(ctx, order);
   },
 });
 

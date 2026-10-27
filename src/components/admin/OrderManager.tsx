@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
+import type { FunctionReturnType } from "convex/server";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
 
@@ -16,6 +17,7 @@ import {
   refundDemoCardOrder,
 } from "@/lib/demo/card-ordering";
 import { readDemoCardOrderAsset } from "@/lib/demo/card-order-assets";
+import { readDemoCardOrderReceipt } from "@/lib/demo/card-order-receipts";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import type { DemoCardOrder } from "@/lib/demo/fixtures";
 import { useDemoState } from "@/lib/demo/store";
@@ -48,6 +50,7 @@ type AdminOrder = {
     label: string;
     accountDetails: string;
     instructions: string;
+    qrUrl?: string | null;
   };
   referralSnapshot?: { code: string; referrerLabel: string };
   paymentStatus: Doc<"cardOrders">["paymentStatus"];
@@ -55,6 +58,13 @@ type AdminOrder = {
   commissionStatus: Doc<"cardOrders">["commissionStatus"];
   commissionCentavos: number;
   payoutReference?: string;
+  receipt: null | {
+    receiptKey?: string;
+    fileName: string;
+    contentType: "image/jpeg" | "image/png" | "application/pdf";
+    byteSize: number;
+    uploadedAt: number;
+  };
 };
 
 type OrderAction =
@@ -104,10 +114,11 @@ function demoOrder(order: DemoCardOrder): AdminOrder {
     commissionStatus: order.commissionStatus,
     commissionCentavos: order.commissionCentavos,
     payoutReference: order.payoutReference,
+    receipt: order.receipt ?? null,
   };
 }
 
-function liveOrder(order: Doc<"cardOrders">): AdminOrder {
+function liveOrder(order: FunctionReturnType<typeof api.cardOrders.adminOrderById>): AdminOrder {
   return {
     id: order._id,
     createdAt: order.createdAt,
@@ -135,6 +146,7 @@ function liveOrder(order: Doc<"cardOrders">): AdminOrder {
     commissionStatus: order.commissionStatus,
     commissionCentavos: order.commissionCentavos,
     payoutReference: order.payoutReference,
+    receipt: order.receipt,
   };
 }
 
@@ -279,12 +291,14 @@ function LiveOrderArtwork({
 function OrderCard({
   order,
   demo,
+  paymentQrUrl,
   busy,
   onAction,
   onConfirmAction,
 }: {
   order: AdminOrder;
   demo: boolean;
+  paymentQrUrl: string | null;
   busy: boolean;
   onAction: (orderId: string, action: OrderAction) => void;
   onConfirmAction: (orderId: string, action: "cancel" | "refund") => void;
@@ -440,8 +454,36 @@ function OrderCard({
                 {order.paymentSnapshot.instructions}
               </dd>
             </div>
+            {paymentQrUrl ? (
+              <div>
+                <dt className="text-tapit-muted">Payment QR code</dt>
+                <dd className="mt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={`Payment QR code for ${order.paymentSnapshot.label}`}
+                    className="max-h-72 w-auto max-w-full rounded-control object-contain"
+                    src={paymentQrUrl}
+                  />
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </section>
+
+        {order.receipt ? (
+          <section aria-label="Payment receipt" className="min-w-0">
+            <h3 className="font-semibold text-tapit-ink">Payment receipt</h3>
+            <p className="mt-2 text-sm font-medium text-tapit-ink">{order.receipt.fileName}</p>
+            <p className="text-sm text-tapit-muted">
+              Uploaded{" "}
+              {new Date(order.receipt.uploadedAt).toLocaleString("en-PH", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </p>
+            {demo ? <DemoAdminReceipt order={order} /> : <AdminReceipt order={order} />}
+          </section>
+        ) : null}
 
         <section className="min-w-0">
           <h3 className="font-semibold text-tapit-ink">Price breakdown</h3>
@@ -606,6 +648,83 @@ function OrderCard({
   );
 }
 
+function LiveOrderCard(props: Omit<Parameters<typeof OrderCard>[0], "demo" | "paymentQrUrl">) {
+  const paymentQrUrl = useQuery(api.cardOrderPaymentQr.adminOrderPaymentQrUrl, {
+    orderId: props.order.id as Id<"cardOrders">,
+  });
+  return <OrderCard {...props} demo={false} paymentQrUrl={paymentQrUrl ?? null} />;
+}
+
+function AdminReceipt({ order }: { order: AdminOrder }) {
+  const url = useQuery(api.cardOrderReceipts.adminOrderReceiptUrl, {
+    orderId: order.id as Id<"cardOrders">,
+  });
+  if (!order.receipt || !url) return null;
+  if (order.receipt.contentType === "application/pdf") {
+    return (
+      <a
+        className="mt-2 inline-block text-sm font-semibold text-tapit-accent underline"
+        download={order.receipt.fileName}
+        href={url}
+        rel="noreferrer"
+        target="_blank"
+      >
+        Open or download {order.receipt.fileName}
+      </a>
+    );
+  }
+  return (
+    <a className="mt-2 inline-block max-w-full" href={url} rel="noreferrer" target="_blank">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        alt={`Payment receipt uploaded by customer: ${order.receipt.fileName}`}
+        className="mt-2 max-h-72 max-w-full rounded-control object-contain"
+        src={url}
+      />
+    </a>
+  );
+}
+
+function DemoAdminReceipt({ order }: { order: AdminOrder }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    let objectUrl: string | null = null;
+    void readDemoCardOrderReceipt(order.id)
+      .then((blob) => {
+        if (blob && active) {
+          objectUrl = URL.createObjectURL(blob);
+          setUrl(objectUrl);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [order.id, order.receipt?.receiptKey]);
+  if (!order.receipt || !url) return null;
+  if (order.receipt.contentType === "application/pdf")
+    return (
+      <a
+        className="mt-2 inline-block text-sm font-semibold text-tapit-accent underline"
+        href={url}
+        download={order.receipt.fileName}
+      >
+        Open or download {order.receipt.fileName}
+      </a>
+    );
+  return (
+    <a className="mt-2 inline-block max-w-full" href={url} target="_blank" rel="noreferrer">
+      <img
+        alt={`Payment receipt uploaded by customer: ${order.receipt.fileName}`}
+        className="mt-2 max-h-72 max-w-full rounded-control object-contain"
+        src={url}
+      />
+    </a>
+  );
+}
+
 function OrdersView({
   orders,
   demo,
@@ -669,16 +788,27 @@ function OrdersView({
           <p className="mt-4 text-sm text-tapit-muted">No card orders yet.</p>
         ) : (
           <div className="mt-4 grid gap-4">
-            {orders.map((order) => (
-              <OrderCard
-                busy={busyOrderId !== null}
-                demo={demo}
-                key={order.id}
-                onAction={(orderId, action) => void performAction(orderId, action)}
-                onConfirmAction={(orderId, action) => setConfirmation({ orderId, action })}
-                order={order}
-              />
-            ))}
+            {orders.map((order) =>
+              demo ? (
+                <OrderCard
+                  busy={busyOrderId !== null}
+                  demo
+                  key={order.id}
+                  onAction={(orderId, action) => void performAction(orderId, action)}
+                  onConfirmAction={(orderId, action) => setConfirmation({ orderId, action })}
+                  order={order}
+                  paymentQrUrl={null}
+                />
+              ) : (
+                <LiveOrderCard
+                  busy={busyOrderId !== null}
+                  key={order.id}
+                  onAction={(orderId, action) => void performAction(orderId, action)}
+                  onConfirmAction={(orderId, action) => setConfirmation({ orderId, action })}
+                  order={order}
+                />
+              ),
+            )}
           </div>
         )}
         {canLoadMore && loadMore ? (

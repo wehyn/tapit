@@ -310,3 +310,19 @@ export const customerPaymentQrUrl = query({
     return await ctx.storage.getUrl(upload.storageId);
   },
 });
+
+export const adminOrderPaymentQrUrl = query({
+  args: { orderId: v.id("cardOrders") },
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx, { orderId }) => {
+    const { account } = await requireAdministrator(ctx);
+    const order = await ctx.db.get(orderId);
+    if (order === null || !sameScope(account, order)) throw new Error("Order unavailable.");
+    const uploadId = order.paymentSnapshot.qrUploadId ?? order.qrUploadId;
+    if (uploadId === undefined) return null;
+    const upload = await ctx.db.get(uploadId);
+    return upload?.storageId === undefined || !sameScope(account, upload)
+      ? null
+      : await ctx.storage.getUrl(upload.storageId);
+  },
+});

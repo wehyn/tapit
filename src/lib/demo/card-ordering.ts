@@ -242,6 +242,7 @@ export async function saveDemoCardOrderPaymentMethod(input: {
       ...fields,
       id,
       active: existing?.active ?? true,
+      qrAssetKey: existing?.qrAssetKey,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
@@ -455,6 +456,7 @@ export async function placeDemoCardOrder(input: PlaceOrderInput): Promise<string
         label: payment.label,
         accountDetails: payment.accountDetails,
         instructions: payment.instructions,
+        qrAssetKey: payment.qrAssetKey,
       },
       referralCodeId: referral?.id,
       referralSnapshot: referral
@@ -500,6 +502,7 @@ export function getMyDemoCardOrders() {
         paymentSnapshot,
         paymentStatus,
         fulfillmentStatus,
+        receipt,
       }) => ({
         id,
         createdAt,
@@ -509,6 +512,7 @@ export function getMyDemoCardOrders() {
         paymentSnapshot,
         paymentStatus,
         fulfillmentStatus,
+        receipt: receipt ?? null,
       }),
     );
 }

@@ -25,7 +25,10 @@ const paymentFields = v.object({
   accountDetails: v.string(),
   instructions: v.string(),
 });
-const customerPayment = paymentFields.extend({ _id: v.id("cardOrderPaymentMethods") });
+const customerPayment = paymentFields.extend({
+  _id: v.id("cardOrderPaymentMethods"),
+  qrUrl: v.union(v.string(), v.null()),
+});
 
 export async function activeOrderCustomer(ctx: QueryCtx | MutationCtx) {
   const userId = await requireUser(ctx);
@@ -50,6 +53,18 @@ function requiredText(value: string, label: string, max: number) {
   return trimmed;
 }
 
+async function paymentQrUrl(
+  ctx: QueryCtx,
+  scope: Doc<"cardOrderPaymentMethods">["scope"],
+  uploadId: Doc<"cardOrderPaymentMethods">["qrUploadId"],
+) {
+  if (uploadId === undefined) return null;
+  const upload = await ctx.db.get(uploadId);
+  return upload?.storageId === undefined || upload.scope !== scope
+    ? null
+    : await ctx.storage.getUrl(upload.storageId);
+}
+
 export const adminSettings = query({
   args: {},
   returns: v.object({
@@ -62,6 +77,7 @@ export const adminSettings = query({
         accountDetails: v.string(),
         instructions: v.string(),
         active: v.boolean(),
+        qrUrl: v.union(v.string(), v.null()),
       }),
     ),
   }),
@@ -76,15 +92,18 @@ export const adminSettings = query({
     ]);
     return {
       launchEndDate: date,
-      paymentMethods: payments.map(
-        ({ _id, provider, label, accountDetails, instructions, active }) => ({
-          _id,
-          provider,
-          label,
-          accountDetails,
-          instructions,
-          active,
-        }),
+      paymentMethods: await Promise.all(
+        payments.map(
+          async ({ _id, provider, label, accountDetails, instructions, active, qrUploadId }) => ({
+            _id,
+            provider,
+            label,
+            accountDetails,
+            instructions,
+            active,
+            qrUrl: await paymentQrUrl(ctx, account.scope, qrUploadId),
+          }),
+        ),
       ),
     };
   },
@@ -224,13 +243,18 @@ export const customerSettings = query({
     ]);
     return {
       launchEndDate: date,
-      paymentMethods: payments.map(({ _id, provider, label, accountDetails, instructions }) => ({
-        _id,
-        provider,
-        label,
-        accountDetails,
-        instructions,
-      })),
+      paymentMethods: await Promise.all(
+        payments.map(
+          async ({ _id, provider, label, accountDetails, instructions, qrUploadId }) => ({
+            _id,
+            provider,
+            label,
+            accountDetails,
+            instructions,
+            qrUrl: await paymentQrUrl(ctx, customer.scope, qrUploadId),
+          }),
+        ),
+      ),
     };
   },
 });
