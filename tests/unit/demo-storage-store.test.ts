@@ -76,6 +76,31 @@ describe("demo storage store", () => {
         __tapitMediaDataUrls: ["data:image/png;base64,abc"],
       }),
     ],
+    [
+      "a malformed customer entry",
+      JSON.stringify({
+        profile: { id: "legacy", draft: {} },
+        cards: [],
+        customers: [null],
+      }),
+    ],
+    [
+      "a malformed card entry",
+      JSON.stringify({
+        profile: { id: "legacy", draft: {} },
+        cards: [null],
+        customers: [],
+      }),
+    ],
+    [
+      "a malformed analytics collection",
+      JSON.stringify({
+        profile: { id: "legacy", draft: {} },
+        cards: [],
+        customers: [],
+        analytics: {},
+      }),
+    ],
   ])("preserves raw data and blocks destructive writes for %s", async (_case, raw) => {
     localStorage.setItem(STORAGE_KEY, raw);
     const { refreshDemoAccessSnapshot, resetDemoState, updateDemoState } =

@@ -106,6 +106,66 @@ function isNonNegativeSafeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && typeof value === "number" && value >= 0;
 }
 
+function isDemoCustomer(value: unknown): value is DemoCustomer {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.email === "string" &&
+    (value.role === "customer" || value.role === "admin") &&
+    (value.status === "invited" || value.status === "active" || value.status === "deleted") &&
+    (value.deletionStatus === "active" ||
+      value.deletionStatus === "requested" ||
+      value.deletionStatus === "deleted") &&
+    (value.profileId === undefined || typeof value.profileId === "string") &&
+    (value.setupToken === undefined || typeof value.setupToken === "string") &&
+    (value.passwordHash === undefined || typeof value.passwordHash === "string") &&
+    (value.claimedCardIds === undefined ||
+      (Array.isArray(value.claimedCardIds) &&
+        value.claimedCardIds.every((id) => typeof id === "string")))
+  );
+}
+
+function isDemoCard(value: unknown): value is DemoState["cards"][number] {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.cardUrl !== "string" ||
+    !["registered", "claimable", "active", "inactive", "replaced"].includes(String(value.status))
+  )
+    return false;
+  return (
+    (value.profileId === undefined || typeof value.profileId === "string") &&
+    (value.replacedByCardId === undefined || typeof value.replacedByCardId === "string") &&
+    (value.createdAt === undefined || isFiniteNumber(value.createdAt)) &&
+    (value.claimedAt === undefined || isFiniteNumber(value.claimedAt)) &&
+    (value.claimCode === undefined || typeof value.claimCode === "string") &&
+    (value.claimCodeExpiresAt === undefined || isFiniteNumber(value.claimCodeExpiresAt)) &&
+    (value.claimCodeInvalidatedAt === undefined || isFiniteNumber(value.claimCodeInvalidatedAt)) &&
+    (value.claimChallenge === undefined || typeof value.claimChallenge === "string") &&
+    (value.claimChallengeExpiresAt === undefined ||
+      isFiniteNumber(value.claimChallengeExpiresAt)) &&
+    typeof value.token === "string"
+  );
+}
+
+function isAnalyticsBucket(value: unknown): value is AnalyticsBucket {
+  return (
+    isRecord(value) &&
+    (value.profileId === undefined || typeof value.profileId === "string") &&
+    isFiniteNumber(value.bucketStart) &&
+    (value.source === undefined ||
+      value.source === "nfc" ||
+      value.source === "qr" ||
+      value.source === "direct" ||
+      value.source === "unknown") &&
+    isFiniteNumber(value.views) &&
+    isFiniteNumber(value.uniqueViews) &&
+    isFiniteNumber(value.clicks) &&
+    isRecord(value.linkClicks) &&
+    Object.values(value.linkClicks).every(isFiniteNumber)
+  );
+}
+
 function isHttpsCardDesignUrl(value: unknown): value is string {
   if (typeof value !== "string" || value.length > 2_048) return false;
   try {
@@ -236,6 +296,10 @@ function normalizeStoredState(raw: string): StateStorageRead {
     (decoded.profile.draft !== undefined && !isRecord(decoded.profile.draft)) ||
     !Array.isArray(decoded.cards) ||
     !Array.isArray(decoded.customers) ||
+    !decoded.cards.every(isDemoCard) ||
+    !decoded.customers.every(isDemoCustomer) ||
+    (decoded.analytics !== undefined &&
+      (!Array.isArray(decoded.analytics) || !decoded.analytics.every(isAnalyticsBucket))) ||
     (decoded.profiles !== undefined &&
       (!Array.isArray(decoded.profiles) ||
         decoded.profiles.some(

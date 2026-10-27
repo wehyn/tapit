@@ -262,6 +262,7 @@ function DemoProfileEditor({
   const [mediaBusy, setMediaBusy] = useState(false);
   const [pendingMediaPreview, setPendingMediaPreview] = useState<PendingProfileMediaUpload[]>([]);
   const hasUnresolvedMedia = mediaBusy || pendingMediaPreview.length > 0;
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const [mediaError, setMediaError] = useState("");
   const [imagePending, setImagePending] = useState(false);
   const imageRequestRef = useRef(0);
@@ -272,14 +273,14 @@ function DemoProfileEditor({
     setMediaError("");
   }, []);
   useEffect(() => {
-    if (!hasUnresolvedMedia && JSON.stringify(draft) === JSON.stringify(profile.draft)) return;
+    if (!hasUnresolvedMedia && !isDirty) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [draft, hasUnresolvedMedia, profile.draft]);
+  }, [hasUnresolvedMedia, isDirty]);
   useEffect(
     () => () => {
       imageRequestRef.current += 1;
@@ -318,7 +319,6 @@ function DemoProfileEditor({
   const mediaErrors = validateProfileMedia(draft.media);
   const preview = profileForPreview(draft, theme, pendingMediaPreview);
   const slugLocked = profile.published !== null;
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(profile.draft);
   const hasChangesSincePublish = hasUnpublishedChanges(draft, profile.published);
   const publicationLabel =
     profile.status === "published"

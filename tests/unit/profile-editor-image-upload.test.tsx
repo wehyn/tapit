@@ -8,6 +8,7 @@ const router = vi.hoisted(() => ({ push: vi.fn() }));
 const authToken = vi.hoisted(() => vi.fn(() => "test-token"));
 const fetchMock = vi.hoisted(() => vi.fn());
 const useUncustomizedProfile = vi.hoisted(() => ({ current: false }));
+const useInvalidCustomization = vi.hoisted(() => ({ current: false }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => false }));
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
@@ -33,20 +34,25 @@ vi.mock("convex/react", () => ({
             typeScale: "comfortable",
             linkTreatment: "filled",
             contentOrder: "links-first",
+            ...(useInvalidCustomization.current
+              ? { identityColors: { name: { kind: "custom", hex: "#ffffff" } } }
+              : {}),
           },
       imageStorageId: "storage-old",
       imageUrl: "https://image.test/old",
-      media: {
-        heroHeight: 320,
-        autoplay: true,
-        background: {
-          assetId: "media-old",
-          altText: "Existing backdrop",
-          positionX: 50,
-          positionY: 50,
-        },
-        slideshow: [],
-      },
+      media: useInvalidCustomization.current
+        ? undefined
+        : {
+            heroHeight: 320,
+            autoplay: true,
+            background: {
+              assetId: "media-old",
+              altText: "Existing backdrop",
+              positionX: 50,
+              positionY: 50,
+            },
+            slideshow: [],
+          },
       links: [
         {
           id: "site",
@@ -92,9 +98,11 @@ vi.mock("@/components/forms/ProfileImageCropDialog", () => ({
 }));
 
 import { ProfileEditor } from "@/components/forms/ProfileEditor";
+import { DraftSaveProvider } from "@/components/layout/DraftSaveContext";
 
 beforeEach(() => {
   useUncustomizedProfile.current = false;
+  useInvalidCustomization.current = false;
   vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "https://preview-123.convex.cloud");
   vi.stubEnv("NEXT_PUBLIC_CONVEX_SITE_URL", "https://preview-123.convex.site");
   mutation.mockClear();
@@ -168,13 +176,27 @@ it("warns before leaving when profile fields are dirty", () => {
   expect(event.defaultPrevented).toBe(true);
 });
 
+it("does not warn before leaving a clean profile draft", () => {
+  render(<ProfileEditor />);
+
+  const event = new Event("beforeunload", { cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+});
+
 it("offers explicit recovery after a revision conflict without retrying on the stale revision", async () => {
+  useInvalidCustomization.current = true;
   mutation.mockRejectedValueOnce(
     new Error("The profile draft changed while you were editing. Refresh and try again."),
   );
-  render(<ProfileEditor />);
+  render(
+    <DraftSaveProvider>
+      <ProfileEditor />
+    </DraftSaveProvider>,
+  );
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "My local edit" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  fireEvent.click(screen.getByRole("link", { name: "Open Customize" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Stay here" }));
 
   expect(
     await screen.findByRole("button", { name: "Discard my edits and load the latest draft" }),
