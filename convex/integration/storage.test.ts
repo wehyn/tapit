@@ -146,6 +146,26 @@ describe("profile image storage", () => {
     expect(await readBoundedRequestBody(makeRequest(8, "not-a-number"), max)).toEqual({
       kind: "invalid-length",
     });
+    const emptyRequest = new Request("https://example.test/upload", { method: "POST" });
+    const declaredEmptyRequest = new Request("https://example.test/upload", {
+      method: "POST",
+      headers: { "Content-Length": "0" },
+    });
+    const declaredNonemptyRequest = new Request("https://example.test/upload", {
+      method: "POST",
+      headers: { "Content-Length": "1" },
+    });
+    expect(await readBoundedRequestBody(emptyRequest, max)).toMatchObject({
+      kind: "ok",
+      bytes: new Uint8Array(),
+    });
+    expect(await readBoundedRequestBody(declaredEmptyRequest, max)).toMatchObject({
+      kind: "ok",
+      bytes: new Uint8Array(),
+    });
+    expect(await readBoundedRequestBody(declaredNonemptyRequest, max)).toEqual({
+      kind: "length-mismatch",
+    });
   });
 
   it("creates a pending upload job before either storage ID exists", async () => {

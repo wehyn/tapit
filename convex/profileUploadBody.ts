@@ -18,7 +18,10 @@ export async function readBoundedRequestBody(
     if (declaredLength > maxBytes) return { kind: "too-large" };
   }
 
-  if (request.body === null) return { kind: "length-mismatch" };
+  if (request.body === null) {
+    if (declaredLength !== null && declaredLength > 0) return { kind: "length-mismatch" };
+    return { kind: "ok", bytes: new Uint8Array(new ArrayBuffer(0)) };
+  }
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
