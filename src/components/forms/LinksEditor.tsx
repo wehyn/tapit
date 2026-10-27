@@ -217,7 +217,10 @@ function DemoLinksEditor() {
       ? ["Claim the attached card before publishing this profile."]
       : []),
   ];
-  const preview = canPreviewLinks(validation, publicationErrors)
+  const preview = canPreviewLinks(
+    validation,
+    publicationErrors.filter((error) => error !== redirectError),
+  )
     ? previewForLinks(profile, links, redirect, legacyTheme)
     : null;
   const isDirty =
@@ -300,7 +303,6 @@ function DemoLinksEditor() {
       };
     }
     if (redirectError !== null) {
-      setMessage({ tone: "error", text: redirectError });
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -490,7 +492,11 @@ export function LiveLinksEditorContent({
       return result;
     }, {});
   }, [currentDraft.links]);
-  const preview = canPreviewLinks(validation, publicationErrors)
+  const currentRedirectError = validateProfileRedirect(redirect);
+  const preview = canPreviewLinks(
+    validation,
+    publicationErrors.filter((error) => error !== currentRedirectError),
+  )
     ? projectPublicProfile({
         id: "preview",
         ownerId: "preview",
@@ -645,7 +651,6 @@ export function LiveLinksEditorContent({
     }
     const redirectError = validateProfileRedirect(redirect);
     if (redirectError !== null) {
-      setMessage({ tone: "error", text: redirectError });
       return { kind: "blocked", blocker: { kind: "links-validation", messages: [redirectError] } };
     }
     setPendingAction("save");
@@ -716,7 +721,7 @@ export function LiveLinksEditorContent({
       profileUrl={`/${currentDraft.slug}`}
       links={currentDraft.links}
       redirect={redirect}
-      redirectError={validateProfileRedirect(redirect)}
+      redirectError={currentRedirectError}
       preview={preview}
       validation={validation}
       publicationErrors={publicationErrors}

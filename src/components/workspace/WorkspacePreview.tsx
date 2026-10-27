@@ -6,11 +6,33 @@ import type { PublicProfileProjection } from "@/lib/domain";
 import type { ProfileTheme } from "@/lib/demo/fixtures";
 import { DEFAULT_CUSTOM_PROFILE_COLORS } from "@/lib/profile-customization";
 import { PublicProfile } from "@/components/profile/PublicProfile";
-import { Button, ButtonLink } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 
 const MIN_PHONE_SCALE = 0.58;
 const MIN_PHONE_CONTENT_SCALE = 0.95;
+
+async function writeClipboard(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const field = document.createElement("textarea");
+    field.value = text;
+    field.setAttribute("readonly", "");
+    field.style.position = "fixed";
+    field.style.opacity = "0";
+    document.body.append(field);
+    field.select();
+    try {
+      return document.execCommand("copy");
+    } catch {
+      return false;
+    } finally {
+      field.remove();
+    }
+  }
+}
 
 export function WorkspacePreview({
   preview,
@@ -25,7 +47,7 @@ export function WorkspacePreview({
   fitPhonePreviewContent?: boolean;
   theme?: ProfileTheme;
 }) {
-  const [copyStatus, setCopyStatus] = useState("");
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const [phoneScale, setPhoneScale] = useState(1);
   const [phoneContentScale, setPhoneContentScale] = useState(1);
   const [phoneContentHeight, setPhoneContentHeight] = useState<number>();
@@ -140,12 +162,9 @@ export function WorkspacePreview({
 
   async function copyUrl() {
     const absoluteUrl = new URL(profileUrl, window.location.origin).href;
-    try {
-      await navigator.clipboard.writeText(absoluteUrl);
-      setCopyStatus("Profile URL copied.");
-    } catch {
-      setCopyStatus(`Could not copy automatically. Select this URL: ${absoluteUrl}`);
-    }
+    const copied = await writeClipboard(absoluteUrl);
+    setCopyState(copied ? "copied" : "failed");
+    window.setTimeout(() => setCopyState("idle"), 2000);
   }
 
   const publicProfile = (
@@ -190,10 +209,6 @@ export function WorkspacePreview({
             </p>
           ) : null}
         </div>
-        <span className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-control bg-tapit-paper px-3 text-sm font-semibold text-tapit-accent-strong">
-          <Icon name="deviceMobile" size={17} />
-          Mobile
-        </span>
       </div>
       <div
         ref={previewCanvasRef}
@@ -277,30 +292,25 @@ export function WorkspacePreview({
               <a
                 className="flex min-h-11 scroll-mb-44 items-center truncate text-sm font-medium text-tapit-accent-strong hover:underline"
                 href={profileUrl}
+                rel="noopener noreferrer"
+                target="_blank"
               >
                 {profileUrl}
               </a>
             </div>
           </div>
-          <ButtonLink className="scroll-mb-44" href={profileUrl} variant="secondary">
-            View published profile
-            <Icon name="arrowUpRight" size={17} />
-          </ButtonLink>
           <Button
             aria-label="Copy URL"
-            className="scroll-mb-44"
+            className="w-11 scroll-mb-44 px-0!"
             onClick={() => void copyUrl()}
             type="button"
             variant="secondary"
           >
-            <Icon name="copy" size={17} />
-            Copy URL
+            <Icon name={copyState === "copied" ? "check" : "copy"} size={17} />
+            <span className="sr-only" role="status">
+              {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : ""}
+            </span>
           </Button>
-          {copyStatus ? (
-            <p className="basis-full break-all text-xs text-tapit-muted select-text" role="status">
-              {copyStatus}
-            </p>
-          ) : null}
         </div>
       ) : null}
     </section>

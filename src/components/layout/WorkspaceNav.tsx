@@ -162,21 +162,18 @@ export function WorkspaceChrome({
           ))}
         </nav>
         <div className="flex flex-col gap-2">
-          {live ? <LiveStatusCard live={live} /> : null}
-          {pinnedItems.map((item) => (
-            <NavLink
-              active={isNavItemActive(item, pathname)}
-              item={item}
-              key={item.href}
-              onNavigate={handleNavigation}
-            />
-          ))}
-          <AccountMenu email={email} onSignOut={onSignOut} />
+          <AccountMenu
+            email={email}
+            isActive={(item) => isNavItemActive(item, pathname)}
+            items={pinnedItems}
+            onNavigate={handleNavigation}
+            onSignOut={onSignOut}
+          />
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-col max-lg:[&_.fixed.inset-x-0]:bottom-20 lg:[&_.fixed.inset-x-0]:left-[264px]">
-        <header className="sticky top-0 z-10 flex min-h-16 flex-wrap items-center gap-3 bg-tapit-paper px-4 py-3 sm:px-8 lg:px-8">
+        <header className="flex min-h-16 flex-wrap items-center gap-3 bg-tapit-paper px-4 py-3 sm:px-8 lg:px-8">
           <div className="lg:hidden">
             <Brand href={audienceCopy.home} />
           </div>
@@ -327,20 +324,6 @@ function AudienceSwitch({
   );
 }
 
-function LiveStatusCard({ live }: { live: WorkspaceLive }) {
-  return (
-    <div className="flex flex-col gap-2 rounded-control bg-tapit-soft-surface p-3">
-      <Chip tone={live.published ? "ok" : "warn"}>
-        <span aria-hidden="true" className="size-2 rounded-full bg-current" />
-        {live.published ? "Live" : "Draft"}
-      </Chip>
-      <Link className="truncate text-sm font-semibold text-tapit-ink" href={`/${live.slug}`}>
-        {`/${live.slug}`}
-      </Link>
-    </div>
-  );
-}
-
 function useSignOut(onSignOut: () => Promise<void>) {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -361,7 +344,19 @@ function useSignOut(onSignOut: () => Promise<void>) {
   return { error, pending, signOut };
 }
 
-function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => Promise<void> }) {
+function AccountMenu({
+  email,
+  isActive,
+  items,
+  onNavigate,
+  onSignOut,
+}: {
+  email: string;
+  isActive: (item: NavItem) => boolean;
+  items: readonly NavItem[];
+  onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
+  onSignOut: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -401,6 +396,15 @@ function AccountMenu({ email, onSignOut }: { email: string; onSignOut: () => Pro
         role="group"
       >
         <p className="break-words px-3 py-2 text-sm text-tapit-ink">{email}</p>
+        {items.map((item) => (
+          <NavLink
+            active={isActive(item)}
+            item={item}
+            key={item.href}
+            onNavigate={onNavigate}
+            onSelect={() => setOpen(false)}
+          />
+        ))}
         <Button
           className="w-full justify-start"
           disabled={pending}

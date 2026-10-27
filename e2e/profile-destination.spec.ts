@@ -41,7 +41,7 @@ test("published profile destination controls where the slug link goes", async ({
   await expect(redirectInput).toHaveAttribute("aria-invalid", "true");
   await expect(
     redirectInput
-      .locator("xpath=..")
+      .locator("xpath=../..")
       .getByRole("alert")
       .filter({ hasText: "Redirect destination must be a valid HTTPS URL without credentials." }),
   ).toBeVisible();

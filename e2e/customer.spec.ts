@@ -118,22 +118,23 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
   for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
     await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
-  await expect(sidebar.getByText(/^(Live|Draft)$/)).toBeVisible();
+  await expect(sidebar.getByText(/^(Live|Draft)$/)).toHaveCount(0);
+  const accountMenu = sidebar.getByRole("button", { name: "Account menu for mara@example.test" });
+  await expect(accountMenu).toBeVisible();
+  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeHidden();
+  await accountMenu.click();
   await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeVisible();
   await expect(sidebar.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
     "href",
     /^mailto:/,
   );
-  await expect(
-    sidebar.getByRole("button", { name: "Account menu for mara@example.test" }),
-  ).toBeVisible();
+  await accountMenu.click();
 
   for (const [label, path] of [
     ["Links", /\/app\/links$/],
     ["Customize", /\/app\/customize$/],
     ["Card", /\/app\/card$/],
     ["Analytics", /\/app\/analytics$/],
-    ["Account", /\/app\/account$/],
     ["Profile", /\/app\/profile$/],
   ] as const) {
     await sidebar.getByRole("link", { name: label, exact: true }).click();
@@ -143,6 +144,9 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
       "page",
     );
   }
+  await accountMenu.click();
+  await sidebar.getByRole("link", { name: "Account", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/account$/);
 });
 
 test("desktop sidebar links take keyboard focus and navigate", async ({ page }) => {
@@ -748,10 +752,9 @@ test("customize keeps the private draft preview clear of the fixed action toolba
       .locator("#workspace-preview")
       .getByRole("button", { name: "Save contact", exact: true });
     const copyUrl = page.getByRole("button", { name: "Copy URL", exact: true });
-    await expect(page.getByRole("link", { name: "View published profile" })).toHaveAttribute(
-      "href",
-      "/mara-velasquez",
-    );
+    await expect(
+      page.locator("#workspace-preview").getByRole("link", { name: "/mara-velasquez" }),
+    ).toHaveAttribute("target", "_blank");
     if (viewport.width < 1280) {
       await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
       await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-top.png" });
@@ -786,7 +789,7 @@ test("customize keeps the private draft preview clear of the fixed action toolba
     }
 
     if (viewport.width >= 1280) {
-      await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
+      await expect(copyUrl).toBeVisible();
       await page.screenshot({ path: "test-results/tapit-customize-preview-desktop-actions.png" });
     } else {
       await page.screenshot({ path: "test-results/tapit-customize-preview-mobile-actions.png" });
@@ -821,7 +824,6 @@ test("customize does not offer a published-profile link before first publication
   await page.goto("/app/customize");
 
   await expect(page.getByRole("heading", { name: "Preview", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "View published profile" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Copy URL", exact: true })).toHaveCount(0);
 });
 
@@ -1150,17 +1152,15 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
     )
     .toMatch(/system-ui|sans-serif|Arial/i);
   await expect(page.getByLabel("Website", { exact: true })).toBeVisible();
-  await expect(page.getByText("Public URL", { exact: true })).toBeVisible();
+  await expect(page.getByText("Public URL", { exact: true })).toHaveCount(0);
   const frame = page.getByTestId("profile-preview-frame");
   const previewDevice = page.getByTestId("profile-preview-device");
   await expect(previewDevice).toBeVisible();
   await expect(frame).toHaveCSS("max-width", "390px");
-  await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "desktop", exact: true })).toHaveCount(0);
   await expect(previewDevice).toBeVisible();
-  await expect(page.getByRole("link", { name: "View published profile" })).toBeVisible();
   await page.getByRole("button", { name: "Copy URL" }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Profile URL copied." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Copied" })).toHaveCount(1);
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("/mara-velasquez");
   await expect(page.getByLabel("Stable profile slug")).toBeDisabled();
   await page.getByLabel("Name", { exact: true }).fill("Mara Studio");
@@ -1197,51 +1197,17 @@ test("refreshed profile editor and preview preserve draft controls", async ({ pa
   await page.evaluate(() => window.scrollTo(0, 0));
 });
 
-test("profile workspace keeps Powered by Tapit at the bottom of the phone screen", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 1499, height: 797 });
-  await resetDemoHarness(page);
-  await signInAsCustomer(page);
-  await page.goto("/app/profile");
-
-  const profileScreen = page.getByTestId("profile-preview-device");
-  const profileCard = profileScreen.locator(".tapit-profile-entry > div > section");
-  const poweredBy = profileScreen.getByText("Powered by Tapit", { exact: true });
-
-  await expect(profileCard).toBeVisible();
-  await expect(poweredBy).toBeVisible();
-  await profileScreen.locator(".tapit-profile-entry").evaluate(async (entry) => {
-    await Promise.all(entry.getAnimations().map((animation) => animation.finished));
-  });
-  const [screenBox, cardBox, poweredByBox] = await Promise.all([
-    profileScreen.boundingBox(),
-    profileCard.boundingBox(),
-    poweredBy.boundingBox(),
-  ]);
-  expect(screenBox).not.toBeNull();
-  expect(cardBox).not.toBeNull();
-  expect(poweredByBox).not.toBeNull();
-  expect(cardBox!.height).toBeGreaterThanOrEqual(screenBox!.height - 1);
-  expect(
-    cardBox!.y + cardBox!.height - (poweredByBox!.y + poweredByBox!.height),
-  ).toBeLessThanOrEqual(12);
-
-  await page.screenshot({ path: "test-results/profile-preview-powered-by-bottom.png" });
-});
-
-test("profile URL remains available when clipboard access fails", async ({ page }) => {
+test("profile URL copies through the fallback when clipboard access fails", async ({ page }) => {
   await signInAsCustomer(page);
   await page.evaluate(() => {
     Object.defineProperty(navigator.clipboard, "writeText", {
       configurable: true,
       value: () => Promise.reject(new Error("Clipboard unavailable")),
     });
+    document.execCommand = () => true;
   });
   await page.getByRole("button", { name: "Copy URL" }).click();
-  await expect(
-    page.getByRole("status").filter({ hasText: "Could not copy automatically" }),
-  ).toContainText(`${new URL(page.url()).origin}/mara-velasquez`);
+  await expect(page.getByRole("status").filter({ hasText: "Copied" })).toHaveCount(1);
 });
 
 test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
@@ -1519,7 +1485,6 @@ test("customer drafts stay private until link and profile publication", async ({
   await expect(page.getByRole("button", { name: "Publish changes", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Preview", exact: true }).click();
   await expect(page.getByRole("region", { name: "Live profile preview" })).toBeVisible();
-  await expect(page.getByText("Mobile", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "phone" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "desktop" })).toHaveCount(0);
   await expect(page.getByTestId("profile-preview-device")).toBeVisible();
@@ -2863,9 +2828,8 @@ test("customize preview uses a neutral web viewport for short and long profiles"
   const previewCanvas = frame.locator("xpath=..");
   const viewport = page.getByRole("group", { name: "Mobile web profile preview" });
   const profileSurface = page.getByTestId("profile-preview-device");
-  const poweredBy = profileSurface.getByText("Powered by Tapit", { exact: true });
   await expect(viewport).toBeVisible();
-  await expect(poweredBy).toBeVisible();
+  await expect(page.getByText("Powered by Tapit")).toHaveCount(0);
   await expect(page.getByText("tapit.app/mara-velasquez", { exact: true })).toBeVisible();
   await expect(page.getByText("9:41", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: "test-results/tapit-customize-preview-1415x857.png" });
@@ -2884,10 +2848,6 @@ test("customize preview uses a neutral web viewport for short and long profiles"
   }));
   expect(shortProfileScreen.overflowY).toBe("auto");
   expect(shortProfileScreen.scrollHeight).toBeGreaterThan(shortProfileScreen.clientHeight);
-  await poweredBy.scrollIntoViewIfNeeded();
-  await expect(poweredBy).toBeInViewport();
-  const footerScrollTop = await profileSurface.evaluate((screen) => screen.scrollTop);
-  expect(footerScrollTop).toBeGreaterThan(0);
   await viewport.screenshot({
     path: "test-results/tapit-customize-neutral-web-preview-footer.png",
   });
@@ -2895,19 +2855,14 @@ test("customize preview uses a neutral web viewport for short and long profiles"
   const overflowY = await previewCanvas.evaluate((canvas) => getComputedStyle(canvas).overflowY);
   expect(overflowY).toBe("hidden");
 
-  const [canvasBox, viewportBox, poweredByBox] = await Promise.all([
+  const [canvasBox, viewportBox] = await Promise.all([
     previewCanvas.boundingBox(),
     viewport.boundingBox(),
-    poweredBy.boundingBox(),
   ]);
   expect(canvasBox).not.toBeNull();
   expect(viewportBox).not.toBeNull();
-  expect(poweredByBox).not.toBeNull();
   expect(viewportBox!.y).toBeGreaterThanOrEqual(canvasBox!.y);
   expect(viewportBox!.y + viewportBox!.height).toBeLessThanOrEqual(
-    canvasBox!.y + canvasBox!.height + 1,
-  );
-  expect(poweredByBox!.y + poweredByBox!.height).toBeLessThanOrEqual(
     canvasBox!.y + canvasBox!.height + 1,
   );
 

@@ -66,6 +66,58 @@ export function Field({
   );
 }
 
+const HTTP_PREFIX = /^\s*https?:\/\//i;
+
+export function HttpsUrlField({
+  error,
+  help,
+  label,
+  onValueChange,
+  value,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "type" | "value"> & {
+  error?: string;
+  help?: string;
+  label: string;
+  onValueChange: (value: string) => void;
+  value: string;
+}) {
+  const errorId = props.id ? `${props.id}-error` : undefined;
+  const helpId = props.id ? `${props.id}-help` : undefined;
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <Label htmlFor={props.id}>{label}</Label>
+      <div
+        className={`flex min-w-0 rounded-control transition-colors focus-within:outline-3 focus-within:outline-offset-2 ${error ? "bg-tapit-danger-soft focus-within:outline-tapit-danger" : "bg-tapit-soft-surface focus-within:bg-tapit-surface focus-within:outline-tapit-accent"}`}
+      >
+        <span
+          aria-hidden="true"
+          className="inline-flex min-h-11 shrink-0 select-none items-center pl-4 pr-1 text-sm font-semibold text-tapit-muted"
+        >
+          https://
+        </span>
+        <input
+          {...props}
+          aria-describedby={describedBy(help, helpId, error, errorId)}
+          aria-invalid={Boolean(error)}
+          autoCapitalize="none"
+          autoComplete="url"
+          className="min-h-11 w-full min-w-0 bg-transparent py-3 pr-4 text-sm text-tapit-ink outline-none! placeholder:text-tapit-muted disabled:cursor-not-allowed disabled:opacity-70"
+          inputMode="url"
+          onChange={(event) => {
+            const rest = event.target.value.replace(HTTP_PREFIX, "");
+            onValueChange(rest === "" ? "" : `https://${rest}`);
+          }}
+          spellCheck={false}
+          type="text"
+          value={value.replace(HTTP_PREFIX, "")}
+        />
+      </div>
+      <Messages error={error} errorId={errorId} help={help} helpId={helpId} />
+    </div>
+  );
+}
+
 export function TextareaField({
   compact = false,
   error,

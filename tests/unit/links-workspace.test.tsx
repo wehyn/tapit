@@ -210,4 +210,48 @@ describe("LinksWorkspace", () => {
       ).toBeVisible();
     },
   );
+
+  it("shows one redirect error, only after the field is left or a save is attempted", async () => {
+    const user = userEvent.setup();
+    const redirectError = "Redirect destination must be a valid HTTPS URL without credentials.";
+
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[]}
+        preview={null}
+        redirect={{ enabled: true, destination: "" }}
+        redirectError={redirectError}
+        validation={{}}
+        publicationErrors={[
+          redirectError,
+          "Claim the attached card before publishing this profile.",
+        ]}
+        message={null}
+        pendingAction={null}
+        isDirty={true}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onRedirectChange={vi.fn()}
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(redirectError)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Claim the attached card before publishing this profile."),
+    ).toBeVisible();
+
+    await user.click(screen.getByLabelText("HTTPS destination URL"));
+    await user.tab();
+
+    expect(screen.getAllByText(redirectError)).toHaveLength(1);
+    expect(screen.getByLabelText("HTTPS destination URL")).toHaveAttribute("aria-invalid", "true");
+  });
 });

@@ -81,24 +81,26 @@ describe("WorkspaceChrome sidebar", () => {
     for (const name of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
       expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
     }
+    const accountMenu = within(sidebar).getByRole("button", {
+      name: "Account menu for mara@example.test",
+    });
+    expect(within(sidebar).queryByRole("link", { name: "Account" })).not.toBeInTheDocument();
+    fireEvent.click(accountMenu);
     expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveAttribute(
       "href",
       "/app/account",
     );
     expect(within(sidebar).getByRole("link", { name: "Help" })).toBeInTheDocument();
-    expect(
-      within(sidebar).getByRole("button", { name: "Account menu for mara@example.test" }),
-    ).toBeInTheDocument();
   });
 
-  it("shows the live status card for a published profile", () => {
+  it("does not show a live status card in the sidebar", () => {
     renderChrome();
 
-    expect(screen.getByText("Live")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "/mara-velasquez" })).toHaveAttribute(
-      "href",
-      "/mara-velasquez",
-    );
+    const sidebar = screen.getByTestId("workspace-sidebar");
+    expect(within(sidebar).queryByText("Live")).not.toBeInTheDocument();
+    expect(
+      within(sidebar).queryByRole("link", { name: "/mara-velasquez" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the current destination and shows it in the breadcrumb", () => {

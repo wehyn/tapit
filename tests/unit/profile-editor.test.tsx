@@ -20,7 +20,7 @@ vi.mock("next/navigation", () => ({
 // Failure modes covered by this controller test:
 // - the default Profile view can regress to the old mixed single-view editor;
 // - demo and live branches can drift in their view boundaries, preview, save, or publish wiring;
-// - Profile can lose identity, Public URL/copy, content, or publication controls;
+// - Profile can lose identity, content, or publication controls;
 // - Customize can leak Profile controls or omit a visual category and its draft updates;
 // - details changes can overwrite unrelated customization values when the complete draft saves;
 // - legacy theme callbacks can bypass the controller or leave duplicate cards on Profile;
@@ -162,7 +162,6 @@ describe("ProfileEditor workspace boundaries", () => {
   it.each(["demo", "live"] as const)(
     "defaults to the details Profile view in the %s branch",
     async (branch) => {
-      const user = userEvent.setup();
       renderBranch(branch);
 
       expect(screen.getByRole("heading", { name: "Your profile" })).toBeVisible();
@@ -170,15 +169,13 @@ describe("ProfileEditor workspace boundaries", () => {
         expect(screen.getByRole("heading", { name: heading })).toBeVisible();
       }
       expect(screen.getByRole("heading", { name: "Preview" })).toBeVisible();
-      expect(screen.getByText("Public URL")).toBeVisible();
-      expect(screen.getByRole("button", { name: "Copy" })).toBeVisible();
+      expect(screen.queryByText("Public URL")).not.toBeInTheDocument();
       expect(screen.getByLabelText("Name")).toHaveValue("Mara Velasquez");
       expect(screen.getByLabelText("Email")).toHaveValue("mara@example.com");
       expect(screen.getByRole("button", { name: "About or Services" })).toHaveAttribute(
         "aria-expanded",
         "false",
       );
-      await user.click(screen.getByRole("button", { name: "Copy" }));
       expect(screen.queryByRole("tab", { name: "Overview" })).not.toBeInTheDocument();
       expect(screen.queryByText("Accent", { selector: "legend" })).not.toBeInTheDocument();
       expect(screen.queryByText("Identity colors", { selector: "legend" })).not.toBeInTheDocument();
