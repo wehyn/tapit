@@ -92,7 +92,11 @@ export const adminReferralCodes = query({
   args: {},
   returns: v.array(
     v.object({
+      _id: v.id("cardOrderReferralCodes"),
       code: v.string(),
+      referrerLabel: v.string(),
+      fixedPriceCentavos: v.optional(v.number()),
+      active: v.boolean(),
       usageCount: v.number(),
     }),
   ),
@@ -102,7 +106,14 @@ export const adminReferralCodes = query({
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
       .take(500);
-    return codes.map(({ code, usageCount }) => ({ code, usageCount: usageCount ?? 0 }));
+    return codes.map(({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount }) => ({
+      _id,
+      code,
+      referrerLabel,
+      fixedPriceCentavos,
+      active,
+      usageCount: usageCount ?? 0,
+    }));
   },
 });
 

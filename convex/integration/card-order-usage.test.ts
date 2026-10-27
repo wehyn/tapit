@@ -69,7 +69,15 @@ async function seed(t: ReturnType<typeof convexTest>) {
       updatedAt: 1,
       updatedByUserId: adminUserId,
     });
-    return { adminUserId, adminId, customerUserId, customerId, unrelatedUserId, paymentMethodId, codeId };
+    return {
+      adminUserId,
+      adminId,
+      customerUserId,
+      customerId,
+      unrelatedUserId,
+      paymentMethodId,
+      codeId,
+    };
   });
 }
 
@@ -97,7 +105,13 @@ describe("card order referral usage", () => {
       deliveryAddress: "1 Test Street",
     });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
-      { code: "FOUNDING-AHRON", usageCount: 1 },
+      {
+        _id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageCount: 1,
+      },
     ]);
     await t.run(async (ctx) => {
       const order = await ctx.db.get(orderId);
@@ -123,7 +137,13 @@ describe("card order referral usage", () => {
 
     await admin.mutation(api.cardOrders.cancelOrder, { orderId });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
-      { code: "FOUNDING-AHRON", usageCount: 1 },
+      {
+        _id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageCount: 1,
+      },
     ]);
 
     const refundedOrderId = await t.run(async (ctx) => {
@@ -145,7 +165,12 @@ describe("card order referral usage", () => {
         cardPriceCentavos: 59_900,
         discountCentavos: 5_990,
         paymentMethodId: ids.paymentMethodId,
-        paymentSnapshot: { provider: "Bank transfer", label: "Test bank", accountDetails: "Test account", instructions: "Transfer." },
+        paymentSnapshot: {
+          provider: "Bank transfer",
+          label: "Test bank",
+          accountDetails: "Test account",
+          instructions: "Transfer.",
+        },
         referralCodeId: ids.codeId,
         referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
         paymentStatus: "received",
@@ -158,7 +183,13 @@ describe("card order referral usage", () => {
     });
     await admin.mutation(api.cardOrders.refundOrder, { orderId: refundedOrderId });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
-      { code: "FOUNDING-AHRON", usageCount: 2 },
+      {
+        _id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageCount: 2,
+      },
     ]);
   });
 
