@@ -36,6 +36,7 @@ vi.mock("convex/react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("convex/react")>();
   return {
     ...actual,
+    useAction: () => mutation,
     useMutation: () => mutation,
     useConvex: () => ({ mutation: setupEmailPreflight }),
     useQuery: (query: unknown, ...args: unknown[]) =>
