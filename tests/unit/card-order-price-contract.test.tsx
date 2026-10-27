@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   preview: vi.fn(),
   save: vi.fn(),
   replace: vi.fn(),
+  actorId: "customer-mara",
 }));
 
 vi.mock("@/lib/demo/mode", () => ({ isLocalDemoMode: () => true }));
@@ -14,12 +15,15 @@ vi.mock("@/lib/card-design", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/card-design")>()),
   validateCardOrderDesignFile: vi.fn(async () => undefined),
 }));
+// Stable references: the form's QR effect depends on these, so fresh objects re-run it forever.
+const demoState = {};
+const demoSession = { email: "mara@example.test", role: "customer" };
 vi.mock("@/lib/demo/store", () => ({
-  useDemoState: () => ({}),
-  useDemoSession: () => ({ email: "mara@example.test", role: "customer" }),
+  useDemoState: () => demoState,
+  useDemoSession: () => demoSession,
   resolveDemoSessionAccess: () => ({
     kind: "active",
-    account: { id: "customer-mara", role: "customer" },
+    account: { id: mocks.actorId, role: "customer" },
   }),
   updateDemoState: vi.fn(),
 }));
@@ -70,8 +74,52 @@ async function fillForm(user: ReturnType<typeof userEvent.setup>, front: File, b
   await user.upload(screen.getByLabelText("Upload back artwork"), back);
 }
 
+/** Fills the form with fireEvent so each field is one update, not one re-render per keystroke. */
+function fillFast(artwork: { front?: File; back?: File; frontUrl?: string; backUrl?: string }) {
+  fireEvent.change(screen.getByLabelText("Delivery name"), { target: { value: "Mara Santos" } });
+  fireEvent.change(screen.getByLabelText("Phone number"), { target: { value: "09170000000" } });
+  fireEvent.change(screen.getByLabelText("Delivery address"), {
+    target: { value: "1 Test Street" },
+  });
+  if (artwork.frontUrl !== undefined) {
+    fireEvent.click(screen.getByRole("radio", { name: /Use a design link/ }));
+    fireEvent.change(screen.getByLabelText("Front design URL"), {
+      target: { value: artwork.frontUrl },
+    });
+  } else {
+    fireEvent.change(screen.getByLabelText("Upload front artwork"), {
+      target: { files: [artwork.front] },
+    });
+  }
+  fireEvent.click(screen.getByRole("button", { name: "back" }));
+  if (artwork.backUrl !== undefined) {
+    fireEvent.click(screen.getByRole("radio", { name: /Use a design link/ }));
+    fireEvent.change(screen.getByLabelText("Back design URL"), {
+      target: { value: artwork.backUrl },
+    });
+  } else {
+    fireEvent.change(screen.getByLabelText("Upload back artwork"), {
+      target: { files: [artwork.back] },
+    });
+  }
+}
+
+async function flush() {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/** Drains promise continuations without a timer, so fake timers stay usable. */
+async function drainMicrotasks() {
+  await act(async () => {
+    for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
+  });
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.actorId = "customer-mara";
   let assetNumber = 0;
   mocks.save.mockImplementation(async (file: File) => {
     assetNumber += 1;
@@ -137,7 +185,7 @@ describe("card order price confirmation", () => {
     );
   });
 
-  it("blocks submission while the referral result is unresolved", async () => {
+  it("disables submission when the referral preview itself failed", async () => {
     const user = userEvent.setup();
     mocks.preview.mockImplementation(() => {
       throw new Error("preview unavailable");
@@ -146,11 +194,73 @@ describe("card order price confirmation", () => {
     await fillForm(user, artworkFile("front.png"), artworkFile("back.png"));
 
     await user.type(screen.getByLabelText("Referral code"), "BROKEN");
-    await user.click(screen.getByRole("button", { name: "Place order" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Referral status could not be checked.",
-    );
+    expect(screen.getByRole("button", { name: "Place order" })).toBeDisabled();
+    expect(screen.getByText("Referral status could not be checked.")).toBeInTheDocument();
+    expect(mocks.place).not.toHaveBeenCalled();
+  });
+
+  it("keeps a pinned quote's status lines when a late preview changes", async () => {
+    // Capture the form's 30-second clock so the test can fire one tick deliberately.
+    let tick: (() => void) | undefined;
+    const intervalSpy = vi.spyOn(window, "setInterval").mockImplementation(((
+      handler: TimerHandler,
+      ms?: number,
+    ) => {
+      if (ms === 30_000) tick = handler as () => void;
+      return 0;
+    }) as typeof window.setInterval);
+    const start = Date.now();
+    try {
+      mocks.preview.mockReturnValue({ valid: false, discountCentavos: 0 });
+      mocks.place.mockResolvedValueOnce({
+        kind: "price_changed",
+        price: { cardPriceCentavos: 59_900, discountCentavos: 0 },
+      });
+      render(<OrderCardExperience />);
+      await fillForm(userEvent.setup(), artworkFile("front.png"), artworkFile("back.png"));
+      fireEvent.change(screen.getByLabelText("Referral code"), { target: { value: "ABC" } });
+      await act(async () => {
+        fireEvent.submit(screen.getByRole("button", { name: "Place order" }).closest("form")!);
+      });
+      expect(await screen.findByText(/The card amount changed to ₱599\.00/)).toBeInTheDocument();
+
+      // A later preview publication (the next clock tick) must not change the pinned quote.
+      mocks.preview.mockImplementation(() => {
+        throw new Error("late failure");
+      });
+      vi.spyOn(Date, "now").mockReturnValue(start + 30_000);
+      const callsBeforeTick = mocks.preview.mock.calls.length;
+      act(() => tick?.());
+
+      await waitFor(() => expect(mocks.preview.mock.calls.length).toBeGreaterThan(callsBeforeTick));
+      await drainMicrotasks();
+      expect(screen.queryByText("Unavailable")).not.toBeInTheDocument();
+      expect(screen.queryByText("Not available")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Confirm ₱599.00 + shipping" }),
+      ).toBeInTheDocument();
+    } finally {
+      intervalSpy.mockRestore();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("places no order for a changed actor during an awaited URL-only submit", async () => {
+    const { rerender } = render(<OrderCardExperience />);
+    fillFast({
+      frontUrl: "https://example.test/front.png",
+      backUrl: "https://example.test/back.png",
+    });
+
+    // Submit and switch accounts in the same tick, before the adapter's awaits resolve.
+    fireEvent.submit(screen.getByRole("button", { name: "Place order" }).closest("form")!);
+    act(() => {
+      mocks.actorId = "customer-other";
+      rerender(<OrderCardExperience />);
+    });
+    await flush();
+
     expect(mocks.place).not.toHaveBeenCalled();
   });
 
@@ -213,5 +323,50 @@ describe("card order price confirmation", () => {
       designSource: { assetKey: "asset-1" },
       backDesignSource: { assetKey: "asset-2" },
     });
+  });
+
+  it("keeps uploaded artwork untouched while a price change awaits confirmation", async () => {
+    const user = userEvent.setup();
+    mocks.place.mockResolvedValueOnce({
+      kind: "price_changed",
+      price: { cardPriceCentavos: 79_900, discountCentavos: 7_990 },
+    });
+    render(<OrderCardExperience />);
+    await fillForm(user, artworkFile("front.png"), artworkFile("back.png"));
+
+    await user.click(screen.getByRole("button", { name: "Place order" }));
+    await screen.findByRole("button", { name: CONFIRM_REPRICED });
+
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("releases abandoned local artwork when the form is left", async () => {
+    const user = userEvent.setup();
+    mocks.place.mockResolvedValueOnce({
+      kind: "price_changed",
+      price: { cardPriceCentavos: 79_900, discountCentavos: 7_990 },
+    });
+    const view = render(<OrderCardExperience />);
+    await fillForm(user, artworkFile("front.png"), artworkFile("back.png"));
+    await user.click(screen.getByRole("button", { name: "Place order" }));
+    await screen.findByRole("button", { name: CONFIRM_REPRICED });
+
+    view.unmount();
+
+    expect(mocks.replace).toHaveBeenCalledWith("asset-1", null);
+    expect(mocks.replace).toHaveBeenCalledWith("asset-2", null);
+  });
+
+  it("never releases artwork that a successful order attached", async () => {
+    const user = userEvent.setup();
+    mocks.place.mockResolvedValueOnce({ kind: "created", orderId: "order-5" });
+    const view = render(<OrderCardExperience />);
+    await fillForm(user, artworkFile("front.png"), artworkFile("back.png"));
+    await user.click(screen.getByRole("button", { name: "Place order" }));
+    await screen.findByText(/Your card order has been saved/);
+
+    view.unmount();
+
+    expect(mocks.replace).not.toHaveBeenCalled();
   });
 });

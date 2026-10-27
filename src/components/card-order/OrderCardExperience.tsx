@@ -126,13 +126,36 @@ function referralPreviewKey(code: string, currentTime: number) {
 }
 
 /**
+ * Bumps whenever the adapter's actor changes or it unmounts. An in-flight submit
+ * captures the value first and treats any later mismatch as a stale submission.
+ */
+function useActorGeneration(actorKey: string) {
+  const generation = useRef(0);
+  useEffect(() => () => void (generation.current += 1), [actorKey]);
+  return generation;
+}
+
+function staleSubmissionError() {
+  return new Error("Your account changed while the order was being placed. Sign in and try again.");
+}
+
+/** Takes every cached handle out of the cache so each can be released once. */
+function takeArtworkHandles<Upload>(cache: { current: ArtworkUploadCache<Upload> }): Upload[] {
+  const handles = Object.values(cache.current).map((entry) => entry.source);
+  cache.current = {};
+  return handles;
+}
+
+/**
  * Reuses the upload for this side only when actor and File object match. A
  * different File replaces the side's handle; discard releases the superseded one.
+ * A response that arrives after the actor changed is discarded, never cached.
  */
 async function designSourceFor<Upload extends { kind: "upload" }>(
   cache: { current: ArtworkUploadCache<Upload> },
   side: DesignSide,
   actorKey: string,
+  isCurrent: () => boolean,
   design: OrderDesign,
   upload: (file: File) => Promise<Upload>,
   discard?: (source: Upload) => void,
@@ -146,6 +169,11 @@ async function designSourceFor<Upload extends { kind: "upload" }>(
   }
   // Sequential on purpose: the backend allows one active upload intent per owner.
   const source = await upload(design.file);
+  if (!isCurrent()) {
+    // Best effort: owner-checked release is refused once the session has moved on.
+    discard?.(source);
+    throw staleSubmissionError();
+  }
   cache.current[side] = { actorKey, file: design.file, source };
   return source;
 }
@@ -169,6 +197,16 @@ function LocalDemoOrderExperience() {
   }>({ accountId: "", methods: {}, orders: {} });
   const orderAccountId = access.kind === "active" ? access.account.id : null;
   const artworkCache = useRef<ArtworkUploadCache<DemoUpload>>({});
+  const actorKey = orderAccountId ?? "";
+  const generation = useActorGeneration(actorKey);
+  useEffect(() => {
+    // Ownership ends with the session, so the owner-checked release may be refused; handles drop regardless.
+    return () => {
+      for (const source of takeArtworkHandles(artworkCache)) {
+        void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined);
+      }
+    };
+  }, [actorKey]);
 
   useEffect(() => {
     if (orderAccountId !== null) void recoverDemoCardOrderReceipts().catch(() => undefined);
@@ -259,26 +297,31 @@ function LocalDemoOrderExperience() {
       key={access.account.id}
       mode="demo"
       onPlaceOrder={async (input) => {
-        const actorKey = access.account.id;
+        const started = generation.current;
+        const isCurrent = () => generation.current === started;
+        const discardAsset = (source: DemoUpload) =>
+          void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined);
         try {
           const designSource = await designSourceFor(
             artworkCache,
             "front",
             actorKey,
+            isCurrent,
             input.design,
             saveDemoCardOrderAsset,
-            (source) =>
-              void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined),
+            discardAsset,
           );
           const backDesignSource = await designSourceFor(
             artworkCache,
             "back",
             actorKey,
+            isCurrent,
             input.backDesign,
             saveDemoCardOrderAsset,
-            (source) =>
-              void replaceDemoCardOrderAsset(source.assetKey, null).catch(() => undefined),
+            discardAsset,
           );
+          // Checked after every await, so URL-only artwork cannot place for a changed actor.
+          if (!isCurrent()) throw staleSubmissionError();
           const outcome = await placeDemoCardOrder({
             paymentMethodId: input.paymentMethodId,
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
@@ -315,7 +358,14 @@ function LiveOrderExperience() {
   const placeOrder = useMutation(api.cardOrders.placeOrder);
   const authToken = useAuthToken();
   const artworkCache = useRef<ArtworkUploadCache<LiveUpload>>({});
-  const artworkCache = useRef<ArtworkUploadCache<LiveUpload>>({});
+  const actorKey = access?.accountId ?? "";
+  const generation = useActorGeneration(actorKey);
+  useEffect(() => {
+    // Uploads are unattached server records that expire on their own; dropping handles is the release.
+    return () => {
+      takeArtworkHandles(artworkCache);
+    };
+  }, [actorKey]);
 
   if (isLoading || (isAuthenticated && access === undefined)) return <AuthLoadingState />;
   if (!isAuthenticated) return <AuthLoadingState />;
@@ -339,7 +389,8 @@ function LiveOrderExperience() {
       key={access?.accountId ?? "customer"}
       mode="live"
       onPlaceOrder={async (input) => {
-        const actorKey = access?.accountId ?? "";
+        const started = generation.current;
+        const isCurrent = () => generation.current === started;
         const uploadFile = async (file: File): Promise<LiveUpload> => {
           if (authToken === null) throw new Error("Authentication is required to upload artwork.");
           const siteUrl = requirePairedConvexSiteUrl(
@@ -370,6 +421,7 @@ function LiveOrderExperience() {
             artworkCache,
             "front",
             actorKey,
+            isCurrent,
             input.design,
             uploadFile,
           );
@@ -377,9 +429,11 @@ function LiveOrderExperience() {
             artworkCache,
             "back",
             actorKey,
+            isCurrent,
             input.backDesign,
             uploadFile,
           );
+          if (!isCurrent()) throw staleSubmissionError();
           const outcome = await placeOrder({
             paymentMethodId: input.paymentMethodId as Id<"cardOrderPaymentMethods">,
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
@@ -752,12 +806,14 @@ function CustomerOrderForm({
                 <DesignChoice
                   checked={artwork[activeSide].kind === "upload"}
                   description="Select a PNG or JPG from this device."
+                  disabled={submitting}
                   label="Upload an image"
                   onChange={() => changeDesignKind(activeSide, "upload")}
                 />
                 <DesignChoice
                   checked={artwork[activeSide].kind === "url"}
                   description="Provide an HTTPS link to your image."
+                  disabled={submitting}
                   label="Use a design link"
                   onChange={() => changeDesignKind(activeSide, "url")}
                 />
@@ -770,6 +826,7 @@ function CustomerOrderForm({
                     aria-describedby={`${activeSide}-file-guidance`}
                     aria-invalid={Boolean(artwork[activeSide].error || fieldErrors[activeSide])}
                     className="sr-only"
+                    disabled={submitting}
                     id={`order-card-${activeSide}-file`}
                     key={activeSide}
                     onChange={(event) => void handleFileChange(activeSide, event)}
@@ -834,6 +891,7 @@ function CustomerOrderForm({
                 <div className="mt-4">
                   <Field
                     autoComplete="url"
+                    disabled={submitting}
                     error={artwork[activeSide].error || fieldErrors[activeSide]}
                     help="Use an HTTPS URL without username or password. The image is not fetched during order submission."
                     id={`order-card-${activeSide}-url`}
@@ -860,6 +918,7 @@ function CustomerOrderForm({
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field
                   autoComplete="name"
+                  disabled={submitting}
                   error={fieldErrors.deliveryName}
                   id="delivery-name"
                   label="Delivery name"
@@ -874,6 +933,7 @@ function CustomerOrderForm({
                 />
                 <Field
                   autoComplete="tel"
+                  disabled={submitting}
                   error={fieldErrors.deliveryPhone}
                   id="delivery-phone"
                   label="Phone number"
@@ -890,6 +950,7 @@ function CustomerOrderForm({
                 <div className="sm:col-span-2">
                   <TextareaField
                     autoComplete="street-address"
+                    disabled={submitting}
                     error={fieldErrors.deliveryAddress}
                     id="delivery-address"
                     label="Delivery address"
@@ -909,7 +970,7 @@ function CustomerOrderForm({
             <Card className="gap-0" title="03 · Payment">
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <SelectField
-                  disabled={paymentMethods.length === 0}
+                  disabled={paymentMethods.length === 0 || submitting}
                   id="payment-method"
                   label="Payment method"
                   onChange={(event) => {
@@ -958,6 +1019,7 @@ function CustomerOrderForm({
                 <div className="sm:col-span-2">
                   <Field
                     autoCapitalize="characters"
+                    disabled={submitting}
                     id="referral-code"
                     label="Referral code"
                     maxLength={40}
@@ -996,7 +1058,12 @@ function CustomerOrderForm({
               </Link>
               <Button
                 className="sm:min-w-48"
-                disabled={!isConfigured || artwork.front.validating || artwork.back.validating}
+                disabled={
+                  !isConfigured ||
+                  artwork.front.validating ||
+                  artwork.back.validating ||
+                  submitPrice === null
+                }
                 loading={submitting}
                 type="submit"
               >
@@ -1024,7 +1091,8 @@ function CustomerOrderForm({
                 <PriceBreakdown
                   pinned={reconfirmation !== null}
                   price={displayedPrice}
-                  referral={referral}
+                  // A pinned quote is authoritative; a late preview must not change its status lines.
+                  referral={reconfirmation === null ? referral : { kind: "none" }}
                 />
                 {normalizedReferralCode ? (
                   <ReferralPreviewReporter
@@ -1080,11 +1148,13 @@ function CustomerOrderForm({
 function DesignChoice({
   checked,
   description,
+  disabled,
   label,
   onChange,
 }: {
   checked: boolean;
   description: string;
+  disabled: boolean;
   label: string;
   onChange: () => void;
 }) {
@@ -1095,6 +1165,7 @@ function DesignChoice({
       <input
         checked={checked}
         className="mt-1 size-4 accent-[var(--color-tapit-accent)]"
+        disabled={disabled}
         name="design-kind"
         onChange={onChange}
         type="radio"
