@@ -118,6 +118,7 @@ export const adminReferralCodes = query({
       fixedPriceCentavos: v.optional(v.number()),
       active: v.boolean(),
       usageCount: v.number(),
+      usageLimit: v.optional(v.number()),
     }),
   ),
   handler: async (ctx) => {
@@ -126,14 +127,17 @@ export const adminReferralCodes = query({
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
       .take(500);
-    return codes.map(({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount }) => ({
-      _id,
-      code,
-      referrerLabel,
-      fixedPriceCentavos,
-      active,
-      usageCount: usageCount ?? 0,
-    }));
+    return codes.map(
+      ({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount, usageLimit }) => ({
+        _id,
+        code,
+        referrerLabel,
+        fixedPriceCentavos,
+        active,
+        usageCount: usageCount ?? 0,
+        usageLimit,
+      }),
+    );
   },
 });
 
@@ -281,6 +285,7 @@ export const previewReferral = query({
       date !== null &&
       Number.isFinite(args.currentTime) &&
       referral?.active === true &&
+      (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
       prior === null;
     return {
       valid,
@@ -410,6 +415,7 @@ export const saveReferralCode = mutation({
     referrerLabel: v.string(),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
+    usageLimit: v.optional(v.number()),
   },
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
@@ -426,6 +432,11 @@ export const saveReferralCode = mutation({
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
     )
       throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+    if (
+      args.usageLimit !== undefined &&
+      (!Number.isSafeInteger(args.usageLimit) || args.usageLimit <= 0)
+    )
+      throw new Error("Usage limit must be a positive safe integer.");
     const collision = await ctx.db
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope).eq("code", code))
@@ -441,6 +452,7 @@ export const saveReferralCode = mutation({
             referrerLabel,
             fixedPriceCentavos: args.fixedPriceCentavos,
             active: args.active,
+            usageLimit: args.usageLimit,
             createdAt: now,
             updatedAt: now,
             updatedByUserId: userId,
@@ -452,6 +464,7 @@ export const saveReferralCode = mutation({
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
         active: args.active,
+        usageLimit: args.usageLimit,
         updatedAt: now,
         updatedByUserId: userId,
       });
@@ -469,6 +482,7 @@ export const saveReferralCode = mutation({
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
         active: args.active,
+        usageLimit: args.usageLimit,
       }),
     });
     return id;
