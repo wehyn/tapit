@@ -42,10 +42,9 @@ test("payment QR replacement and removal preserve the order snapshot and text in
   await expect(paymentSection.getByRole("img", { name: /payment QR/i })).toBeVisible();
   await page.getByRole("button", { name: "Place order", exact: true }).click();
   await expect(page.getByText("Your card order has been saved.", { exact: false })).toBeVisible();
-  const orderSection = page
-    .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Order summary" }) });
+  const orderSection = page.getByRole("region", { name: "Your recent card orders" });
   const orderImage = orderSection.getByRole("img", { name: /payment QR/i });
+  await expect(orderImage).toHaveCount(1);
   await expect(orderImage).toBeVisible();
   await expect
     .poll(() => orderImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
@@ -69,10 +68,9 @@ test("payment QR replacement and removal preserve the order snapshot and text in
 
   await signInAsCustomer(page);
   await page.goto("/app/card/order-card");
-  const savedOrderSection = page
-    .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Order summary" }) });
+  const savedOrderSection = page.getByRole("region", { name: "Your recent card orders" });
   const savedOrderImage = savedOrderSection.getByRole("img", { name: /payment QR/i });
+  await expect(savedOrderImage).toHaveCount(1);
   await expect(savedOrderImage).toBeVisible();
   await expect
     .poll(() => savedOrderImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
@@ -94,10 +92,9 @@ test("payment QR replacement and removal preserve the order snapshot and text in
 
   await signInAsCustomer(page);
   await page.goto("/app/card/order-card");
-  const retainedOrderSection = page
-    .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Order summary" }) });
+  const retainedOrderSection = page.getByRole("region", { name: "Your recent card orders" });
   const retainedOrderImage = retainedOrderSection.getByRole("img", { name: /payment QR/i });
+  await expect(retainedOrderImage).toHaveCount(1);
   await expect(retainedOrderImage).toBeVisible();
   await expect
     .poll(() => retainedOrderImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
