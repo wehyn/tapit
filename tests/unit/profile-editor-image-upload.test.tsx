@@ -215,6 +215,7 @@ it("offers explicit recovery after a revision conflict without retrying on the s
 });
 
 it("saves a new edit with current revisions after discarding a conflicting draft", async () => {
+  useInvalidCustomization.current = true;
   mutation.mockRejectedValueOnce(
     new Error("The profile draft changed while you were editing. Refresh and try again."),
   );
