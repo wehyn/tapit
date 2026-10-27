@@ -24,4 +24,33 @@ describe("link destination editing", () => {
     expect(displayDestination("tel:tel:+15551234567")).toBe("+15551234567");
     expect(formatDestination("link", "example.com")).toBe("https://example.com");
   });
+
+  it.each([
+    ["example.com:8080/path", "https://example.com:8080/path"],
+    ["localhost:3000", "https://localhost:3000"],
+    ["localhost:3000/admin?tab=links", "https://localhost:3000/admin?tab=links"],
+  ])("treats host:port %s as a host, not a scheme", (typed, expected) => {
+    const destination = formatDestination("link", typed);
+
+    expect(destination).toBe(expected);
+    expect(validateLinkDestination(destination)).toBeNull();
+  });
+
+  it.each(["ftp://example.com", "http://example.com", "javascript://%0aalert(1)"])(
+    "keeps the explicit scheme of %s so strict validation rejects it",
+    (typed) => {
+      const destination = formatDestination("link", typed);
+
+      expect(destination).toBe(typed);
+      expect(validateLinkDestination(destination)).not.toBeNull();
+    },
+  );
+
+  it("prefixes partially typed hosts and keeps partial schemes until they are complete", () => {
+    expect(formatDestination("link", "h")).toBe("https://h");
+    expect(formatDestination("link", "https:")).toBe("https:");
+    expect(formatDestination("link", "https://")).toBe("https://");
+    expect(displayDestination("https://new.example.com")).toBe("new.example.com");
+    expect(displayDestination("http://example.com")).toBe("http://example.com");
+  });
 });
