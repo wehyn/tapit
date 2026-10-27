@@ -14,7 +14,7 @@ import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { clearDemoSession, setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
-import { useConvex, useMutation, useQuery } from "convex/react";
+import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 
@@ -353,7 +353,7 @@ function LiveSetupForm({ token, nextPath }: { token: string; nextPath?: string }
   const router = useRouter();
   const { signIn, signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
-  const acceptInvitation = useMutation(api.customers.acceptInvitation);
+  const acceptInvitation = useAction(api.customers.acceptInvitation);
   const [tokenHash, setTokenHash] = useState<string>();
   const [error, setError] = useState("");
   const [wrongAccount, setWrongAccount] = useState(false);

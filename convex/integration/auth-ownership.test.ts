@@ -363,7 +363,7 @@ describe("Convex authentication and ownership", () => {
       ctx.db.insert("users", { email: "claimant@example.com", emailVerificationTime: 1 }),
     );
     await expect(
-      t.withIdentity(identity(userId)).mutation(api.customers.acceptInvitation, {
+      t.withIdentity(identity(userId)).action(api.customers.acceptInvitation, {
         tokenHash: "admin-target-token",
       }),
     ).rejects.toThrow("unavailable");
@@ -487,12 +487,12 @@ describe("Convex authentication and ownership", () => {
       });
     });
     const user = t.withIdentity(identity(claimantId));
-    const first = await user.mutation(api.customers.acceptInvitation, {
+    const first = await user.action(api.customers.acceptInvitation, {
       tokenHash: "claim-replay",
     });
     const acceptedAt = await t.run(async (ctx) => (await ctx.db.get(invitationId))?.acceptedAt);
     for (let retry = 0; retry < 5; retry += 1) {
-      const result = await user.mutation(api.customers.acceptInvitation, {
+      const result = await user.action(api.customers.acceptInvitation, {
         tokenHash: "claim-replay",
       });
       expect(result).toEqual(first);
@@ -509,6 +509,43 @@ describe("Convex authentication and ownership", () => {
     });
   });
 
+  it("rate-limits the fourth verified-email mismatch for one identity and invitation", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const { userId } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", {
+        email: "wrong-email@example.com",
+        emailVerificationTime: 1,
+      });
+      const customerId = await ctx.db.insert("customers", {
+        email: "invited-email@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.insert("invitations", {
+        customerId,
+        email: "invited-email@example.com",
+        tokenHash: "mismatch-rate-token",
+        createdByUserId: data.adminUserId,
+        createdAt: 1,
+      });
+      return { userId };
+    });
+    const user = t.withIdentity(identity(userId));
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      await expect(
+        user.action(api.customers.acceptInvitation, { tokenHash: "mismatch-rate-token" }),
+      ).rejects.toThrow("does not match");
+    }
+    await expect(
+      user.action(api.customers.acceptInvitation, { tokenHash: "mismatch-rate-token" }),
+    ).rejects.toThrow("Too many invitation attempts.");
+  });
+
   it("rejects mismatched, revoked, expired, and already-linked invitation claims", async () => {
     const t = testConvex();
     const data = await seed(t);
@@ -518,14 +555,14 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(wrongId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
     ).rejects.toThrow("does not match");
     await t.withIdentity(identity(data.adminUserId)).mutation(api.invitations.revoke, {
       invitationId: data.invitationId,
     });
     const owner = t.withIdentity(identity(data.ownerUserId));
     await expect(
-      owner.mutation(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
+      owner.action(api.customers.acceptInvitation, { tokenHash: "owner-token" }),
     ).rejects.toThrow("invalid");
     const expiredId = await t.run(async (ctx) => {
       const customerId = await ctx.db.insert("customers", {
@@ -551,7 +588,7 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(expiredUserId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "expired-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "expired-token" }),
     ).rejects.toThrow("invalid");
     expect(expiredId).toBeDefined();
     const linkedId = await t.run(async (ctx) =>
@@ -587,7 +624,7 @@ describe("Convex authentication and ownership", () => {
     await expect(
       t
         .withIdentity(identity(linkedId))
-        .mutation(api.customers.acceptInvitation, { tokenHash: "already-linked-token" }),
+        .action(api.customers.acceptInvitation, { tokenHash: "already-linked-token" }),
     ).rejects.toThrow("already linked");
   });
 
