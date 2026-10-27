@@ -46,6 +46,12 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await page.getByRole("button", { name: "Create code" }).click();
   const created = page.getByRole("button", { name: /FOUNDING-AHRON.*10% off/ });
   await expect(created).toBeVisible();
+  await page.getByLabel("Referral code").fill("INACTIVE-SAVE");
+  await page.getByLabel("Referrer label").fill("Inactive referrer");
+  await page.getByLabel("Active").uncheck();
+  await page.getByRole("button", { name: "Create code" }).click();
+  await expect(page.getByRole("button", { name: /INACTIVE-SAVE.*Inactive/ })).toBeVisible();
+  await expect(page.getByLabel("Active")).toBeChecked();
   await created.locator("..").getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("Referrer label").fill("Ahron Updated");
   await page.getByRole("button", { name: "Save code" }).click();
@@ -76,6 +82,11 @@ test("administrator manages referral codes and reviews selected code usage", asy
   await active.click();
   const activeUsage = page.getByRole("row", { name: /usage-order-unpaid/ });
   await expect(activeUsage).toBeVisible();
+  await activeUsage.getByRole("link", { name: "usage-order-unpaid" }).click();
+  await expect(page).toHaveURL(/\/admin\/orders\?orderId=usage-order-unpaid$/);
+  await expect(page.getByRole("heading", { name: "Order usage-order-unpaid" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Load older orders" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Codes", exact: true }).click();
   await active.click();
   await expect(activeUsage).toBeVisible();
   await activeEntry.getByRole("button", { name: "Edit" }).click();

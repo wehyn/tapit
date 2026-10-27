@@ -761,7 +761,7 @@ function DemoOrderManager({ orderId }: { orderId?: string }) {
 }
 
 function LiveOrderManager({ orderId }: { orderId?: string }) {
-  const pages = usePaginatedQuery(api.cardOrders.adminOrders, {}, { initialNumItems: 25 });
+  const pages = usePaginatedQuery(api.cardOrders.adminOrders, orderId ? "skip" : {}, { initialNumItems: 25 });
   const selected = useQuery(
     api.cardOrders.adminOrderById,
     orderId ? { orderId: orderId as Id<"cardOrders"> } : "skip",
@@ -803,11 +803,11 @@ function LiveOrderManager({ orderId }: { orderId?: string }) {
 
   return (
     <OrdersView
-      canLoadMore={pages.status === "CanLoadMore"}
+      canLoadMore={!orderId && pages.status === "CanLoadMore"}
       demo={false}
       loadMore={() => pages.loadMore(25)}
-      loading={pages.status === "LoadingFirstPage"}
-      loadingMore={pages.status === "LoadingMore"}
+      loading={orderId ? selected === undefined : pages.status === "LoadingFirstPage"}
+      loadingMore={!orderId && pages.status === "LoadingMore"}
       onAction={onAction}
       orders={orderId ? (selected ? [liveOrder(selected)] : []) : pages.results.map(liveOrder)}
     />

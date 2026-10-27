@@ -386,6 +386,7 @@ export const saveReferralCode = mutation({
     code: v.string(),
     referrerLabel: v.string(),
     fixedPriceCentavos: v.optional(v.number()),
+    active: v.boolean(),
   },
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
@@ -416,7 +417,7 @@ export const saveReferralCode = mutation({
             code,
             referrerLabel,
             fixedPriceCentavos: args.fixedPriceCentavos,
-            active: true,
+            active: args.active,
             createdAt: now,
             updatedAt: now,
             updatedByUserId: userId,
@@ -427,6 +428,7 @@ export const saveReferralCode = mutation({
         code,
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
+        active: args.active,
         updatedAt: now,
         updatedByUserId: userId,
       });
@@ -443,6 +445,7 @@ export const saveReferralCode = mutation({
         code,
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
+        active: args.active,
       }),
     });
     return id;

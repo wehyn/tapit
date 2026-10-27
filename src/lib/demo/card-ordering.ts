@@ -282,6 +282,7 @@ export async function saveDemoCardOrderReferralCode(input: {
   code: string;
   referrerLabel: string;
   fixedPriceCentavos?: number;
+  active: boolean;
 }): Promise<string> {
   const adminId = activeAccount(currentState("admin"), "admin").id;
   const code = requiredText(input.code, "Referral code", 40).toUpperCase();
@@ -310,7 +311,7 @@ export async function saveDemoCardOrderReferralCode(input: {
       code,
       referrerLabel,
       fixedPriceCentavos: input.fixedPriceCentavos,
-      active: existing?.active ?? true,
+      active: input.active,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
