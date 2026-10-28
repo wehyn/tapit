@@ -12,17 +12,17 @@ Card registration is proven by the existing claim flow: the public card token id
 
 ## Selected access model
 
-| Capability | No successfully claimed card | Successfully claimed card | Administrator |
-| --- | --- | --- | --- |
-| Edit and publish own profile | Allowed within the limits below | Existing full customer access | Existing administrator access |
-| Profile links | Up to 3 total links | Existing limit of 100 | Existing administrator access |
-| Appearance | Paper, Moss, or Night preset | Existing appearance options | Existing administrator access |
-| Fine-tuning and custom palette | Unavailable | Existing access | Existing administrator access |
-| Profile photo and background image uploads | Allowed | Existing access | Existing administrator access |
-| New slideshow image uploads | Unavailable | Allowed | Existing administrator access |
-| Owner analytics | Unavailable | Allowed | Existing administrator analytics |
-| Customer card-owner tools | Unavailable | Allowed | Existing administrator tools |
-| Account, support, card ordering, and claim flow | Allowed | Allowed | Existing access |
+| Capability                                      | No successfully claimed card    | Successfully claimed card     | Administrator                    |
+| ----------------------------------------------- | ------------------------------- | ----------------------------- | -------------------------------- |
+| Edit and publish own profile                    | Allowed within the limits below | Existing full customer access | Existing administrator access    |
+| Profile links                                   | Up to 3 total links             | Existing limit of 100         | Existing administrator access    |
+| Appearance                                      | Paper, Moss, or Night preset    | Existing appearance options   | Existing administrator access    |
+| Fine-tuning and custom palette                  | Unavailable                     | Existing access               | Existing administrator access    |
+| Profile photo and background image uploads      | Allowed                         | Existing access               | Existing administrator access    |
+| New slideshow image uploads                     | Unavailable                     | Allowed                       | Existing administrator access    |
+| Owner analytics                                 | Unavailable                     | Allowed                       | Existing administrator analytics |
+| Customer card-owner tools                       | Unavailable                     | Allowed                       | Existing administrator tools     |
+| Account, support, card ordering, and claim flow | Allowed                         | Allowed                       | Existing access                  |
 
 The three presets are the existing **Paper**, **Moss**, and **Night** options. **Warm Studio**, **Custom**, custom palettes, and fine-tuning controls remain available only to card owners.
 
