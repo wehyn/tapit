@@ -23,7 +23,7 @@ const navigationTourSteps = [
 async function startFirstVisitNavigationTour(page: Page, width: number) {
   await page.setViewportSize({ width, height: 844 });
   await resetDemoHarness(page);
-  await signInAsCustomer(page);
+  await signInAsCustomer(page, { showNavigationTour: true });
 }
 
 async function expectTourSpotlight(page: Page, target: Locator) {

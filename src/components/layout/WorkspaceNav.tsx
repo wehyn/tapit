@@ -329,7 +329,7 @@ export function WorkspaceChrome({
         className="fixed z-50 flex flex-col gap-2 rounded-card bg-tapit-surface p-4 text-tapit-ink shadow-card"
         data-testid="navigation-tour-coach-mark"
         data-navigation-tour-controls="true"
-        role="group"
+        role="region"
         style={{
           top: tourLayout.coach.top,
           left: tourLayout.coach.left,

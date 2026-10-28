@@ -22,12 +22,24 @@ export async function resetDemoHarness(page: Page) {
   await page.reload();
 }
 
-export async function signInAsCustomer(page: Page) {
+export async function signInAsCustomer(
+  page: Page,
+  { showNavigationTour = false }: { showNavigationTour?: boolean } = {},
+) {
   await page.goto("/login");
+  const tourAlreadyCompleted = await page.evaluate(
+    () => window.localStorage.getItem("tapit:customer-navigation-tour:profile-mara") === "done",
+  );
   await page.getByLabel("Email").fill("mara@example.test");
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
+  if (!showNavigationTour && !tourAlreadyCompleted) {
+    const tour = page.getByTestId("navigation-tour-coach-mark");
+    await expect(tour).toBeVisible();
+    await tour.getByRole("button", { name: "Skip tour", exact: true }).click();
+    await expect(tour).toHaveCount(0);
+  }
 }
 
 export async function signInAsAdmin(page: Page) {
