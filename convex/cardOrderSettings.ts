@@ -12,6 +12,7 @@ import {
 } from "./admin";
 import {
   isCardOrderLaunchEndDate,
+  manilaStartOfDayTimestamp,
   getCardPriceCentavos,
   calculateReferralDiscountForPriceCentavos,
   isValidReferralFixedPriceCentavos,
@@ -124,6 +125,7 @@ export const adminReferralCodes = query({
         v.object({
           _id: v.id("cardOrderOffers"),
           code: v.string(),
+          expiresOn: v.optional(v.string()),
           fixedPriceCentavos: v.optional(v.number()),
           usageCount: v.number(),
           usageLimit: v.optional(v.number()),
@@ -168,6 +170,7 @@ export const adminReferralCodes = query({
                   offer: {
                     _id: offer._id,
                     code: offer.code,
+                    expiresOn: offer.expiresOn,
                     fixedPriceCentavos: offer.fixedPriceCentavos,
                     usageCount: offer.usageCount,
                     usageLimit: offer.usageLimit,
@@ -186,6 +189,7 @@ export const adminCardOrderOffers = query({
     v.object({
       _id: v.id("cardOrderOffers"),
       code: v.string(),
+      expiresOn: v.optional(v.string()),
       fixedPriceCentavos: v.optional(v.number()),
       usageCount: v.number(),
       usageLimit: v.optional(v.number()),
@@ -197,9 +201,10 @@ export const adminCardOrderOffers = query({
       .query("cardOrderOffers")
       .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope))
       .take(500);
-    return offers.map(({ _id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+    return offers.map(({ _id, code, expiresOn, fixedPriceCentavos, usageCount, usageLimit }) => ({
       _id,
       code,
+      ...(expiresOn === undefined ? {} : { expiresOn }),
       ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
       usageCount,
       ...(usageLimit === undefined ? {} : { usageLimit }),
@@ -723,6 +728,7 @@ export const saveCardOrderOffer = mutation({
   args: {
     id: v.optional(v.id("cardOrderOffers")),
     code: v.string(),
+    expiresOn: v.optional(v.string()),
     fixedPriceCentavos: v.optional(v.number()),
     usageLimit: v.optional(v.number()),
   },
@@ -732,6 +738,8 @@ export const saveCardOrderOffer = mutation({
     const code = requiredText(args.code, "Offer code", 40).toUpperCase();
     if (!/^[A-Z0-9_-]+$/.test(code))
       throw new Error("Offer code may contain letters, numbers, hyphens, and underscores only.");
+    if (args.expiresOn !== undefined && manilaStartOfDayTimestamp(args.expiresOn) === null)
+      throw new Error("Offer expiry must be a valid YYYY-MM-DD date.");
     if (
       args.fixedPriceCentavos !== undefined &&
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
@@ -779,6 +787,7 @@ export const saveCardOrderOffer = mutation({
     const { usageLimit } = args;
     const value = {
       code,
+      expiresOn: args.expiresOn,
       fixedPriceCentavos: args.fixedPriceCentavos,
       usageLimit,
       updatedAt: now,

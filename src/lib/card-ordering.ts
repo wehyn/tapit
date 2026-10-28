@@ -6,7 +6,7 @@ export const COMMISSION_PERCENT = 10;
 
 export type CardOrderLaunchEndDate = string;
 
-const launchDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const calendarDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const manilaDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -18,8 +18,8 @@ const manilaDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-function parseLaunchEndDate(value: string): [year: number, month: number, day: number] | null {
-  const match = launchDatePattern.exec(value);
+function parseCalendarDate(value: string): [year: number, month: number, day: number] | null {
+  const match = calendarDatePattern.exec(value);
   if (!match) return null;
 
   const year = Number(match[1]);
@@ -39,12 +39,12 @@ function parseLaunchEndDate(value: string): [year: number, month: number, day: n
 }
 
 export function isCardOrderLaunchEndDate(value: unknown): value is CardOrderLaunchEndDate {
-  return typeof value === "string" && parseLaunchEndDate(value) !== null;
+  return typeof value === "string" && parseCalendarDate(value) !== null;
 }
 
 /** Convert an admin YYYY-MM-DD date to midnight in Asia/Manila. */
 export function manilaStartOfDayTimestamp(date: string): number | null {
-  const parts = parseLaunchEndDate(date);
+  const parts = parseCalendarDate(date);
   if (parts === null) return null;
 
   const [year, month, day] = parts;
@@ -73,6 +73,12 @@ export function manilaStartOfDayTimestamp(date: string): number | null {
   }
 
   return timestamp;
+}
+
+export function isCardOrderOfferExpired(expiresOn: string | undefined, now = Date.now()): boolean {
+  if (expiresOn === undefined) return false;
+  const expiresAt = manilaStartOfDayTimestamp(expiresOn);
+  return expiresAt === null || now >= expiresAt;
 }
 
 export function getCardPriceCentavos(

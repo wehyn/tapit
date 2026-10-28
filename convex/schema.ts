@@ -549,6 +549,7 @@ export default defineSchema({
   cardOrderOffers: defineTable({
     scope: v.optional(v.literal("demo")),
     code: v.string(),
+    expiresOn: v.optional(v.string()),
     fixedPriceCentavos: v.optional(v.number()),
     usageCount: v.number(),
     usageLimit: v.optional(v.number()),

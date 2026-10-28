@@ -111,6 +111,63 @@ async function verifyFoundingUsage(t: ReturnType<typeof convexTest>, adminUserId
 }
 
 describe("card order referral usage", () => {
+  it("saves offer expiry dates, supports clearing them, and reads legacy offers", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const legacyId = await t.run((ctx) =>
+      ctx.db.insert("cardOrderOffers", {
+        code: "LEGACY",
+        usageCount: 3,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+    const offerId = await admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
+      code: "LIMITED",
+      expiresOn: "2099-02-28",
+    });
+    await t.run((ctx) => ctx.db.patch(ids.codeId, { offerId }));
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({
+      expiresOn: "2099-02-28",
+      usageCount: 0,
+    });
+    await expect(admin.query(api.cardOrderSettings.adminCardOrderOffers, {})).resolves.toEqual(
+      expect.arrayContaining([
+        { _id: offerId, code: "LIMITED", expiresOn: "2099-02-28", usageCount: 0 },
+      ]),
+    );
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { code: "FOUNDING-AHRON", offer: { expiresOn: "2099-02-28" } },
+    ]);
+    await admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
+      id: offerId,
+      code: "LIMITED",
+      expiresOn: "2099-03-01",
+    });
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({
+      expiresOn: "2099-03-01",
+      usageCount: 0,
+    });
+    await admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
+      id: offerId,
+      code: "LIMITED",
+      expiresOn: undefined,
+    });
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 0 });
+    await expect(
+      admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
+        id: offerId,
+        code: "LIMITED",
+        expiresOn: "2099-02-30",
+      }),
+    ).rejects.toThrow("valid YYYY-MM-DD date");
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 0 });
+    await expect(admin.query(api.cardOrderSettings.adminCardOrderOffers, {})).resolves.toEqual(
+      expect.arrayContaining([{ _id: legacyId, code: "LEGACY", usageCount: 3 }]),
+    );
+  });
+
   it("keeps the default 10% discount through preview and order placement", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
