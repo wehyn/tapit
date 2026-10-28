@@ -169,7 +169,7 @@ export const currentAccess = query({
       onboardingName: account?.onboardingName ?? null,
       isDemo: account?.isDemo === true,
       demoResetInProgress: account?.demoResetInProgress === true,
-      email: active && account !== null ? account.email : null,
+      email: active && account !== null ? (account.email ?? null) : null,
     };
   },
 });

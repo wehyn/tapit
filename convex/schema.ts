@@ -87,7 +87,7 @@ export default defineSchema({
   customers: defineTable({
     scope: v.optional(v.literal("demo")),
     userId: v.optional(v.id("users")),
-    email: v.string(),
+    email: v.optional(v.string()),
     role: v.union(v.literal("customer"), v.literal("admin")),
     isDemo: v.optional(v.boolean()),
     demoResetInProgress: v.optional(v.boolean()),
@@ -457,7 +457,8 @@ export default defineSchema({
   invitations: defineTable({
     scope: v.optional(v.literal("demo")),
     customerId: v.id("customers"),
-    email: v.string(),
+    email: v.optional(v.string()),
+    kind: v.optional(v.literal("prepared_setup")),
     tokenHash: v.string(),
     expiresAt: v.optional(v.number()),
     usedAt: v.optional(v.number()),

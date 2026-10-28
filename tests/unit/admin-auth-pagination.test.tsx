@@ -26,6 +26,10 @@ const customer = {
   deletionStatus: "active" as const,
   createdAt: 1,
   updatedAt: 1,
+  setupState: "active" as const,
+  linkExpiresAt: null,
+  profileName: "First Example",
+  profileSlug: "first-example",
 };
 
 function queryName(query: unknown): string {
@@ -35,6 +39,20 @@ function queryName(query: unknown): string {
 function mockOwnerOverride(updateOverride: ReturnType<typeof vi.fn>) {
   convexHooks.useMutation.mockImplementation((mutation: unknown) =>
     queryName(mutation) === "customers:setCardOwnerAccessOverride" ? updateOverride : vi.fn(),
+  );
+}
+
+function mockActiveCustomer(cardOwnerAccessOverride: boolean, isDemo = false) {
+  convexHooks.useQuery_experimental.mockImplementation(
+    (options: { query: unknown; args: { setupState?: string } }) => ({
+      status: "success",
+      data: {
+        page:
+          queryName(options.query) === "customers:list" && options.args.setupState === "active"
+            ? [{ ...customer, cardOwnerAccessOverride, isDemo }]
+            : [],
+      },
+    }),
   );
 }
 
@@ -48,18 +66,77 @@ beforeEach(() => {
 });
 
 describe("paginated administrator account lists", () => {
+  it("includes active customer accounts in the one searchable customer list", async () => {
+    convexHooks.useQuery_experimental.mockImplementation(
+      (options: { query: unknown; args: { setupState?: string } }) => {
+        if (queryName(options.query) === "customers:list") {
+          return {
+            status: "success",
+            data: {
+              page:
+                options.args.setupState === "active" ? [{ ...customer, setupState: "active" }] : [],
+            },
+          };
+        }
+        return { status: "success", data: { page: [] } };
+      },
+    );
+
+    render(<CustomersManager />);
+
+    expect(screen.getByText("first@example.test")).toBeInTheDocument();
+    expect(screen.getAllByRole("searchbox")).toHaveLength(1);
+    expect(screen.getByText("First Example")).toBeInTheDocument();
+    expect(screen.getByText("Active", { selector: "span" })).toBeInTheDocument();
+  });
+
+  it("shows the server-provided profile name and slug in its single legacy invite row", () => {
+    convexHooks.useQuery_experimental.mockImplementation(
+      (options: { query: unknown; args: { setupState?: string } }) => {
+        if (queryName(options.query) === "customers:list") {
+          return {
+            status: "success",
+            data: {
+              page:
+                options.args.setupState === "draft"
+                  ? [{ ...customer, status: "invited", setupState: "draft" }]
+                  : [],
+            },
+          };
+        }
+        if (queryName(options.query) === "invitations:listForAdmin")
+          return {
+            status: "success",
+            data: {
+              page: [
+                {
+                  invitationId: "invitations:1",
+                  customerId: "customers:1",
+                  email: "first@example.test",
+                  profileName: "First Example",
+                  slug: "first-example-2",
+                  expiresAt: null,
+                  acceptedAt: null,
+                  invalidatedAt: null,
+                },
+              ],
+            },
+          };
+        return { status: "success", data: { page: [] } };
+      },
+    );
+
+    render(<CustomersManager />);
+
+    expect(screen.getByText("First Example")).toBeInTheDocument();
+    expect(screen.getAllByText("first@example.test")).toHaveLength(1);
+    expect(screen.queryByText("Profile: First Example · /first-example-2")).not.toBeInTheDocument();
+  });
+
   it("grants the owner access override with the selected customer ID", () => {
     const updateOverride = vi.fn();
     mockOwnerOverride(updateOverride);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: false }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+    mockActiveCustomer(false);
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
@@ -73,15 +150,7 @@ describe("paginated administrator account lists", () => {
   it("revokes the owner access override with the selected customer ID", () => {
     const updateOverride = vi.fn();
     mockOwnerOverride(updateOverride);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: true }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+    mockActiveCustomer(true);
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Revoke owner access" }));
@@ -95,15 +164,7 @@ describe("paginated administrator account lists", () => {
   it("does not call the owner access mutation when confirmation is cancelled", () => {
     const updateOverride = vi.fn();
     mockOwnerOverride(updateOverride);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: false }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+    mockActiveCustomer(false);
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
@@ -119,15 +180,7 @@ describe("paginated administrator account lists", () => {
   it("shows an error when the owner access mutation is rejected", async () => {
     const updateOverride = vi.fn().mockRejectedValue(new Error("Override failed"));
     mockOwnerOverride(updateOverride);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: false }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+    mockActiveCustomer(false);
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
@@ -141,7 +194,7 @@ describe("paginated administrator account lists", () => {
     expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
   });
 
-  it("shows a local storage error without changing the override or audit log", () => {
+  it("shows a local storage error without changing the override or audit log", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
     localStorage.clear();
@@ -159,14 +212,15 @@ describe("paginated administrator account lists", () => {
     });
 
     render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    const [grantButton] = await screen.findAllByRole("button", { name: "Grant owner access" });
+    fireEvent.click(grantButton as HTMLElement);
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
         name: "Grant access",
       }),
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not save Tapit data locally");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save Tapit data locally");
     const after = getDemoState();
     expect(
       after.customers.find((account) => account.id === "customer-mara")?.cardOwnerAccessOverride,
@@ -174,20 +228,6 @@ describe("paginated administrator account lists", () => {
       before.customers.find((account) => account.id === "customer-mara")?.cardOwnerAccessOverride,
     );
     expect(after.audits).toEqual(before.audits);
-  });
-
-  it("lets administrators load the next customer-account page", async () => {
-    const loadMore = vi.fn();
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({ results: [customer], status: "CanLoadMore", loadMore })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() });
-
-    render(<CustomersManager />);
-
-    expect(screen.getByText("first@example.test")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Load more accounts" }));
-    expect(loadMore).toHaveBeenCalledWith(50);
   });
 
   it("requires staged customer to Demo to administrator promotion", async () => {
@@ -198,15 +238,10 @@ describe("paginated administrator account lists", () => {
       if (queryName(mutation) === "customers:setRole") return setRole;
       return vi.fn();
     });
-    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) =>
-      queryName(query) === "customers:list"
-        ? { results: [customer], status: "Exhausted", loadMore: vi.fn() }
-        : { results: [], status: "Exhausted", loadMore: vi.fn() },
-    );
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    mockActiveCustomer(false);
 
     const { unmount } = render(<CustomersManager />);
-    expect(screen.getByRole("button", { name: "Promote to Demo" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Promote to Administrator" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Promote to Demo" }));
     expect(await screen.findByText("Customer promoted to Demo.")).toBeInTheDocument();
@@ -214,53 +249,13 @@ describe("paginated administrator account lists", () => {
     expect(setRole).not.toHaveBeenCalled();
     unmount();
 
-    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) =>
-      queryName(query) === "customers:list"
-        ? {
-            results: [{ ...customer, isDemo: true }],
-            status: "Exhausted",
-            loadMore: vi.fn(),
-          }
-        : { results: [], status: "Exhausted", loadMore: vi.fn() },
-    );
+    mockActiveCustomer(false, true);
     render(<CustomersManager />);
-    expect(screen.getByRole("button", { name: "Promote to Administrator" })).toBeInTheDocument();
-    expect(screen.getByText(/customer · demo/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Promote to Demo" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Promote to Administrator" }));
     expect(await screen.findByText("Role updated to administrator.")).toBeInTheDocument();
     expect(setRole).toHaveBeenCalledWith({ customerId: "customers:1", role: "admin" });
     confirm.mockRestore();
-  });
-
-  it("shows the invitation's server-generated profile name and slug", () => {
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, status: "invited" }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({
-        results: [
-          {
-            invitationId: "invitations:1",
-            customerId: "customers:1",
-            email: "first@example.test",
-            profileName: "First Example",
-            slug: "first-example-2",
-            expiresAt: null,
-            acceptedAt: null,
-            invalidatedAt: null,
-          },
-        ],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      });
-
-    render(<CustomersManager />);
-
-    expect(screen.getByText("Profile: First Example · /first-example-2")).toBeInTheDocument();
   });
 
   it("lets card assignment search through customers beyond the first page", async () => {
