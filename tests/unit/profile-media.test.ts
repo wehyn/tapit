@@ -52,7 +52,7 @@ describe("profile media contract", () => {
     ).toEqual([]);
   });
 
-  it("rejects more than ten frames, duplicate assets, and invalid accessibility text", () => {
+  it("rejects more than five frames, duplicate assets, and invalid accessibility text", () => {
     const frames = Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES + 1 }, (_, index) => ({
       assetId: "asset-" + index,
       altText: "Frame",
@@ -63,7 +63,7 @@ describe("profile media contract", () => {
         autoplay: true,
         slideshow: frames,
       }),
-    ).toContain("A slideshow can contain at most ten images.");
+    ).toContain(`A slideshow can contain at most ${MAX_PROFILE_SLIDESHOW_IMAGES} images.`);
     expect(
       validateProfileMedia({
         heroHeight: 320,
@@ -91,6 +91,15 @@ describe("profile media contract", () => {
         slideshow: [{ assetId: "asset-one", altText: "" }],
       }),
     ).toEqual([]);
+  });
+
+  it("preserves every valid slide while normalizing existing media", () => {
+    const slides = Array.from({ length: 7 }, (_, index) => ({
+      assetId: `slide-${index}`,
+      altText: `Slide ${index}`,
+    }));
+    expect(normalizeProfileMedia({ heroHeight: 320, autoplay: true, slideshow: slides })?.slideshow)
+      .toEqual(slides);
   });
 
   it("normalizes bounded values and filters malformed optional media", () => {

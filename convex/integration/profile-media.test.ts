@@ -171,6 +171,58 @@ const mediaWithBackground = (assetId: Id<"profileMediaAssets">) => ({
 });
 
 describe("profile media hardening", () => {
+  it("rejects over-limit saves and publishes without changing profile or asset references", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const owner = t.withIdentity(identity(ids.ownerUserId));
+    const existing = await asset(t, ids.ownerProfileId, ids.ownerId);
+    const slides = await Promise.all(
+      Array.from({ length: 6 }, () => asset(t, ids.ownerProfileId, ids.ownerId)),
+    );
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: ids.ownerProfileId,
+      draft: content("owner", media(existing.assetId)),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
+      expectedMediaRevision: 0,
+    });
+    await owner.mutation(api.profiles.publish, {
+      profileId: ids.ownerProfileId,
+      expectedMediaRevision: 0,
+    });
+    const beforeSave = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));
+    const overLimit = {
+      ...media(existing.assetId),
+      slideshow: slides.map(({ assetId }) => ({ assetId, altText: "Slide" })),
+    };
+    await expect(
+      owner.mutation(api.profiles.saveDraft, {
+        profileId: ids.ownerProfileId,
+        draft: content("owner", overLimit),
+        expectedDraftRevision: beforeSave!.draftRevision,
+        expectedMediaRevision: beforeSave!.mediaRevision ?? 0,
+      }),
+    ).rejects.toThrow("at most 5 images");
+    expect(await t.run((ctx) => ctx.db.get(ids.ownerProfileId))).toEqual(beforeSave);
+
+    await t.run(async (ctx) => {
+      const profile = await ctx.db.get(ids.ownerProfileId);
+      if (profile === null) throw new Error("Profile was not seeded");
+      await ctx.db.patch(ids.ownerProfileId, { draft: { ...profile.draft, media: overLimit } });
+    });
+    const beforePublish = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));
+    await expect(
+      owner.mutation(api.profiles.publish, {
+        profileId: ids.ownerProfileId,
+        expectedMediaRevision: beforePublish!.mediaRevision ?? 0,
+      }),
+    ).rejects.toThrow("at most 5 images");
+    expect(await t.run((ctx) => ctx.db.get(ids.ownerProfileId))).toEqual(beforePublish);
+    for (const item of slides) {
+      expect(await t.run((ctx) => ctx.storage.getUrl(item.storageId))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.db.get(item.assetId))).not.toBeNull();
+    }
+  });
+
   it("enforces ownership, media limits, ranges, and stale revisions", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -209,7 +261,7 @@ describe("profile media hardening", () => {
         expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
         expectedMediaRevision: 0,
       }),
-    ).rejects.toThrow("at most ten");
+    ).rejects.toThrow("at most 5");
 
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,

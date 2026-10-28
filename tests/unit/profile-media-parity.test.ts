@@ -76,6 +76,30 @@ function profile(overrides: Partial<ProfileRecord> = {}): ProfileRecord {
 }
 
 describe("Phase 2 profile media parity", () => {
+  it("preserves all seven slides through both public projection paths", () => {
+    const slides = Array.from({ length: 7 }, (_, index) => ({
+      assetId: assetId(`published-slide-${index}`),
+      altText: `Published slide ${index}`,
+      url: `https://cdn.test/published-slide-${index}.webp`,
+      previewUrl: `https://cdn.test/published-slide-${index}-preview.webp`,
+    }));
+    const media = { ...publishedMedia, slideshow: slides };
+    const projected = projectPublicProfile(profile({
+      published: { ...content, media, publishedAt: "2026-09-24T00:00:00.000Z" },
+    }));
+    const demoProfile = createDefaultDemoState().profiles[0];
+    if (demoProfile === undefined) throw new Error("Expected a demo profile.");
+    const demoProjected = projectDemoPublicProfile(demoProfile, {
+      ...content,
+      media,
+      publishedAt: "2026-09-24T00:00:00.000Z",
+    });
+    expect(projected?.media?.slideshow).toHaveLength(7);
+    expect(demoProjected?.media?.slideshow.map(({ alt }) => alt)).toEqual(
+      slides.map(({ altText }) => altText),
+    );
+  });
+
   it("projects only published media and ignores draft-only media", () => {
     const projected = projectPublicProfile(profile());
     expect(projected?.media).toEqual({
