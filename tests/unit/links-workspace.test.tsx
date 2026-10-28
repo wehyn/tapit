@@ -1,9 +1,46 @@
+import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { LinkIcon } from "@/lib/domain";
+import type { LinkIcon, ProfileLink } from "@/lib/domain";
 import { LinksWorkspace } from "@/components/forms/LinksWorkspace";
+
+function StatefulLinksWorkspace({
+  initialLinks,
+  onUpdateLink,
+}: {
+  initialLinks: ProfileLink[];
+  onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
+}) {
+  const [links, setLinks] = useState(initialLinks);
+  return (
+    <LinksWorkspace
+      profileUrl="/mara-velasquez"
+      links={links}
+      preview={null}
+      validation={{}}
+      publicationErrors={[]}
+      message={null}
+      pendingAction={null}
+      isDirty={true}
+      hasUnpublishedChanges={false}
+      publicationLabel="Publish"
+      onUpdateLink={(id, patch) => {
+        onUpdateLink(id, patch);
+        setLinks((current) =>
+          current.map((link) => (link.id === id ? { ...link, ...patch } : link)),
+        );
+      }}
+      onAddLink={vi.fn()}
+      onMoveLink={vi.fn()}
+      onReorderLink={vi.fn()}
+      onRemoveLink={vi.fn()}
+      onSaveDraft={vi.fn()}
+      onPublish={vi.fn()}
+    />
+  );
+}
 
 describe("LinksWorkspace", () => {
   it("renders the links workspace without claiming dirty changes were just saved", async () => {
@@ -116,6 +153,34 @@ describe("LinksWorkspace", () => {
     expect(
       screen.getByText("Visitors go to your website. This preview shows your Tapit profile."),
     ).toBeVisible();
+  });
+
+  it("shows the row-level draft safety error for a nonblank disabled link", () => {
+    render(
+      <LinksWorkspace
+        profileUrl="/mara-velasquez"
+        links={[
+          { id: "disabled", label: "Old link", destination: "javascript:alert(1)", enabled: false },
+        ]}
+        preview={null}
+        validation={{ disabled: "Link destination is unsafe." }}
+        publicationErrors={[]}
+        message={null}
+        pendingAction={null}
+        isDirty={false}
+        hasUnpublishedChanges={false}
+        publicationLabel="Publish"
+        onUpdateLink={vi.fn()}
+        onAddLink={vi.fn()}
+        onMoveLink={vi.fn()}
+        onReorderLink={vi.fn()}
+        onRemoveLink={vi.fn()}
+        onSaveDraft={vi.fn()}
+        onPublish={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Link destination is unsafe.")).toBeVisible();
   });
 
   it("exposes invalid rows and a loading save state", () => {
@@ -285,5 +350,118 @@ describe("LinksWorkspace", () => {
     );
 
     expect(screen.getAllByText(redirectError)).toHaveLength(1);
+  });
+});
+
+describe("LinksWorkspace destination editing", () => {
+  it("keeps an email row an email after the destination is cleared and retyped", async () => {
+    const user = userEvent.setup();
+    const onUpdateLink = vi.fn();
+    render(
+      <StatefulLinksWorkspace
+        initialLinks={[
+          {
+            id: "email",
+            label: "Email",
+            destination: "mailto:mara@example.com",
+            enabled: true,
+            icon: "mail",
+          },
+        ]}
+        onUpdateLink={onUpdateLink}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Destination for Email" });
+
+    await user.clear(field);
+    expect(onUpdateLink).toHaveBeenLastCalledWith("email", { destination: "" });
+    expect(field).toHaveAttribute("placeholder", "you@example.com");
+
+    await user.type(field, "person@example.com");
+    expect(field).toHaveValue("person@example.com");
+    expect(onUpdateLink).toHaveBeenLastCalledWith("email", {
+      destination: "mailto:person@example.com",
+    });
+  });
+
+  it("keeps a phone row a phone after the destination is cleared and retyped", async () => {
+    const user = userEvent.setup();
+    const onUpdateLink = vi.fn();
+    render(
+      <StatefulLinksWorkspace
+        initialLinks={[
+          {
+            id: "phone",
+            label: "Phone",
+            destination: "tel:+15551234567",
+            enabled: true,
+            icon: "phone",
+          },
+        ]}
+        onUpdateLink={onUpdateLink}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Destination for Phone" });
+
+    await user.clear(field);
+    expect(field).toHaveAttribute("placeholder", "+1 555 123 4567");
+
+    await user.type(field, "+15555");
+    expect(field).toHaveValue("+15555");
+    expect(onUpdateLink).toHaveBeenLastCalledWith("phone", { destination: "tel:+15555" });
+  });
+
+  it("replaces a website without adding https:// in front of the typed text", async () => {
+    const user = userEvent.setup();
+    const onUpdateLink = vi.fn();
+    render(
+      <StatefulLinksWorkspace
+        initialLinks={[
+          {
+            id: "site",
+            label: "Website",
+            destination: "https://old.example.com",
+            enabled: true,
+            icon: "globe",
+          },
+        ]}
+        onUpdateLink={onUpdateLink}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Destination for Website" });
+
+    await user.clear(field);
+    await user.type(field, "new.example.com");
+    expect(field).toHaveValue("new.example.com");
+    expect(onUpdateLink).toHaveBeenLastCalledWith("site", {
+      destination: "https://new.example.com",
+    });
+  });
+
+  it("does not double the scheme when a full URL replaces a website", async () => {
+    const user = userEvent.setup();
+    const onUpdateLink = vi.fn();
+    render(
+      <StatefulLinksWorkspace
+        initialLinks={[
+          {
+            id: "site",
+            label: "Website",
+            destination: "https://old.example.com",
+            enabled: true,
+            icon: "globe",
+          },
+        ]}
+        onUpdateLink={onUpdateLink}
+      />,
+    );
+    const field = screen.getByRole("textbox", { name: "Destination for Website" });
+
+    await user.clear(field);
+    await user.type(field, "https://other.example.com");
+    expect(onUpdateLink).toHaveBeenLastCalledWith("site", {
+      destination: "https://other.example.com",
+    });
+    expect(field).toHaveValue("other.example.com");
   });
 });

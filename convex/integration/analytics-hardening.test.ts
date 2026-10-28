@@ -2,7 +2,7 @@
 import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import type { PaginationResult } from "convex/server";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { api } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -20,6 +20,7 @@ beforeEach(() => {
 afterEach(() => {
   if (previousHmacSecret === undefined) delete process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET;
   else process.env.TAPIT_ANALYTICS_RATE_LIMIT_HMAC_SECRET = previousHmacSecret;
+  vi.useRealTimers();
 });
 
 const identity = (userId: Id<"users">) => ({
@@ -153,6 +154,9 @@ describe("analytics hardening", () => {
   });
 
   it("limits rapid anonymous view and click bursts when callers rotate supplied values", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
     const { profileId, userId } = await seed(t);

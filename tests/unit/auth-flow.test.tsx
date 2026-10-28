@@ -36,6 +36,7 @@ vi.mock("convex/react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("convex/react")>();
   return {
     ...actual,
+    useAction: () => mutation,
     useMutation: () => mutation,
     useConvex: () => ({ mutation: setupEmailPreflight }),
     useQuery: (query: unknown, ...args: unknown[]) =>
@@ -975,6 +976,26 @@ describe("reusable Google invitation setup", () => {
     expect(mutation.mock.calls[0]?.[0]).not.toEqual({ tokenHash: "raw-secret-token" });
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
   });
+
+  it("offers account switching after a wrong-account invitation failure", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({ state: "valid", expiresAt: null });
+    mutation.mockRejectedValue(
+      new Error("This authenticated account does not match the invitation email."),
+    );
+    signOut.mockResolvedValue(undefined);
+    const SetupForm = await loadSetup();
+    const user = userEvent.setup();
+
+    render(<SetupForm token="raw-secret-token" />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This Google account does not match the invitation email.",
+    );
+    expect(screen.queryByText("Finishing your invitation…")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Sign out and switch Google account" }));
+    expect(signOut).toHaveBeenCalledOnce();
+  }, 15_000);
 
   it.each([
     ["missing", /could not be found/i],

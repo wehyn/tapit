@@ -612,6 +612,16 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Card registry" })).toBeVisible();
 
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  const activeCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await activeCard.locator("summary").click();
+  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Card link copied." })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(new URL("/c/mara-card-7f2q", page.url()).toString());
+  await activeCard.locator("summary").click();
+
   await page.getByLabel("Pre-encoded card URL").fill("/c/malformed/path");
   await page.getByRole("button", { name: "Register card" }).click();
   await expect(page.getByText("Enter a card URL with a /c/<unique-token> path.")).toBeVisible();

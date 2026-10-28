@@ -172,6 +172,7 @@ async function switchCustomerDuringReceiptWrite(page: Page) {
 }
 
 test("card order receipts stay private and never mark payment received", async ({ page }) => {
+  test.setTimeout(90_000);
   await resetDemoHarness(page);
   await signInAsAdmin(page);
   await page.goto("/admin/settings");

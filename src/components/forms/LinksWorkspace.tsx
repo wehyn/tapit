@@ -11,7 +11,7 @@ import {
 } from "@/lib/domain";
 import { AddLinkDialog } from "./AddLinkDialog";
 import { LinkPresetIconPicker } from "./LinkPresetIconPicker";
-import { displayDestination, linkKind } from "./LinkDestination";
+import { displayDestination, formatDestination, linkKind, type LinkKind } from "./LinkDestination";
 import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -96,6 +96,8 @@ export function LinksWorkspace({
   const linksListRef = useRef<HTMLElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
   const previousPositionsRef = useRef<Map<string, number> | null>(null);
+  // An emptied destination stores "", which cannot say whether the row was email, phone, or link.
+  const [clearedKinds, setClearedKinds] = useState<Record<string, LinkKind>>({});
   const shownCount = links.filter((link) => link.enabled).length;
   const status =
     pendingAction === "save"
@@ -112,6 +114,17 @@ export function LinksWorkspace({
     publicationLabel === "Published" ||
     pendingAction !== null;
   const shouldShowActions = isDirty || pendingAction !== null;
+  function destinationKind(link: ProfileLink): LinkKind {
+    return link.destination === "" ? (clearedKinds[link.id] ?? "link") : linkKind(link.destination);
+  }
+
+  function changeDestination(link: ProfileLink, value: string) {
+    const kind = destinationKind(link);
+    const destination = formatDestination(kind, value);
+    if (destination === "") setClearedKinds((current) => ({ ...current, [link.id]: kind }));
+    onUpdateLink(link.id, { destination });
+  }
+
   function captureRowPositions() {
     previousPositionsRef.current = new Map(
       [...rowRefs.current].map(([id, row]) => [id, row.getBoundingClientRect().top]),
@@ -424,20 +437,11 @@ export function LinksWorkspace({
                           aria-invalid={Boolean(validation[link.id])}
                           className={`${rowFieldClasses} text-sm text-tapit-muted`}
                           id={`${link.id}-destination`}
-                          onChange={(event) =>
-                            onUpdateLink(link.id, {
-                              destination:
-                                linkKind(link.destination) === "email"
-                                  ? `mailto:${event.target.value}`
-                                  : linkKind(link.destination) === "phone"
-                                    ? `tel:${event.target.value}`
-                                    : event.target.value,
-                            })
-                          }
+                          onChange={(event) => changeDestination(link, event.target.value)}
                           placeholder={
-                            linkKind(link.destination) === "email"
+                            destinationKind(link) === "email"
                               ? "you@example.com"
-                              : linkKind(link.destination) === "phone"
+                              : destinationKind(link) === "phone"
                                 ? "+1 555 123 4567"
                                 : "https://example.com"
                           }

@@ -10,6 +10,13 @@ export class UnsupportedDemoStorageVersionError extends Error {
   }
 }
 
+export class MalformedDemoStorageError extends Error {
+  constructor() {
+    super("Saved demo media data is malformed.");
+    this.name = "MalformedDemoStorageError";
+  }
+}
+
 /** Store each demo image once, even when draft, published, and legacy profiles share it. */
 export function serializeDemoState(state: unknown): string {
   const mediaUrls: string[] = [];
@@ -44,15 +51,22 @@ export function serializeDemoState(state: unknown): string {
 }
 
 export function deserializeDemoState(raw: string): unknown {
-  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  const decoded: unknown = JSON.parse(raw);
+  if (decoded === null || typeof decoded !== "object" || Array.isArray(decoded))
+    throw new MalformedDemoStorageError();
+  const parsed = decoded as Record<string, unknown>;
   const version = parsed[MEDIA_CODEC_VERSION_KEY];
   if (version !== undefined && version !== 1 && version !== MEDIA_CODEC_VERSION) {
     throw new UnsupportedDemoStorageVersionError();
   }
   const mediaUrls = parsed[MEDIA_URLS_KEY];
   const escapedReferences = version === MEDIA_CODEC_VERSION;
-  const urls =
-    Array.isArray(mediaUrls) && mediaUrls.every((url) => typeof url === "string") ? mediaUrls : [];
+  if (
+    mediaUrls !== undefined &&
+    (!Array.isArray(mediaUrls) || !mediaUrls.every((url) => typeof url === "string"))
+  )
+    throw new MalformedDemoStorageError();
+  const urls = (mediaUrls ?? []) as string[];
   delete parsed[MEDIA_URLS_KEY];
   delete parsed[MEDIA_CODEC_VERSION_KEY];
   function restore(value: unknown): unknown {
@@ -67,7 +81,8 @@ export function deserializeDemoState(raw: string): unknown {
       const reference = value.slice(MEDIA_REFERENCE_PREFIX.length);
       if (!/^(0|[1-9]\d*)$/.test(reference)) return value;
       const index = Number(reference);
-      if (!Number.isSafeInteger(index) || typeof urls[index] !== "string") return value;
+      if (!Number.isSafeInteger(index) || typeof urls[index] !== "string")
+        throw new MalformedDemoStorageError();
       return urls[index];
     }
     if (Array.isArray(value)) return value.map(restore);
