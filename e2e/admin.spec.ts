@@ -369,6 +369,7 @@ test("administrator can inspect only the selected profile analytics and traffic 
   page,
 }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("analytics-seed@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(
@@ -532,7 +533,7 @@ test("administrator switches between the customer and admin workspaces", async (
     .getByRole("link", { name: "Admin", exact: true })
     .click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
-  await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 });
 
 test("administrator publishes only after editing their own draft", async ({ page }) => {
@@ -577,6 +578,7 @@ test("administrator can create and inspect a customer invitation", async ({ page
   await signInAsAdmin(page);
   await expect(page.getByRole("link", { name: "Customers" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("new-person@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(
@@ -591,6 +593,7 @@ test("administrator can create and inspect a customer invitation", async ({ page
 
 test("a new customer setup flow receives its own empty profile", async ({ page }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("separate-owner@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   const setupLink = page.getByRole("link", { name: /\/setup\/demo-/ });
@@ -848,6 +851,7 @@ test("administrator approves a customer deletion request", async ({ page }) => {
 
 test("administrator can expand audit entries to read account changes", async ({ page }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("audit-test@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(

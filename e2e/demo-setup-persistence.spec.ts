@@ -8,6 +8,7 @@ const STORAGE_REMOVE_BLOCK_KEY = "tapit:e2e-storage-remove-block:v1";
 
 async function createInvitation(page: Page, email: string): Promise<string> {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill(email);
   await page.getByRole("button", { name: "Create and invite" }).click();
 

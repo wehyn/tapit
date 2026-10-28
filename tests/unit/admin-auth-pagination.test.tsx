@@ -25,6 +25,10 @@ const customer = {
   deletionStatus: "active" as const,
   createdAt: 1,
   updatedAt: 1,
+  setupState: "active" as const,
+  linkExpiresAt: null,
+  profileName: "First Example",
+  profileSlug: "first-example",
 };
 
 function queryName(query: unknown): string {
@@ -41,48 +45,71 @@ beforeEach(() => {
 });
 
 describe("paginated administrator account lists", () => {
-  it("lets administrators load the next customer-account page", async () => {
-    const loadMore = vi.fn();
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({ results: [customer], status: "CanLoadMore", loadMore })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() });
+  it("includes active customer accounts in the one searchable customer list", async () => {
+    convexHooks.useQuery_experimental.mockImplementation(
+      (options: { query: unknown; args: { setupState?: string } }) => {
+        if (queryName(options.query) === "customers:list") {
+          return {
+            status: "success",
+            data: {
+              page:
+                options.args.setupState === "active" ? [{ ...customer, setupState: "active" }] : [],
+            },
+          };
+        }
+        return { status: "success", data: { page: [] } };
+      },
+    );
 
     render(<CustomersManager />);
 
     expect(screen.getByText("first@example.test")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Load more accounts" }));
-    expect(loadMore).toHaveBeenCalledWith(50);
+    expect(screen.getAllByRole("searchbox")).toHaveLength(1);
+    expect(screen.getByText("First Example")).toBeInTheDocument();
+    expect(screen.getByText("Active", { selector: "span" })).toBeInTheDocument();
   });
 
-  it("shows the invitation's server-generated profile name and slug", () => {
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, status: "invited" }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({
-        results: [
-          {
-            invitationId: "invitations:1",
-            customerId: "customers:1",
-            email: "first@example.test",
-            profileName: "First Example",
-            slug: "first-example-2",
-            expiresAt: null,
-            acceptedAt: null,
-            invalidatedAt: null,
-          },
-        ],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      });
+  it("shows the server-provided profile name and slug in its single legacy invite row", () => {
+    convexHooks.useQuery_experimental.mockImplementation(
+      (options: { query: unknown; args: { setupState?: string } }) => {
+        if (queryName(options.query) === "customers:list") {
+          return {
+            status: "success",
+            data: {
+              page:
+                options.args.setupState === "draft"
+                  ? [{ ...customer, status: "invited", setupState: "draft" }]
+                  : [],
+            },
+          };
+        }
+        if (queryName(options.query) === "invitations:listForAdmin")
+          return {
+            status: "success",
+            data: {
+              page: [
+                {
+                  invitationId: "invitations:1",
+                  customerId: "customers:1",
+                  email: "first@example.test",
+                  profileName: "First Example",
+                  slug: "first-example-2",
+                  expiresAt: null,
+                  acceptedAt: null,
+                  invalidatedAt: null,
+                },
+              ],
+            },
+          };
+        return { status: "success", data: { page: [] } };
+      },
+    );
 
     render(<CustomersManager />);
 
-    expect(screen.getByText("Profile: First Example · /first-example-2")).toBeInTheDocument();
+    expect(screen.getByText("First Example")).toBeInTheDocument();
+    expect(screen.getAllByText("first@example.test")).toHaveLength(1);
+    expect(screen.queryByText("Profile: First Example · /first-example-2")).not.toBeInTheDocument();
   });
 
   it("lets card assignment search through customers beyond the first page", async () => {

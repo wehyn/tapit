@@ -91,13 +91,13 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
 
     // Provision the customer and retain the one-time setup link displayed by
     // the admin UI; no Auth or application records are written from the test.
+    await page.getByText("Invite an account by email").click();
     await page.getByLabel("Customer email").fill(email);
     await page.getByLabel("Initial profile name").fill("Hosted E2E owner");
     await page.getByLabel("Profile slug").fill(token);
     await page.getByRole("button", { name: "Create and invite" }).click();
     await expect(page.getByText(/Customer account created for/)).toBeVisible();
-    const setupText = await page.getByText(/One-time setup link:/).textContent();
-    const setupPath = setupText?.match(/\/setup\/[^\s]+/)?.[0];
+    const setupPath = await page.getByRole("link", { name: /\/setup\// }).getAttribute("href");
     expect(setupPath).toBeTruthy();
 
     await page.getByRole("link", { name: "Cards", exact: true }).click();
