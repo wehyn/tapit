@@ -165,6 +165,11 @@ function DemoWorkspaceShell({
       beforeNavigate={beforeNavigate}
       email={access.account.email}
       live={live}
+      navigationTourProfileId={
+        audience === "customer" && access.account.role === "customer"
+          ? access.profile?.id
+          : undefined
+      }
       onSignOut={async () => {
         const outcome = await draftSave();
         if (outcome.kind !== "saved") throw new Error(signOutSaveFailureMessage(outcome));
@@ -254,6 +259,11 @@ function LiveWorkspaceShell({
       beforeNavigate={beforeNavigate}
       email={access.email ?? (audience === "admin" ? "Administrator" : "Account")}
       live={live}
+      navigationTourProfileId={
+        audience === "customer" && access.role === "customer"
+          ? (access.profileId ?? undefined)
+          : undefined
+      }
       onSignOut={async () => {
         const outcome = await draftSave();
         if (outcome.kind !== "saved") throw new Error(signOutSaveFailureMessage(outcome));

@@ -1,7 +1,7 @@
 # Specification: GitHub Issue #175
 
 **Issue:** [#175 — Restore first-time customer navigation tour for the redesigned workspace](https://github.com/wehyn/tapit/issues/175)
-**Status:** Draft
+**Status:** Approved
 **Date:** 2026-10-28
 
 ## Context

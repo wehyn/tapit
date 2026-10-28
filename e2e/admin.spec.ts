@@ -83,6 +83,7 @@ test("administrator sidebar groups operations and governance and offers the cust
   page,
 }) => {
   await signInAsAdmin(page);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
 
   const sidebar = page.getByTestId("workspace-sidebar");
   await expect

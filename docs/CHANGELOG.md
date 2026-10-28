@@ -4,6 +4,10 @@
 
 - Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.
 
+## 2026-10-28 — Restore first-time customer navigation tour
+
+- Customers who have not completed the tour in this browser get a short guide to Profile, Links, Customize, Card, Analytics when available, and Account. It adapts to desktop and mobile navigation and waits for the first-visit publish dialog to close.
+
 ## 2026-10-28 — Card-order offers, usage limits, and admin copy
 
 - Admins configure offer pricing and shared order-use caps separately from referrer attribution. Exact aliases such as `FOUNDING` and `FOUNDING-AHRON` share one offer without parsing code strings.

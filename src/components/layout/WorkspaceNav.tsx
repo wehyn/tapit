@@ -6,9 +6,11 @@ import {
   useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
+  type RefObject,
   type ReactNode,
 } from "react";
 
@@ -30,6 +32,13 @@ import { Icon } from "../ui/Icon";
 
 export type WorkspaceLive = { slug: string; published: boolean };
 
+type NavigationTourItem = NavItem & { tourDescription: string };
+type NavigationTourLayout = {
+  href: string;
+  target: { top: number; left: number; width: number; height: number };
+  coach: { top: number; left: number; width: number };
+};
+
 export type WorkspaceChromeProps = {
   audience: NavAudience;
   hasCardOwnerFeatures?: boolean;
@@ -37,6 +46,7 @@ export type WorkspaceChromeProps = {
   children: ReactNode;
   email: string;
   live: WorkspaceLive | null;
+  navigationTourProfileId?: string;
   onSignOut: () => Promise<void>;
   showAudienceSwitch: boolean;
 };
@@ -47,6 +57,12 @@ const saveStatusCopy: Record<DraftStatus, { label: string; tone: "ok" | "warn" |
   saving: { label: "Saving…", tone: "neutral" },
 };
 
+function findVisibleNavigationTourTarget(href: string): HTMLAnchorElement | undefined {
+  return Array.from(document.querySelectorAll<HTMLAnchorElement>("[data-tour-href]")).find(
+    (link) => link.dataset.tourHref === href && link.getClientRects().length > 0,
+  );
+}
+
 export function WorkspaceChrome({
   audience,
   hasCardOwnerFeatures = true,
@@ -54,6 +70,7 @@ export function WorkspaceChrome({
   children,
   email,
   live,
+  navigationTourProfileId,
   onSignOut,
   showAudienceSwitch,
 }: WorkspaceChromeProps) {
@@ -61,17 +78,141 @@ export function WorkspaceChrome({
   const router = useRouter();
   const draftStatus = useDraftStatus();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [navigationBlocked, setNavigationBlocked] = useState(false);
+  const [desktopViewport, setDesktopViewport] = useState(false);
+  const [tourProgress, setTourProgress] = useState<{ profileId: string; index: number } | null>(
+    null,
+  );
+  const [tourLayout, setTourLayout] = useState<NavigationTourLayout | null>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const accountMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const tourStartedForProfileRef = useRef<string | null>(null);
+  const navigationTourDescriptionId = useId();
   const sheetId = useId();
   const audienceCopy = navAudiences[audience];
   const currentItem = activeNavItemFor(audience, pathname, hasCardOwnerFeatures);
+  const tourItems = useMemo(
+    () =>
+      navItemsFor("customer", "sidebar", hasCardOwnerFeatures).filter(
+        (item): item is NavigationTourItem => Boolean(item.tourDescription),
+      ),
+    [hasCardOwnerFeatures],
+  );
+  const tourIndex =
+    tourProgress !== null && tourProgress.profileId === navigationTourProfileId
+      ? tourProgress.index
+      : null;
+  const tourItem = tourIndex === null ? undefined : tourItems[tourIndex];
+  const tourInMore = Boolean(tourItem && !desktopViewport && !tourItem.surfaces.includes("tabs"));
+  const tourWaitsForMoreClose = !desktopViewport && moreOpen && !tourInMore;
+  const tourInAccountMenu = Boolean(desktopViewport && tourItem?.section === "pinned");
+  const tourIsActive =
+    audience === "customer" && navigationTourProfileId !== undefined && tourItem !== undefined;
 
-  const closeMore = useCallback(() => {
-    setMoreOpen(false);
-    setNavigationBlocked(false);
-    requestAnimationFrame(() => moreButtonRef.current?.focus());
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    const updateViewport = () => setDesktopViewport(desktop.matches);
+    updateViewport();
+    desktop.addEventListener("change", updateViewport);
+    return () => desktop.removeEventListener("change", updateViewport);
   }, []);
+
+  useEffect(() => {
+    if (audience !== "customer" || navigationTourProfileId === undefined) {
+      tourStartedForProfileRef.current = null;
+      return;
+    }
+
+    const storageKey = `tapit:customer-navigation-tour:${navigationTourProfileId}`;
+    try {
+      if (window.localStorage.getItem(storageKey) === "done") {
+        tourStartedForProfileRef.current = navigationTourProfileId;
+        return;
+      }
+    } catch {
+      // Continue with the tour when storage is unavailable.
+    }
+
+    if (tourStartedForProfileRef.current === navigationTourProfileId) return;
+    let started = tourStartedForProfileRef.current === navigationTourProfileId;
+    const startWhenReady = () => {
+      if (started) return;
+      if (
+        pathname === "/app/profile" &&
+        document.querySelector('[data-navigation-tour-ready="true"]') === null
+      ) {
+        return;
+      }
+      started = true;
+      tourStartedForProfileRef.current = navigationTourProfileId;
+      setTourLayout(null);
+      setTourProgress({ profileId: navigationTourProfileId, index: 0 });
+    };
+    const observer = new MutationObserver(startWhenReady);
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ["data-navigation-tour-ready"],
+      childList: true,
+      subtree: true,
+    });
+    const frame = requestAnimationFrame(startWhenReady);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [audience, navigationTourProfileId, pathname]);
+
+  const finishTour = useCallback(() => {
+    if (navigationTourProfileId !== undefined) {
+      try {
+        window.localStorage.setItem(
+          `tapit:customer-navigation-tour:${navigationTourProfileId}`,
+          "done",
+        );
+      } catch {
+        // Storage can be unavailable in privacy-restricted browsers.
+      }
+    }
+    const activeHref = tourItem?.href;
+    const focusMore = !desktopViewport && tourInMore;
+    const focusAccountMenu = desktopViewport && tourInAccountMenu;
+    setTourProgress(null);
+    setTourLayout(null);
+    setMoreOpen(false);
+    setAccountMenuOpen(false);
+    setNavigationBlocked(false);
+    requestAnimationFrame(() => {
+      if (focusMore) moreButtonRef.current?.focus();
+      else if (focusAccountMenu) accountMenuButtonRef.current?.focus();
+      else if (activeHref) findVisibleNavigationTourTarget(activeHref)?.focus();
+    });
+  }, [desktopViewport, navigationTourProfileId, tourInAccountMenu, tourInMore, tourItem]);
+
+  const closeMore = useCallback(
+    (dismissTour = true) => {
+      if (dismissTour && tourIsActive) finishTour();
+      else {
+        setMoreOpen(false);
+        setNavigationBlocked(false);
+        requestAnimationFrame(() => moreButtonRef.current?.focus());
+      }
+    },
+    [finishTour, tourIsActive],
+  );
+
+  useEffect(() => {
+    if (!tourIsActive || tourIndex === null || tourItem === undefined) return;
+    if (!desktopViewport && !tourItem.surfaces.includes("tabs")) {
+      const frame = requestAnimationFrame(() => setMoreOpen(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    if (moreOpen) {
+      const frame = requestAnimationFrame(() => closeMore(false));
+      return () => cancelAnimationFrame(frame);
+    }
+    return;
+  }, [closeMore, desktopViewport, moreOpen, tourIndex, tourIsActive, tourItem]);
 
   useEffect(() => {
     if (!moreOpen) return;
@@ -86,6 +227,145 @@ export function WorkspaceChrome({
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, [moreOpen]);
+
+  const updateTourLayout = useCallback(() => {
+    if (!tourIsActive || tourIndex === null || tourItem === undefined) return;
+    const target = findVisibleNavigationTourTarget(tourItem.href);
+    if (!target) return;
+
+    target.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const rect = target.getBoundingClientRect();
+    const margin = 16;
+    const coachHeight = 180;
+    const width = Math.min(320, window.innerWidth - margin * 2);
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - coachHeight - margin);
+    const left = desktopViewport
+      ? Math.min(Math.max(margin, rect.right + 12), maxLeft)
+      : Math.min(Math.max(margin, rect.left + rect.width / 2 - width / 2), maxLeft);
+    const above = rect.top - coachHeight - 12;
+    const below = rect.bottom + 12;
+    const top =
+      desktopViewport || above >= margin
+        ? Math.min(Math.max(margin, desktopViewport ? rect.top : above), maxTop)
+        : below + coachHeight <= window.innerHeight - margin
+          ? below
+          : margin;
+
+    setTourLayout({
+      href: tourItem.href,
+      target: {
+        top: rect.top - 4,
+        left: rect.left - 4,
+        width: rect.width + 8,
+        height: rect.height + 8,
+      },
+      coach: { top, left, width },
+    });
+  }, [desktopViewport, tourIndex, tourIsActive, tourItem]);
+
+  useEffect(() => {
+    if (!tourIsActive || tourIndex === null) return;
+    const frame = requestAnimationFrame(updateTourLayout);
+    window.addEventListener("resize", updateTourLayout);
+    document.addEventListener("scroll", updateTourLayout, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", updateTourLayout);
+      document.removeEventListener("scroll", updateTourLayout, true);
+    };
+  }, [moreOpen, tourIndex, tourIsActive, updateTourLayout]);
+
+  useEffect(() => {
+    if (!tourIsActive || tourIndex === null || tourInMore) return;
+    const closeTourOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      finishTour();
+    };
+    document.addEventListener("keydown", closeTourOnEscape);
+    return () => document.removeEventListener("keydown", closeTourOnEscape);
+  }, [finishTour, tourIndex, tourInMore, tourIsActive]);
+
+  const renderNavigationTourSpotlight = () => {
+    if (
+      !tourIsActive ||
+      tourItem === undefined ||
+      tourIndex === null ||
+      tourLayout?.href !== tourItem.href
+    ) {
+      return null;
+    }
+
+    return (
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed z-50 rounded-control outline-2 outline-tapit-surface"
+        data-testid="navigation-tour-spotlight"
+        style={{
+          top: tourLayout.target.top,
+          left: tourLayout.target.left,
+          width: tourLayout.target.width,
+          height: tourLayout.target.height,
+          boxShadow: "0 0 0 100vmax rgb(27 36 51 / 62%)",
+        }}
+      />
+    );
+  };
+
+  const renderNavigationTourCoach = () => {
+    if (
+      !tourIsActive ||
+      tourItem === undefined ||
+      tourIndex === null ||
+      tourLayout?.href !== tourItem.href
+    ) {
+      return null;
+    }
+
+    return (
+      <div
+        aria-label="Customer navigation tour"
+        className="fixed z-50 flex flex-col gap-2 rounded-card bg-tapit-surface p-4 text-tapit-ink shadow-card"
+        data-testid="navigation-tour-coach-mark"
+        data-navigation-tour-controls="true"
+        role="group"
+        style={{
+          top: tourLayout.coach.top,
+          left: tourLayout.coach.left,
+          width: tourLayout.coach.width,
+          zIndex: 51,
+        }}
+      >
+        <div aria-atomic="true" aria-live="polite" role="status">
+          <h2 className="text-sm font-semibold">{tourItem.label}</h2>
+          <p className="mt-1 text-sm leading-5 text-tapit-muted" id={navigationTourDescriptionId}>
+            {tourItem.tourDescription}
+          </p>
+          <p className="mt-2 text-xs font-medium text-tapit-muted">
+            Step {tourIndex + 1} of {tourItems.length}
+          </p>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button onClick={finishTour} type="button" variant="quiet">
+            Skip tour
+          </Button>
+          <Button
+            autoFocus
+            onClick={() => {
+              if (tourIndex === tourItems.length - 1) finishTour();
+              else if (navigationTourProfileId !== undefined) {
+                setTourProgress({ profileId: navigationTourProfileId, index: tourIndex + 1 });
+              }
+            }}
+            type="button"
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   const handleNavigation = useCallback(
     (event: MouseEvent<HTMLAnchorElement>, href: string) => {
@@ -135,6 +415,7 @@ export function WorkspaceChrome({
   const moreItems = navItemsFor(audience, "more", hasCardOwnerFeatures);
   const otherAudiences = navAudienceSwitch.filter((option) => option.audience !== audience);
   const saveStatus = saveStatusCopy[draftStatus];
+  const activeTourHref = tourIsActive ? tourItem.href : undefined;
 
   return (
     <div className="min-h-dvh min-w-0 bg-tapit-paper lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:py-4 lg:pl-4">
@@ -163,6 +444,8 @@ export function WorkspaceChrome({
                   item={item}
                   key={item.href}
                   onNavigate={handleNavigation}
+                  activeTourHref={activeTourHref}
+                  tourDescriptionId={navigationTourDescriptionId}
                 />
               ))}
             </div>
@@ -170,11 +453,18 @@ export function WorkspaceChrome({
         </nav>
         <div className="flex flex-col gap-2">
           <AccountMenu
+            activeTourHref={activeTourHref}
             email={email}
             isActive={(item) => isNavItemActive(item, pathname)}
             items={pinnedItems}
+            onOpenChange={setAccountMenuOpen}
             onNavigate={handleNavigation}
             onSignOut={onSignOut}
+            onTourDismiss={finishTour}
+            open={accountMenuOpen || tourInAccountMenu}
+            tourDescriptionId={navigationTourDescriptionId}
+            tourOpen={tourInAccountMenu && tourIsActive}
+            triggerRef={accountMenuButtonRef}
           />
         </div>
       </aside>
@@ -230,7 +520,11 @@ export function WorkspaceChrome({
             return (
               <Link
                 aria-current={active ? "page" : undefined}
+                aria-describedby={
+                  item.href === activeTourHref ? navigationTourDescriptionId : undefined
+                }
                 className={`flex min-h-11 flex-1 flex-col items-center justify-center gap-1 rounded-control text-xs font-semibold transition-colors ${active ? "bg-tapit-accent-soft text-tapit-accent-strong" : "text-tapit-muted hover:text-tapit-ink"}`}
+                data-tour-href={item.tourDescription ? item.href : undefined}
                 href={item.href}
                 key={item.href}
                 onClick={(event) => handleNavigation(event, item.href)}
@@ -271,7 +565,17 @@ export function WorkspaceChrome({
           onSignOut={onSignOut}
           otherAudiences={showAudienceSwitch ? otherAudiences : []}
           pathname={pathname}
+          activeTourHref={activeTourHref}
+          tourCoach={tourInMore ? renderNavigationTourCoach() : null}
+          tourDescriptionId={navigationTourDescriptionId}
+          tourSpotlight={tourInMore ? renderNavigationTourSpotlight() : null}
         />
+      ) : null}
+      {!tourInMore && !tourWaitsForMoreClose ? (
+        <>
+          {renderNavigationTourSpotlight()}
+          {renderNavigationTourCoach()}
+        </>
       ) : null}
     </div>
   );
@@ -282,16 +586,22 @@ function NavLink({
   item,
   onNavigate,
   onSelect,
+  activeTourHref,
+  tourDescriptionId,
 }: {
   active: boolean;
   item: NavItem;
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
   onSelect?: () => void;
+  activeTourHref?: string;
+  tourDescriptionId: string;
 }) {
   return (
     <Link
       aria-current={active ? "page" : undefined}
+      aria-describedby={item.href === activeTourHref ? tourDescriptionId : undefined}
       className={`flex min-h-11 items-center gap-3 rounded-control px-3 text-sm transition-colors ${active ? "bg-tapit-accent-soft font-semibold text-tapit-accent-strong" : "font-medium text-tapit-muted hover:bg-tapit-soft-surface hover:text-tapit-ink"}`}
+      data-tour-href={item.tourDescription ? item.href : undefined}
       href={item.href}
       onClick={(event) => {
         onNavigate(event, item.href);
@@ -356,35 +666,51 @@ function useSignOut(onSignOut: () => Promise<void>) {
 }
 
 function AccountMenu({
+  activeTourHref,
   email,
   isActive,
   items,
+  open,
   onNavigate,
+  onOpenChange,
   onSignOut,
+  onTourDismiss,
+  tourDescriptionId,
+  tourOpen,
+  triggerRef,
 }: {
+  activeTourHref?: string;
   email: string;
   isActive: (item: NavItem) => boolean;
   items: readonly NavItem[];
   onNavigate: (event: MouseEvent<HTMLAnchorElement>, href: string) => void;
+  onOpenChange: (open: boolean) => void;
   onSignOut: () => Promise<void>;
+  open: boolean;
+  onTourDismiss: () => void;
+  tourDescriptionId: string;
+  tourOpen: boolean;
+  triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
-  const [open, setOpen] = useState(false);
   const menuId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
   const { error, pending, signOut } = useSignOut(onSignOut);
 
   useEffect(() => {
     if (!open) return;
 
     const closeOnOutsidePointer = (event: PointerEvent) => {
-      if (event.target instanceof Node && !containerRef.current?.contains(event.target)) {
-        setOpen(false);
+      const target = event.target;
+      const isTourControl =
+        tourOpen && target instanceof Element && target.closest("[data-navigation-tour-controls]");
+      if (target instanceof Node && !containerRef.current?.contains(target) && !isTourControl) {
+        if (tourOpen) onTourDismiss();
+        else onOpenChange(false);
       }
     };
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [open]);
+  }, [onOpenChange, onTourDismiss, open, tourOpen]);
 
   const initials = email.slice(0, 2).toUpperCase() || "U";
 
@@ -394,8 +720,11 @@ function AccountMenu({
       onKeyDown={(event) => {
         if (event.key !== "Escape" || !open) return;
         event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
+        if (tourOpen) onTourDismiss();
+        else {
+          onOpenChange(false);
+          triggerRef.current?.focus();
+        }
       }}
       ref={containerRef}
     >
@@ -404,7 +733,10 @@ function AccountMenu({
         aria-expanded={open}
         aria-label={`Account menu for ${email}`}
         className="flex min-h-11 w-full items-center gap-3 rounded-control px-2 text-left text-sm text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (tourOpen) onTourDismiss();
+          else onOpenChange(!open);
+        }}
         ref={triggerRef}
         type="button"
       >
@@ -428,7 +760,12 @@ function AccountMenu({
             item={item}
             key={item.href}
             onNavigate={onNavigate}
-            onSelect={() => setOpen(false)}
+            activeTourHref={activeTourHref}
+            tourDescriptionId={tourDescriptionId}
+            onSelect={() => {
+              if (tourOpen) onTourDismiss();
+              else onOpenChange(false);
+            }}
           />
         ))}
         <Button
@@ -452,6 +789,7 @@ function AccountMenu({
 }
 
 function MoreSheet({
+  activeTourHref,
   audience,
   email,
   id,
@@ -463,7 +801,11 @@ function MoreSheet({
   onSignOut,
   otherAudiences,
   pathname,
+  tourCoach,
+  tourDescriptionId,
+  tourSpotlight,
 }: {
+  activeTourHref?: string;
   audience: NavAudience;
   email: string;
   id: string;
@@ -475,6 +817,9 @@ function MoreSheet({
   onSignOut: () => Promise<void>;
   otherAudiences: { audience: NavAudience; href: string; label: string }[];
   pathname: string;
+  tourCoach: ReactNode;
+  tourDescriptionId: string;
+  tourSpotlight: ReactNode;
 }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -552,7 +897,9 @@ function MoreSheet({
         <div className="flex flex-col gap-2">
           {items.map((item) => (
             <Link
+              aria-describedby={item.href === activeTourHref ? tourDescriptionId : undefined}
               className="flex min-h-14 items-center gap-3 rounded-control bg-tapit-soft-surface px-4 text-sm font-semibold text-tapit-ink"
+              data-tour-href={item.tourDescription ? item.href : undefined}
               href={item.href}
               key={item.href}
               aria-current={isNavItemActive(item, pathname) ? "page" : undefined}
@@ -608,6 +955,8 @@ function MoreSheet({
             Sign out
           </Button>
         </div>
+        {tourSpotlight}
+        {tourCoach}
       </div>
     </div>
   );

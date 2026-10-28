@@ -11,6 +11,40 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+const navigationTourSteps = [
+  { label: "Profile", description: "Edit your profile details and what people see." },
+  { label: "Links", description: "Manage the links shown on your profile." },
+  { label: "Customize", description: "Choose the look and layout of your profile." },
+  { label: "Card", description: "Design a card to share your profile or find order details." },
+  { label: "Analytics", description: "See how people view your profile and use its links." },
+  { label: "Account", description: "Manage your account and profile settings." },
+];
+
+async function startFirstVisitNavigationTour(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 844 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+}
+
+async function expectTourSpotlight(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  await expect(target).toHaveAttribute("aria-describedby", /.+/);
+  const targetBounds = await target.boundingBox();
+  const spotlightBounds = await page.getByTestId("navigation-tour-spotlight").boundingBox();
+  expect(targetBounds).not.toBeNull();
+  expect(spotlightBounds).not.toBeNull();
+  if (targetBounds && spotlightBounds) {
+    expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
+    expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
+    expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
+      targetBounds.x + targetBounds.width,
+    );
+    expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
+      targetBounds.y + targetBounds.height,
+    );
+  }
+}
+
 async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem("tapit:demo-state:v1");
@@ -205,6 +239,103 @@ test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer"
   await expect(page).toHaveURL(/\/app\/card$/);
   await expect(sheet).toHaveCount(0);
 });
+
+test("first-time customer navigation tour covers desktop destinations", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 1440);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const sidebar = page.getByTestId("workspace-sidebar");
+  const navigation = sidebar.getByRole("navigation", { name: "Customer navigation" });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const target =
+      step.label === "Account"
+        ? sidebar.getByRole("group", { name: "Account options" }).getByRole("link", {
+            name: "Account",
+            exact: true,
+          })
+        : navigation.getByRole("link", { name: step.label, exact: true });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.localStorage.getItem("tapit:customer-navigation-tour:profile-mara"),
+      ),
+    )
+    .toBe("done");
+  await page.reload();
+  await expect(page.locator('[data-navigation-tour-ready="true"]')).toBeAttached();
+  await expect(coach).toHaveCount(0);
+});
+
+test("mobile first-time tour follows the tab bar and More sheet", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 390);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const tabBar = page.getByRole("navigation", { name: "Mobile navigation" });
+  const more = tabBar.getByRole("button", { name: "More", exact: true });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const isMoreStep = ["Customize", "Card", "Account"].includes(step.label);
+    const target = isMoreStep
+      ? page.getByRole("dialog", { name: "More" }).getByRole("link", {
+          name: step.label,
+          exact: true,
+        })
+      : tabBar.getByRole("link", {
+          name: step.label === "Analytics" ? "Stats" : step.label,
+          exact: true,
+        });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await expect(target).toBeInViewport();
+    await expect(more).toHaveAttribute("aria-expanded", isMoreStep ? "true" : "false");
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "More" })).toHaveCount(0);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+});
+
+for (const closeMethod of ["Escape", "Close"] as const) {
+  test(`closing More with ${closeMethod} ends the mobile tour`, async ({ page }) => {
+    await startFirstVisitNavigationTour(page, 390);
+
+    const coach = page.getByTestId("navigation-tour-coach-mark");
+    const more = page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", {
+      name: "More",
+      exact: true,
+    });
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "More" });
+    await expect(dialog).toBeVisible();
+
+    if (closeMethod === "Escape") await page.keyboard.press("Escape");
+    else await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(coach).toHaveCount(0);
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(more).toBeFocused();
+  });
+}
 
 test("mobile More opens as a dialog, and Escape or Close returns focus to More", async ({
   page,
