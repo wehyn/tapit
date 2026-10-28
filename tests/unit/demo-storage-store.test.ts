@@ -49,7 +49,7 @@ describe("demo storage store", () => {
     ]);
   });
 
-  it("normalizes legacy exact aliases into shared FOUNDING and separate legacy offers", async () => {
+  it("normalizes only the exact FOUNDING aliases and preserves other legacy code limits", async () => {
     const state = createDefaultDemoState();
     state.cardOrderReferralCodes = [
       {
@@ -72,6 +72,9 @@ describe("demo storage store", () => {
         id: "other-one",
         code: "OTHER-ONE",
         referrerLabel: "One",
+        fixedPriceCentavos: 14_900,
+        usageCount: 2,
+        usageLimit: 2,
         active: true,
         createdAt: 3,
         updatedAt: 3,
@@ -97,14 +100,273 @@ describe("demo storage store", () => {
     ).toEqual([
       { id: "founding", offerId: "offer-founding", referrerCode: undefined },
       { id: "founding-ahron", offerId: "offer-founding", referrerCode: "AHRON" },
-      { id: "other-one", offerId: "legacy-offer-other-one", referrerCode: undefined },
-      { id: "other-two", offerId: "legacy-offer-other-two", referrerCode: undefined },
+      { id: "other-one", offerId: undefined, referrerCode: undefined },
+      { id: "other-two", offerId: undefined, referrerCode: undefined },
     ]);
+    expect(normalized.cardOrderReferralCodes.find(({ id }) => id === "other-one")).toMatchObject({
+      fixedPriceCentavos: 14_900,
+      usageCount: 2,
+      usageLimit: 2,
+    });
+    expect(normalized.cardOrderOffers.map(({ code }) => code)).toEqual(["FOUNDING"]);
     expect(normalized.cardOrderOffers.find(({ id }) => id === "offer-founding")).toMatchObject({
       code: "FOUNDING",
       fixedPriceCentavos: 29_900,
+      usageCount: 5,
       usageLimit: 25,
     });
+  });
+
+  it("relinks historical FOUNDING orders without changing their saved snapshots", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "founding",
+        code: "FOUNDING",
+        offerId: "old-founding-offer",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "founding-ahron",
+        code: "RENAMED-AHRON",
+        offerId: "old-ahron-offer",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    state.cardOrderOffers = [
+      {
+        id: "old-founding-offer",
+        code: "FOUNDING",
+        scope: "demo",
+        fixedPriceCentavos: 29_900,
+        usageLimit: 25,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "old-ahron-offer",
+        code: "FOUNDING-AHRON",
+        scope: "demo",
+        fixedPriceCentavos: 29_900,
+        usageLimit: 25,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    state.cardOrders = Array.from({ length: 5 }, (_, index) => {
+      const referralCodeId = index < 3 ? "founding" : "founding-ahron";
+      const code = referralCodeId === "founding" ? "FOUNDING" : "FOUNDING-AHRON";
+      return {
+        id: `historical-${index}`,
+        customerId: `customer-${index}`,
+        quantity: 1,
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        deliveryName: "Mara Santos",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        cardPriceCentavos: 59_900,
+        discountCentavos: 30_000,
+        paymentMethodId: "method-1",
+        paymentSnapshot: {
+          provider: "Bank",
+          label: "Main",
+          accountDetails: "123",
+          instructions: "Pay",
+        },
+        referralCodeId,
+        referralSnapshot: {
+          code: index < 3 ? `OLD-${code}` : "OLD-FOUNDING-AHRON",
+          referrerLabel: "Original label",
+        },
+        offerId: referralCodeId === "founding" ? "old-founding-offer" : "old-ahron-offer",
+        offerSnapshot: { code: "Old custom offer", fixedPriceCentavos: 29_900 },
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_shipping_quote",
+        commissionStatus: "none",
+        commissionCentavos: 0,
+        createdAt: index + 1,
+        updatedAt: index + 1,
+      };
+    });
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    const normalized = getDemoState();
+    expect(normalized.cardOrders).toHaveLength(5);
+    expect(normalized.cardOrders.map(({ offerId }) => offerId)).toEqual(
+      Array(5).fill("offer-founding"),
+    );
+    expect(
+      normalized.cardOrderReferralCodes.find(({ id }) => id === "founding-ahron")?.offerId,
+    ).toBe("offer-founding");
+    expect(normalized.cardOrders[0]).toMatchObject({
+      referralSnapshot: { code: "OLD-FOUNDING", referrerLabel: "Original label" },
+      offerSnapshot: { code: "Old custom offer", fixedPriceCentavos: 29_900 },
+    });
+    expect(normalized.cardOrderOffers.filter(({ code }) => code === "FOUNDING")).toHaveLength(1);
+    expect(normalized.cardOrderOffers.find(({ id }) => id === "offer-founding")).toMatchObject({
+      usageCount: 5,
+      usageLimit: 25,
+    });
+  });
+
+  it("preserves a deliberately cleared founding alias offer mapping", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "founding-ahron",
+        code: "FOUNDING-AHRON",
+        offerId: null,
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    state.cardOrderOffers = [
+      { id: "offer-founding", code: "FOUNDING", scope: "demo", createdAt: 1, updatedAt: 1 },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cardOrderReferralCodes[0]?.offerId).toBeNull();
+  });
+
+  it("keeps a cleared referral mapping cleared through the real save and reload path", async () => {
+    const store = await import("../../src/lib/demo/store");
+    store.setDemoSession({ email: "admin@tapit.local", role: "admin" });
+    const { saveDemoCardOrderReferralCode } = await import("../../src/lib/demo/card-ordering");
+    const originalLocks = navigator.locks;
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: unknown, operation: () => Promise<unknown>) =>
+          operation(),
+      },
+    });
+
+    let id: string;
+    try {
+      id = await saveDemoCardOrderReferralCode({ code: "FOUNDING-AHRON", active: true });
+    } finally {
+      Object.defineProperty(navigator, "locks", { configurable: true, value: originalLocks });
+    }
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cardOrderReferralCodes.find(
+      (code: { id: string }) => code.id === id,
+    );
+    expect(saved).toMatchObject({ offerId: null, referrerCode: null });
+
+    vi.resetModules();
+    const reloadedStore = await import("../../src/lib/demo/store");
+    expect(
+      reloadedStore.getDemoState().cardOrderReferralCodes.find((code) => code.id === id),
+    ).toMatchObject({ offerId: null, referrerCode: null });
+    const reloadedOrdering = await import("../../src/lib/demo/card-ordering");
+    expect(
+      reloadedOrdering.getDemoCardOrderAdminSettings().referralCodes.find((code) => code.id === id),
+    ).not.toHaveProperty("referrerCode");
+  });
+
+  it("keeps an order without an offer mapping valid after persist and reload", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      { id: "unmapped", code: "UNMAPPED", offerId: null, active: true, createdAt: 1, updatedAt: 1 },
+    ];
+    state.cardOrders = [
+      {
+        id: "unmapped-order",
+        customerId: "customer-mara",
+        quantity: 1,
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        deliveryName: "Mara Santos",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        cardPriceCentavos: 59_900,
+        discountCentavos: 0,
+        paymentMethodId: "method-1",
+        paymentSnapshot: {
+          provider: "Bank",
+          label: "Main",
+          accountDetails: "123",
+          instructions: "Pay",
+        },
+        referralCodeId: "unmapped",
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_shipping_quote",
+        commissionStatus: "none",
+        commissionCentavos: 0,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState, updateDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cardOrders[0]?.id).toBe("unmapped-order");
+    expect(getDemoState().cardOrders[0]?.offerId).toBeUndefined();
+    updateDemoState((current) => ({ ...current, supportUrl: "/saved" }));
+    vi.resetModules();
+
+    expect((await import("../../src/lib/demo/store")).getDemoState().cardOrders).toHaveLength(1);
+  });
+
+  it("keeps edited founding pricing and cleared limits after storage normalization", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "founding",
+        code: "FOUNDING",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    state.cardOrderOffers = [
+      {
+        id: "offer-founding",
+        code: "FOUNDING",
+        scope: "demo",
+        usageCount: 5,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    const normalized = getDemoState().cardOrderOffers[0];
+    expect(normalized?.fixedPriceCentavos).toBeUndefined();
+    expect(normalized?.usageLimit).toBeUndefined();
+    expect(normalized?.usageCount).toBe(5);
+  });
+
+  it("keeps an exhausted legacy referral count without order history", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "legacy-limited",
+        code: "LEGACY-LIMITED",
+        fixedPriceCentavos: 14_900,
+        usageCount: 2,
+        usageLimit: 2,
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cardOrderReferralCodes[0]).toMatchObject({
+      id: "legacy-limited",
+      fixedPriceCentavos: 14_900,
+      usageCount: 2,
+      usageLimit: 2,
+    });
+    expect(getDemoState().cardOrderOffers).toEqual([]);
   });
 
   it("rejects updates that would overwrite a future-version state", async () => {

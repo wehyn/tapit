@@ -69,11 +69,12 @@ export type DemoCardOrderPaymentMethod = {
 export type DemoCardOrderReferralCode = {
   id: string;
   code: string;
-  offerId?: string;
-  referrerCode?: string;
+  offerId?: string | null;
+  referrerCode?: string | null;
   referrerLabel?: string;
-  /** Legacy fields are normalized into an offer when stored state is loaded. */
+  /** Legacy standalone codes keep their own pricing and usage until explicitly mapped. */
   fixedPriceCentavos?: number;
+  usageCount?: number;
   usageLimit?: number;
   active: boolean;
   createdAt: number;

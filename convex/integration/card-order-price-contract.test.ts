@@ -57,8 +57,8 @@ async function seed(t: ReturnType<typeof convexTest>) {
       updatedByUserId: adminUserId,
     });
     const codeId = await ctx.db.insert("cardOrderReferralCodes", {
-      code: "FOUNDING-AHRON",
-      referrerLabel: "Ahron",
+      code: "TEST-REFERRAL",
+      referrerLabel: "Test Referrer",
       active: true,
       createdAt: 1,
       updatedAt: 1,
@@ -87,7 +87,7 @@ describe("card order price confirmation on the server", () => {
     // The customer reviewed the undiscounted launch price; the server applies the referral.
     const outcome = await customer.mutation(api.cardOrders.placeOrder, {
       paymentMethodId: ids.paymentMethodId,
-      referralCode: "FOUNDING-AHRON",
+      referralCode: "TEST-REFERRAL",
       ...urlDesigns,
       ...delivery,
       expectedCardAmountCentavos: LAUNCH_NET_WITHOUT_REFERRAL,
@@ -156,7 +156,7 @@ describe("card order price confirmation on the server", () => {
     const retry = await customer.mutation(api.cardOrders.placeOrder, {
       ...placement,
       expectedCardAmountCentavos: LAUNCH_NET_WITH_REFERRAL,
-      referralCode: "FOUNDING-AHRON",
+      referralCode: "TEST-REFERRAL",
     });
     expect(retry.kind).toBe("created");
   });
@@ -168,7 +168,7 @@ describe("card order price confirmation on the server", () => {
 
     const outcome = await customer.mutation(api.cardOrders.placeOrder, {
       paymentMethodId: ids.paymentMethodId,
-      referralCode: "FOUNDING-AHRON",
+      referralCode: "TEST-REFERRAL",
       ...urlDesigns,
       ...delivery,
       expectedCardAmountCentavos: LAUNCH_NET_WITH_REFERRAL,

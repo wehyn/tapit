@@ -199,11 +199,14 @@ function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferral
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.code === "string" &&
-    (value.offerId === undefined || typeof value.offerId === "string") &&
-    (value.referrerCode === undefined || typeof value.referrerCode === "string") &&
+    (value.offerId === undefined || value.offerId === null || typeof value.offerId === "string") &&
+    (value.referrerCode === undefined ||
+      value.referrerCode === null ||
+      typeof value.referrerCode === "string") &&
     (value.referrerLabel === undefined || typeof value.referrerLabel === "string") &&
     (value.fixedPriceCentavos === undefined ||
       isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    (value.usageCount === undefined || isNonNegativeSafeInteger(value.usageCount)) &&
     (value.usageLimit === undefined ||
       (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
     typeof value.active === "boolean" &&
@@ -220,6 +223,7 @@ function isCardOrderOffer(value: unknown): value is DemoCardOrderOffer {
     (value.scope === undefined || value.scope === "demo") &&
     (value.fixedPriceCentavos === undefined ||
       isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    (value.usageCount === undefined || isNonNegativeSafeInteger(value.usageCount)) &&
     (value.usageLimit === undefined ||
       (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
     isFiniteNumber(value.createdAt) &&
@@ -255,6 +259,12 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     (isRecord(referralSnapshot) &&
       typeof referralSnapshot.code === "string" &&
       typeof referralSnapshot.referrerLabel === "string");
+  const hasValidOfferSnapshot =
+    value.offerSnapshot === undefined ||
+    (isRecord(value.offerSnapshot) &&
+      typeof value.offerSnapshot.code === "string" &&
+      (value.offerSnapshot.fixedPriceCentavos === undefined ||
+        isValidReferralFixedPriceCentavos(value.offerSnapshot.fixedPriceCentavos)));
 
   return (
     typeof value.id === "string" &&
@@ -276,7 +286,9 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     typeof paymentSnapshot.instructions === "string" &&
     (paymentSnapshot.qrAssetKey === undefined || typeof paymentSnapshot.qrAssetKey === "string") &&
     (value.referralCodeId === undefined || typeof value.referralCodeId === "string") &&
+    (value.offerId === undefined || typeof value.offerId === "string") &&
     hasValidReferralSnapshot &&
+    hasValidOfferSnapshot &&
     (value.paymentStatus === "unpaid" ||
       value.paymentStatus === "received" ||
       value.paymentStatus === "refunded") &&
@@ -368,15 +380,36 @@ function normalizeStoredState(raw: string): StateStorageRead {
     (parsed as Partial<DemoState>).cardOrderOffers,
     isCardOrderOffer,
   );
-  const offerFor = (code: DemoCardOrderReferralCode): string => {
-    if (code.code === "FOUNDING" || code.code === "FOUNDING-AHRON") return "offer-founding";
-    if (code.offerId) return code.offerId;
-    return `legacy-offer-${code.id}`;
+  const cardOrders = normalizeCollection(parsed.cardOrders, isCardOrder);
+  const foundingAliases = referralCodes.filter(
+    (code) => code.code === "FOUNDING" || code.code === "FOUNDING-AHRON",
+  );
+  const foundingOfferIds = new Set([
+    "offer-founding",
+    ...foundingAliases.flatMap((code) => (code.offerId ? [code.offerId] : [])),
+    ...offers
+      .filter((offer) => offer.code === "FOUNDING" || offer.code === "FOUNDING-AHRON")
+      .map((offer) => offer.id),
+  ]);
+  const hasFoundingOrderHistory = cardOrders.some(
+    (order) =>
+      order.referralSnapshot?.code === "FOUNDING" ||
+      order.referralSnapshot?.code === "FOUNDING-AHRON" ||
+      order.offerSnapshot?.code === "FOUNDING" ||
+      order.offerSnapshot?.code === "FOUNDING-AHRON",
+  );
+  const needsFoundingOffer =
+    foundingAliases.length > 0 || foundingOfferIds.size > 1 || hasFoundingOrderHistory;
+  const offerFor = (code: DemoCardOrderReferralCode): string | null | undefined => {
+    if (code.offerId === null) return null;
+    if ((code.code === "FOUNDING" || code.code === "FOUNDING-AHRON") && code.offerId === undefined)
+      return "offer-founding";
+    return code.offerId;
   };
   for (const code of referralCodes) {
     const offerId = offerFor(code);
     code.offerId = offerId;
-    if (code.code === "FOUNDING-AHRON") {
+    if (code.code === "FOUNDING-AHRON" && code.referrerCode === undefined) {
       code.referrerCode = "AHRON";
       code.referrerLabel ??= "Ahron";
     }
@@ -384,42 +417,65 @@ function normalizeStoredState(raw: string): StateStorageRead {
       code.referrerCode = undefined;
       code.referrerLabel = undefined;
     }
-    let offer = offers.find((item) => item.id === offerId);
-    if (!offer && code.code !== "FOUNDING" && code.code !== "FOUNDING-AHRON") {
-      offers.push({
-        id: offerId,
-        code: code.code,
-        scope: "demo",
-        fixedPriceCentavos: code.fixedPriceCentavos,
-        usageLimit: code.usageLimit,
-        createdAt: code.createdAt,
-        updatedAt: code.updatedAt,
-      });
-    }
+    const offer = !offerId ? undefined : offers.find((item) => item.id === offerId);
+    if (offer) offer.scope = "demo";
   }
-  if (
-    referralCodes.some((code) => code.code === "FOUNDING" || code.code === "FOUNDING-AHRON") &&
-    !offers.some((offer) => offer.id === "offer-founding")
-  ) {
+  const foundingOffers = offers.filter((offer) => foundingOfferIds.has(offer.id));
+  const canonicalFoundingOffer = foundingOffers.find((offer) => offer.id === "offer-founding");
+  if (needsFoundingOffer && !canonicalFoundingOffer) {
+    const source = foundingOffers.find((offer) => offer.code === "FOUNDING") ?? foundingOffers[0];
     offers.push({
+      ...source,
       id: "offer-founding",
       code: "FOUNDING",
       scope: "demo",
-      fixedPriceCentavos: 29_900,
-      usageLimit: 25,
-      createdAt: 0,
-      updatedAt: 0,
+      fixedPriceCentavos: source ? source.fixedPriceCentavos : 29_900,
+      usageLimit: source ? source.usageLimit : 25,
+      usageCount: source?.usageCount,
+      createdAt: source?.createdAt ?? 0,
+      updatedAt: source?.updatedAt ?? 0,
     });
   }
-  const foundingOffer = offers.find((offer) => offer.id === "offer-founding");
+  if (needsFoundingOffer) {
+    const foundingUsageCount = Math.max(
+      ...foundingOffers.map((offer) => offer.usageCount ?? 0),
+      5, // The local demo mirrors the five reconciled FOUNDING uses.
+    );
+    for (let index = offers.length - 1; index >= 0; index -= 1) {
+      const offer = offers[index];
+      if (offer && foundingOfferIds.has(offer.id) && offer.id !== "offer-founding") {
+        offers.splice(index, 1);
+      }
+    }
+    const canonicalFoundingOffer = offers.find((offer) => offer.id === "offer-founding");
+    if (canonicalFoundingOffer) canonicalFoundingOffer.usageCount = foundingUsageCount;
+    referralCodes.forEach((code) => {
+      if (code.offerId !== null && foundingOfferIds.has(code.offerId ?? "")) {
+        code.offerId = "offer-founding";
+      }
+    });
+  }
   offers.forEach((offer) => {
     offer.scope = "demo";
   });
-  if (foundingOffer) {
-    foundingOffer.code = "FOUNDING";
-    foundingOffer.fixedPriceCentavos = 29_900;
-    foundingOffer.usageLimit = 25;
-  }
+  const normalizedOrders = cardOrders.map((order) => {
+    const alias = referralCodes.find((code) => code.id === order.referralCodeId);
+    const savedCode = order.referralSnapshot?.code;
+    const offerId =
+      (order.offerId !== undefined && foundingOfferIds.has(order.offerId)) ||
+      savedCode === "FOUNDING" ||
+      savedCode === "FOUNDING-AHRON" ||
+      order.offerSnapshot?.code === "FOUNDING" ||
+      order.offerSnapshot?.code === "FOUNDING-AHRON" ||
+      (savedCode === undefined && (alias?.code === "FOUNDING" || alias?.code === "FOUNDING-AHRON"))
+        ? "offer-founding"
+        : (order.offerId ?? alias?.offerId ?? undefined);
+    return offerId === order.offerId ? order : { ...order, offerId };
+  });
+  offers.forEach((offer) => {
+    const orderCount = normalizedOrders.filter((order) => order.offerId === offer.id).length;
+    offer.usageCount = Math.max(offer.usageCount ?? 0, orderCount, 0);
+  });
   const nextState = {
     ...fallback,
     ...parsed,
@@ -433,7 +489,7 @@ function normalizeStoredState(raw: string): StateStorageRead {
     ),
     cardOrderReferralCodes: referralCodes,
     cardOrderOffers: offers,
-    cardOrders: normalizeCollection(parsed.cardOrders, isCardOrder),
+    cardOrders: normalizedOrders,
     customers,
     profiles,
     themes: { ...fallback.themes, ...themes },

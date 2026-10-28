@@ -52,7 +52,7 @@ type AdminOrder = {
     instructions: string;
     qrUrl?: string | null;
   };
-  referralSnapshot?: { code: string; referrerLabel: string };
+  referralSnapshot?: { code: string; referrerLabel?: string };
   paymentStatus: Doc<"cardOrders">["paymentStatus"];
   fulfillmentStatus: Doc<"cardOrders">["fulfillmentStatus"];
   commissionStatus: Doc<"cardOrders">["commissionStatus"];
@@ -520,7 +520,9 @@ function OrderCard({
               <dt className="text-tapit-muted">Referral</dt>
               <dd className="font-medium text-tapit-ink">
                 {order.referralSnapshot
-                  ? `${order.referralSnapshot.referrerLabel} · ${order.referralSnapshot.code}`
+                  ? order.referralSnapshot.referrerLabel
+                    ? `${order.referralSnapshot.referrerLabel} · ${order.referralSnapshot.code}`
+                    : order.referralSnapshot.code
                   : "No referral"}
               </dd>
             </div>

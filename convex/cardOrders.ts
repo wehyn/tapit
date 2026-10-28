@@ -12,6 +12,8 @@ import {
 } from "../src/lib/card-ordering";
 import schema from "./schema";
 
+const FOUNDING_USAGE_VERIFIED = "completed:founding=5";
+
 const designSource = v.union(
   v.object({ kind: v.literal("upload"), uploadId: v.id("cardOrderDesignUploads") }),
   v.object({ kind: v.literal("url"), url: v.string() }),
@@ -210,7 +212,7 @@ export const placeOrder = mutation({
     const offerAvailable =
       referral?.offerId === undefined || (offer !== null && sameScope(customer, offer));
     const offerBackfill =
-      offer === null
+      offer === null && !foundingAlias
         ? null
         : await ctx.db
             .query("settings")
@@ -223,10 +225,13 @@ export const placeOrder = mutation({
       (referral === null ||
         !offerAvailable ||
         !referral.active ||
+        ((foundingAlias || offer?.code === "FOUNDING") &&
+          offerBackfill?.value !== FOUNDING_USAGE_VERIFIED) ||
         prior !== null ||
         (offer === null
           ? referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit
-          : offerBackfill?.value === "completed" &&
+          : offerBackfill?.value.startsWith("completed:") === true &&
+            (offer.code !== "FOUNDING" || offerBackfill.value === FOUNDING_USAGE_VERIFIED) &&
             offer.usageLimit !== undefined &&
             offer.usageCount >= offer.usageLimit))
     )
@@ -237,7 +242,7 @@ export const placeOrder = mutation({
         ? 0
         : calculateReferralDiscountForPriceCentavos(
             cardPriceCentavos,
-            offer?.fixedPriceCentavos ?? referral.fixedPriceCentavos,
+            offer === null ? referral.fixedPriceCentavos : offer.fixedPriceCentavos,
           );
     // Checked before the first write: a changed amount creates nothing, so the
     // customer must review the authoritative price and submit again.

@@ -77,7 +77,8 @@ const cardOrderPaymentSnapshot = v.object({
 
 const cardOrderReferralSnapshot = v.object({
   code: v.string(),
-  referrerLabel: v.string(),
+  referrerCode: v.optional(v.string()),
+  referrerLabel: v.optional(v.string()),
 });
 
 export default defineSchema({
@@ -593,7 +594,9 @@ export default defineSchema({
     receiptUploadId: v.optional(v.id("cardOrderReceiptUploads")),
     referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
     offerId: v.optional(v.id("cardOrderOffers")),
-    offerSnapshot: v.optional(v.object({ code: v.string(), fixedPriceCentavos: v.optional(v.number()) })),
+    offerSnapshot: v.optional(
+      v.object({ code: v.string(), fixedPriceCentavos: v.optional(v.number()) }),
+    ),
     offerUsageCounted: v.optional(v.boolean()),
     usageCounted: v.optional(v.boolean()),
     referralSnapshot: v.optional(cardOrderReferralSnapshot),

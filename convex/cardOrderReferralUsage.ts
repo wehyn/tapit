@@ -68,11 +68,12 @@ export const backfillUsageCounts = internalMutation({
             )
             .first()
         : null;
+      const offerId = order.offerId ?? referral?.offerId;
       const offer = foundingAlias
         ? foundingOffer
-        : order.offerId === undefined
+        : offerId === undefined
           ? null
-          : await ctx.db.get(order.offerId);
+          : await ctx.db.get(offerId);
       const scopedOffer = offer?.scope === order.scope ? offer : null;
       if (referral !== null && order.usageCounted !== true) {
         await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
@@ -81,15 +82,16 @@ export const backfillUsageCounts = internalMutation({
       if (
         scopedOffer !== null &&
         order.offerUsageCounted === true &&
-        order.offerId !== undefined &&
         order.offerId !== scopedOffer._id
       ) {
-        const previousOffer = await ctx.db.get(order.offerId);
-        if (previousOffer !== null && previousOffer.scope === order.scope)
-          await ctx.db.patch(previousOffer._id, {
-            usageCount: Math.max(0, previousOffer.usageCount - 1),
-          });
-        await ctx.db.patch(scopedOffer._id, { usageCount: scopedOffer.usageCount + 1 });
+        if (order.offerId !== undefined) {
+          const previousOffer = await ctx.db.get(order.offerId);
+          if (previousOffer !== null && previousOffer.scope === order.scope)
+            await ctx.db.patch(previousOffer._id, {
+              usageCount: Math.max(0, previousOffer.usageCount - 1),
+            });
+          await ctx.db.patch(scopedOffer._id, { usageCount: scopedOffer.usageCount + 1 });
+        }
         await ctx.db.patch(order._id, { offerId: scopedOffer._id });
       } else if (scopedOffer !== null && order.offerUsageCounted !== true) {
         await ctx.db.patch(scopedOffer._id, { usageCount: scopedOffer.usageCount + 1 });
@@ -116,19 +118,27 @@ export const backfillUsageCounts = internalMutation({
       if (marker !== null && marker.value !== "completed") {
         await ctx.db.patch(marker._id, { value: "completed", updatedAt: Date.now() });
       }
-      if (offerMarker !== null && offerMarker.value !== "completed") {
+      if (offerMarker !== null && !offerMarker.value.startsWith("completed:")) {
         const foundingOffer = await ctx.db
           .query("cardOrderOffers")
           .withIndex("by_scope_and_code", (q) =>
             q.eq("scope", args.scope).eq("code", FOUNDING_OFFER),
           )
           .first();
-        if (foundingOffer?.usageCount === 5) {
+        if (foundingOffer === null) {
+          await ctx.db.patch(offerMarker._id, {
+            value: "completed:no-founding",
+            updatedAt: Date.now(),
+          });
+        } else if (foundingOffer.usageCount === 5) {
           await ctx.db.patch(foundingOffer._id, { usageLimit: FOUNDING_CODE_USAGE_LIMIT });
-          await ctx.db.patch(offerMarker._id, { value: "completed", updatedAt: Date.now() });
+          await ctx.db.patch(offerMarker._id, {
+            value: "completed:founding=5",
+            updatedAt: Date.now(),
+          });
         } else {
           await ctx.db.patch(offerMarker._id, {
-            value: `error:FOUNDING expected 5 historical uses; found ${foundingOffer?.usageCount ?? 0}. Review aliases/orders, then restart backfill.`,
+            value: `completed:founding-error:expected 5 historical uses; found ${foundingOffer.usageCount}. Review aliases/orders.`,
             updatedAt: Date.now(),
           });
         }
@@ -136,7 +146,7 @@ export const backfillUsageCounts = internalMutation({
     }
     if (!page.isDone && marker !== null && marker.value !== "completed")
       await ctx.db.patch(marker._id, { updatedAt: Date.now() });
-    if (!page.isDone && offerMarker !== null && offerMarker.value !== "completed")
+    if (!page.isDone && offerMarker !== null && !offerMarker.value.startsWith("completed:"))
       await ctx.db.patch(offerMarker._id, { updatedAt: Date.now() });
     return null;
   },

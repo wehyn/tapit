@@ -253,6 +253,98 @@ describe("demo card order price confirmation", () => {
     ).toMatchObject({ usageLimit: undefined });
   });
 
+  it("leaves missing demo referrer labels absent while preserving offer-only and historical data", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
+    mocks.state.cardOrderOffers = [
+      { id: "founding", code: "FOUNDING", fixedPriceCentavos: 29_900 },
+    ];
+    mocks.state.cardOrderReferralCodes = [
+      { id: "founding-only", code: "FOUNDING", offerId: "founding", active: true },
+      {
+        id: "founding-ahron",
+        code: "FOUNDING-AHRON",
+        offerId: "founding",
+        referrerCode: "AHRON",
+        active: true,
+      },
+      {
+        id: "legacy-label",
+        code: "LEGACY",
+        referrerCode: "MIRA",
+        referrerLabel: "Mira",
+        active: true,
+      },
+    ];
+
+    const { referralCodes } = getDemoCardOrderAdminSettings();
+    const offerOnly = referralCodes.find((code) => code.id === "founding-only")!;
+    expect(offerOnly).toMatchObject({ code: "FOUNDING", offer: { code: "FOUNDING" } });
+    expect(offerOnly).not.toHaveProperty("referrerLabel");
+    expect(referralCodes.find((code) => code.id === "founding-ahron")).toMatchObject({
+      referrerCode: "AHRON",
+      offer: { code: "FOUNDING" },
+    });
+    expect(referralCodes.find((code) => code.id === "legacy-label")).toMatchObject({
+      referrerCode: "MIRA",
+      referrerLabel: "Mira",
+    });
+  });
+
+  it("starts FOUNDING at five uses and shares the remaining twenty across its aliases", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
+    mocks.state.cardOrderReferralCodes = [];
+    mocks.state.cardOrderOffers = [];
+    const offerId = await saveDemoCardOrderOffer({ code: "FOUNDING" });
+    await saveDemoCardOrderReferralCode({ code: "FOUNDING", offerId, active: true });
+    await saveDemoCardOrderReferralCode({
+      code: "FOUNDING-AHRON",
+      offerId,
+      referrerCode: "AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+    });
+    expect(getDemoCardOrderAdminSettings().offers).toContainEqual({
+      id: offerId,
+      code: "FOUNDING",
+      fixedPriceCentavos: 29_900,
+      usageCount: 5,
+      usageLimit: 25,
+    });
+
+    mocks.role = "customer";
+    for (let index = 0; index < 20; index += 1) {
+      mocks.customerId = `founding-customer-${index}`;
+      const code = index % 2 === 0 ? "FOUNDING" : "FOUNDING-AHRON";
+      const result = await placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: code,
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 29_900,
+      });
+      expect(result.kind).toBe("created");
+    }
+    expect(mocks.state.cardOrderOffers).toContainEqual(
+      expect.objectContaining({ id: offerId, usageCount: 25 }),
+    );
+    mocks.customerId = "founding-customer-21";
+    expect(previewDemoCardOrderReferral("FOUNDING", Date.now())).toEqual({
+      valid: false,
+      discountCentavos: 0,
+    });
+    await expect(
+      placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: "FOUNDING-AHRON",
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 29_900,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+  });
+
   it("lists offers without aliases and keeps them after their last alias is deactivated", async () => {
     mocks.customerId = "customer-admin";
     mocks.role = "admin";
@@ -282,8 +374,9 @@ describe("demo card order price confirmation", () => {
       { id: "solo-use-2", referralCodeId: secondAliasId },
       { id: "founding-use", referralCodeId: "founding-only" },
     );
-    expect(getDemoCardOrderAdminSettings().offers.find((offer) => offer.id === offerId)?.usageCount)
-      .toBe(2);
+    expect(
+      getDemoCardOrderAdminSettings().offers.find((offer) => offer.id === offerId)?.usageCount,
+    ).toBe(2);
 
     await deactivateDemoCardOrderReferralCode(aliasId);
     await deactivateDemoCardOrderReferralCode(secondAliasId);
@@ -323,6 +416,58 @@ describe("demo card order price confirmation", () => {
       commissionStatus: "none",
       commissionCentavos: 0,
     });
+  });
+
+  it("keeps an exhausted legacy referral-only cap after normalization", async () => {
+    mocks.state.cardOrderReferralCodes = [
+      {
+        id: "legacy-limited",
+        code: "LEGACY-LIMITED",
+        fixedPriceCentavos: 29_900,
+        usageCount: 2,
+        usageLimit: 2,
+        active: true,
+      },
+    ];
+
+    expect(previewDemoCardOrderReferral("LEGACY-LIMITED", Date.now())).toEqual({
+      valid: false,
+      discountCentavos: 0,
+    });
+    await expect(
+      placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: "LEGACY-LIMITED",
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 29_900,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    expect(mocks.state.cardOrderReferralCodes).toContainEqual(
+      expect.objectContaining({
+        id: "legacy-limited",
+        usageCount: 2,
+        usageLimit: 2,
+        fixedPriceCentavos: 29_900,
+      }),
+    );
+  });
+
+  it("allows an existing alias to be unmapped from its offer", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
+    const offerId = await saveDemoCardOrderOffer({ code: "MAPPABLE" });
+    const id = await saveDemoCardOrderReferralCode({
+      code: "MAPPABLE-AHRON",
+      offerId,
+      active: true,
+    });
+
+    await saveDemoCardOrderReferralCode({ id, code: "MAPPABLE-AHRON", active: true });
+
+    expect(mocks.state.cardOrderReferralCodes).toContainEqual(
+      expect.objectContaining({ id, code: "MAPPABLE-AHRON", offerId: null }),
+    );
   });
 
   it("returns price_changed and writes no order when the reviewed amount is stale", async () => {
@@ -388,6 +533,9 @@ describe("demo card order price confirmation", () => {
       offerId: "founding",
       offerSnapshot: { code: "FOUNDING", fixedPriceCentavos: 29_900 },
     });
+    expect(mocks.state.cardOrderOffers).toContainEqual(
+      expect.objectContaining({ id: "founding", usageCount: 1 }),
+    );
     expect(mocks.released).toEqual([]);
   });
 
