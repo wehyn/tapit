@@ -9,6 +9,7 @@ import {
   createDefaultDemoState,
   type AnalyticsBucket,
   type DemoCardOrder,
+  type DemoCardOrderOffer,
   type DemoCardOrderPaymentMethod,
   type DemoCardOrderReferralCode,
   type DemoCustomer,
@@ -198,12 +199,29 @@ function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferral
     isRecord(value) &&
     typeof value.id === "string" &&
     typeof value.code === "string" &&
-    typeof value.referrerLabel === "string" &&
+    (value.offerId === undefined || typeof value.offerId === "string") &&
+    (value.referrerCode === undefined || typeof value.referrerCode === "string") &&
+    (value.referrerLabel === undefined || typeof value.referrerLabel === "string") &&
     (value.fixedPriceCentavos === undefined ||
       isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
     (value.usageLimit === undefined ||
       (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
     typeof value.active === "boolean" &&
+    isFiniteNumber(value.createdAt) &&
+    isFiniteNumber(value.updatedAt)
+  );
+}
+
+function isCardOrderOffer(value: unknown): value is DemoCardOrderOffer {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.code === "string" &&
+    (value.scope === undefined || value.scope === "demo") &&
+    (value.fixedPriceCentavos === undefined ||
+      isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    (value.usageLimit === undefined ||
+      (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
     isFiniteNumber(value.createdAt) &&
     isFiniteNumber(value.updatedAt)
   );
@@ -345,6 +363,63 @@ function normalizeStoredState(raw: string): StateStorageRead {
   const themes =
     parsed.themes ??
     Object.fromEntries(profiles.map((profile) => [profile.id, profile.theme ?? fallback.theme]));
+  const referralCodes = normalizeCollection(parsed.cardOrderReferralCodes, isCardOrderReferralCode);
+  const offers = normalizeCollection(
+    (parsed as Partial<DemoState>).cardOrderOffers,
+    isCardOrderOffer,
+  );
+  const offerFor = (code: DemoCardOrderReferralCode): string => {
+    if (code.code === "FOUNDING" || code.code === "FOUNDING-AHRON") return "offer-founding";
+    if (code.offerId) return code.offerId;
+    return `legacy-offer-${code.id}`;
+  };
+  for (const code of referralCodes) {
+    const offerId = offerFor(code);
+    code.offerId = offerId;
+    if (code.code === "FOUNDING-AHRON") {
+      code.referrerCode = "AHRON";
+      code.referrerLabel ??= "Ahron";
+    }
+    if (code.code === "FOUNDING") {
+      code.referrerCode = undefined;
+      code.referrerLabel = undefined;
+    }
+    let offer = offers.find((item) => item.id === offerId);
+    if (!offer && code.code !== "FOUNDING" && code.code !== "FOUNDING-AHRON") {
+      offers.push({
+        id: offerId,
+        code: code.code,
+        scope: "demo",
+        fixedPriceCentavos: code.fixedPriceCentavos,
+        usageLimit: code.usageLimit,
+        createdAt: code.createdAt,
+        updatedAt: code.updatedAt,
+      });
+    }
+  }
+  if (
+    referralCodes.some((code) => code.code === "FOUNDING" || code.code === "FOUNDING-AHRON") &&
+    !offers.some((offer) => offer.id === "offer-founding")
+  ) {
+    offers.push({
+      id: "offer-founding",
+      code: "FOUNDING",
+      scope: "demo",
+      fixedPriceCentavos: 29_900,
+      usageLimit: 25,
+      createdAt: 0,
+      updatedAt: 0,
+    });
+  }
+  const foundingOffer = offers.find((offer) => offer.id === "offer-founding");
+  offers.forEach((offer) => {
+    offer.scope = "demo";
+  });
+  if (foundingOffer) {
+    foundingOffer.code = "FOUNDING";
+    foundingOffer.fixedPriceCentavos = 29_900;
+    foundingOffer.usageLimit = 25;
+  }
   const nextState = {
     ...fallback,
     ...parsed,
@@ -356,10 +431,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
       parsed.cardOrderPaymentMethods,
       isCardOrderPaymentMethod,
     ),
-    cardOrderReferralCodes: normalizeCollection(
-      parsed.cardOrderReferralCodes,
-      isCardOrderReferralCode,
-    ),
+    cardOrderReferralCodes: referralCodes,
+    cardOrderOffers: offers,
     cardOrders: normalizeCollection(parsed.cardOrders, isCardOrder),
     customers,
     profiles,

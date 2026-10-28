@@ -60,6 +60,7 @@ import {
   placeDemoCardOrder,
   previewDemoCardOrderReferral,
   saveDemoCardOrderReferralCode,
+  saveDemoCardOrderOffer,
 } from "@/lib/demo/card-ordering";
 
 const delivery = {
@@ -90,13 +91,18 @@ beforeEach(() => {
       },
     ],
     cardOrderReferralCodes: [
+      { id: "founding-only", code: "FOUNDING", offerId: "founding", active: true },
       {
         id: "code-1",
         code: "FOUNDING-AHRON",
+        offerId: "founding",
+        referrerCode: "AHRON",
         referrerLabel: "Ahron",
-        usageLimit: 1,
         active: true,
       },
+    ],
+    cardOrderOffers: [
+      { id: "founding", code: "FOUNDING", fixedPriceCentavos: 29_900, usageLimit: 1 },
     ],
     cardOrders: [],
     audits: [],
@@ -121,7 +127,7 @@ describe("demo card order price confirmation", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 29_900,
     });
     expect(first.kind).toBe("created");
 
@@ -132,10 +138,64 @@ describe("demo card order price confirmation", () => {
         referralCode: "FOUNDING-AHRON",
         ...urlDesigns,
         ...delivery,
-        expectedCardAmountCentavos: 53_910,
+        expectedCardAmountCentavos: 29_900,
       }),
     ).rejects.toThrow("Referral code is unavailable for this order.");
     expect(mocks.state.cardOrders).toHaveLength(1);
+  });
+
+  it("shares LAUNCH usage across its aliases while keeping it independent from FOUNDING", async () => {
+    (mocks.state.cardOrderReferralCodes as Record<string, unknown>[]).push({
+      id: "launch",
+      code: "LAUNCH",
+      offerId: "launch-offer",
+      active: true,
+    });
+    (mocks.state.cardOrderReferralCodes as Record<string, unknown>[]).push({
+      id: "launch-ahron",
+      code: "LAUNCH-AHRON",
+      offerId: "launch-offer",
+      referrerCode: "AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+    });
+    (mocks.state.cardOrderOffers as Record<string, unknown>[]).push({
+      id: "launch-offer",
+      code: "LAUNCH",
+      fixedPriceCentavos: 39_900,
+      usageLimit: 1,
+    });
+    await placeDemoCardOrder({
+      paymentMethodId: "method-1",
+      referralCode: "FOUNDING",
+      ...urlDesigns,
+      ...delivery,
+      expectedCardAmountCentavos: 29_900,
+    });
+    mocks.customerId = "customer-launch";
+    await placeDemoCardOrder({
+      paymentMethodId: "method-1",
+      referralCode: "LAUNCH",
+      ...urlDesigns,
+      ...delivery,
+      expectedCardAmountCentavos: 39_900,
+    });
+    mocks.customerId = "customer-launch-two";
+    await expect(
+      placeDemoCardOrder({
+        paymentMethodId: "method-1",
+        referralCode: "LAUNCH-AHRON",
+        ...urlDesigns,
+        ...delivery,
+        expectedCardAmountCentavos: 39_900,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    expect(mocks.state.cardOrders).toHaveLength(2);
+    expect((mocks.state.cardOrders as Record<string, unknown>[])[1]).toMatchObject({
+      offerId: "launch-offer",
+      referralSnapshot: { code: "LAUNCH", referrerLabel: "" },
+      commissionStatus: "none",
+    });
   });
 
   it("rechecks the limit when another order consumes the last use before commit", async () => {
@@ -152,46 +212,71 @@ describe("demo card order price confirmation", () => {
         referralCode: "FOUNDING-AHRON",
         ...urlDesigns,
         ...delivery,
-        expectedCardAmountCentavos: 53_910,
+        expectedCardAmountCentavos: 29_900,
       }),
     ).rejects.toThrow("Referral code is unavailable for this order.");
     expect(mocks.state.cardOrders).toHaveLength(1);
   });
 
-  it("saves and reloads a configured limit for an administrator", async () => {
+  it("saves an offer and exposes it on each configured alias", async () => {
     mocks.customerId = "customer-admin";
     mocks.role = "admin";
     const input = {
       code: "LIMITED",
+      referrerCode: "AHRON",
       referrerLabel: "Ahron",
+      offerId: "",
       active: true,
     };
-    const id = await saveDemoCardOrderReferralCode({ ...input, usageLimit: 25 });
+    const offerId = await saveDemoCardOrderOffer({ code: "LIMITED", usageLimit: 25 });
+    input.offerId = offerId;
+    const id = await saveDemoCardOrderReferralCode(input);
     expect(getDemoCardOrderAdminSettings().referralCodes).toContainEqual(
-      expect.objectContaining({ id, usageLimit: 25, usageCount: 0 }),
+      expect.objectContaining({
+        id,
+        offer: expect.objectContaining({ id: offerId, usageLimit: 25, usageCount: 0 }),
+      }),
     );
 
-    await saveDemoCardOrderReferralCode({ id, ...input, usageLimit: 20 });
+    await saveDemoCardOrderOffer({ id: offerId, code: "LIMITED", usageLimit: 20 });
     expect(getDemoCardOrderAdminSettings().referralCodes).toContainEqual(
-      expect.objectContaining({ id, usageLimit: 20, usageCount: 0 }),
+      expect.objectContaining({
+        id,
+        offer: expect.objectContaining({ usageLimit: 20, usageCount: 0 }),
+      }),
     );
 
-    await saveDemoCardOrderReferralCode({ id, ...input, usageLimit: undefined });
-    const cleared = getDemoCardOrderAdminSettings().referralCodes.find((code) => code.id === id);
-    expect(cleared?.usageLimit).toBeUndefined();
+    await saveDemoCardOrderOffer({ id: offerId, code: "LIMITED" });
+    expect(
+      getDemoCardOrderAdminSettings().referralCodes.find((code) => code.id === id)?.offer,
+    ).toMatchObject({ usageLimit: undefined });
   });
 
   it("rejects an invalid usage limit when saving", async () => {
     mocks.customerId = "customer-admin";
     mocks.role = "admin";
-    await expect(
-      saveDemoCardOrderReferralCode({
-        code: "LIMITED",
-        referrerLabel: "Test",
-        usageLimit: 0,
-        active: true,
-      }),
-    ).rejects.toThrow("Usage limit must be a positive whole number.");
+    await expect(saveDemoCardOrderOffer({ code: "BAD", usageLimit: 0 })).rejects.toThrow(
+      "Usage limit must be a positive whole number.",
+    );
+  });
+
+  it("keeps referral-only codes discounted without creating a commission", async () => {
+    mocks.state.cardOrderReferralCodes = [
+      { id: "legacy", code: "LEGACY", referrerLabel: "", active: true },
+    ];
+    const result = await placeDemoCardOrder({
+      paymentMethodId: "method-1",
+      referralCode: "LEGACY",
+      ...urlDesigns,
+      ...delivery,
+      expectedCardAmountCentavos: 53_910,
+    });
+    expect(result.kind).toBe("created");
+    expect((mocks.state.cardOrders as Record<string, unknown>[])[0]).toMatchObject({
+      discountCentavos: 5_990,
+      commissionStatus: "none",
+      commissionCentavos: 0,
+    });
   });
 
   it("returns price_changed and writes no order when the reviewed amount is stale", async () => {
@@ -207,7 +292,7 @@ describe("demo card order price confirmation", () => {
 
     expect(outcome).toEqual({
       kind: "price_changed",
-      price: { cardPriceCentavos: 59_900, discountCentavos: 5_990 },
+      price: { cardPriceCentavos: 59_900, discountCentavos: 30_000 },
     });
     expect(mocks.state).toBe(before);
     expect(mocks.state.cardOrders).toHaveLength(0);
@@ -242,7 +327,7 @@ describe("demo card order price confirmation", () => {
       referralCode: "FOUNDING-AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 29_900,
     });
 
     expect(outcome.kind).toBe("created");
@@ -251,7 +336,12 @@ describe("demo card order price confirmation", () => {
       cardPriceCentavos: number;
     }[];
     expect(orders).toHaveLength(1);
-    expect(orders[0]).toMatchObject({ cardPriceCentavos: 59_900, discountCentavos: 5_990 });
+    expect(orders[0]).toMatchObject({
+      cardPriceCentavos: 59_900,
+      discountCentavos: 30_000,
+      offerId: "founding",
+      offerSnapshot: { code: "FOUNDING", fixedPriceCentavos: 29_900 },
+    });
     expect(mocks.released).toEqual([]);
   });
 

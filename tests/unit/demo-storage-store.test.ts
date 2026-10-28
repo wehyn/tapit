@@ -49,6 +49,64 @@ describe("demo storage store", () => {
     ]);
   });
 
+  it("normalizes legacy exact aliases into shared FOUNDING and separate legacy offers", async () => {
+    const state = createDefaultDemoState();
+    state.cardOrderReferralCodes = [
+      {
+        id: "founding",
+        code: "FOUNDING",
+        referrerLabel: "Founding",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      },
+      {
+        id: "founding-ahron",
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        createdAt: 2,
+        updatedAt: 2,
+      },
+      {
+        id: "other-one",
+        code: "OTHER-ONE",
+        referrerLabel: "One",
+        active: true,
+        createdAt: 3,
+        updatedAt: 3,
+      },
+      {
+        id: "other-two",
+        code: "OTHER-TWO",
+        referrerLabel: "Two",
+        active: true,
+        createdAt: 4,
+        updatedAt: 4,
+      },
+    ];
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+    const normalized = getDemoState();
+    expect(
+      normalized.cardOrderReferralCodes.map(({ id, offerId, referrerCode }) => ({
+        id,
+        offerId,
+        referrerCode,
+      })),
+    ).toEqual([
+      { id: "founding", offerId: "offer-founding", referrerCode: undefined },
+      { id: "founding-ahron", offerId: "offer-founding", referrerCode: "AHRON" },
+      { id: "other-one", offerId: "legacy-offer-other-one", referrerCode: undefined },
+      { id: "other-two", offerId: "legacy-offer-other-two", referrerCode: undefined },
+    ]);
+    expect(normalized.cardOrderOffers.find(({ id }) => id === "offer-founding")).toMatchObject({
+      code: "FOUNDING",
+      fixedPriceCentavos: 29_900,
+      usageLimit: 25,
+    });
+  });
+
   it("rejects updates that would overwrite a future-version state", async () => {
     localStorage.setItem(STORAGE_KEY, futureVersionState);
     const { updateDemoState } = await import("../../src/lib/demo/store");
