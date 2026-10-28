@@ -122,6 +122,10 @@ function isDemoCustomer(value: unknown): value is DemoCustomer {
     (value.passwordHash === undefined || typeof value.passwordHash === "string") &&
     (value.cardOwnerAccessOverride === undefined ||
       typeof value.cardOwnerAccessOverride === "boolean") &&
+    (value.isDemo === undefined || typeof value.isDemo === "boolean") &&
+    (value.demoResetInProgress === undefined || typeof value.demoResetInProgress === "boolean") &&
+    (value.demoOnboardingPending === undefined ||
+      typeof value.demoOnboardingPending === "boolean") &&
     (value.claimedCardIds === undefined ||
       (Array.isArray(value.claimedCardIds) &&
         value.claimedCardIds.every((id) => typeof id === "string")))
@@ -833,10 +837,15 @@ export function resolveDemoSessionAccess(
 
   const account = current.customers.find((candidate) => candidate.email === currentSession.email);
   if (account === undefined) return { kind: "restricted", reason: "inactive" };
-  if (account.deletionStatus !== "active" || account.status === "deleted") {
+  if (
+    account.deletionStatus !== "active" ||
+    account.status === "deleted" ||
+    account.demoResetInProgress === true
+  ) {
     return { kind: "restricted", reason: "inactive" };
   }
   if (account.status === "invited") return { kind: "restricted", reason: "invitation" };
+  if (account.demoOnboardingPending === true) return { kind: "restricted", reason: "inactive" };
   if (account.status !== "active") return { kind: "restricted", reason: "inactive" };
 
   const profile = getDemoProfileById(current, account.profileId);
@@ -1009,6 +1018,227 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
   });
 
   return { customerId, profileId, slug };
+}
+
+export function completeDemoReOnboarding(input: { name: string; slug: string }): void {
+  const currentSession = getDemoSession();
+  if (!currentSession) throw new Error("Sign in to continue onboarding.");
+  const state = getDemoState();
+  const account = state.customers.find((customer) => customer.email === currentSession.email);
+  if (
+    !account ||
+    account.role !== "customer" ||
+    account.isDemo !== true ||
+    account.status !== "active" ||
+    account.deletionStatus !== "active" ||
+    account.demoOnboardingPending !== true
+  ) {
+    throw new Error("Pending Demo account required.");
+  }
+  const name = input.name.trim();
+  const slug = normalizeProfileSlug(input.slug);
+  if (!name || name.length > 120) throw new Error("Enter a valid display name.");
+  const slugError = validateProfileSlug(slug, {
+    existingSlugs: getDemoProfiles(state).map((p) => p.draft.slug),
+  });
+  if (slugError) throw new Error(slugError);
+  const profileId = crypto.randomUUID();
+  updateDemoState((current) => ({
+    ...current,
+    customers: current.customers.map((customer) =>
+      customer.id === account.id
+        ? { ...customer, profileId, demoOnboardingPending: undefined }
+        : customer,
+    ),
+    profiles: [
+      ...getDemoProfiles(current),
+      {
+        id: profileId,
+        ownerId: account.id,
+        status: "draft",
+        theme: "paper",
+        draft: { name, slug, email: account.email, links: [] },
+        published: null,
+      },
+    ],
+    themes: { ...current.themes, [profileId]: "paper" },
+    audits: [
+      ...current.audits,
+      {
+        id: crypto.randomUUID(),
+        actor: name,
+        action: "customer.demo_reonboarded",
+        target: account.id,
+        occurredAt: new Date().toISOString(),
+      },
+    ],
+  }));
+}
+
+export function beginCurrentDemoAccountReset(): string {
+  const currentSession = getDemoSession();
+  const current = getDemoState();
+  const account =
+    currentSession && current.customers.find((customer) => customer.email === currentSession.email);
+  if (
+    !account ||
+    account.role !== "customer" ||
+    account.isDemo !== true ||
+    account.status !== "active" ||
+    account.deletionStatus !== "active" ||
+    (account.demoOnboardingPending === true && account.demoResetInProgress !== true)
+  ) {
+    throw new Error("Active Demo account required.");
+  }
+  if (account.demoResetInProgress !== true)
+    updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === account.id ? { ...customer, demoResetInProgress: true } : customer,
+      ),
+    }));
+  return account.id;
+}
+
+export function finishCurrentDemoAccountReset(customerId: string): void {
+  const currentSession = getDemoSession();
+  const current = getDemoState();
+  const account =
+    currentSession && current.customers.find((customer) => customer.email === currentSession.email);
+  if (
+    !account ||
+    account.id !== customerId ||
+    account.role !== "customer" ||
+    account.isDemo !== true ||
+    account.demoResetInProgress !== true
+  ) {
+    throw new Error("Demo reset session changed. Try again.");
+  }
+  const profileIds = new Set(
+    getDemoProfiles(current)
+      .filter((profile) => profile.ownerId === account.id)
+      .map((profile) => profile.id),
+  );
+  const ownedProfiles = getDemoProfiles(current).filter((profile) => profileIds.has(profile.id));
+  const ownedCardIds = new Set([
+    ...current.cards.filter((card) => profileIds.has(card.profileId ?? "")).map((card) => card.id),
+    ...(account.claimedCardIds ?? []),
+  ]);
+  const orderIds = new Set(
+    current.cardOrders.filter((order) => order.customerId === account.id).map((order) => order.id),
+  );
+  const ownedAuditActors = new Set([
+    account.email,
+    ...ownedProfiles.map((profile) => profile.draft.name),
+  ]);
+  const ownedAuditTargets = new Set([
+    ...profileIds,
+    ...ownedProfiles.map((profile) => profile.draft.slug),
+    ...ownedCardIds,
+    ...orderIds,
+    account.id,
+  ]);
+  const claimedCardIds = new Set(account.claimedCardIds ?? []);
+  const remainingProfiles = getDemoProfiles(current).filter(
+    (profile) => !profileIds.has(profile.id),
+  );
+  updateDemoState((state) => ({
+    ...state,
+    customers: state.customers.map((customer) =>
+      customer.id === account.id
+        ? {
+            ...customer,
+            profileId: undefined,
+            claimedCardIds: undefined,
+            cardOwnerAccessOverride: undefined,
+            demoResetInProgress: undefined,
+            demoOnboardingPending: true,
+          }
+        : customer,
+    ),
+    profiles: getDemoProfiles(state).filter((profile) => !profileIds.has(profile.id)),
+    profile: profileIds.has(state.profile.id)
+      ? (remainingProfiles[0] ?? state.profile)
+      : state.profile,
+    themes: Object.fromEntries(Object.entries(state.themes).filter(([id]) => !profileIds.has(id))),
+    cards: state.cards.filter(
+      (card) => !profileIds.has(card.profileId ?? "") && !claimedCardIds.has(card.id),
+    ),
+    analytics: state.analytics.filter((bucket) => !profileIds.has(bucket.profileId ?? "")),
+    cardOrders: state.cardOrders.filter((order) => order.customerId !== account.id),
+    audits: state.audits.filter(
+      (event) =>
+        !ownedAuditTargets.has(event.target) &&
+        !ownedAuditActors.has(event.actor) &&
+        !event.target.startsWith(`${account.email} /`),
+    ),
+  }));
+}
+
+export function promoteDemoCustomerToDemo(customerId: string): void {
+  updateDemoState((state) => {
+    const actor = state.customers.find((customer) => customer.email === getDemoSession()?.email);
+    const target = state.customers.find((customer) => customer.id === customerId);
+    if (
+      actor?.role !== "admin" ||
+      target?.role !== "customer" ||
+      target.isDemo === true ||
+      target.status !== "active" ||
+      target.deletionStatus !== "active" ||
+      target.demoResetInProgress === true
+    ) {
+      throw new Error("Active administrator and customer accounts required.");
+    }
+    return {
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === customerId ? { ...customer, isDemo: true } : customer,
+      ),
+      audits: [
+        ...state.audits,
+        {
+          id: crypto.randomUUID(),
+          actor: actor.email,
+          action: "customer.promoted_to_demo",
+          target: customerId,
+          occurredAt: new Date().toISOString(),
+        },
+      ],
+    };
+  });
+}
+
+export function promoteDemoCustomerToAdmin(customerId: string): void {
+  updateDemoState((state) => {
+    const actor = state.customers.find((customer) => customer.email === getDemoSession()?.email);
+    const target = state.customers.find((customer) => customer.id === customerId);
+    if (
+      actor?.role !== "admin" ||
+      target?.role !== "customer" ||
+      target.isDemo !== true ||
+      target.status !== "active" ||
+      target.deletionStatus !== "active" ||
+      target.demoResetInProgress === true
+    ) {
+      throw new Error("Active Demo customer required.");
+    }
+    return {
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === customerId ? { ...customer, role: "admin", isDemo: undefined } : customer,
+      ),
+      audits: [
+        ...state.audits,
+        {
+          id: crypto.randomUUID(),
+          actor: actor.email,
+          action: "customer.promoted_to_admin",
+          target: customerId,
+          occurredAt: new Date().toISOString(),
+        },
+      ],
+    };
+  });
 }
 
 export function resetDemoState(): void {

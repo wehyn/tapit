@@ -29,6 +29,12 @@ async function reconcileJob(
 ): Promise<Counts> {
   const counts: Counts = { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
   const profile = await ctx.db.get(job.profileId);
+  const owner = await ctx.db.get(job.ownerId);
+  const finishingDemoReset =
+    owner?.role === "customer" &&
+    owner.isDemo === true &&
+    owner.demoResetInProgress === true &&
+    owner.profileId === job.profileId;
   if (profile !== null && profile.ownerId !== job.ownerId) {
     counts.skipped += 1;
     return counts;
@@ -149,7 +155,7 @@ async function reconcileJob(
       counts.deleted += 1;
     }
   }
-  if (!dryRun && unresolved) {
+  if (!dryRun && unresolved && !finishingDemoReset) {
     await ctx.db.patch(job._id, {
       scanCursor: undefined,
       scanSourceCandidateId: sourceCandidate,
@@ -157,7 +163,10 @@ async function reconcileJob(
       scanSourceAmbiguous: sourceAmbiguous,
       scanPreviewAmbiguous: previewAmbiguous,
     });
-  } else if (!dryRun) await ctx.db.delete(job._id);
+  } else if (!dryRun) {
+    // During Demo reset, leave unproven candidates untouched but let the account finish resetting.
+    await ctx.db.delete(job._id);
+  }
   if (isStorageContinuation)
     console.info("profile media orphan reconciliation page", {
       status: job.status,
@@ -208,7 +217,26 @@ export const reconcileOneJob = internalMutation({
     const job = await ctx.db.get(args.jobId);
     if (job === null || job.uploadWindowEndsAt > args.now)
       return { scanned: 0, deleted: 0, retained: 0, skipped: 0 };
-    return await reconcileJob(ctx, job, args.dryRun, args.now, args.isStorageContinuation ?? false);
+    const result = await reconcileJob(
+      ctx,
+      job,
+      args.dryRun,
+      args.now,
+      args.isStorageContinuation ?? false,
+    );
+    if (
+      !args.dryRun &&
+      (await ctx.db
+        .query("profileMediaUploadJobs")
+        .withIndex("by_profileId", (query) => query.eq("profileId", job.profileId))
+        .first()) === null
+    ) {
+      await ctx.scheduler.runAfter(0, internal.accountErasure.resumeDemoResetAfterProfileUploads, {
+        customerId: job.ownerId,
+        profileId: job.profileId,
+      });
+    }
+    return result;
   },
 });
 

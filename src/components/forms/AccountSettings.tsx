@@ -3,6 +3,7 @@
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 
 import {
@@ -13,6 +14,7 @@ import {
   useDemoState,
 } from "@/lib/demo/store";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
+import { resetCurrentDemoAccountData } from "@/lib/demo/card-order-assets";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Chip, StatusChip } from "@/components/ui/Chip";
@@ -126,19 +128,22 @@ function DeleteAccountCard({
   children,
   disabled,
   onRequest,
+  actionLabel = "Request deletion",
+  description = "We take your profile offline right away and remove your data after an administrator approves the request.",
+  title = "Delete account",
 }: {
   children: ReactNode;
   disabled: boolean;
   onRequest: () => void;
+  actionLabel?: string;
+  description?: string;
+  title?: string;
 }) {
   return (
     <section className="flex flex-col gap-4 rounded-card bg-tapit-danger-soft p-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-lg font-semibold text-tapit-danger">Delete account</h2>
-        <p className="text-sm text-tapit-ink">
-          We take your profile offline right away and remove your data after an administrator
-          approves the request.
-        </p>
+        <h2 className="text-lg font-semibold text-tapit-danger">{title}</h2>
+        <p className="text-sm text-tapit-ink">{description}</p>
       </div>
       {children}
       <Button
@@ -148,13 +153,14 @@ function DeleteAccountCard({
         type="button"
         variant="danger"
       >
-        Request deletion
+        {actionLabel}
       </Button>
     </section>
   );
 }
 
 function DemoAccountSettings() {
+  const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
   const account =
@@ -171,6 +177,8 @@ function DemoAccountSettings() {
   } | null>(null);
   const [deletionOpen, setDeletionOpen] = useState(false);
   const [deletionMessage, setDeletionMessage] = useState("");
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
   const [publicationMessage, setPublicationMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -178,6 +186,7 @@ function DemoAccountSettings() {
 
   if (session === null || account === undefined) return null;
   const customer = account;
+  const isResettableDemo = customer.role === "customer" && customer.isDemo === true;
   const profile = getDemoProfileForSession(state, session);
 
   async function savePassword(event: React.FormEvent<HTMLFormElement>) {
@@ -253,6 +262,20 @@ function DemoAccountSettings() {
     setDeletionMessage(
       "Deletion requested. Your profile is now unavailable while an administrator reviews the request.",
     );
+  }
+
+  async function resetDemoAccount() {
+    setResetMessage("");
+    try {
+      await resetCurrentDemoAccountData();
+      router.replace("/onboarding");
+    } catch (error) {
+      setResetMessage(
+        error instanceof Error ? error.message : "The Demo account could not be reset. Try again.",
+      );
+    } finally {
+      setResetOpen(false);
+    }
   }
 
   function unpublish() {
@@ -341,39 +364,79 @@ function DemoAccountSettings() {
 
         <div className="flex flex-col gap-4">
           {state.supportUrl ? <SupportCard href={state.supportUrl} /> : null}
-          <DeleteAccountCard
-            disabled={
-              customer.role !== "customer" ||
-              customer.deletionStatus === "requested" ||
-              customer.deletionStatus === "deleted"
-            }
-            onRequest={() => setDeletionOpen(true)}
-          >
-            {deletionMessage ? <Notice tone="success">{deletionMessage}</Notice> : null}
-          </DeleteAccountCard>
+          {isResettableDemo ? (
+            <DeleteAccountCard
+              actionLabel={customer.demoResetInProgress === true ? "Resume reset" : "Reset account"}
+              description={
+                customer.demoResetInProgress === true
+                  ? "A previous reset was interrupted. Continue cleanup to finish clearing your Tapit data and linked cards."
+                  : "This clears your Tapit profile, account data, and linked cards. Your sign-in stays active so you can set up the account again."
+              }
+              disabled={customer.deletionStatus !== "active"}
+              onRequest={() => setResetOpen(true)}
+              title="Reset account"
+            >
+              {resetMessage ? <Notice tone="error">{resetMessage}</Notice> : null}
+            </DeleteAccountCard>
+          ) : (
+            <DeleteAccountCard
+              disabled={
+                customer.role !== "customer" ||
+                customer.deletionStatus === "requested" ||
+                customer.deletionStatus === "deleted"
+              }
+              onRequest={() => setDeletionOpen(true)}
+            >
+              {deletionMessage ? <Notice tone="success">{deletionMessage}</Notice> : null}
+            </DeleteAccountCard>
+          )}
         </div>
       </div>
 
       <ConfirmDialog
-        confirmLabel="Request deletion"
-        description="Your public profile will become unavailable and active or registered cards will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
-        onCancel={() => setDeletionOpen(false)}
-        onConfirm={requestDeletion}
-        open={deletionOpen}
-        title="Request account deletion?"
+        confirmLabel={
+          isResettableDemo
+            ? customer.demoResetInProgress === true
+              ? "Resume reset"
+              : "Reset account"
+            : "Request deletion"
+        }
+        description={
+          isResettableDemo
+            ? customer.demoResetInProgress === true
+              ? "Continue removing your Tapit profile, linked cards, and account data. Your sign-in identity and Demo access will remain."
+              : "Your Tapit profile, linked cards, and account data will be removed. Your sign-in identity and Demo access will remain, and you will return to onboarding. Continue?"
+            : "Your public profile will become unavailable and active or registered cards will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
+        }
+        onCancel={() => {
+          setDeletionOpen(false);
+          setResetOpen(false);
+        }}
+        onConfirm={() => (isResettableDemo ? void resetDemoAccount() : requestDeletion())}
+        open={isResettableDemo ? resetOpen : deletionOpen}
+        title={
+          isResettableDemo
+            ? customer.demoResetInProgress === true
+              ? "Resume Demo account reset?"
+              : "Reset Demo account?"
+            : "Request account deletion?"
+        }
       />
     </div>
   );
 }
 
 function LiveAccountSettings() {
+  const router = useRouter();
   const hostedDemo = isHostedDemoMode();
   const account = useQuery(api.customers.myAccount);
   const profile = useQuery(api.profiles.mine);
   const supportUrl = useQuery(api.settings.support);
   const requestDeletion = useMutation(api.customers.requestDeletion);
+  const resetDemoAccountMutation = useMutation(api.customers.resetDemoAccount);
   const unpublishMine = useMutation(api.profiles.unpublishMine);
   const [deletionOpen, setDeletionOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [publicationMessage, setPublicationMessage] = useState<{
     tone: "success" | "error";
@@ -382,6 +445,7 @@ function LiveAccountSettings() {
   if (account === undefined || profile === undefined || supportUrl === undefined)
     return <div className="p-8 text-sm text-tapit-muted">Loading account settings…</div>;
   if (account === null) return <Notice tone="error">Your account could not be loaded.</Notice>;
+  const isResettableDemo = account.role === "customer" && account.isDemo === true;
   async function unpublish() {
     setPublicationMessage(null);
     try {
@@ -409,6 +473,17 @@ function LiveAccountSettings() {
       setDeletionOpen(false);
     }
   }
+  async function confirmReset() {
+    setMessage("");
+    try {
+      await resetDemoAccountMutation({});
+      router.replace("/onboarding");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The Demo account could not be reset.");
+    } finally {
+      setResetOpen(false);
+    }
+  }
   return (
     <div className={pageClass}>
       <AccountHeader email={account.email} />
@@ -430,25 +505,44 @@ function LiveAccountSettings() {
         ) : null}
         <div className="flex flex-col gap-4">
           {supportUrl ? <SupportCard href={supportUrl} /> : null}
-          <DeleteAccountCard
-            disabled={account.role !== "customer" || account.deletionStatus !== "active"}
-            onRequest={() => setDeletionOpen(true)}
-          >
-            {message ? (
-              <Notice tone={message.startsWith("Deletion requested") ? "success" : "error"}>
-                {message}
-              </Notice>
-            ) : null}
-          </DeleteAccountCard>
+          {isResettableDemo ? (
+            <DeleteAccountCard
+              actionLabel="Reset account"
+              description="This clears your Tapit profile, account data, and linked cards. Your Google sign-in stays active so you can set up the account again."
+              disabled={account.deletionStatus !== "active" || account.demoResetInProgress === true}
+              onRequest={() => setResetOpen(true)}
+              title="Reset account"
+            >
+              {message ? <Notice tone="error">{message}</Notice> : null}
+            </DeleteAccountCard>
+          ) : (
+            <DeleteAccountCard
+              disabled={account.role !== "customer" || account.deletionStatus !== "active"}
+              onRequest={() => setDeletionOpen(true)}
+            >
+              {message ? (
+                <Notice tone={message.startsWith("Deletion requested") ? "success" : "error"}>
+                  {message}
+                </Notice>
+              ) : null}
+            </DeleteAccountCard>
+          )}
         </div>
       </div>
       <ConfirmDialog
-        confirmLabel="Request deletion"
-        description="Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
-        onCancel={() => setDeletionOpen(false)}
-        onConfirm={confirmDeletion}
-        open={deletionOpen}
-        title="Request account deletion?"
+        confirmLabel={isResettableDemo ? "Reset account" : "Request deletion"}
+        description={
+          isResettableDemo
+            ? "Your Tapit profile, linked cards, and account data will be removed. Your Google sign-in and Demo access will remain, and you will return to onboarding. Continue?"
+            : "Your public profile will become unavailable and every assigned card will be deactivated immediately. An administrator will review the request before permanent removal. Continue?"
+        }
+        onCancel={() => {
+          setDeletionOpen(false);
+          setResetOpen(false);
+        }}
+        onConfirm={() => (isResettableDemo ? void confirmReset() : void confirmDeletion())}
+        open={isResettableDemo ? resetOpen : deletionOpen}
+        title={isResettableDemo ? "Reset Demo account?" : "Request account deletion?"}
       />
     </div>
   );

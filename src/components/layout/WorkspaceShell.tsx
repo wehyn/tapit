@@ -19,6 +19,7 @@ import {
   useDemoSession,
   useDemoState,
 } from "@/lib/demo/store";
+import { resetCurrentDemoAccountData } from "@/lib/demo/card-order-assets";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import { isActiveAccess } from "@/lib/auth/access";
 import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
@@ -71,8 +72,11 @@ function DemoWorkspaceShell({
   const session = useDemoSession();
   const state = useDemoState();
   const access = resolveDemoSessionAccess(state, session);
+  const account = session && state.customers.find((customer) => customer.email === session.email);
+  const demoResetInProgress = account?.isDemo === true && account.demoResetInProgress === true;
+  const demoOnboardingPending = account?.isDemo === true && account.demoOnboardingPending === true;
   const recoveryPath =
-    access.kind === "restricted"
+    access.kind === "restricted" && !demoResetInProgress && !demoOnboardingPending
       ? access.reason === "invitation"
         ? "/login?reason=invitation-required"
         : "/login?reason=account-inactive"
@@ -80,6 +84,8 @@ function DemoWorkspaceShell({
   const draftSave = useDraftSave();
   const signingOut = useRef(false);
   const [sessionError, setSessionError] = useState("");
+  const [resetError, setResetError] = useState("");
+  const [resumingDemoReset, setResumingDemoReset] = useState(false);
   const beforeNavigate = useCallback(
     async (href: string) => (await draftSave(href)).kind === "saved",
     [draftSave],
@@ -110,7 +116,10 @@ function DemoWorkspaceShell({
   useEffect(() => {
     if (!hydrated || signingOut.current) return;
     if (accessKind === "guest") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
-    else if (audience === "admin") {
+    else if (demoResetInProgress) return;
+    else if (demoOnboardingPending) {
+      if (!resumingDemoReset) router.replace("/onboarding");
+    } else if (audience === "admin") {
       if (accessKind === "restricted" && recoveryPath !== null) router.replace(recoveryPath);
       else if (adminRedirect !== null) router.replace(adminRedirect);
     } else if (!hasProfileAccess && !sessionError) {
@@ -124,15 +133,56 @@ function DemoWorkspaceShell({
     accessKind,
     adminRedirect,
     audience,
+    demoOnboardingPending,
+    demoResetInProgress,
     hasProfileAccess,
     hydrated,
     pathname,
     recoveryPath,
+    resumingDemoReset,
     router,
     sessionError,
   ]);
 
   if (!hydrated || !hasAudienceAccess || access.kind !== "active") {
+    if (demoResetInProgress) {
+      return (
+        <div className="grid min-h-dvh place-items-center bg-tapit-paper px-4 sm:px-8">
+          <div className="w-full max-w-md rounded-card bg-tapit-surface p-6 shadow-card">
+            <h1 className="text-lg font-semibold text-tapit-ink">Resume Demo account reset</h1>
+            <p className="mt-2 text-sm text-tapit-muted">
+              Your Demo account reset did not finish. Resume it to continue to onboarding.
+            </p>
+            {resetError ? (
+              <p className="mt-4 text-sm text-tapit-danger" role="alert">
+                {resetError}
+              </p>
+            ) : null}
+            <Button
+              className="mt-6 w-full"
+              loading={resumingDemoReset}
+              onClick={() => {
+                setResetError("");
+                setResumingDemoReset(true);
+                void resetCurrentDemoAccountData()
+                  .then(() => router.replace("/onboarding"))
+                  .catch((cause: unknown) => {
+                    setResetError(
+                      cause instanceof Error
+                        ? cause.message
+                        : "Demo account reset could not be completed. Try again.",
+                    );
+                    setResumingDemoReset(false);
+                  });
+              }}
+              type="button"
+            >
+              Resume reset
+            </Button>
+          </div>
+        </div>
+      );
+    }
     if (sessionError) {
       return (
         <div className="grid min-h-dvh place-items-center bg-tapit-paper px-4 sm:px-8">
