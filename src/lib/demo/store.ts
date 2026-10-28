@@ -12,6 +12,8 @@ import {
   type DemoCardOrderPaymentMethod,
   type DemoCardOrderReferralCode,
   type DemoCustomer,
+  type DemoSetupInvitation,
+  type DemoSetupState,
   type DemoProfile,
   type DemoState,
   type ProfileTheme,
@@ -21,6 +23,7 @@ import {
   serializeDemoState,
   UnsupportedDemoStorageVersionError,
 } from "./storage-codec";
+import { hashSetupToken } from "../auth/setup-token";
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -60,6 +63,7 @@ let persistedRaw: string | null = null;
 let storageWriteBlock: StateWriteBlock | null = null;
 let storageListenerAttached = false;
 const listeners = new Set<() => void>();
+let reservedSetupTokenId = 1;
 
 type StateStorageRead =
   | { kind: "supported"; raw: string; state: DemoState }
@@ -122,6 +126,18 @@ function isDemoCustomer(value: unknown): value is DemoCustomer {
     (value.claimedCardIds === undefined ||
       (Array.isArray(value.claimedCardIds) &&
         value.claimedCardIds.every((id) => typeof id === "string")))
+  );
+}
+
+function isDemoSetupInvitation(value: unknown): value is DemoSetupInvitation {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.customerId === "string" &&
+    typeof value.tokenHash === "string" &&
+    isFiniteNumber(value.expiresAt) &&
+    (value.invalidatedAt === undefined || isFiniteNumber(value.invalidatedAt)) &&
+    (value.usedAt === undefined || isFiniteNumber(value.usedAt))
   );
 }
 
@@ -300,6 +316,11 @@ function normalizeStoredState(raw: string): StateStorageRead {
     !Array.isArray(decoded.customers) ||
     !decoded.cards.every(isDemoCard) ||
     !decoded.customers.every(isDemoCustomer) ||
+    (decoded.setupInvitations !== undefined &&
+      (!Array.isArray(decoded.setupInvitations) ||
+        !decoded.setupInvitations.every(isDemoSetupInvitation))) ||
+    (decoded.nextSetupTokenId !== undefined &&
+      !isNonNegativeSafeInteger(decoded.nextSetupTokenId)) ||
     (decoded.analytics !== undefined &&
       (!Array.isArray(decoded.analytics) || !decoded.analytics.every(isAnalyticsBucket))) ||
     (decoded.profiles !== undefined &&
@@ -360,6 +381,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
     ),
     cardOrders: normalizeCollection(parsed.cardOrders, isCardOrder),
     customers,
+    setupInvitations: parsed.setupInvitations ?? [],
+    nextSetupTokenId: parsed.nextSetupTokenId ?? 1,
     profiles,
     themes: { ...fallback.themes, ...themes },
     profile: parsed.profile,
@@ -809,6 +832,467 @@ export function updateDemoState(updater: (current: DemoState) => DemoState): voi
   notify();
 }
 
+export type PreparedProfileInput = {
+  name: string;
+  slug: string;
+  bio?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  links: { label: string; url: string }[];
+};
+
+export type DemoCustomerListRow = DemoCustomer & {
+  setupState: DemoSetupState | null;
+  linkExpiresAt: number | null;
+  profileName: string;
+  profileSlug: string;
+};
+
+const SETUP_LINK_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+
+function preparedSetupNow(): number {
+  return Date.now();
+}
+
+function isPreparedSetupState(state: DemoSetupState | null): state is "waiting" | "draft" {
+  return state === "waiting" || state === "draft";
+}
+
+function reserveSetupTokenId(): number {
+  const id = Math.max(reservedSetupTokenId, getDemoState().nextSetupTokenId);
+  reservedSetupTokenId = id + 1;
+  return id;
+}
+
+function deriveSetupLifecycle(
+  customer: DemoCustomer,
+  invitations: DemoSetupInvitation[],
+  now: number,
+): {
+  state: DemoSetupState | null;
+  invitation: DemoSetupInvitation | null;
+  liveInvitations: DemoSetupInvitation[];
+  linkExpiresAt: number | null;
+} {
+  if (customer.status === "active") {
+    return { state: "active", invitation: null, liveInvitations: [], linkExpiresAt: null };
+  }
+  const preparedInvitations = invitations.filter(
+    (candidate) => candidate.customerId === customer.id,
+  );
+  if (preparedInvitations.length === 0) {
+    return { state: null, invitation: null, liveInvitations: [], linkExpiresAt: null };
+  }
+  const liveInvitations = invitations.filter(
+    (candidate) =>
+      candidate.customerId === customer.id &&
+      candidate.invalidatedAt === undefined &&
+      candidate.usedAt === undefined &&
+      candidate.expiresAt > now,
+  );
+  const invitation = liveInvitations.at(-1);
+  return invitation === undefined
+    ? { state: "draft", invitation: null, liveInvitations, linkExpiresAt: null }
+    : { state: "waiting", invitation, liveInvitations, linkExpiresAt: invitation.expiresAt };
+}
+
+function validatePreparedProfile(profile: PreparedProfileInput, current: DemoState): void {
+  const name = profile.name.trim();
+  if (name.length === 0 || name.length > 120) throw new Error("Enter a valid profile name.");
+  const slug = profile.slug.trim();
+  const slugError = validateProfileSlug(slug, {
+    existingSlugs: getDemoProfiles(current).map((candidate) => candidate.draft.slug),
+  });
+  if (slugError !== null) throw new Error(slugError);
+  for (const value of [profile.website, ...profile.links.map((link) => link.url)]) {
+    if (value === undefined) continue;
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      throw new Error("Profile website and links must use HTTPS URLs.");
+    }
+    if (url.protocol !== "https:" || url.username !== "" || url.password !== "") {
+      throw new Error("Profile website and links must use HTTPS URLs.");
+    }
+  }
+  if (profile.links.some((link) => link.label.trim().length === 0)) {
+    throw new Error("Enter a label for each profile link.");
+  }
+}
+
+function preparedProfileContent(profile: PreparedProfileInput) {
+  return {
+    name: profile.name.trim(),
+    slug: profile.slug.trim(),
+    ...(profile.bio?.trim() ? { bio: profile.bio.trim() } : {}),
+    ...(profile.contactEmail?.trim() ? { email: profile.contactEmail.trim().toLowerCase() } : {}),
+    ...(profile.phone?.trim() ? { phone: profile.phone.trim() } : {}),
+    ...(profile.website?.trim() ? { website: profile.website.trim() } : {}),
+    links: profile.links.map((link, index) => ({
+      id: `prepared-link-${index + 1}`,
+      label: link.label.trim(),
+      destination: link.url.trim(),
+      enabled: true,
+      icon: "link" as const,
+    })),
+  };
+}
+
+export async function createPrepared(
+  profile: PreparedProfileInput,
+): Promise<{ customerId: string; token: string; expiresAt: number }> {
+  const current = getDemoState();
+  validatePreparedProfile(profile, current);
+  const tokenNumber = reserveSetupTokenId();
+  const customerId = `prepared-customer-${tokenNumber}`;
+  const profileId = `prepared-profile-${tokenNumber}`;
+  const invitationId = `prepared-invitation-${tokenNumber}`;
+  const token = `demo-setup-${tokenNumber}`;
+  const tokenHash = await hashSetupToken(token);
+  const now = preparedSetupNow();
+  const expiresAt = now + SETUP_LINK_LIFETIME_MS;
+  const content = preparedProfileContent(profile);
+
+  updateDemoState((latest) => {
+    validatePreparedProfile(profile, latest);
+    const prepared: DemoProfile = {
+      id: profileId,
+      ownerId: customerId,
+      status: "draft",
+      theme: "paper",
+      draft: content,
+      published: null,
+    };
+    return {
+      ...latest,
+      customers: [
+        ...latest.customers,
+        {
+          id: customerId,
+          email: "",
+          role: "customer",
+          profileId,
+          status: "invited",
+          deletionStatus: "active",
+        },
+      ],
+      profiles: [...getDemoProfiles(latest), prepared],
+      themes: { ...latest.themes, [profileId]: "paper" },
+      setupInvitations: [
+        ...latest.setupInvitations,
+        { id: invitationId, customerId, tokenHash, expiresAt },
+      ],
+      nextSetupTokenId: Math.max(latest.nextSetupTokenId, tokenNumber + 1),
+      audits: [
+        ...latest.audits,
+        {
+          id: `prepared-audit-${tokenNumber}-created`,
+          actor: getDemoSession()?.email ?? "admin@tapit.local",
+          action: "customer.prepared",
+          target: `${content.name} / ${content.slug}`,
+          occurredAt: new Date(now).toISOString(),
+          after: "waiting",
+        },
+      ],
+    };
+  });
+  return { customerId, token, expiresAt };
+}
+
+export function updatePrepared(customerId: string, profile: PreparedProfileInput): void {
+  const current = getDemoState();
+  const customer = current.customers.find((candidate) => candidate.id === customerId);
+  if (
+    customer === undefined ||
+    !isPreparedSetupState(
+      deriveSetupLifecycle(customer, current.setupInvitations, preparedSetupNow()).state,
+    )
+  ) {
+    throw new Error("Prepared customer cannot be updated.");
+  }
+  validatePreparedProfile(profile, {
+    ...current,
+    profiles: getDemoProfiles(current).filter((candidate) => candidate.id !== customer.profileId),
+  });
+  updateDemoState((latest) => {
+    const latestCustomer = latest.customers.find((candidate) => candidate.id === customerId);
+    if (
+      latestCustomer === undefined ||
+      !isPreparedSetupState(
+        deriveSetupLifecycle(latestCustomer, latest.setupInvitations, preparedSetupNow()).state,
+      )
+    ) {
+      throw new Error("Prepared customer cannot be updated.");
+    }
+    const preparedProfile = getDemoProfileById(latest, latestCustomer.profileId);
+    if (preparedProfile === undefined) throw new Error("Prepared profile was not found.");
+    validatePreparedProfile(profile, {
+      ...latest,
+      profiles: getDemoProfiles(latest).filter((candidate) => candidate.id !== preparedProfile.id),
+    });
+    const updated = updateDemoProfile(latest, preparedProfile.id, (existing) => ({
+      ...existing,
+      status: "draft",
+      draft: preparedProfileContent(profile),
+      published: null,
+    }));
+    const now = preparedSetupNow();
+    const operationId = reserveSetupTokenId();
+    return {
+      ...updated,
+      nextSetupTokenId: Math.max(updated.nextSetupTokenId, operationId + 1),
+      audits: [
+        ...updated.audits,
+        {
+          id: `prepared-audit-${operationId}-updated`,
+          actor: getDemoSession()?.email ?? "admin@tapit.local",
+          action: "customer.prepared_updated",
+          target: `${profile.name.trim()} / ${profile.slug.trim()}`,
+          occurredAt: new Date(now).toISOString(),
+        },
+      ],
+    };
+  });
+}
+
+export async function generateLink(
+  customerId: string,
+): Promise<{ token: string; expiresAt: number }> {
+  const tokenNumber = reserveSetupTokenId();
+  const token = `demo-setup-${tokenNumber}`;
+  const tokenHash = await hashSetupToken(token);
+  const now = preparedSetupNow();
+  const expiresAt = now + SETUP_LINK_LIFETIME_MS;
+  updateDemoState((current) => {
+    const customer = current.customers.find((candidate) => candidate.id === customerId);
+    if (
+      customer === undefined ||
+      !isPreparedSetupState(deriveSetupLifecycle(customer, current.setupInvitations, now).state)
+    ) {
+      throw new Error("Prepared customer cannot receive a setup link.");
+    }
+    const lifecycle = deriveSetupLifecycle(customer, current.setupInvitations, now);
+    const liveInvitationIds = new Set(lifecycle.liveInvitations.map((invitation) => invitation.id));
+    const invitations = current.setupInvitations.map((invitation) =>
+      liveInvitationIds.has(invitation.id) ? { ...invitation, invalidatedAt: now } : invitation,
+    );
+    return {
+      ...current,
+      setupInvitations: [
+        ...invitations,
+        { id: `prepared-invitation-${tokenNumber}`, customerId, tokenHash, expiresAt },
+      ],
+      nextSetupTokenId: Math.max(current.nextSetupTokenId, tokenNumber + 1),
+      audits: [
+        ...current.audits,
+        {
+          id: `prepared-audit-${tokenNumber}-generated`,
+          actor: getDemoSession()?.email ?? "admin@tapit.local",
+          action: "customer.setup_link_generated",
+          target: customerId,
+          occurredAt: new Date(now).toISOString(),
+          after: new Date(expiresAt).toISOString(),
+        },
+      ],
+    };
+  });
+  return { token, expiresAt };
+}
+
+export function revokeLink(customerId: string): void {
+  const now = preparedSetupNow();
+  updateDemoState((current) => {
+    const customer = current.customers.find((candidate) => candidate.id === customerId);
+    if (
+      customer === undefined ||
+      deriveSetupLifecycle(customer, current.setupInvitations, now).state !== "waiting"
+    ) {
+      throw new Error("Setup link cannot be revoked.");
+    }
+    const lifecycle = deriveSetupLifecycle(customer, current.setupInvitations, now);
+    const operationId = reserveSetupTokenId();
+    const liveInvitationIds = new Set(lifecycle.liveInvitations.map((invitation) => invitation.id));
+    return {
+      ...current,
+      nextSetupTokenId: Math.max(current.nextSetupTokenId, operationId + 1),
+      setupInvitations: current.setupInvitations.map((invitation) =>
+        liveInvitationIds.has(invitation.id) ? { ...invitation, invalidatedAt: now } : invitation,
+      ),
+      audits: [
+        ...current.audits,
+        {
+          id: `prepared-audit-${operationId}-revoked`,
+          actor: getDemoSession()?.email ?? "admin@tapit.local",
+          action: "customer.setup_link_revoked",
+          target: customerId,
+          occurredAt: new Date(now).toISOString(),
+          before: "waiting",
+          after: "draft",
+        },
+      ],
+    };
+  });
+}
+
+export function deletePreparedDraft(customerId: string): void {
+  const now = preparedSetupNow();
+  updateDemoState((current) => {
+    const customer = current.customers.find((candidate) => candidate.id === customerId);
+    if (
+      customer === undefined ||
+      deriveSetupLifecycle(customer, current.setupInvitations, now).state !== "draft"
+    ) {
+      throw new Error("Prepared customer cannot be deleted.");
+    }
+    const profile = getDemoProfileById(current, customer.profileId);
+    const profiles = getDemoProfiles(current).filter(
+      (profile) => profile.id !== customer.profileId,
+    );
+    const themes = Object.fromEntries(
+      Object.entries(current.themes).filter(([profileId]) => profileId !== customer.profileId),
+    );
+    const operationId = reserveSetupTokenId();
+    return {
+      ...current,
+      nextSetupTokenId: Math.max(current.nextSetupTokenId, operationId + 1),
+      customers: current.customers.filter((candidate) => candidate.id !== customerId),
+      profiles,
+      profile:
+        current.profile.id === customer.profileId
+          ? (profiles[0] ?? current.profile)
+          : current.profile,
+      themes,
+      setupInvitations: current.setupInvitations.filter(
+        (invitation) => invitation.customerId !== customerId,
+      ),
+      audits: [
+        ...current.audits,
+        {
+          id: `prepared-audit-${operationId}-deleted`,
+          actor: getDemoSession()?.email ?? "admin@tapit.local",
+          action: "customer.prepared_deleted",
+          target: `${profile?.draft.name ?? customerId} / ${profile?.draft.slug ?? ""}`,
+          occurredAt: new Date(now).toISOString(),
+          before: "draft",
+          after: "deleted",
+        },
+      ],
+    };
+  });
+}
+
+export async function setupPreview(token: string): Promise<{
+  name: string;
+  slug: string;
+  bio?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  links: { label: string; url: string }[];
+} | null> {
+  const tokenHash = await hashSetupToken(token);
+  const current = getDemoState();
+  const invitation = current.setupInvitations.find(
+    (candidate) => candidate.tokenHash === tokenHash,
+  );
+  if (invitation === undefined) return null;
+  const customer = current.customers.find((candidate) => candidate.id === invitation.customerId);
+  if (
+    customer === undefined ||
+    deriveSetupLifecycle(customer, current.setupInvitations, preparedSetupNow()).invitation?.id !==
+      invitation.id
+  ) {
+    return null;
+  }
+  const profile = getDemoProfileById(current, customer.profileId);
+  if (profile === undefined) return null;
+  const { name, slug, bio, email, phone, website, links } = profile.draft;
+  return {
+    name,
+    slug,
+    ...(bio === undefined ? {} : { bio }),
+    ...(email === undefined ? {} : { contactEmail: email }),
+    ...(phone === undefined ? {} : { phone }),
+    ...(website === undefined ? {} : { website }),
+    links: links.map((link) => ({ label: link.label, url: link.destination })),
+  };
+}
+
+export async function claimSetup(token: string): Promise<boolean> {
+  const tokenHash = await hashSetupToken(token);
+  const now = preparedSetupNow();
+  const claimingSession = getDemoSession();
+  if (claimingSession === null || claimingSession.role !== "customer") return false;
+  let claimed = false;
+  updateDemoState((current) => {
+    const invitation = current.setupInvitations.find(
+      (candidate) => candidate.tokenHash === tokenHash,
+    );
+    if (invitation === undefined) return current;
+    const customer = current.customers.find((candidate) => candidate.id === invitation.customerId);
+    if (
+      customer === undefined ||
+      deriveSetupLifecycle(customer, current.setupInvitations, now).invitation?.id !==
+        invitation.id ||
+      current.customers.some(
+        (candidate) => candidate.id !== customer.id && candidate.email === claimingSession.email,
+      )
+    )
+      return current;
+    claimed = true;
+    const operationId = reserveSetupTokenId();
+    return {
+      ...current,
+      nextSetupTokenId: Math.max(current.nextSetupTokenId, operationId + 1),
+      customers: current.customers.map((candidate) =>
+        candidate.id === customer.id
+          ? { ...candidate, email: claimingSession.email, status: "active" }
+          : candidate,
+      ),
+      setupInvitations: current.setupInvitations.map((candidate) =>
+        candidate.id === invitation.id ? { ...candidate, usedAt: now } : candidate,
+      ),
+      audits: [
+        ...current.audits,
+        {
+          id: `prepared-audit-${operationId}-claimed`,
+          actor: claimingSession.email,
+          action: "customer.prepared_claimed",
+          target: customer.id,
+          occurredAt: new Date(now).toISOString(),
+          before: "waiting",
+          after: "active",
+        },
+      ],
+    };
+  });
+  return claimed;
+}
+
+export function listCustomers(filter?: {
+  setupState?: DemoSetupState | null;
+}): DemoCustomerListRow[] {
+  const current = getDemoState();
+  const now = preparedSetupNow();
+  return current.customers
+    .map((customer) => {
+      const lifecycle = deriveSetupLifecycle(customer, current.setupInvitations, now);
+      const profile = getDemoProfileById(current, customer.profileId);
+      return {
+        ...customer,
+        setupState: lifecycle.state,
+        linkExpiresAt: lifecycle.linkExpiresAt,
+        profileName: profile?.draft.name ?? "",
+        profileSlug: profile?.draft.slug ?? "",
+      };
+    })
+    .filter(
+      (customer) => filter?.setupState === undefined || customer.setupState === filter.setupState,
+    );
+}
+
 export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput): {
   customerId: string;
   profileId: string;
@@ -881,6 +1365,7 @@ export function createDemoSelfServiceAccount(input: DemoSelfServiceAccountInput)
 }
 
 export function resetDemoState(): void {
+  reservedSetupTokenId = 1;
   const nextState = createDefaultDemoState();
   persist(nextState, true);
   state = nextState;
