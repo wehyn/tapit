@@ -649,6 +649,85 @@ describe("card order referral usage", () => {
     ).resolves.toMatchObject({ counted: 101, marker: { value: "completed" } });
   });
 
+  it("caps the exact existing FOUNDING-AHRON code after counting its history", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      const codeId = await ctx.db.insert("cardOrderReferralCodes", {
+        code: "FOUNDING",
+        referrerLabel: "Founding",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      for (let index = 0; index < 6; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/founding.png" },
+          deliveryName: "Historical Customer",
+          deliveryPhone: "09170000000",
+          deliveryAddress: "Historical address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Test account",
+            instructions: "Transfer.",
+          },
+          referralCodeId: index === 5 ? codeId : ids.codeId,
+          referralSnapshot: {
+            code: index === 5 ? "FOUNDING" : "FOUNDING-AHRON",
+            referrerLabel: index === 5 ? "Founding" : "Ahron",
+          },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index + 1,
+          updatedAt: index + 1,
+        });
+      }
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.patch(marker._id, { value: "started" });
+      return codeId;
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const codes = await admin.query(api.cardOrderSettings.adminReferralCodes, {});
+    expect(codes.find((code) => code.code === "FOUNDING-AHRON")).toMatchObject({
+      usageCount: 5,
+      usageLimit: 25,
+    });
+    const foundingOnly = codes.find((code) => code.code === "FOUNDING");
+    expect(foundingOnly?.usageCount).toBe(1);
+    expect(foundingOnly?.usageLimit).toBeUndefined();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.codeId, { usageLimit: undefined });
+    });
+    await t.mutation(internal.cardOrderReferralUsage.backfillUsageCounts, { cursor: null });
+    const clearedCode = (await admin.query(api.cardOrderSettings.adminReferralCodes, {})).find(
+      (code) => code.code === "FOUNDING-AHRON",
+    );
+    expect(clearedCode?.usageLimit).toBeUndefined();
+  });
+
   it("paginates referral history with only the approved customer and status fields", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);

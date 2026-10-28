@@ -4,6 +4,8 @@ import { internalMutation } from "./_generated/server";
 
 const PAGE_SIZE = 100;
 const BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
+const FOUNDING_CODE = "FOUNDING-AHRON";
+const FOUNDING_CODE_USAGE_LIMIT = 25;
 
 export const backfillUsageCounts = internalMutation({
   args: { scope: v.optional(v.literal("demo")), cursor: v.union(v.string(), v.null()) },
@@ -35,8 +37,17 @@ export const backfillUsageCounts = internalMutation({
         cursor: page.continueCursor,
       });
     else {
-      if (marker !== null && marker.value !== "completed")
+      if (marker !== null && marker.value !== "completed") {
+        const foundingCode = await ctx.db
+          .query("cardOrderReferralCodes")
+          .withIndex("by_scope_and_code", (q) =>
+            q.eq("scope", args.scope).eq("code", FOUNDING_CODE),
+          )
+          .first();
+        if (foundingCode !== null && foundingCode.usageLimit === undefined)
+          await ctx.db.patch(foundingCode._id, { usageLimit: FOUNDING_CODE_USAGE_LIMIT });
         await ctx.db.patch(marker._id, { value: "completed", updatedAt: Date.now() });
+      }
     }
     if (!page.isDone && marker !== null && marker.value !== "completed")
       await ctx.db.patch(marker._id, { updatedAt: Date.now() });
