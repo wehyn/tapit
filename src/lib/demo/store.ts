@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
-import { isCardOrderLaunchEndDate, isValidReferralFixedPriceCentavos } from "../card-ordering";
+import { isValidReferralFixedPriceCentavos, manilaStartOfDayTimestamp } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
   createDefaultDemoState,
@@ -223,6 +223,12 @@ function isCardOrderOffer(value: unknown): value is DemoCardOrderOffer {
     (value.scope === undefined || value.scope === "demo") &&
     (value.fixedPriceCentavos === undefined ||
       isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    (value.percentOff === undefined ||
+      (typeof value.percentOff === "number" &&
+        Number.isSafeInteger(value.percentOff) &&
+        value.percentOff >= 1 &&
+        value.percentOff <= 99)) &&
+    !(value.fixedPriceCentavos !== undefined && value.percentOff !== undefined) &&
     (value.usageCount === undefined || isNonNegativeSafeInteger(value.usageCount)) &&
     (value.usageLimit === undefined ||
       (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
@@ -264,7 +270,12 @@ function isCardOrder(value: unknown): value is DemoCardOrder {
     (isRecord(value.offerSnapshot) &&
       typeof value.offerSnapshot.code === "string" &&
       (value.offerSnapshot.fixedPriceCentavos === undefined ||
-        isValidReferralFixedPriceCentavos(value.offerSnapshot.fixedPriceCentavos)));
+        isValidReferralFixedPriceCentavos(value.offerSnapshot.fixedPriceCentavos)) &&
+      (value.offerSnapshot.percentOff === undefined ||
+        (typeof value.offerSnapshot.percentOff === "number" &&
+          Number.isSafeInteger(value.offerSnapshot.percentOff) &&
+          value.offerSnapshot.percentOff >= 1 &&
+          value.offerSnapshot.percentOff <= 99)));
 
   return (
     typeof value.id === "string" &&
@@ -353,6 +364,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
     cards: DemoState["cards"];
     customers: DemoState["customers"];
   };
+  const persistedState = { ...parsed };
+  Reflect.deleteProperty(persistedState, "cardOrderLaunchEndDate");
   const fallback = createDefaultDemoState();
   const profiles =
     Array.isArray(parsed.profiles) && parsed.profiles.length > 0
@@ -379,7 +392,16 @@ function normalizeStoredState(raw: string): StateStorageRead {
   const offers = normalizeCollection(
     (parsed as Partial<DemoState>).cardOrderOffers,
     isCardOrderOffer,
-  );
+  ).map((offer) => {
+    if (
+      offer.expiresOn === undefined ||
+      (typeof offer.expiresOn === "string" && manilaStartOfDayTimestamp(offer.expiresOn) !== null)
+    )
+      return offer;
+    const validOffer = { ...offer };
+    delete validOffer.expiresOn;
+    return validOffer;
+  });
   const cardOrders = normalizeCollection(parsed.cardOrders, isCardOrder);
   const foundingAliases = referralCodes.filter(
     (code) => code.code === "FOUNDING" || code.code === "FOUNDING-AHRON",
@@ -478,11 +500,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
   });
   const nextState = {
     ...fallback,
-    ...parsed,
+    ...persistedState,
     cards,
-    cardOrderLaunchEndDate: isCardOrderLaunchEndDate(parsed.cardOrderLaunchEndDate)
-      ? parsed.cardOrderLaunchEndDate
-      : null,
     cardOrderPaymentMethods: normalizeCollection(
       parsed.cardOrderPaymentMethods,
       isCardOrderPaymentMethod,

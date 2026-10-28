@@ -176,8 +176,6 @@ test("card order receipts stay private and never mark payment received", async (
   await resetDemoHarness(page);
   await signInAsAdmin(page);
   await page.goto("/admin/settings");
-  await page.getByLabel("Launch end date").fill("2099-12-31");
-  await page.getByRole("button", { name: "Save date", exact: true }).click();
   await page.getByLabel("Provider", { exact: true }).fill("Bank transfer");
   await page.getByLabel("Method label", { exact: true }).fill("Receipt test bank");
   await page.getByLabel("Account details", { exact: true }).fill("Account 123456");

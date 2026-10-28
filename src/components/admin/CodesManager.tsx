@@ -18,6 +18,8 @@ type Offer = {
   id: string;
   code: string;
   fixedPriceCentavos?: number;
+  percentOff?: number;
+  expiresOn?: string;
   usageCount: number;
   usageLimit?: number;
 };
@@ -38,7 +40,14 @@ type Usage = {
   fulfillmentStatus: string;
   commissionStatus: string;
 };
-type OfferInput = { id?: string; code: string; fixedPriceCentavos?: number; usageLimit?: number };
+type OfferInput = {
+  id?: string;
+  code: string;
+  fixedPriceCentavos?: number;
+  percentOff?: number;
+  expiresOn?: string;
+  usageLimit?: number;
+};
 type AliasInput = {
   id?: string;
   code: string;
@@ -92,6 +101,9 @@ function CodesWorkspace({
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
   const [offerCode, setOfferCode] = useState("");
   const [price, setPrice] = useState("");
+  const [pricingMode, setPricingMode] = useState<"fixed" | "percent">("fixed");
+  const [percentOff, setPercentOff] = useState("10");
+  const [expiresOn, setExpiresOn] = useState("");
   const [usageLimit, setUsageLimit] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -125,6 +137,9 @@ function CodesWorkspace({
     setEditingOffer(offer ?? null);
     setOfferCode(offer?.code ?? "");
     setPrice(offer?.fixedPriceCentavos === undefined ? "" : String(offer.fixedPriceCentavos / 100));
+    setPricingMode(offer?.fixedPriceCentavos === undefined ? "percent" : "fixed");
+    setPercentOff(String(offer?.percentOff ?? 10));
+    setExpiresOn(offer?.expiresOn ?? "");
     setUsageLimit(offer?.usageLimit === undefined ? "" : String(offer.usageLimit));
   }
   async function submitOffer(event: React.FormEvent<HTMLFormElement>) {
@@ -147,11 +162,26 @@ function CodesWorkspace({
         : match
           ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"))
           : NaN;
-    if (cents !== undefined && (!Number.isSafeInteger(cents) || cents <= 0 || cents > 59900)) {
+    if (
+      pricingMode === "fixed" &&
+      (cents === undefined || !Number.isSafeInteger(cents) || cents <= 0 || cents > 59900)
+    ) {
       setMessage({
         tone: "error",
         text: "Fixed price must be a positive whole-centavo amount no greater than ₱599.",
       });
+      return;
+    }
+    const percent = percentOff === "" ? NaN : Number(percentOff);
+    if (pricingMode === "percent" && (!Number.isInteger(percent) || percent < 1 || percent > 99)) {
+      setMessage({
+        tone: "error",
+        text: "Percentage discount must be a whole number from 1 to 99.",
+      });
+      return;
+    }
+    if (expiresOn && !/^\d{4}-\d{2}-\d{2}$/.test(expiresOn)) {
+      setMessage({ tone: "error", text: "Enter a valid expiry date." });
       return;
     }
     const limit = usageLimit === "" ? undefined : Number(usageLimit);
@@ -165,7 +195,9 @@ function CodesWorkspace({
           onSaveOffer({
             ...(editingOffer ? { id: editingOffer.id } : {}),
             code: normalized,
-            fixedPriceCentavos: cents,
+            fixedPriceCentavos: pricingMode === "fixed" ? cents : undefined,
+            percentOff: pricingMode === "percent" ? percent : undefined,
+            expiresOn: expiresOn || undefined,
             usageLimit: limit,
           }),
         editingOffer ? "Offer updated." : "Offer created.",
@@ -217,13 +249,18 @@ function CodesWorkspace({
                 <div>
                   <h3 className="font-semibold text-tapit-ink">{offer.code}</h3>
                   <p className="text-sm text-tapit-muted">
-                    {offer.fixedPriceCentavos === undefined
-                      ? "10% off"
-                      : money(offer.fixedPriceCentavos)}{" "}
+                    {offer.fixedPriceCentavos !== undefined
+                      ? `Fixed price ${money(offer.fixedPriceCentavos)}`
+                      : `${offer.percentOff ?? 10}% off`}{" "}
                     ·{" "}
                     {offer.usageLimit === undefined
                       ? `${offer.usageCount} uses · unlimited`
                       : `${offer.usageCount} of ${offer.usageLimit} uses · ${Math.max(0, offer.usageLimit - offer.usageCount)} remaining`}
+                  </p>
+                  <p className="mt-1 text-sm text-tapit-muted">
+                    {offer.expiresOn
+                      ? `Expires ${offer.expiresOn}${offer.expiresOn <= new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()) ? " · Expired" : ""}`
+                      : "No expiry"}
                   </p>
                   <p className="mt-1 text-sm text-tapit-muted">
                     Codes:{" "}
@@ -250,6 +287,12 @@ function CodesWorkspace({
                     setOfferCode,
                     price,
                     setPrice,
+                    pricingMode,
+                    setPricingMode,
+                    percentOff,
+                    setPercentOff,
+                    expiresOn,
+                    setExpiresOn,
                     usageLimit,
                     setUsageLimit,
                     onSubmit: submitOffer,
@@ -271,6 +314,12 @@ function CodesWorkspace({
               setOfferCode,
               price,
               setPrice,
+              pricingMode,
+              setPricingMode,
+              percentOff,
+              setPercentOff,
+              expiresOn,
+              setExpiresOn,
               usageLimit,
               setUsageLimit,
               onSubmit: submitOffer,
@@ -470,6 +519,12 @@ function OfferForm({
   setOfferCode,
   price,
   setPrice,
+  pricingMode,
+  setPricingMode,
+  percentOff,
+  setPercentOff,
+  expiresOn,
+  setExpiresOn,
   usageLimit,
   setUsageLimit,
   onSubmit,
@@ -480,6 +535,12 @@ function OfferForm({
   setOfferCode: (v: string) => void;
   price: string;
   setPrice: (v: string) => void;
+  pricingMode: "fixed" | "percent";
+  setPricingMode: (v: "fixed" | "percent") => void;
+  percentOff: string;
+  setPercentOff: (v: string) => void;
+  expiresOn: string;
+  setExpiresOn: (v: string) => void;
   usageLimit: string;
   setUsageLimit: (v: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
@@ -496,17 +557,50 @@ function OfferForm({
         required
         value={offerCode}
       />
+      <label className="grid gap-1 text-sm font-medium text-tapit-ink">
+        Pricing mode
+        <select
+          className="min-h-11 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm"
+          disabled={busy}
+          value={pricingMode}
+          onChange={(e) => setPricingMode(e.target.value as "fixed" | "percent")}
+        >
+          <option value="fixed">Fixed final price</option>
+          <option value="percent">Percentage discount</option>
+        </select>
+      </label>
+      {pricingMode === "fixed" ? (
+        <Field
+          disabled={busy}
+          id="offer-price"
+          label="Fixed card price (₱)"
+          max="599"
+          min="0.01"
+          onChange={(e) => setPrice(e.target.value)}
+          step="0.01"
+          type="number"
+          value={price}
+        />
+      ) : (
+        <Field
+          disabled={busy}
+          id="offer-percent-off"
+          label="Discount (%)"
+          max="99"
+          min="1"
+          onChange={(e) => setPercentOff(e.target.value)}
+          step={1}
+          type="number"
+          value={percentOff}
+        />
+      )}
       <Field
         disabled={busy}
-        id="offer-price"
-        label="Fixed card price (₱, optional)"
-        max="599"
-        min="0.01"
-        onChange={(e) => setPrice(e.target.value)}
-        placeholder="Blank for 10% off"
-        step="0.01"
-        type="number"
-        value={price}
+        id="offer-expires-on"
+        label="Expires on (Manila date)"
+        onChange={(e) => setExpiresOn(e.target.value)}
+        type="date"
+        value={expiresOn}
       />
       <Field
         disabled={busy}
@@ -567,10 +661,12 @@ function DemoCodesManager() {
     }),
   );
   const offers: Offer[] = settings.offers.map(
-    ({ id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+    ({ id, code, fixedPriceCentavos, percentOff, expiresOn, usageCount, usageLimit }) => ({
       id,
       code,
       fixedPriceCentavos,
+      percentOff,
+      expiresOn,
       usageCount,
       usageLimit,
     }),
@@ -639,10 +735,12 @@ function LiveCodesManager() {
     { initialNumItems: pageSize },
   );
   const offers: Offer[] = (offersResult ?? []).map(
-    ({ _id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+    ({ _id, code, fixedPriceCentavos, percentOff, expiresOn, usageCount, usageLimit }) => ({
       id: _id,
       code,
       fixedPriceCentavos,
+      percentOff,
+      expiresOn,
       usageCount,
       usageLimit,
     }),
@@ -677,6 +775,8 @@ function LiveCodesManager() {
           ...(input.id ? { id: input.id as Id<"cardOrderOffers"> } : {}),
           code: input.code,
           fixedPriceCentavos: input.fixedPriceCentavos,
+          percentOff: input.percentOff,
+          expiresOn: input.expiresOn,
           usageLimit: input.usageLimit,
         });
       }}

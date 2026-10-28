@@ -1,10 +1,7 @@
-export const CARD_LAUNCH_PRICE_CENTAVOS = 59_900;
 export const CARD_REGULAR_PRICE_CENTAVOS = 79_900;
-export const CARD_LOWEST_PRICE_CENTAVOS = CARD_LAUNCH_PRICE_CENTAVOS;
+export const CARD_LOWEST_PRICE_CENTAVOS = 59_900;
 export const REFERRAL_PERCENT = 10;
 export const COMMISSION_PERCENT = 10;
-
-export type CardOrderLaunchEndDate = string;
 
 const calendarDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const manilaDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -36,10 +33,6 @@ function parseCalendarDate(value: string): [year: number, month: number, day: nu
     return null;
   }
   return [year, month, day];
-}
-
-export function isCardOrderLaunchEndDate(value: unknown): value is CardOrderLaunchEndDate {
-  return typeof value === "string" && parseCalendarDate(value) !== null;
 }
 
 /** Convert an admin YYYY-MM-DD date to midnight in Asia/Manila. */
@@ -79,16 +72,6 @@ export function isCardOrderOfferExpired(expiresOn: string | undefined, now = Dat
   if (expiresOn === undefined) return false;
   const expiresAt = manilaStartOfDayTimestamp(expiresOn);
   return expiresAt === null || now >= expiresAt;
-}
-
-export function getCardPriceCentavos(
-  launchEndDate: CardOrderLaunchEndDate | null,
-  now = Date.now(),
-): number {
-  const launchEndAt = launchEndDate === null ? null : manilaStartOfDayTimestamp(launchEndDate);
-  return launchEndAt !== null && now < launchEndAt
-    ? CARD_LAUNCH_PRICE_CENTAVOS
-    : CARD_REGULAR_PRICE_CENTAVOS;
 }
 
 export function percentageCentavos(amountCentavos: number, percent: number): number {

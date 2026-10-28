@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
-import { activeOrderAccount } from "./cardOrderSettings";
+import { activeOrderAccount, foundingOfferUsageVerified } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
 import {
   calculateCommissionCentavos,
@@ -13,8 +13,6 @@ import {
   isCardOrderOfferExpired,
 } from "../src/lib/card-ordering";
 import schema from "./schema";
-
-const FOUNDING_USAGE_VERIFIED = "completed:founding=5";
 
 const designSource = v.union(
   v.object({ kind: v.literal("upload"), uploadId: v.id("cardOrderDesignUploads") }),
@@ -191,7 +189,7 @@ export const placeOrder = mutation({
     ]);
     const promoCode = args.promoCode?.trim().toUpperCase();
     const normalizedCode = args.referralCode?.trim().toUpperCase();
-    const [offer, referral] = await Promise.all([
+    const [offer, referral, foundingVerified] = await Promise.all([
       promoCode
         ? ctx.db
             .query("cardOrderOffers")
@@ -208,12 +206,14 @@ export const placeOrder = mutation({
             )
             .first()
         : null,
+      promoCode === "FOUNDING" ? foundingOfferUsageVerified(ctx, customer.scope) : true,
     ]);
     if (
       promoCode &&
       (offer === null ||
         !sameScope(customer, offer) ||
         isCardOrderOfferExpired(offer.expiresOn, now) ||
+        (offer.code === "FOUNDING" && !foundingVerified) ||
         (offer.usageLimit !== undefined && offer.usageCount >= offer.usageLimit))
     )
       throw new Error("Promo code is unavailable for this order.");
@@ -221,7 +221,7 @@ export const placeOrder = mutation({
       normalizedCode &&
       (referral?.active !== true ||
         referral.offerId !== undefined ||
-        (referral.referrerCode === undefined && referral.referrerLabel === undefined) ||
+        !(referral.referrerCode?.trim() || referral.referrerLabel?.trim()) ||
         prior !== null ||
         (referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit))
     )

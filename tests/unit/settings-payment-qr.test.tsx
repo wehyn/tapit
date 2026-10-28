@@ -46,8 +46,7 @@ beforeEach(() => {
   convexHooks.useQuery.mockImplementation((query: unknown) => {
     const name = functionName(query);
     if (name === "settings:support") return "https://support.example";
-    if (name === "cardOrderSettings:adminSettings")
-      return { launchEndDate: null, paymentMethods: [] };
+    if (name === "cardOrderSettings:adminSettings") return { paymentMethods: [] };
     return undefined;
   });
 });

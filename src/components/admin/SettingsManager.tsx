@@ -12,7 +12,6 @@ import {
   deactivateDemoCardOrderPaymentMethod,
   getDemoCardOrderAdminSettings,
   saveDemoCardOrderPaymentMethod,
-  setDemoCardOrderLaunchEndDate,
 } from "@/lib/demo/card-ordering";
 import { useDemoState, updateDemoState } from "@/lib/demo/store";
 import {
@@ -50,7 +49,6 @@ type PaymentMethod = {
 };
 
 type CardOrderSettings = {
-  launchEndDate: string | null;
   paymentMethods: PaymentMethod[];
 };
 
@@ -62,20 +60,15 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function CardOrderSettings({
   settings,
-  onSetLaunchEndDate,
   onSavePaymentMethod,
   onDeactivatePaymentMethod,
   onSetPaymentMethodQr,
 }: {
   settings: CardOrderSettings;
-  onSetLaunchEndDate: (date: string | null) => Promise<void>;
   onSavePaymentMethod: (input: PaymentMethodInput) => Promise<string | void>;
   onDeactivatePaymentMethod: (id: string) => Promise<void>;
   onSetPaymentMethodQr?: (id: string, file: File | null) => Promise<void>;
 }) {
-  const [launchEndDate, setLaunchEndDate] = useState(settings.launchEndDate ?? "");
-  const [launchEndDateEdited, setLaunchEndDateEdited] = useState(false);
-  const launchEndDateValue = launchEndDateEdited ? launchEndDate : (settings.launchEndDate ?? "");
   const [paymentEditId, setPaymentEditId] = useState<string | undefined>();
   const [paymentProvider, setPaymentProvider] = useState("");
   const [paymentLabel, setPaymentLabel] = useState("");
@@ -105,15 +98,6 @@ function CardOrderSettings({
     } finally {
       setBusy(false);
     }
-  }
-
-  async function saveLaunchEndDate(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const saved = await perform(
-      () => onSetLaunchEndDate(launchEndDateValue || null),
-      "Launch end date saved.",
-    );
-    if (saved) setLaunchEndDateEdited(false);
   }
 
   async function savePaymentMethod(event: React.FormEvent<HTMLFormElement>) {
@@ -155,36 +139,7 @@ function CardOrderSettings({
 
   return (
     <>
-      <AdminPageHeader
-        description="Manage launch pricing, payment methods, and support."
-        title="Settings"
-      />
-      <Card
-        description="The Manila pricing cutoff is this date: cards cost ₱599 before it and ₱799 on or after it. Leave blank to close ordering."
-        title="Card ordering launch"
-      >
-        <form
-          className="mt-4 flex max-w-xl flex-col items-start gap-4 sm:flex-row sm:items-end"
-          onSubmit={saveLaunchEndDate}
-        >
-          <div className="w-full sm:max-w-xs">
-            <Field
-              id="card-order-launch-end-date"
-              label="Launch end date"
-              onChange={(event) => {
-                setLaunchEndDate(event.target.value);
-                setLaunchEndDateEdited(true);
-              }}
-              type="date"
-              value={launchEndDateValue}
-            />
-          </div>
-          <Button disabled={busy} type="submit">
-            Save date
-          </Button>
-        </form>
-      </Card>
-
+      <AdminPageHeader description="Manage payment methods and support." title="Settings" />
       <Card
         description="Add multiple payment destinations for each provider. Customers see active payment methods and their instructions."
         title="Payment methods"
@@ -437,7 +392,6 @@ function DemoSettingsManager() {
         onDeactivatePaymentMethod={deactivateDemoCardOrderPaymentMethod}
         onSavePaymentMethod={saveDemoCardOrderPaymentMethod}
         onSetPaymentMethodQr={saveDemoCardOrderPaymentQr}
-        onSetLaunchEndDate={setDemoCardOrderLaunchEndDate}
         settings={{ ...cardOrderSettings, paymentMethods }}
       />
       <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -505,7 +459,6 @@ function LiveSettingsManager() {
   const configured = useQuery(api.settings.support);
   const cardOrderSettings = useQuery(api.cardOrderSettings.adminSettings);
   const saveSupport = useMutation(api.settings.setSupport);
-  const saveLaunchEndDate = useMutation(api.cardOrderSettings.setLaunchEndDate);
   const savePaymentMethod = useMutation(api.cardOrderSettings.savePaymentMethod);
   const deactivatePaymentMethod = useMutation(api.cardOrderSettings.deactivatePaymentMethod);
   const setPaymentMethodQr = useMutation(api.cardOrderPaymentQr.setPaymentMethodQr);
@@ -540,7 +493,6 @@ function LiveSettingsManager() {
     );
 
   const settings: CardOrderSettings | undefined = cardOrderSettings && {
-    launchEndDate: cardOrderSettings.launchEndDate,
     paymentMethods: cardOrderSettings.paymentMethods.map(({ _id, ...method }) => ({
       id: _id,
       ...method,
@@ -559,9 +511,6 @@ function LiveSettingsManager() {
               ...(id ? { id: id as Id<"cardOrderPaymentMethods"> } : {}),
               ...fields,
             });
-          }}
-          onSetLaunchEndDate={async (date) => {
-            await saveLaunchEndDate({ date });
           }}
           onSetPaymentMethodQr={async (id, file) => {
             const methodId = id as Id<"cardOrderPaymentMethods">;

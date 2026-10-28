@@ -1,5 +1,10 @@
 # Change log
 
+## 2026-10-28 — Expiring promo offers and separate referral codes
+
+- Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.
+- Admins can set or clear a manual Manila expiry date for each offer. `LAUNCH` pricing now belongs to its offer, while ordering remains available at ₱799 after it expires; Settings no longer has the global launch cutoff.
+
 ## 2026-10-28 — Admin owner-access override
 
 - Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.

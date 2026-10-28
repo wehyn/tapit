@@ -64,6 +64,20 @@ async function seed(t: ReturnType<typeof convexTest>) {
   });
 }
 
+async function markFoundingOfferUsageVerified(
+  t: ReturnType<typeof convexTest>,
+  adminUserId: Id<"users">,
+) {
+  await t.run((ctx) =>
+    ctx.db.insert("settings", {
+      key: "cardOrderOfferUsageBackfillStarted",
+      value: "completed:founding=5",
+      updatedAt: 1,
+      updatedByUserId: adminUserId,
+    }),
+  );
+}
+
 const delivery = {
   deliveryName: "Test Customer",
   deliveryPhone: "09170000000",
@@ -216,6 +230,7 @@ describe("separate promo and referral pricing", () => {
   ])("combines %s with a standalone referral", async (promoCode, price, discount, due) => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
+    if (promoCode === "FOUNDING") await markFoundingOfferUsageVerified(t, ids.adminUserId);
     const customer = t.withIdentity(identity(ids.customerUserId));
     const offerId = await t.run((ctx) =>
       ctx.db.insert("cardOrderOffers", {
@@ -278,6 +293,7 @@ describe("separate promo and referral pricing", () => {
   ])("places %s without referral attribution", async (promoCode, due) => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
+    if (promoCode === "FOUNDING") await markFoundingOfferUsageVerified(t, ids.adminUserId);
     await t.run((ctx) =>
       ctx.db.insert("cardOrderOffers", {
         code: promoCode,

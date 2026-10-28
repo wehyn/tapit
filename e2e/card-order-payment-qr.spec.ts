@@ -34,8 +34,6 @@ test("payment QR replacement and removal preserve the order snapshot and text in
   await resetDemoHarness(page);
   await signInAsAdmin(page);
   await page.goto("/admin/settings");
-  await page.getByLabel("Launch end date").fill("2027-01-01");
-  await page.getByRole("button", { name: "Save date", exact: true }).click();
   await page.getByLabel("Provider", { exact: true }).fill("Bank transfer");
   await page.getByLabel("Method label", { exact: true }).fill("QR test bank");
   await page.getByLabel("Account details", { exact: true }).fill("Account 123456");

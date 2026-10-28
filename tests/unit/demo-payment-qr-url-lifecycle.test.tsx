@@ -20,7 +20,6 @@ vi.mock("@/lib/demo/store", () => ({
 }));
 vi.mock("@/lib/demo/card-ordering", () => ({
   getDemoCardOrderAdminSettings: () => ({
-    launchEndDate: "2027-01-01",
     paymentMethods: [
       {
         id: "method-1",
@@ -35,7 +34,6 @@ vi.mock("@/lib/demo/card-ordering", () => ({
     referralCodes: [],
   }),
   getDemoCardOrderCustomerSettings: () => ({
-    launchEndDate: "2027-01-01",
     paymentMethods: [
       {
         id: "method-1",
@@ -49,9 +47,8 @@ vi.mock("@/lib/demo/card-ordering", () => ({
   getMyDemoCardOrders: () => [],
   saveDemoCardOrderPaymentMethod: vi.fn(),
   deactivateDemoCardOrderPaymentMethod: vi.fn(),
-  setDemoCardOrderLaunchEndDate: vi.fn(),
   placeDemoCardOrder: vi.fn(),
-  previewDemoCardOrderReferral: vi.fn(),
+  previewDemoCardOrderCodes: vi.fn(),
 }));
 vi.mock("@/lib/demo/card-order-assets", () => ({
   replaceDemoCardOrderAsset: vi.fn(),

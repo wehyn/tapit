@@ -273,7 +273,7 @@ describe("codes manager", () => {
     const user = userEvent.setup();
     render(<CodesManager />);
     await user.type(screen.getByLabelText("Offer code"), "NEW-OFFER");
-    await user.type(screen.getByLabelText("Fixed card price (₱, optional)"), "299");
+    await user.type(screen.getByLabelText("Fixed card price (₱)"), "299");
     await user.type(screen.getByLabelText("Usage limit (orders, optional)"), "12");
     await user.click(screen.getByRole("button", { name: "Save offer" }));
     expect(demoApi.saveDemoCardOrderOffer).toHaveBeenCalledWith({

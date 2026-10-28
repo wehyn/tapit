@@ -34,6 +34,17 @@ const customerPayment = paymentFields.extend({
   qrUrl: v.union(v.string(), v.null()),
 });
 
+export async function foundingOfferUsageVerified(
+  ctx: QueryCtx | MutationCtx,
+  scope: Doc<"cardOrderOffers">["scope"],
+) {
+  const marker = await ctx.db
+    .query("settings")
+    .withIndex("by_scope_and_key", (q) => q.eq("scope", scope).eq("key", OFFER_USAGE_BACKFILL_KEY))
+    .first();
+  return marker?.value === FOUNDING_USAGE_VERIFIED;
+}
+
 export async function activeOrderAccount(ctx: QueryCtx | MutationCtx) {
   const userId = await requireUser(ctx);
   const account = await customerForAuthUser(ctx, userId);
@@ -424,7 +435,7 @@ export const previewOrderCodes = query({
     const customer = await activeOrderAccount(ctx);
     const promoCode = args.promoCode?.trim().toUpperCase();
     const referralCode = args.referralCode?.trim().toUpperCase();
-    const [offer, referral, prior] = await Promise.all([
+    const [offer, referral, prior, foundingVerified] = await Promise.all([
       promoCode
         ? ctx.db
             .query("cardOrderOffers")
@@ -449,6 +460,7 @@ export const previewOrderCodes = query({
             )
             .first()
         : null,
+      promoCode === "FOUNDING" ? foundingOfferUsageVerified(ctx, customer.scope) : true,
     ]);
     const promoValid =
       promoCode === undefined ||
@@ -456,12 +468,13 @@ export const previewOrderCodes = query({
         offer !== null &&
         sameScope(customer, offer) &&
         !isCardOrderOfferExpired(offer.expiresOn, args.currentTime) &&
+        (offer.code !== "FOUNDING" || foundingVerified) &&
         (offer.usageLimit === undefined || offer.usageCount < offer.usageLimit));
     const referralValid =
       referralCode === undefined ||
       (referral?.active === true &&
         referral.offerId === undefined &&
-        (referral.referrerCode !== undefined || referral.referrerLabel !== undefined) &&
+        Boolean(referral.referrerCode?.trim() || referral.referrerLabel?.trim()) &&
         (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
         prior === null);
     const promoPrice =

@@ -5,7 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   accountId: "customer-1",
-  preview: undefined as undefined | { valid: boolean; discountCentavos: number },
+  preview: undefined as
+    | undefined
+    | {
+        promoValid: boolean;
+        referralValid: boolean;
+        promoAdjustedPriceCentavos: number;
+        discountCentavos: number;
+      },
   place: vi.fn(),
 }));
 
@@ -27,7 +34,6 @@ vi.mock("convex/react", () => ({
         };
       case "cardOrderSettings:customerSettings":
         return {
-          launchEndDate: "2027-01-01",
           paymentMethods: [
             {
               _id: "method-1",
@@ -39,7 +45,7 @@ vi.mock("convex/react", () => ({
             },
           ],
         };
-      case "cardOrderSettings:previewReferral":
+      case "cardOrderSettings:previewOrderCodes":
         return mocks.preview;
       case "cardOrders:myOrders":
         return [];
@@ -51,8 +57,8 @@ vi.mock("convex/react", () => ({
 
 import { OrderCardExperience } from "@/components/card-order/OrderCardExperience";
 
-// Live launch pricing is ₱599 until 2027; a valid 10% referral leaves ₱539.10.
-const DISCOUNTED_AMOUNT = "₱539.10 + shipping";
+// A referral alone discounts the ₱799 regular price to ₱719.10.
+const DISCOUNTED_AMOUNT = "₱719.10 + shipping";
 
 function fillUrlDesigns() {
   fireEvent.change(screen.getByLabelText("Delivery name"), { target: { value: "Mara Santos" } });
@@ -89,7 +95,8 @@ describe("live card order price confirmation", () => {
     const user = userEvent.setup();
     const { rerender } = render(<OrderCardExperience />);
     fillUrlDesigns();
-    await user.type(screen.getByLabelText("Referral code"), "founding-ahron");
+    await user.click(screen.getByRole("switch", { name: "Have a referral code?" }));
+    await user.type(screen.getByLabelText("Referral code"), "AHRON");
 
     // The query has no result for this code and time yet.
     expect(screen.getByRole("button", { name: "Place order" })).toBeDisabled();
@@ -97,7 +104,12 @@ describe("live card order price confirmation", () => {
     fireEvent.submit(screen.getByRole("button", { name: "Place order" }).closest("form")!);
     expect(mocks.place).not.toHaveBeenCalled();
 
-    mocks.preview = { valid: true, discountCentavos: 5_990 };
+    mocks.preview = {
+      promoValid: true,
+      referralValid: true,
+      promoAdjustedPriceCentavos: 79_900,
+      discountCentavos: 7_990,
+    };
     rerender(<OrderCardExperience />);
     await settle();
 
@@ -108,8 +120,8 @@ describe("live card order price confirmation", () => {
 
     expect(mocks.place).toHaveBeenCalledWith(
       expect.objectContaining({
-        referralCode: "FOUNDING-AHRON",
-        expectedCardAmountCentavos: 53_910,
+        referralCode: "AHRON",
+        expectedCardAmountCentavos: 71_910,
       }),
     );
   });
