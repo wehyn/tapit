@@ -30,6 +30,7 @@ export type DemoCustomer = {
   setupToken?: string;
   passwordHash?: string;
   claimedCardIds?: string[];
+  cardOwnerAccessOverride?: boolean;
 };
 
 export type AnalyticsBucket = {

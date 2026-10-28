@@ -605,6 +605,87 @@ test("a new customer setup flow receives its own empty profile", async ({ page }
   await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
 });
 
+test("administrator grants and revokes card-owner access for a cardless customer", async ({
+  page,
+}) => {
+  page.on("dialog", (dialog) => dialog.accept());
+  const email = "override-owner@example.test";
+  await signInAsAdmin(page);
+  await page.getByLabel("Customer email").fill(email);
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  const setupLink = page.getByRole("link", { name: /\/setup\/demo-/ });
+  await expect(setupLink).toBeVisible();
+  await page.goto((await setupLink.getAttribute("href")) || "/setup/invalid");
+  await page.getByLabel("Password", { exact: true }).fill("override-owner-password");
+  await page.getByLabel("Confirm password").fill("override-owner-password");
+  await page.getByRole("button", { name: "Set password" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  const customerNavigation = page.getByRole("navigation", { name: "Customer navigation" });
+  await expect(
+    customerNavigation.getByRole("link", { name: "Analytics", exact: true }),
+  ).toHaveCount(0);
+  await page.goto("/app/analytics");
+  await expect(
+    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: `Account menu for ${email}` }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsAdmin(page);
+  await page.getByLabel("Search customers").fill(email);
+  const row = page.locator("article").filter({ hasText: email }).first();
+  await expect(row).toBeVisible();
+  await row.getByRole("button").click();
+  await page.getByRole("button", { name: "Grant owner access" }).click();
+  await expect(page.getByText(`Owner access granted for ${email}.`)).toBeVisible();
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({ path: "test-results/admin-owner-access-override.png", fullPage: true });
+  await page.goto("/admin/audit-log");
+  await expect(
+    page.getByText("Customer owner access override changed", { exact: true }),
+  ).toHaveCount(1);
+
+  await page.getByRole("button", { name: `Account menu for admin@tapit.local` }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("override-owner-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/app/analytics");
+  await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
+
+  await page.getByRole("button", { name: `Account menu for ${email}` }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsAdmin(page);
+  await page.getByLabel("Search customers").fill(email);
+  const selectedRow = page.locator("article").filter({ hasText: email }).first();
+  await selectedRow.getByRole("button").click();
+  await page.getByRole("button", { name: "Revoke owner access" }).click();
+  await expect(page.getByText(`Owner access revoked for ${email}.`)).toBeVisible();
+  await page.goto("/admin/audit-log");
+  const transitions = page
+    .locator("details")
+    .filter({ hasText: "Customer owner access override changed" });
+  await expect(transitions).toHaveCount(2);
+  await transitions.nth(0).locator("summary").click();
+  await transitions.nth(1).locator("summary").click();
+  await expect(transitions.nth(0)).toContainText("Yes");
+  await expect(transitions.nth(1)).toContainText("No");
+
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill("override-owner-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/app/analytics");
+  await expect(
+    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+  ).toBeVisible();
+});
+
 test("administrator registers, assigns, replaces, deactivates, and audits cards", async ({
   page,
 }) => {
