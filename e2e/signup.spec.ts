@@ -164,16 +164,22 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await destinations.nth(0).fill("https://portfolio.example.test");
   await labels.nth(1).fill("TikTok");
   await destinations.nth(1).fill("https://www.tiktok.com/@new-customer");
-  await page.getByRole("link", { name: "Analytics", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
-  await page.getByRole("link", { name: "Links", exact: true }).click();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Analytics", exact: true })).toHaveCount(0);
+  await page.goto("/app/analytics");
+  await expect(
+    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+  ).toBeVisible();
+  await page.goto("/app/links");
   await expect(labels.nth(0)).toHaveValue("Portfolio");
   await expect(destinations.nth(1)).toHaveValue("www.tiktok.com/@new-customer");
   await addGuidedSignupLink(page, "Newsletter", "https://newsletter.example.test");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Links saved to draft.", { exact: true })).toBeVisible();
+  await expect(labels).toHaveCount(3);
+  await expect(page.getByRole("button", { name: "Add link", exact: true }).first()).toBeDisabled();
 
-  await addGuidedSignupLink(page, "Unsafe", "https://unsafe.example.test");
   const lastLabel = labels.last();
   const lastDestination = destinations.last();
   await lastLabel.fill("Unsafe");
