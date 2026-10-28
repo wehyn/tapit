@@ -43,6 +43,8 @@ export type CustomerAction =
   | "Replace invitation"
   | "Promote to administrator"
   | "Demote to customer"
+  | "Grant owner access"
+  | "Revoke owner access"
   | "Approve deletion";
 
 export function actionsForRow(row: PreparedRow): CustomerAction[] {
@@ -74,6 +76,13 @@ export function actionsForRow(row: PreparedRow): CustomerAction[] {
               row.role === "customer"
                 ? ("Promote to administrator" as const)
                 : ("Demote to customer" as const),
+            ]
+          : []),
+        ...(row.status === "active" && row.deletionStatus === "active" && row.role === "customer"
+          ? [
+              row.cardOwnerAccessOverride
+                ? ("Revoke owner access" as const)
+                : ("Grant owner access" as const),
             ]
           : []),
         ...(row.hasDeletionRequest ? ["Approve deletion" as const] : []),

@@ -165,7 +165,71 @@ describe("ProfileMediaEditor", () => {
     expect(media.autoplay).toBe(true);
   });
 
-  it("disables slideshow uploads at ten images", () => {
+  it("keeps over-limit slides removable and explains how many to remove", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const overLimitMedia = {
+      ...media,
+      slideshow: Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES + 2 }, (_, index) =>
+        image(`slide-${index}`),
+      ),
+    };
+    render(<ProfileMediaEditor media={overLimitMedia} onChange={onChange} onUpload={vi.fn()} />);
+
+    expect(screen.getAllByRole("button", { name: /^Remove slideshow image / })).toHaveLength(
+      MAX_PROFILE_SLIDESHOW_IMAGES + 2,
+    );
+    expect(screen.getByText(/Shown as a slideshow under your name\./)).toHaveTextContent(
+      `${MAX_PROFILE_SLIDESHOW_IMAGES + 2} of ${MAX_PROFILE_SLIDESHOW_IMAGES} images.`,
+    );
+    expect(screen.getByText("Remove 2 images before saving.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add slideshow image" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Remove slideshow image 1" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ slideshow: overLimitMedia.slideshow.slice(1) }),
+    );
+    expect(overLimitMedia.slideshow).toHaveLength(MAX_PROFILE_SLIDESHOW_IMAGES + 2);
+  });
+
+  it("uses singular removal guidance for one over-limit image", () => {
+    const overLimitMedia = {
+      ...media,
+      slideshow: Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES + 1 }, (_, index) =>
+        image(`slide-${index}`),
+      ),
+    };
+    render(<ProfileMediaEditor media={overLimitMedia} onChange={vi.fn()} onUpload={vi.fn()} />);
+
+    expect(screen.getByText("Remove 1 image before saving.")).toBeInTheDocument();
+  });
+
+  it("accepts only the remaining slideshow upload slots", async () => {
+    const user = userEvent.setup();
+    const onUpload = vi.fn().mockResolvedValue(image("uploaded"));
+    const nearLimitMedia = {
+      ...media,
+      slideshow: Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES - 1 }, (_, index) =>
+        image(`slide-${index}`),
+      ),
+    };
+    const createObjectURL = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:preview");
+    render(<ProfileMediaEditor media={nearLimitMedia} onChange={vi.fn()} onUpload={onUpload} />);
+
+    await user.upload(screen.getByLabelText("Upload slideshow images"), [
+      new File(["image"], "first.webp", { type: "image/webp" }),
+      new File(["image"], "second.webp", { type: "image/webp" }),
+    ]);
+
+    expect(onUpload).toHaveBeenCalledTimes(1);
+    expect(onUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "first.webp" }),
+      "slideshow",
+    );
+    createObjectURL.mockRestore();
+  });
+
+  it("disables slideshow uploads at the configured image limit", () => {
     const fullMedia = {
       ...media,
       slideshow: Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES }, (_, index) =>
@@ -224,9 +288,9 @@ describe("ProfileMediaEditor", () => {
       "aria-invalid",
       "true",
     );
-    expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute(
-      "aria-describedby",
-    );
+    expect(
+      screen.getByLabelText("Upload slideshow images").getAttribute("aria-describedby"),
+    ).toContain("-slideshow-limit");
     expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Media settings need attention. Upload failed",
@@ -248,9 +312,12 @@ describe("ProfileMediaEditor", () => {
       new File(["image"], "bad.webp", { type: "image/webp" }),
     );
 
-    expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute(
-      "aria-describedby",
-    );
+    expect(
+      screen.getByLabelText("Upload slideshow images").getAttribute("aria-describedby"),
+    ).toMatch(/-slideshow-limit .*?-slideshow-upload-error/);
+    expect(
+      screen.getByRole("button", { name: "Add slideshow image" }).getAttribute("aria-describedby"),
+    ).toMatch(/-slideshow-limit .*?-slideshow-upload-error/);
     expect(screen.getByLabelText("Upload slideshow images")).not.toHaveAttribute("aria-invalid");
     expect(screen.getByLabelText("Upload background image")).not.toHaveAttribute(
       "aria-describedby",

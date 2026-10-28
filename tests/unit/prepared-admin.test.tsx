@@ -45,6 +45,8 @@ const records = [
     profileStatus: "published",
     cardCount: 2,
     hasDeletionRequest: true,
+    cardOwnerAccessOverride: false,
+    ownsProfile: true,
     legacyInvitationActive: true,
   },
   {
@@ -77,6 +79,7 @@ function createPreparedAccounts(overrides: Partial<PreparedAccounts> = {}): Prep
     replaceLegacy: vi.fn(async () => "replacement-token"),
     changeRole: vi.fn(),
     approveDeletion: vi.fn(),
+    setOwnerAccess: vi.fn(),
     ...overrides,
   };
 }
@@ -221,6 +224,7 @@ describe("prepared admin interactions", () => {
       replaceLegacy: vi.fn(),
       changeRole: vi.fn(),
       approveDeletion: vi.fn(),
+      setOwnerAccess: vi.fn(),
     };
     render(<PreparedWorkspace data={data} />);
     await userEvent.click(screen.getByRole("button", { name: /Set up for someone/ }));

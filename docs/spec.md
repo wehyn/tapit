@@ -10,7 +10,7 @@ Tapit is a mobile-first digital profile service for independent professionals, w
 
 Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. NFC card URLs are unique per physical card and resolve to the profile’s current public URL. An administrator may change the profile slug; the old direct profile URL then stops resolving, while card URLs continue to resolve to that profile.
 
-The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
+The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, owner-access exceptions, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
 
 ## Goals
 
@@ -129,7 +129,14 @@ Deactivated cards are not reactivated or reassigned. A new card is assigned inst
 
 An administrator can view and edit customer profile content, publish or unpublish a profile, suspend it for policy enforcement, deactivate assigned cards, and inspect related audit history. An unpublished or suspended profile shows a branded unavailable-profile page and does not expose unpublished content.
 
-### 9. Customer requests account deletion
+### 9. Administrator grants or revokes owner-feature access
+
+1. An administrator opens an active customer in `/admin/customers` and grants or revokes the admin owner-access override.
+2. Tapit records each actual grant or revocation in the audit log; repeating the current state makes no change.
+3. The override grants or removes only override-based card-owner access without creating or changing a card claim or card record; revoking it leaves access from a successful card claim intact.
+4. A normal card claim still requires the card token and its one-time code.
+
+### 10. Customer requests account deletion
 
 1. The customer submits a deletion request from Account.
 2. The customer confirms the request.
@@ -201,6 +208,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-059:** A slug change shall not create a redirect or alias from the old direct profile URL. The old URL shall return the existing unavailable/missing-profile state until the slug is assigned to another profile, while assigned active card URLs shall continue resolving to the original profile at its current slug.
 - **FR-060:** Before applying a slug change, the administrator control shall warn that the old direct URL will stop resolving and may later be assigned to another profile.
 - **FR-061:** After an administrator changes a slug, the former slug shall be available for reuse. If assigned to another profile, the URL shall resolve directly to that profile and shall not redirect to the original profile.
+- **FR-062:** Administrators shall be able to grant or revoke an audited owner-feature access override for an active customer. This exception shall not create or modify a card claim; claiming a card shall continue to require its token and one-time code.
 
 ## User experience
 
@@ -475,8 +483,9 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 - Card IDs/URLs must be unique and protected against duplicate registration.
 - Card ownership and reassignment must be controlled by administrators because the platform owns the physical card inventory.
 - Customers must not be able to claim arbitrary cards, transfer card ownership, or access another customer’s profile-management data.
+- An administrator may grant or revoke owner-feature access for an active customer as an audited exception. This override does not represent a card claim or change card records; a customer card claim still requires the card token and one-time code.
 - Server-side authorization must enforce account/profile ownership for every customer operation.
-- Administrator actions affecting accounts, profiles, cards, suspensions, and deletion must be audited.
+- Administrator actions affecting accounts, profiles, cards, owner-access overrides, suspensions, and deletion must be audited.
 - Public profile fields must be opt-in at the field/link level; nothing is shown unless added and published by the owner.
 - Visitor analytics must not store visitor names, contact information, raw visitor-level history, or behavioral profiles.
 - The unique-view calculation must use a privacy-preserving method; exact method and retention window are TBD.

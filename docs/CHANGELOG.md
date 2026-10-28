@@ -1,13 +1,23 @@
 # Change log
 
-## 2026-10-28 — Card-order code usage limits and admin copy
+## 2026-10-28 — Admin owner-access override
 
-- Admins can configure optional order-use caps for combined discount and referral codes. The Codes page shows uses consumed and remaining, and its copy now describes codes more generally.
-- Convex and local demo checkout enforce the same cap, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
+- Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.
+
+## 2026-10-28 — Restore first-time customer navigation tour
+
+- Customers who have not completed the tour in this browser get a short guide to Profile, Links, Customize, Card, Analytics when available, and Account. It adapts to desktop and mobile navigation and waits for the first-visit publish dialog to close.
+
+## 2026-10-28 — Card-order offers, usage limits, and admin copy
+
+- Admins configure offer pricing and shared order-use caps separately from referrer attribution. Exact aliases such as `FOUNDING` and `FOUNDING-AHRON` share one offer without parsing code strings.
+- The Codes page shows each offer once, its uses consumed and remaining, and each alias's explicit offer/referrer mapping. Its copy describes codes generally.
+- Convex and local demo checkout enforce the same shared caps, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
 
 ## 2026-10-28 — Cardless customer limits
 
 - Customers can edit and publish before claiming a card, with up to three links and the Paper, Moss, or Night preset. Claiming a card with its one-time code unlocks fine-tuning, slideshow uploads, analytics, and card-owner tools. Profile photos and background images remain available before claiming.
+- Cardless customers can reach ordering and claiming from the Card section. Account and Help appear in both the sidebar and account menu.
 
 ## 2026-10-26 — Remove inert workspace search
 

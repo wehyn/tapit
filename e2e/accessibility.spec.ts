@@ -87,6 +87,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
     page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
   ).toBeVisible();
   await expectNoA11yViolations(page);
+  const navigationTour = page.getByTestId("navigation-tour-coach-mark");
+  await navigationTour.getByRole("button", { name: "Skip tour", exact: true }).click();
+  await expect(navigationTour).toHaveCount(0);
 
   await page.goto("/app/links");
   await expect(page.getByRole("button", { name: "Add link" })).toBeVisible();

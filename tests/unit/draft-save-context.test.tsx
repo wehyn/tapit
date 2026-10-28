@@ -206,7 +206,11 @@ describe("workspace navigation draft handling", () => {
         name: /^Account menu for /,
       }),
     );
-    fireEvent.click(sidebarLink("Help"));
+    fireEvent.click(
+      within(screen.getByRole("group", { name: "Account options" })).getByRole("link", {
+        name: "Help",
+      }),
+    );
     expect(beforeNavigate).not.toHaveBeenCalled();
   });
 

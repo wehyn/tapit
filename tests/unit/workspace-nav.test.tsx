@@ -72,26 +72,46 @@ function renderChrome(props: Partial<WorkspaceChromeProps> = {}, status?: DraftS
 }
 
 describe("WorkspaceChrome sidebar", () => {
-  it("shows labelled customer groups and pinned footer links at desktop width", () => {
+  it("shows customer groups and account menu links at desktop width", () => {
     renderChrome();
 
     const sidebar = screen.getByTestId("workspace-sidebar");
     const navigation = within(sidebar).getByRole("navigation", { name: "Customer navigation" });
     expect(within(navigation).getByRole("heading", { name: "Your profile" })).toBeInTheDocument();
     expect(within(navigation).getByRole("heading", { name: "Share & grow" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("heading", { name: "Account & help" })).toBeInTheDocument();
     for (const name of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+      expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
+    }
+    for (const name of ["Account", "Help"]) {
       expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
     }
     const accountMenu = within(sidebar).getByRole("button", {
       name: "Account menu for mara@example.test",
     });
-    expect(within(sidebar).queryByRole("link", { name: "Account" })).not.toBeInTheDocument();
     fireEvent.click(accountMenu);
-    expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveAttribute(
+    const accountOptions = within(sidebar).getByRole("group", { name: "Account options" });
+    expect(within(accountOptions).getByRole("link", { name: "Account" })).toHaveAttribute(
       "href",
       "/app/account",
     );
-    expect(within(sidebar).getByRole("link", { name: "Help" })).toBeInTheDocument();
+    expect(within(accountOptions).getByRole("link", { name: "Help" })).toBeInTheDocument();
+  });
+
+  it("keeps order access and account links visible for cardless customers", () => {
+    renderChrome({ hasCardOwnerFeatures: false });
+
+    const sidebar = screen.getByTestId("workspace-sidebar");
+    const navigation = within(sidebar).getByRole("navigation", { name: "Customer navigation" });
+    expect(within(navigation).getByRole("heading", { name: "Share & grow" })).toBeInTheDocument();
+    expect(within(navigation).getByRole("link", { name: "Card" })).toHaveAttribute(
+      "href",
+      "/app/card",
+    );
+    expect(within(navigation).queryByRole("link", { name: "Analytics" })).not.toBeInTheDocument();
+    for (const name of ["Account", "Help"]) {
+      expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
+    }
   });
 
   it("lets keyboard users tab from the account menu button into Account and Help", async () => {
@@ -106,7 +126,8 @@ describe("WorkspaceChrome sidebar", () => {
     await user.keyboard("{Enter}");
     await user.tab();
 
-    expect(within(sidebar).getByRole("link", { name: "Account" })).toHaveFocus();
+    const accountOptions = within(sidebar).getByRole("group", { name: "Account options" });
+    expect(within(accountOptions).getByRole("link", { name: "Account" })).toHaveFocus();
   });
 
   it("does not show a live status card in the sidebar", () => {

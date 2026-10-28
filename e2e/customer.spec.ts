@@ -11,6 +11,40 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+const navigationTourSteps = [
+  { label: "Profile", description: "Edit your profile details and what people see." },
+  { label: "Links", description: "Manage the links shown on your profile." },
+  { label: "Customize", description: "Choose the look and layout of your profile." },
+  { label: "Card", description: "Design a card to share your profile or find order details." },
+  { label: "Analytics", description: "See how people view your profile and use its links." },
+  { label: "Account", description: "Manage your account and profile settings." },
+];
+
+async function startFirstVisitNavigationTour(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 844 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page, { showNavigationTour: true });
+}
+
+async function expectTourSpotlight(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  await expect(target).toHaveAttribute("aria-describedby", /.+/);
+  const targetBounds = await target.boundingBox();
+  const spotlightBounds = await page.getByTestId("navigation-tour-spotlight").boundingBox();
+  expect(targetBounds).not.toBeNull();
+  expect(spotlightBounds).not.toBeNull();
+  if (targetBounds && spotlightBounds) {
+    expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
+    expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
+    expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
+      targetBounds.x + targetBounds.width,
+    );
+    expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
+      targetBounds.y + targetBounds.height,
+    );
+  }
+}
+
 async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem("tapit:demo-state:v1");
@@ -102,7 +136,7 @@ test("signing out saves the registered profile draft first", async ({ page }) =>
   expect(savedBio).toBe("Saved when signing out.");
 });
 
-test("desktop sidebar groups customer navigation and pins Account and Help", async ({ page }) => {
+test("desktop sidebar shows customer sections and Account and Help", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -115,16 +149,22 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
   await expect(
     navigation.getByRole("heading", { name: "Share & grow", exact: true }),
   ).toBeVisible();
+  await expect(
+    navigation.getByRole("heading", { name: "Account & help", exact: true }),
+  ).toBeVisible();
   for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+    await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  for (const label of ["Account", "Help"]) {
     await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(sidebar.getByText(/^(Live|Draft)$/)).toHaveCount(0);
   const accountMenu = sidebar.getByRole("button", { name: "Account menu for mara@example.test" });
   await expect(accountMenu).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeHidden();
+  const accountOptions = sidebar.getByRole("group", { name: "Account options" });
   await accountMenu.click();
-  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
+  await expect(accountOptions.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(accountOptions.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
     "href",
     /^mailto:/,
   );
@@ -145,7 +185,7 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
     );
   }
   await accountMenu.click();
-  await sidebar.getByRole("link", { name: "Account", exact: true }).click();
+  await accountOptions.getByRole("link", { name: "Account", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/account$/);
 });
 
@@ -199,6 +239,103 @@ test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer"
   await expect(page).toHaveURL(/\/app\/card$/);
   await expect(sheet).toHaveCount(0);
 });
+
+test("first-time customer navigation tour covers desktop destinations", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 1440);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const sidebar = page.getByTestId("workspace-sidebar");
+  const navigation = sidebar.getByRole("navigation", { name: "Customer navigation" });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const target =
+      step.label === "Account"
+        ? sidebar.getByRole("group", { name: "Account options" }).getByRole("link", {
+            name: "Account",
+            exact: true,
+          })
+        : navigation.getByRole("link", { name: step.label, exact: true });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.localStorage.getItem("tapit:customer-navigation-tour:profile-mara"),
+      ),
+    )
+    .toBe("done");
+  await page.reload();
+  await expect(page.locator('[data-navigation-tour-ready="true"]')).toBeAttached();
+  await expect(coach).toHaveCount(0);
+});
+
+test("mobile first-time tour follows the tab bar and More sheet", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 390);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const tabBar = page.getByRole("navigation", { name: "Mobile navigation" });
+  const more = tabBar.getByRole("button", { name: "More", exact: true });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const isMoreStep = ["Customize", "Card", "Account"].includes(step.label);
+    const target = isMoreStep
+      ? page.getByRole("dialog", { name: "More" }).getByRole("link", {
+          name: step.label,
+          exact: true,
+        })
+      : tabBar.getByRole("link", {
+          name: step.label === "Analytics" ? "Stats" : step.label,
+          exact: true,
+        });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await expect(target).toBeInViewport();
+    await expect(more).toHaveAttribute("aria-expanded", isMoreStep ? "true" : "false");
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "More" })).toHaveCount(0);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+});
+
+for (const closeMethod of ["Escape", "Close"] as const) {
+  test(`closing More with ${closeMethod} ends the mobile tour`, async ({ page }) => {
+    await startFirstVisitNavigationTour(page, 390);
+
+    const coach = page.getByTestId("navigation-tour-coach-mark");
+    const more = page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", {
+      name: "More",
+      exact: true,
+    });
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "More" });
+    await expect(dialog).toBeVisible();
+
+    if (closeMethod === "Escape") await page.keyboard.press("Escape");
+    else await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(coach).toHaveCount(0);
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(more).toBeFocused();
+  });
+}
 
 test("mobile More opens as a dialog, and Escape or Close returns focus to More", async ({
   page,
@@ -1048,8 +1185,9 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await island.getByRole("button", { name: /^Account menu for / }).click();
-  await expect(island.getByRole("link", { name: "Account", exact: true })).toBeVisible();
-  await expect(island.getByRole("link", { name: "Help", exact: true })).toBeVisible();
+  const accountOptions = island.getByRole("group", { name: "Account options" });
+  await expect(accountOptions.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(accountOptions.getByRole("link", { name: "Help", exact: true })).toBeVisible();
   await island.getByRole("button", { name: /^Account menu for / }).click();
   await expect(
     desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
@@ -1996,7 +2134,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
   await slideshowInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await page.getByLabel("Slideshow image 2 description").fill("Studio detail two");
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -2173,9 +2311,9 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await page.getByRole("tab", { name: "Slideshow" }).click();
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
-  await expect(page.getByText("1 of 10 images")).toBeVisible();
+  await expect(page.getByText("1 of 5 images")).toBeVisible();
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await page.getByRole("textbox", { name: "Slideshow image 1 description" }).fill("");
   await page.getByRole("textbox", { name: "Slideshow image 2 description" }).fill("");
 
@@ -2440,12 +2578,12 @@ test("slideshow upload queue waits for the active upload and preserves selection
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
 
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await expect(page.getByLabel("Slideshow image 1 description")).toBeVisible();
   await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
@@ -2489,7 +2627,7 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(
     page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
   ).toBeDisabled();
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
 
   await setDemoMediaUploadControl(page, { delayMs: 1200, fail: false });
   await page.getByRole("button", { name: "Retry upload" }).click();
@@ -2665,14 +2803,14 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
     .screenshot({ path: "test-results/tapit-slideshow-order-mobile.png" });
 });
 
-test("slideshow upload queue counts failed and queued items toward the ten image limit", async ({
+test("slideshow upload queue counts failed and queued items toward the five image limit", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
   const upload = page.getByLabel("Upload slideshow images");
-  for (let index = 0; index < 8; index += 1) {
+  for (let index = 0; index < 3; index += 1) {
     await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
-    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+    await expect(page.getByText(`${index + 1} of 5 images`)).toBeVisible();
   }
 
   await setDemoMediaUploadControl(page, { delayMs: 1500, fail: true });
@@ -2682,14 +2820,12 @@ test("slideshow upload queue counts failed and queued items toward the ten image
     page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
   ).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("10 of 10 images")).toBeVisible();
+  await expect(page.getByText("5 of 5 images")).toBeVisible();
   await expect(upload).toBeDisabled();
-  await expect(
-    page.getByText(/maximum of 10 images|10 image limit|remove an image/i),
-  ).toBeVisible();
+  await expect(page.getByText(/maximum of 5 images|5 image limit|remove an image/i)).toBeVisible();
 });
 
-test("ten distinct demo slideshow images fit local storage and keep public controls usable on mobile", async ({
+test("five distinct demo slideshow images fit local storage and keep public controls usable on mobile", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -2700,7 +2836,7 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await page.goto("/app/customize");
   await page.getByRole("tab", { name: "Slideshow" }).click();
 
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 5; index += 1) {
     await page.evaluate(async (slideIndex) => {
       const input = document.querySelector<HTMLInputElement>(
         'input[aria-label="Upload slideshow images"]',
@@ -2728,7 +2864,7 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
       input.files = transfer.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     }, index);
-    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+    await expect(page.getByText(`${index + 1} of 5 images`)).toBeVisible();
   }
 
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
@@ -2739,7 +2875,8 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   expect(savedLength).toBeLessThan(2_000_000);
   await page.reload();
   await page.getByRole("tab", { name: "Slideshow" }).click();
-  await expect(page.getByText("10 of 10 images")).toBeVisible();
+  await expect(page.getByText("5 of 5 images")).toBeVisible();
+  await expect(page.getByLabel("Upload slideshow images")).toBeDisabled();
 
   await page.getByRole("button", { name: "Publish changes" }).click();
   await page.goto("/mara-velasquez");
@@ -2801,6 +2938,104 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await page.waitForTimeout(3_100);
   await expect(controls).toHaveCSS("opacity", "1");
   await expect(controls).toHaveCSS("pointer-events", "auto");
+});
+
+test("legacy over-limit slideshow stays intact until explicitly trimmed and published", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  await page.getByLabel("Bio or role").fill("Legacy slideshow preservation test.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo profile to seed legacy slideshow data.");
+    const state = JSON.parse(raw);
+    const slideshow = Array.from({ length: 6 }, (_, index) => ({
+      assetId: `legacy-slide-${index + 1}`,
+      altText: `Legacy slide ${index + 1}`,
+      url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 48"><rect width="64" height="48" fill="hsl(${index * 55} 70% 50%)"/></svg>`)}`,
+    }));
+    const addLegacySlides = (profile: {
+      id?: string;
+      draft: Record<string, unknown>;
+      published?: Record<string, unknown> | null;
+    }) => {
+      if (profile.id !== "profile-mara") return profile;
+      const addMedia = (content: Record<string, unknown>) => ({
+        ...content,
+        media: { heroHeight: 320, autoplay: false, slideshow },
+      });
+      return {
+        ...profile,
+        draft: addMedia(profile.draft),
+        published: profile.published ? addMedia(profile.published) : null,
+      };
+    };
+    state.profile = addLegacySlides(state.profile);
+    state.profiles = state.profiles.map(addLegacySlides);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Slideshow" }).click();
+
+  for (let index = 1; index <= 6; index += 1) {
+    await expect(page.getByLabel(`Slideshow image ${index} description`)).toHaveValue(
+      `Legacy slide ${index}`,
+    );
+  }
+  await expect(page.getByText("Remove 1 image before saving.", { exact: true })).toBeVisible();
+  await page.getByLabel("Slideshow image 1 description").fill("Unsaved edit before rejected save");
+  const beforeSave = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
+  });
+  const saveDraft = page.getByRole("button", { name: "Save draft", exact: true });
+  await expect(saveDraft).toBeDisabled();
+  const afterBlockedSave = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
+  });
+  expect(afterBlockedSave).toEqual(beforeSave);
+
+  await page.getByLabel("Slideshow image 1 description").fill("Legacy slide 1");
+  await page.getByRole("button", { name: "Remove slideshow image 6" }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  const savedCounts = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const profile = state.profiles.find(
+      (candidate: { id: string }) => candidate.id === "profile-mara",
+    );
+    return {
+      draft: profile.draft.media.slideshow.length,
+      published: profile.published.media.slideshow.length,
+      primaryDraft: state.profile.draft.media.slideshow.length,
+      primaryPublished: state.profile.published.media.slideshow.length,
+    };
+  });
+  expect(savedCounts).toEqual({ draft: 5, published: 6, primaryDraft: 5, primaryPublished: 6 });
+
+  const publicSlideshow = async (count: number) => {
+    await page.goto("/mara-velasquez");
+    const slideshow = page.getByRole("region", { name: "Profile slideshow" });
+    const next = slideshow.getByRole("button", { name: "Next image" });
+    for (let index = 1; index <= count; index += 1) {
+      await expect(slideshow.getByRole("img", { name: `Legacy slide ${index}` })).toBeVisible();
+      if (index < count) await next.click();
+    }
+  };
+  await publicSlideshow(6);
+
+  await page.goto("/app/customize");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+  await publicSlideshow(5);
 });
 
 test("customize mobile profile preview keeps its hero full-width and identity free of backplates", async ({
@@ -3329,7 +3564,10 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   ).toBeVisible();
 
   await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("link", { name: "Account" }).click();
+  await page
+    .getByRole("group", { name: "Account options" })
+    .getByRole("link", { name: "Account" })
+    .click();
   await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
   await expect

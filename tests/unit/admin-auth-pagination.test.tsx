@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const convexHooks = vi.hoisted(() => ({
@@ -15,6 +15,7 @@ vi.mock("convex/react", async (importOriginal) => {
 
 import { CustomersManager } from "@/components/admin/CustomersManager";
 import { CardsManager } from "@/components/admin/CardsManager";
+import { getDemoState, resetDemoState } from "@/lib/demo/store";
 
 const customer = {
   _id: "customers:1",
@@ -33,6 +34,26 @@ const customer = {
 
 function queryName(query: unknown): string {
   return (query as { [key: symbol]: string | undefined })[Symbol.for("functionName")] ?? "";
+}
+
+function mockOwnerOverride(updateOverride: ReturnType<typeof vi.fn>) {
+  convexHooks.useMutation.mockImplementation((mutation: unknown) =>
+    queryName(mutation) === "customers:setCardOwnerAccessOverride" ? updateOverride : vi.fn(),
+  );
+}
+
+function mockActiveCustomer(cardOwnerAccessOverride: boolean) {
+  convexHooks.useQuery_experimental.mockImplementation(
+    (options: { query: unknown; args: { setupState?: string } }) => ({
+      status: "success",
+      data: {
+        page:
+          queryName(options.query) === "customers:list" && options.args.setupState === "active"
+            ? [{ ...customer, cardOwnerAccessOverride }]
+            : [],
+      },
+    }),
+  );
 }
 
 beforeEach(() => {
@@ -110,6 +131,103 @@ describe("paginated administrator account lists", () => {
     expect(screen.getByText("First Example")).toBeInTheDocument();
     expect(screen.getAllByText("first@example.test")).toHaveLength(1);
     expect(screen.queryByText("Profile: First Example · /first-example-2")).not.toBeInTheDocument();
+  });
+
+  it("grants the owner access override with the selected customer ID", () => {
+    const updateOverride = vi.fn();
+    mockOwnerOverride(updateOverride);
+    mockActiveCustomer(false);
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    const dialog = screen.getByRole("dialog", { name: "Grant owner access?" });
+    expect(dialog).toHaveTextContent("first@example.test");
+    expect(dialog).toHaveTextContent("does not record a card claim");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Grant access" }));
+    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
+  });
+
+  it("revokes the owner access override with the selected customer ID", () => {
+    const updateOverride = vi.fn();
+    mockOwnerOverride(updateOverride);
+    mockActiveCustomer(true);
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Revoke owner access" }));
+    const dialog = screen.getByRole("dialog", { name: "Revoke owner access?" });
+    expect(dialog).toHaveTextContent("first@example.test");
+    expect(dialog).toHaveTextContent("successfully claimed card remains");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Revoke access" }));
+    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: false });
+  });
+
+  it("does not call the owner access mutation when confirmation is cancelled", () => {
+    const updateOverride = vi.fn();
+    mockOwnerOverride(updateOverride);
+    mockActiveCustomer(false);
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+
+    expect(updateOverride).not.toHaveBeenCalled();
+  });
+
+  it("shows an error when the owner access mutation is rejected", async () => {
+    const updateOverride = vi.fn().mockRejectedValue(new Error("Override failed"));
+    mockOwnerOverride(updateOverride);
+    mockActiveCustomer(false);
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Grant access",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Override failed");
+    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
+  });
+
+  it("shows a local storage error without changing the override or audit log", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    resetDemoState();
+    const before = getDemoState();
+    const originalSetItem = Storage.prototype.setItem;
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(function (
+      this: Storage,
+      key: string,
+      value: string,
+    ) {
+      if (key === "tapit:demo-state:v1")
+        throw new DOMException("Storage is blocked", "QuotaExceededError");
+      return originalSetItem.call(this, key, value);
+    });
+
+    render(<CustomersManager />);
+    const [grantButton] = await screen.findAllByRole("button", { name: "Grant owner access" });
+    fireEvent.click(grantButton as HTMLElement);
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Grant access",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not save Tapit data locally");
+    const after = getDemoState();
+    expect(
+      after.customers.find((account) => account.id === "customer-mara")?.cardOwnerAccessOverride,
+    ).toBe(
+      before.customers.find((account) => account.id === "customer-mara")?.cardOwnerAccessOverride,
+    );
+    expect(after.audits).toEqual(before.audits);
   });
 
   it("lets card assignment search through customers beyond the first page", async () => {

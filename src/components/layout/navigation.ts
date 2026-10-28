@@ -8,6 +8,7 @@ export type NavItem = {
   href: string;
   label: string;
   tabLabel?: string;
+  tourDescription?: string;
   icon: IconName;
   audience: NavAudience;
   section: NavSection;
@@ -36,17 +37,19 @@ export const navAudiences: Record<
   },
 };
 
-export const navSectionLabels: Record<Exclude<NavSection, "pinned">, string> = {
+export const navSectionLabels: Record<NavSection, string> = {
   "your-profile": "Your profile",
   "share-and-grow": "Share & grow",
   operations: "Operations",
   governance: "Governance",
+  pinned: "Account & help",
 };
 
 export const navItems: readonly NavItem[] = [
   {
     href: "/app/profile",
     label: "Profile",
+    tourDescription: "Edit your profile details and what people see.",
     icon: "user",
     audience: "customer",
     section: "your-profile",
@@ -56,6 +59,7 @@ export const navItems: readonly NavItem[] = [
   {
     href: "/app/links",
     label: "Links",
+    tourDescription: "Manage the links shown on your profile.",
     icon: "link",
     audience: "customer",
     section: "your-profile",
@@ -65,6 +69,7 @@ export const navItems: readonly NavItem[] = [
   {
     href: "/app/customize",
     label: "Customize",
+    tourDescription: "Choose the look and layout of your profile.",
     icon: "sliders",
     audience: "customer",
     section: "your-profile",
@@ -74,16 +79,17 @@ export const navItems: readonly NavItem[] = [
   {
     href: "/app/card",
     label: "Card",
+    tourDescription: "Design a card to share your profile or find order details.",
     icon: "card",
     audience: "customer",
     section: "share-and-grow",
     match: "prefix",
-    cardOwnerOnly: true,
     surfaces: ["sidebar", "more"],
   },
   {
     href: "/app/analytics",
     label: "Analytics",
+    tourDescription: "See how people view your profile and use its links.",
     tabLabel: "Stats",
     icon: "chart",
     audience: "customer",
@@ -95,6 +101,7 @@ export const navItems: readonly NavItem[] = [
   {
     href: "/app/account",
     label: "Account",
+    tourDescription: "Manage your account and profile settings.",
     icon: "gear",
     audience: "customer",
     section: "pinned",
@@ -200,11 +207,9 @@ export function navItemsFor(
 export function sidebarSectionsFor(
   audience: NavAudience,
   hasCardOwnerFeatures = true,
-): { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] {
-  const sections: { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] =
-    [];
+): { section: NavSection; label: string; items: NavItem[] }[] {
+  const sections: { section: NavSection; label: string; items: NavItem[] }[] = [];
   for (const item of navItemsFor(audience, "sidebar", hasCardOwnerFeatures)) {
-    if (item.section === "pinned") continue;
     const existing = sections.find((entry) => entry.section === item.section);
     if (existing) existing.items.push(item);
     else

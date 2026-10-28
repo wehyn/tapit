@@ -17,7 +17,7 @@ describe("workspace navigation model", () => {
     ]);
   });
 
-  it("groups the customer sidebar by job and keeps pinned items out of the groups", () => {
+  it("groups customer sidebar destinations by section", () => {
     expect(
       sidebarSectionsFor("customer").map((section) => [
         section.label,
@@ -26,6 +26,24 @@ describe("workspace navigation model", () => {
     ).toEqual([
       ["Your profile", ["Profile", "Links", "Customize"]],
       ["Share & grow", ["Card", "Analytics"]],
+      ["Account & help", ["Account", "Help"]],
+    ]);
+  });
+
+  it("keeps card ordering and account support visible without owner analytics", () => {
+    expect(
+      sidebarSectionsFor("customer", false).map((section) => [
+        section.label,
+        section.items.map((item) => item.label),
+      ]),
+    ).toEqual([
+      ["Your profile", ["Profile", "Links", "Customize"]],
+      ["Share & grow", ["Card"]],
+      ["Account & help", ["Account", "Help"]],
+    ]);
+    expect(navItemsFor("customer", "tabs", false).map((item) => item.label)).toEqual([
+      "Profile",
+      "Links",
     ]);
   });
 

@@ -40,6 +40,7 @@ type Result = {
   replaceLegacy: (customerId: string) => Promise<string>;
   changeRole: (customerId: string, role: "customer" | "admin") => Promise<void>;
   approveDeletion: (customerId: string) => Promise<void>;
+  setOwnerAccess: (row: ActiveCustomerRow, enabled: boolean) => Promise<void>;
 };
 
 export type PreparedAccounts = Result;
@@ -81,6 +82,7 @@ export function useConvexPreparedAccounts(): Result {
   const replaceMutation = useMutation(api.invitations.replace);
   const setRoleMutation = useMutation(api.customers.setRole);
   const approveMutation = useMutation(api.customers.approveDeletion);
+  const ownerAccessMutation = useMutation(api.customers.setCardOwnerAccessOverride);
 
   const rows = useMemo<PreparedRow[]>(() => {
     const resultPages = [waitingResult, draftResult, activeResult, legacyResult];
@@ -159,6 +161,8 @@ export function useConvexPreparedAccounts(): Result {
         hasDeletionRequest: requests.some(
           ({ request }) => request.customerId === customer._id && request.status === "requested",
         ),
+        cardOwnerAccessOverride: customer.cardOwnerAccessOverride === true,
+        ownsProfile: profile !== undefined,
         legacyInvitationActive: legacyInvitation !== undefined,
         invitationStatus: latestLegacyInvitation
           ? latestLegacyInvitation.invalidatedAt !== null
@@ -228,6 +232,9 @@ export function useConvexPreparedAccounts(): Result {
     if (!request) throw new Error("The deletion request is no longer available.");
     await approveMutation({ requestId: request.request._id });
   }
+  async function setOwnerAccess(row: ActiveCustomerRow, enabled: boolean) {
+    await ownerAccessMutation({ customerId: row.id as Id<"customers">, enabled });
+  }
   function valuesFor(customerId: string): PreparedProfileInput | null {
     const all = [waitingResult, draftResult, activeResult, legacyResult].flatMap((result) =>
       result.status === "success" && Array.isArray(result.data?.page) ? result.data.page : [],
@@ -260,6 +267,7 @@ export function useConvexPreparedAccounts(): Result {
     replaceLegacy,
     changeRole,
     approveDeletion,
+    setOwnerAccess,
   };
 }
 
@@ -316,6 +324,8 @@ export function useDemoPreparedAccounts(): Result {
             ? state.cards.filter((card) => card.profileId === profile.id).length
             : 0,
           hasDeletionRequest: owner?.deletionStatus === "requested",
+          cardOwnerAccessOverride: owner?.cardOwnerAccessOverride === true,
+          ownsProfile: profile !== undefined && profile.ownerId === owner?.id,
           legacyInvitationActive: Boolean(owner?.setupToken),
           setupToken: owner?.setupToken,
         };
@@ -380,6 +390,48 @@ export function useDemoPreparedAccounts(): Result {
           customer.id === customerId ? { ...customer, role } : customer,
         ),
       }));
+    },
+    setOwnerAccess: async (row, enabled) => {
+      if (enabled && !row.ownsProfile)
+        throw new Error("An owned customer profile is required to grant owner access.");
+      if (row.cardOwnerAccessOverride === enabled) return;
+      updateDemoState((current) => {
+        const target = current.customers.find((candidate) => candidate.id === row.id);
+        if (
+          target === undefined ||
+          target.status !== "active" ||
+          target.role !== "customer" ||
+          target.deletionStatus !== "active" ||
+          (target.cardOwnerAccessOverride === true) === enabled
+        )
+          return current;
+        if (enabled) {
+          const ownedProfile = getDemoProfiles(current).find(
+            (candidate) => candidate.id === target.profileId,
+          );
+          if (ownedProfile === undefined || ownedProfile.ownerId !== target.id) return current;
+        }
+        return {
+          ...current,
+          customers: current.customers.map((candidate) =>
+            candidate.id === target.id
+              ? { ...candidate, cardOwnerAccessOverride: enabled ? true : undefined }
+              : candidate,
+          ),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: "admin@tapit.local",
+              action: "customer.card_owner_access_override_changed",
+              target: target.email,
+              occurredAt: new Date().toISOString(),
+              before: String(target.cardOwnerAccessOverride === true),
+              after: String(enabled),
+            },
+            ...current.audits,
+          ],
+        };
+      });
     },
     approveDeletion: async (customerId) => {
       const adminId = assertDemoCardOrderDeletionAccess(customerId);

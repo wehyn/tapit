@@ -27,6 +27,7 @@ export function PreparedAccountsList({
   onLegacyRevoke,
   onLegacyReplace,
   onChangeRole,
+  onOwnerAccess,
   onApproveDeletion,
   legacySetupLink,
 }: {
@@ -48,6 +49,7 @@ export function PreparedAccountsList({
     row: Extract<PreparedRow, { setupState: "active" }>,
     role: "customer" | "admin",
   ) => void;
+  onOwnerAccess: (row: Extract<PreparedRow, { setupState: "active" }>, enabled: boolean) => void;
   onApproveDeletion: (row: Extract<PreparedRow, { setupState: "active" }>) => void;
   legacySetupLink: string;
 }) {
@@ -108,6 +110,9 @@ export function PreparedAccountsList({
                 onLegacyRevoke={() => onLegacyRevoke(row)}
                 onLegacyReplace={() => onLegacyReplace(row)}
                 onChangeRole={(role) => row.setupState === "active" && onChangeRole(row, role)}
+                onOwnerAccess={(enabled) =>
+                  row.setupState === "active" && onOwnerAccess(row, enabled)
+                }
                 onApproveDeletion={() => row.setupState === "active" && onApproveDeletion(row)}
               />
             ))

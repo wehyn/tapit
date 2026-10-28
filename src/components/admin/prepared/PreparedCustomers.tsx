@@ -109,6 +109,12 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
           tone: "success",
           text: "Link revoked. The account is kept as an unclaimed draft.",
         });
+      } else if (confirmation.kind === "ownerAccess") {
+        await data.setOwnerAccess(confirmation.row, confirmation.enabled);
+        setNotice({
+          tone: "success",
+          text: `Owner access ${confirmation.enabled ? "granted" : "revoked"}.`,
+        });
       } else {
         await data.remove(confirmation.row.id);
         setNotice({ tone: "success", text: "Draft deleted." });
@@ -243,6 +249,7 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
                 }),
               );
         }}
+        onOwnerAccess={(row, enabled) => setConfirmation({ kind: "ownerAccess", row, enabled })}
         onApproveDeletion={(row) => {
           if (window.confirm(`Approve account deletion for ${row.email}?`))
             void data

@@ -635,6 +635,56 @@ export const setRole = mutation({
   },
 });
 
+export const setCardOwnerAccessOverride = mutation({
+  args: { customerId: v.id("customers"), enabled: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const target = await ctx.db.get(args.customerId);
+    if (
+      target === null ||
+      !sameScope(account, target) ||
+      !isActiveCustomer(target) ||
+      target.role !== "customer"
+    ) {
+      throw new Error("Customer account unavailable.");
+    }
+
+    const before = target.cardOwnerAccessOverride === true;
+    if (before === args.enabled) return null;
+    if (args.enabled) {
+      if (target.profileId === undefined) throw new Error("Customer profile not found.");
+      const profile = await ctx.db.get(target.profileId);
+      if (
+        profile === null ||
+        profile.ownerId !== target._id ||
+        !sameScope(account, profile) ||
+        !sameScope(target, profile)
+      ) {
+        throw new Error("Customer profile not found.");
+      }
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(target._id, {
+      cardOwnerAccessOverride: args.enabled ? true : undefined,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: account.email ?? "Administrator",
+      action: "customer.card_owner_access_override_changed",
+      accountId: target._id,
+      ...(target.profileId === undefined ? {} : { profileId: target.profileId }),
+      occurredAt: now,
+      before: String(before),
+      after: String(args.enabled),
+    });
+    return null;
+  },
+});
+
 export const preflightSetupEmail = mutation({
   args: {
     email: v.string(),

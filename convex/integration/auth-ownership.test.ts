@@ -142,6 +142,174 @@ async function createPendingOnboardingUser(t: ReturnType<typeof convexTest>, ema
 }
 
 describe("Convex authentication and ownership", () => {
+  it("grants and revokes owner access without changing card claims", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: false,
+    });
+    await admin.mutation(api.customers.setCardOwnerAccessOverride, {
+      customerId: data.ownerCustomerId,
+      enabled: true,
+    });
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+    await admin.mutation(api.customers.setCardOwnerAccessOverride, {
+      customerId: data.ownerCustomerId,
+      enabled: true,
+    });
+    await admin.mutation(api.customers.setCardOwnerAccessOverride, {
+      customerId: data.ownerCustomerId,
+      enabled: false,
+    });
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: false,
+    });
+    const logs = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_accountId", (q) => q.eq("accountId", data.ownerCustomerId))
+        .collect(),
+    );
+    expect(
+      logs.filter((log) => log.action === "customer.card_owner_access_override_changed"),
+    ).toHaveLength(2);
+    expect(logs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actorUserId: data.adminUserId,
+          actorLabel: "admin@example.com",
+          accountId: data.ownerCustomerId,
+          profileId: data.ownerProfileId,
+          occurredAt: expect.any(Number),
+          before: "false",
+          after: "true",
+        }),
+        expect.objectContaining({
+          actorUserId: data.adminUserId,
+          actorLabel: "admin@example.com",
+          accountId: data.ownerCustomerId,
+          profileId: data.ownerProfileId,
+          occurredAt: expect.any(Number),
+          before: "true",
+          after: "false",
+        }),
+      ]),
+    );
+    expect(await t.run((ctx) => ctx.db.query("cards").collect())).toHaveLength(0);
+  });
+
+  it("preserves owner access from a claimed card after override revocation", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    const claimedCardId = await t.run((ctx) =>
+      ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/claimed-owner-card",
+        token: "claimed-owner-card",
+        profileId: data.ownerProfileId,
+        status: "active",
+        createdAt: 1,
+        updatedAt: 1,
+        assignedAt: 1,
+        claimCodeClaimedAt: 1,
+      }),
+    );
+    const before = await t.run((ctx) => ctx.db.get(claimedCardId));
+    await admin.mutation(api.customers.setCardOwnerAccessOverride, {
+      customerId: data.ownerCustomerId,
+      enabled: true,
+    });
+    await admin.mutation(api.customers.setCardOwnerAccessOverride, {
+      customerId: data.ownerCustomerId,
+      enabled: false,
+    });
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+    expect(await t.run((ctx) => ctx.db.get(claimedCardId))).toEqual(before);
+  });
+
+  it("rejects invalid override targets and allows revocation after profile mismatch", async () => {
+    const t = testConvex();
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const owner = t.withIdentity(identity(data.ownerUserId));
+    await expect(
+      owner.mutation(api.customers.setCardOwnerAccessOverride, {
+        customerId: data.ownerCustomerId,
+        enabled: true,
+      }),
+    ).rejects.toThrow("Administrator permission required.");
+
+    const set = (customerId: Id<"customers">, enabled = true) =>
+      admin.mutation(api.customers.setCardOwnerAccessOverride, { customerId, enabled });
+    await expect(set(data.adminCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) => ctx.db.patch(data.ownerCustomerId, { scope: "demo" }));
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) =>
+      ctx.db.patch(data.ownerCustomerId, { scope: undefined, status: "pending" }),
+    );
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) => ctx.db.patch(data.ownerCustomerId, { status: "invited" }));
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) => ctx.db.patch(data.ownerCustomerId, { status: "deleted" }));
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) =>
+      ctx.db.patch(data.ownerCustomerId, { status: "active", deletionStatus: "requested" }),
+    );
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) =>
+      ctx.db.patch(data.ownerCustomerId, { deletionStatus: "active", role: "admin" }),
+    );
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer account unavailable.");
+    await t.run((ctx) =>
+      ctx.db.patch(data.ownerCustomerId, { role: "customer", profileId: undefined }),
+    );
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer profile not found.");
+    await t.run((ctx) => ctx.db.patch(data.ownerCustomerId, { profileId: data.ownerProfileId }));
+    await t.run((ctx) => ctx.db.patch(data.ownerProfileId, { scope: "demo" }));
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer profile not found.");
+    await t.run((ctx) => ctx.db.patch(data.ownerProfileId, { scope: undefined }));
+    await t.run((ctx) => ctx.db.patch(data.ownerProfileId, { ownerId: data.otherCustomerId }));
+    await expect(set(data.ownerCustomerId)).rejects.toThrow("Customer profile not found.");
+    await t.run((ctx) => ctx.db.patch(data.ownerCustomerId, { cardOwnerAccessOverride: true }));
+    await expect(set(data.ownerCustomerId, false)).resolves.toBeNull();
+    await expect(set(data.ownerCustomerId, false)).resolves.toBeNull();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(data.ownerCustomerId, {
+        cardOwnerAccessOverride: true,
+        profileId: undefined,
+      });
+    });
+    await expect(set(data.ownerCustomerId, false)).resolves.toBeNull();
+    await t.run(async (ctx) => {
+      const target = await ctx.db.get(data.ownerCustomerId);
+      expect(target?.cardOwnerAccessOverride).toBeUndefined();
+      expect(target?.profileId).toBeUndefined();
+      const overrideLogs = await ctx.db
+        .query("auditLogs")
+        .withIndex("by_accountId", (q) => q.eq("accountId", data.ownerCustomerId))
+        .filter((q) => q.eq(q.field("action"), "customer.card_owner_access_override_changed"))
+        .collect();
+      expect(overrideLogs).toHaveLength(2);
+      expect(overrideLogs).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            before: "true",
+            after: "false",
+            accountId: data.ownerCustomerId,
+          }),
+        ]),
+      );
+    });
+  });
+
   it("persists onboarding bio and website in the private profile draft", async () => {
     const t = testConvex();
     const { user } = await createPendingOnboardingUser(t, "details@example.com");

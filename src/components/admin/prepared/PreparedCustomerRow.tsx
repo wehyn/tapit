@@ -17,6 +17,7 @@ export function PreparedCustomerRow({
   onLegacyRevoke,
   onLegacyReplace,
   onChangeRole,
+  onOwnerAccess,
   onApproveDeletion,
 }: {
   row: PreparedRow;
@@ -27,6 +28,7 @@ export function PreparedCustomerRow({
   onLegacyRevoke: () => void;
   onLegacyReplace: () => void;
   onChangeRole: (role: "customer" | "admin") => void;
+  onOwnerAccess: (enabled: boolean) => void;
   onApproveDeletion: () => void;
 }) {
   const [now] = useState(() => Date.now());
@@ -44,6 +46,8 @@ export function PreparedCustomerRow({
     "View profile",
     "View cards",
     "Open setup link",
+    "Grant owner access",
+    "Revoke owner access",
   ];
   const primaryActions = actions.filter((action) => primaryActionNames.includes(action));
   const secondaryActions = actions.filter((action) => !primaryActionNames.includes(action));
@@ -123,6 +127,17 @@ export function PreparedCustomerRow({
             Demote to customer
           </Button>
         );
+      case "Grant owner access":
+      case "Revoke owner access":
+        return (
+          <Button
+            key={action}
+            onClick={() => onOwnerAccess(action === "Grant owner access")}
+            variant="quiet"
+          >
+            {action}
+          </Button>
+        );
       case "Approve deletion":
         return (
           <Button key={action} onClick={onApproveDeletion} variant="danger">
@@ -188,6 +203,14 @@ export function PreparedCustomerRow({
               <dt className="text-xs font-semibold text-tapit-muted">Cards</dt>
               <dd className="text-tapit-ink">{row.cardCount ?? 0}</dd>
             </div>
+            {row.setupState === "active" && row.role === "customer" ? (
+              <div>
+                <dt className="text-xs font-semibold text-tapit-muted">Owner access override</dt>
+                <dd className="text-tapit-ink">
+                  {row.cardOwnerAccessOverride ? "Granted" : "Not granted"}
+                </dd>
+              </div>
+            ) : null}
             {row.invitationStatus ? (
               <div>
                 <dt className="text-xs font-semibold text-tapit-muted">Invitation</dt>

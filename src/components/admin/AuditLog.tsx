@@ -48,6 +48,7 @@ const readableActions: Record<string, string> = {
   "card.registered": "Card registered",
   "card.replaced": "Card replaced",
   "customer.created": "Customer account created",
+  "customer.card_owner_access_override_changed": "Customer owner access override changed",
   "customer.onboarding_completed": "Customer onboarding completed",
   "customer.password_reset_requested": "Password reset requested",
   "customer.role_changed": "Customer role changed",

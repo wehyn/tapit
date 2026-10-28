@@ -1,6 +1,6 @@
 # Tapit verification map
 
-This is the maintained map for the first five priority journeys in Tapit's local demo. Read this index, then the matching feature file before driving. The map currently covers the public profile and card resolver, customer profile publication, customer links, administrator profile publication, and administrator card lifecycle. It does not claim coverage for every customer utility, hosted demo, live deployment, or physical device.
+This is the maintained map for priority journeys in Tapit's local demo. Read this index, then the matching feature file before driving. The map currently covers the public profile and card resolver, customer profile publication, customer links, administrator profile publication, administrator card lifecycle, and administrator customer access. It does not claim coverage for every customer utility, hosted demo, live deployment, or physical device.
 
 ## Baseline preconditions
 
@@ -26,3 +26,4 @@ This is the maintained map for the first five priority journeys in Tapit's local
 - [Customer links](./customer-links.md) covers guided link entry, saved drafts, ordering, and published links.
 - [Administrator profile operations](./admin-profiles.md) covers editing, publishing, and checking the public result.
 - [Administrator card registry](./admin-cards.md) covers registration, assignment, replacement, deactivation, and audit visibility.
+- [Administrator customer access](./admin-customers.md) covers granting and revoking owner-feature access for a cardless customer and checking the audit and customer-visible access state.

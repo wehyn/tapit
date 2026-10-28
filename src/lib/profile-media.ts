@@ -1,6 +1,6 @@
 import type { Id } from "../../convex/_generated/dataModel";
 
-export const MAX_PROFILE_SLIDESHOW_IMAGES = 10;
+export const MAX_PROFILE_SLIDESHOW_IMAGES = 5;
 export const MIN_PROFILE_HERO_HEIGHT = 220;
 export const MAX_PROFILE_HERO_HEIGHT = 520;
 export const DEFAULT_PROFILE_HERO_HEIGHT = 320;
@@ -116,7 +116,7 @@ export function validateProfileMedia(media: unknown): string[] {
     errors.push("A slideshow must be a list of images.");
   } else {
     if (media.slideshow.length > MAX_PROFILE_SLIDESHOW_IMAGES) {
-      errors.push("A slideshow can contain at most ten images.");
+      errors.push(`A slideshow can contain at most ${MAX_PROFILE_SLIDESHOW_IMAGES} images.`);
     }
     const assetIds = new Set<string>();
     media.slideshow.forEach((image, index) => {
@@ -188,7 +188,6 @@ export function normalizeProfileMedia(
       if (image === undefined || assetIds.has(image.assetId)) continue;
       assetIds.add(image.assetId);
       slideshow.push(image);
-      if (slideshow.length === MAX_PROFILE_SLIDESHOW_IMAGES) break;
     }
   }
   const heroHeight = isFiniteNumber(value.heroHeight)

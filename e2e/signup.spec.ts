@@ -104,12 +104,41 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await page.getByRole("button", { name: "Create your profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   const requirementsDialog = page.getByRole("dialog", { name: "Before you publish" });
+  const navigationTour = page.getByTestId("navigation-tour-coach-mark");
   await expect(requirementsDialog).toBeVisible();
+  await expect(navigationTour).toHaveCount(0);
   await requirementsDialog.getByRole("button", { name: "Maybe later" }).click();
   await expect(requirementsDialog).toBeHidden();
+  await expect(navigationTour).toBeVisible();
+  await expect(navigationTour).toContainText("Step 1 of 5");
+  await navigationTour.getByRole("button", { name: "Skip tour", exact: true }).click();
+  await expect(navigationTour).toHaveCount(0);
+  const customerNavigation = page.getByRole("navigation", { name: "Customer navigation" });
+  await expect(customerNavigation.getByRole("heading", { name: "Share & grow" })).toBeVisible();
+  await expect(customerNavigation.getByRole("heading", { name: "Account & help" })).toBeVisible();
+  await expect(customerNavigation.getByRole("link", { name: "Card", exact: true })).toBeVisible();
+  await expect(
+    customerNavigation.getByRole("link", { name: "Analytics", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    customerNavigation.getByRole("link", { name: "Account", exact: true }),
+  ).toBeVisible();
+  await expect(customerNavigation.getByRole("link", { name: "Help", exact: true })).toBeVisible();
+  await customerNavigation.getByRole("link", { name: "Card", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Order a card" })).toHaveAttribute(
+    "href",
+    "/app/card/order-card",
+  );
+  await customerNavigation.getByRole("link", { name: "Profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
 
   await page.reload();
   await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.locator('[data-navigation-tour-ready="true"]')).toBeAttached();
+  await expect(navigationTour).toHaveCount(0);
   await expect(
     page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
   ).toBeVisible();
