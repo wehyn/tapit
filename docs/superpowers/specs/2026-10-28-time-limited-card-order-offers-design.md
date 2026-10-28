@@ -1,86 +1,100 @@
-# Time-limited card-order offers and launch pricing
+# Time-limited card-order offers and separate referral codes
 
 **Date:** 2026-10-28  
-**Status:** Approved
+**Status:** Approved, updated 2026-10-28
 **Issue:** [#182](https://github.com/wehyn/tapit/issues/182)  
 **Related design:** [Card-order offers and referrer attribution](2026-10-28-card-order-offer-and-referrer-model-design.md)
 
+This spec updates the earlier design's single-code checkout behavior.
+
 ## Goal
 
-Let administrators set an optional expiration date on a card-order offer. Replace the global card-order launch cutoff with the `LAUNCH` offer: a ₱599 card price that an administrator configures with a manual expiry date, normally one month after launch begins. After that date, customers can still order at the regular ₱799 price.
+Add manual expiry dates to card-order promo offers, move the launch cutoff to the `LAUNCH` offer, and give customers separate promo and referral inputs. Customers may use one code of each type together. A promo sets a fixed final price or applies its configured percentage discount to the ₱799 base price. A referral then gives 10% off the promo-adjusted price and earns a 10% commission on it before the referral discount.
 
 ## Existing behavior
 
-- Offers have an optional fixed card price and usage limit. Checkout aliases can apply an offer, a referrer, or both.
-- The global launch end date currently sets the card price to ₱599 before its date and ₱799 on or after it. Leaving the date blank also blocks card ordering.
-- Offer aliases use the offer's price and shared usage rules. Submitted orders keep their saved price and discount snapshots.
-- Local demo and Convex checkout must behave the same way.
+- Existing offers have an optional fixed final card price; offers without one currently apply 10% off. Offers also have an optional shared usage limit. Checkout aliases can map an offer, a referrer, or both.
+- Checkout currently accepts one combined code. The global launch end date sets the card price to ₱599 before its date and ₱799 on or after it. Leaving it blank blocks ordering.
+- Submitted orders snapshot their price, discount, offer, referral, and commission information. Local demo and Convex checkout must match.
 
 ## Terms and date rules
 
-- **Offer expiry date:** An optional date entered by an administrator on an offer. It is a cutoff date in the Asia/Manila timezone: the offer is valid before the selected date and unavailable on or after that date. This preserves the current launch cutoff boundary.
-- **Expired offer:** An offer whose expiry date has been reached. All checkout aliases that refer to it are unavailable, even if those aliases remain active.
-- **Regular card price:** ₱799, applied when an order has no valid offer.
+- **Promo code:** A code entered in the optional discount-code field. It resolves directly to an offer in `cardOrderOffers`.
+- **Referral code:** A code entered after enabling “Have a referral code?”. It resolves to an active referrer record, such as `AHRON`.
+- **Promo-adjusted card price:** The card price after applying the promo offer and before applying any referral discount. It is ₱799 with no promo, ₱599 for `LAUNCH`, ₱299 for `FOUNDING`, or the configured percentage discount from ₱799.
+- **Percentage promo:** A whole-number `percentOff` from 1% through 99%, applied to ₱799 and rounded to the nearest centavo. An offer has either `fixedPriceCentavos` or `percentOff`, never both. Existing offers with neither field retain their current 10%-off behavior.
+- **Offer expiry date:** An optional, manually entered `YYYY-MM-DD` cutoff in Asia/Manila. The offer is valid before the selected date and unavailable on or after it, matching the current launch cutoff boundary.
+- **Referral commission:** 10% of the promo-adjusted card price, payable only when a valid referral code is used.
 
-The date is entered manually; the system does not calculate it from an activation date or extend it when other offer fields are edited. To run a one-month launch, the administrator sets the `LAUNCH` expiry date to the desired cutoff.
+The expiry date is not calculated from activation and is not extended when other offer fields are edited. To run a one-month launch, the administrator sets the `LAUNCH` cutoff one calendar month after launch starts.
 
-## Offer behavior
+## Checkout behavior
 
-- Add an optional expiry date to card-order offers. Offers without an expiry date keep their current unlimited-time behavior.
-- Preserve the existing one-code checkout field and exact alias mapping. Do not add code stacking or infer offer mappings from code text.
-- Check offer expiry wherever offer eligibility is checked: checkout preview and authoritative order submission. Submission must use the server-side current time/date and reject an expired offer independently of the preview result. An expired offer does not consume a use.
-- An order submitted with an expired code is rejected with an actionable message; the customer can remove the code and continue at ₱799.
-- Keep existing offer usage limits, first-order eligibility, referrer attribution, commission, shipping, and payment behavior unchanged.
+- Keep one optional promo-code input and a separate “Have a referral code?” toggle that reveals the referral-code input. Use the existing one-code-per-order limit within each type: at most one promo code and at most one referral code.
+- Allow one promo and one referral code together. Resolve each code through its own record; do not require or parse a combined alias such as `LAUNCH-AHRON`.
+- Apply the promo first. With no promo, the card price is ₱799. An offer with a fixed price sets that final price; otherwise, its configured `percentOff` is deducted from ₱799. Existing offers with neither field keep their current 10%-off behavior.
+- Apply a valid referral code's 10% discount to the promo-adjusted card price. If a referral is present, calculate commission as 10% of that same promo-adjusted price before the referral discount. Promo-only orders have no referral attribution and no commission.
+- Examples:
+  - `LAUNCH` only: ₱599 due, no commission.
+  - `LAUNCH` + `AHRON`: ₱599 promo-adjusted price, ₱59.90 referral discount, ₱539.10 due, ₱59.90 commission.
+  - `FOUNDING` + `AHRON`: ₱299 promo-adjusted price, ₱29.90 referral discount, ₱269.10 due, ₱29.90 commission.
+  - A 20%-off promo + `AHRON`: ₱639.20 promo-adjusted price, ₱63.92 referral discount, ₱575.28 due, ₱63.92 commission.
+  - `AHRON` only with no promo: ₱799 base, ₱79.90 referral discount, ₱719.10 due, ₱79.90 commission. This remains the result during the launch month unless the customer also enters `LAUNCH`.
+- Preview checks both codes and shows the combined price. Order submission independently rechecks both code records, expiry, usage, first-order eligibility, and price before writing. An expired promo must be removed before submitting with a valid referral code alone; do not silently ignore an invalid entered code.
+- When both codes are used, save both record IDs and snapshots and increment both applicable usage counts in the same order transaction. A promo-only order records no referral snapshot and keeps commission status `none`.
+- Keep existing payment, shipping, fulfillment, order eligibility, and refund behavior unchanged.
 
 ## LAUNCH pricing and ordering
 
-- Configure `LAUNCH` as an offer with a fixed card price of ₱599 and a manually entered expiry date. For a one-month launch, the administrator chooses a cutoff one calendar month after the launch starts.
-- The regular card price is always ₱799 when no valid offer is applied. An expired `LAUNCH` offer stops applying its price; it does not prevent the customer from ordering.
-- Remove the “Card ordering launch” / “Launch end date” control from Admin Settings and stop using the global date to calculate order prices or determine whether ordering is configured.
-- Keep the existing active payment-method requirement for ordering. Offer expiry does not replace or modify that requirement.
-- Do not rewrite prices, discounts, or other snapshots on orders that already exist.
+- Configure `LAUNCH` as a promo offer with a fixed final card price of ₱599 and a manually entered expiry date. Configure `FOUNDING` with a fixed final card price of ₱299.
+- The regular card price is ₱799 when there is no valid promo. After `LAUNCH` expires, AHRON remains a valid referral code and applies its 10% discount to ₱799.
+- Remove the “Card ordering launch” / “Launch end date” control from Admin Settings and stop using the global date for order pricing or ordering availability.
+- Keep the active-payment-method requirement for ordering. Offer expiry only ends that offer; it does not close ordering.
+- Preserve all existing order prices, discounts, referral data, commission values, and snapshots.
 
 ## Admin experience
 
-- Add an optional expiry date field to the offer editor in `/admin/codes`. Administrators can set, edit, or clear the date.
-- Show each offer's configured expiry date and whether it is expired in the Codes workspace. An alias display continues to identify its mapped offer and referrer.
-- Do not add an automatic one-month duration, activation date, or start/end scheduling controls. The administrator enters the launch cutoff date directly.
-- Remove the launch date field and its save flow from Admin Settings.
+- Let administrators choose either a fixed final price or a whole-number percentage discount (1–99%) for each offer in `/admin/codes`; round percentage discounts to the nearest centavo. Add an optional expiry date field. Administrators can set, edit, and clear expiry; show its date and expired state.
+- Keep offer management separate from referrer-code management. Administrators can create a standalone `AHRON` referral code without mapping it to an offer.
+- Remove the launch date control and save flow from Admin Settings. Keep payment-method, QR, and support settings.
+- Keep historical combined aliases readable in Codes and order history, but do not require them for the new checkout fields.
 
 ## Data and compatibility
 
-- Store the optional expiry date on the offer, not on individual aliases, so every alias shares the same time window.
-- Existing offers with no expiry date remain usable until an administrator sets one. The `LAUNCH` offer must be configured with its ₱599 fixed price and chosen expiry date in the Codes workspace.
-- Stop consulting the legacy global launch end date. It is not an ordering gate and does not change the saved details on existing orders.
-- Preserve existing offer usage counts, alias mappings, referrer attribution, orders, and historical snapshots.
-- Keep the same validation, cutoff comparison, and checkout behavior in Convex and local demo mode.
+- Store expiry and optional `percentOff` on the offer, not on aliases, so each offer and all historical aliases share its settings. Existing offers without an expiry remain time-unlimited. Existing offer documents with neither a fixed price nor `percentOff` keep their current 10%-off behavior.
+- Existing offer and order documents need no expiry backfill. The old global launch end date becomes inert; the administrator configures `LAUNCH` at ₱599 with its manual expiry in Codes.
+- Keep combined alias records and saved order snapshots readable. New checkout resolves promo codes from offers and referral codes from standalone referrer records.
+- On an order, store `cardPriceCentavos` as the promo-adjusted price and `discountCentavos` as the referral discount. Snapshot the offer's fixed price or `percentOff` and the referral independently. Existing snapshots remain readable and unchanged. Increment each used code's counter once in the order transaction.
+- Apply the same rules in Convex and local demo mode; older demo offers without an expiry remain usable.
 
 ## Scope
 
-- Included: manual expiry dates for card-order offers; expired-offer enforcement in checkout; replacing the global launch pricing cutoff with the `LAUNCH` offer.
-- Excluded: automatic expiry calculation, offer start dates, date/time scheduling, stacking multiple codes, limits on referrer-only codes that are not mapped to an offer, and changes to commissions, payment, shipping, or fulfillment.
+- Included: manual offer expiry, fixed-price or configurable percentage promos, separate promo/referral checkout inputs, one code of each type per order, combined promo plus referral pricing, commission based on promo-adjusted price, and removal of the global launch cutoff.
+- Excluded: multiple promo codes, multiple referral codes, code inference by splitting strings, automatic expiry calculation, offer start dates, and changes to commission rate, payment, shipping, or fulfillment.
 
 ## Alternatives considered
 
-1. **Manual expiry per offer (selected):** Keeps each discount and its expiry together. `LAUNCH` uses the same offer model and an administrator enters its cutoff date.
-2. **Keep the global launch date and add offer expiry:** Gives launch pricing two independent controls and preserves the date as an ordering gate; this would leave duplicate, conflicting behavior.
-3. **Add start and end dates to every offer:** Supports scheduled campaigns, but a start date is not required for the requested time limit.
+1. **Separate promo and referral inputs (selected):** Makes pricing offers and referral attribution distinct while allowing one of each. This supports `LAUNCH` plus `AHRON` without maintaining combined aliases.
+2. **One combined checkout code:** Keeps the current input but requires administrators to create and maintain combinations such as `LAUNCH-AHRON` and `FOUNDING-AHRON`.
+3. **Allow only one code total:** Prevents promo and referral benefits from being used together, unlike the previous launch-price-plus-referral behavior.
 
 ## Acceptance criteria
 
-- Administrators can set, edit, or clear an offer expiry date. An offer with no date remains time-unlimited.
-- At the selected cutoff date in Manila, the offer is unavailable in preview and rejected by order submission. No alias can bypass the offer's expiry, and a rejected attempt does not consume a use.
-- An expired code can be removed so the customer can place the order at ₱799, assuming the existing account and payment requirements are met.
-- An administrator can configure `LAUNCH` at ₱599 and manually enter its one-month cutoff date; editing another offer field does not recalculate or extend the expiry.
-- Admin Settings no longer exposes or uses the global launch end date. Its blank value no longer closes ordering.
-- Existing submitted orders retain their original price, discount, referral, and commission snapshots.
-- Convex and local demo use the same date boundary and offer-expiry behavior.
+- Admins can set, edit, and clear an offer expiry date. Offers without expiry remain time-unlimited; expired offers are rejected in preview and order submission on and after the selected Manila date.
+- Checkout has separate promo and referral inputs, with the referral field revealed by the toggle. One code of each type can be used together, but multiple codes of either type cannot.
+- `LAUNCH` alone prices the card at ₱599 with no commission. `LAUNCH` plus `AHRON` charges ₱539.10 and records ₱59.90 commission.
+- `FOUNDING` alone prices the card at ₱299 with no commission. `FOUNDING` plus `AHRON` charges ₱269.10 and records ₱29.90 commission.
+- Percentage promo offers accept whole-number values from 1% to 99%, round to the nearest centavo, and apply to ₱799 before a separate 10% referral discount.
+- `AHRON` alone with no promo charges ₱719.10 from the ₱799 base and records ₱79.90 commission, including after `LAUNCH` expires.
+- Promo-only orders contain no referral attribution or commission. Combined orders snapshot both codes, increment both counters, and preserve the existing referral eligibility and order snapshot rules.
+- Admin Settings no longer exposes or uses the global launch date. Ordering remains available at ₱799 with an active payment method after launch expiry.
+- Convex and local demo produce the same code validity, price, discount, commission, usage, and snapshot results. Legacy combined aliases and existing orders remain readable.
 
 ## Validation
 
-- Verify offers without an expiry remain usable and offers with an expiry are available before the cutoff and unavailable on and after it in Asia/Manila.
-- Verify an expired offer is unavailable through every alias that points to it in preview and order submission, and does not increment its usage count.
-- Verify an expired `LAUNCH` code can no longer give the ₱599 price while an order without a code remains available at ₱799.
-- Verify the legacy launch end date no longer blocks ordering, while the existing active-payment-method requirement still applies.
-- Verify edits to offer pricing or other fields do not change expiry unless the administrator changes or clears the date.
-- Verify old orders keep their saved price and discount snapshots, and run the same cases in local demo and Convex modes.
+- Test no-expiry offers and the date immediately before, on, and after the Manila cutoff.
+- Test promo-only and referral-only orders, `LAUNCH` + `AHRON`, `FOUNDING` + `AHRON`, and a percentage promo + `AHRON`, including percent validation and centavo rounding.
+- Verify promo-only orders have no commission, combined orders calculate commission from the promo-adjusted price, and referral-only orders use the ₱799 base after the global cutoff is removed.
+- Verify both usage counters increment exactly once for a combined order, and neither increments when preview or submission rejects a code.
+- Verify preview and order submission revalidate separately, invalid codes must be removed before order placement, and existing order snapshots remain unchanged.
+- Repeat the cases in local demo and Convex. Confirm the legacy launch setting is ignored while the active-payment-method gate remains.
