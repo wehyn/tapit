@@ -17,6 +17,7 @@ import {
 import type {
   DemoCardOrder,
   DemoCardOrderDesignSource,
+  DemoCardOrderOffer,
   DemoCardOrderPaymentMethod,
   DemoCardOrderReferralCode,
   DemoCardOrderReferralCodeUsage,
@@ -76,6 +77,26 @@ function currentOrderState() {
   if (refreshed.kind !== "ready") throw new Error("Demo account storage is unavailable.");
   activeOrderAccount(refreshed.snapshot.state);
   return refreshed.snapshot.state;
+}
+
+function offerUsageCount(state: DemoState, offerId: string): number {
+  const offer = state.cardOrderOffers.find((item) => item.id === offerId);
+  const orderCount = state.cardOrders.filter(
+    (order) =>
+      order.offerId === offerId ||
+      (!order.offerId &&
+        state.cardOrderReferralCodes.find((alias) => alias.id === order.referralCodeId)?.offerId ===
+          offerId),
+  ).length;
+  return Math.max(offer?.usageCount ?? 0, orderCount);
+}
+
+function referralUsageCount(state: DemoState, referralCodeId: string): number {
+  const referral = state.cardOrderReferralCodes.find((code) => code.id === referralCodeId);
+  const orderCount = state.cardOrders.filter(
+    (order) => order.referralCodeId === referralCodeId,
+  ).length;
+  return Math.max(referral?.usageCount ?? 0, orderCount);
 }
 
 async function updateDemoCardOrderAdminState(
@@ -155,10 +176,39 @@ export function getDemoCardOrderAdminSettings() {
   return {
     launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods,
-    referralCodes: state.cardOrderReferralCodes.map((code) => ({
-      ...code,
-      usageCount: state.cardOrders.filter((order) => order.referralCodeId === code.id).length,
+    offers: state.cardOrderOffers.map((offer) => ({
+      id: offer.id,
+      code: offer.code,
+      fixedPriceCentavos: offer.fixedPriceCentavos,
+      usageCount: offerUsageCount(state, offer.id),
+      usageLimit: offer.usageLimit,
     })),
+    referralCodes: state.cardOrderReferralCodes.map((code) => {
+      const offer = state.cardOrderOffers.find((item) => item.id === code.offerId);
+      return {
+        id: code.id,
+        code: code.code,
+        ...(code.referrerCode !== undefined && code.referrerCode !== null
+          ? { referrerCode: code.referrerCode }
+          : {}),
+        ...(code.referrerLabel !== undefined ? { referrerLabel: code.referrerLabel } : {}),
+        active: code.active,
+        fixedPriceCentavos: offer ? offer.fixedPriceCentavos : code.fixedPriceCentavos,
+        usageLimit: offer ? offer.usageLimit : code.usageLimit,
+        usageCount: offer ? offerUsageCount(state, offer.id) : referralUsageCount(state, code.id),
+        ...(offer
+          ? {
+              offer: {
+                id: offer.id,
+                code: offer.code,
+                fixedPriceCentavos: offer.fixedPriceCentavos,
+                usageCount: offerUsageCount(state, offer.id),
+                usageLimit: offer.usageLimit,
+              },
+            }
+          : {}),
+      };
+    }),
   };
 }
 
@@ -303,36 +353,81 @@ export async function deactivateDemoCardOrderPaymentMethod(id: string): Promise<
   });
 }
 
+export async function saveDemoCardOrderOffer(input: {
+  id?: string;
+  code: string;
+  fixedPriceCentavos?: number;
+  usageLimit?: number;
+}): Promise<string> {
+  const code = requiredText(input.code, "Offer code", 40).toUpperCase();
+  if (!/^[A-Z0-9_-]+$/.test(code))
+    throw new Error("Offer code may contain letters, numbers, hyphens, and underscores only.");
+  if (
+    input.fixedPriceCentavos !== undefined &&
+    !isValidReferralFixedPriceCentavos(input.fixedPriceCentavos)
+  )
+    throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+  if (
+    input.usageLimit !== undefined &&
+    (!Number.isSafeInteger(input.usageLimit) || input.usageLimit <= 0)
+  )
+    throw new Error("Usage limit must be a positive whole number.");
+  const adminId = activeAccount(currentState("admin"), "admin").id;
+  const id = input.id ?? crypto.randomUUID();
+  await updateDemoCardOrderAdminState(adminId, (state) => {
+    const prior = state.cardOrderOffers.find((offer) => offer.id === id);
+    if (input.id && !prior) throw new Error("Offer unavailable.");
+    if (state.cardOrderOffers.some((offer) => offer.code === code && offer.id !== id))
+      throw new Error("Offer already exists.");
+    const now = Date.now();
+    const saved: DemoCardOrderOffer = {
+      id,
+      code,
+      scope: "demo",
+      fixedPriceCentavos:
+        input.fixedPriceCentavos ?? (prior ? undefined : code === "FOUNDING" ? 29_900 : undefined),
+      usageCount: Math.max(
+        prior?.usageCount ?? 0,
+        offerUsageCount(state, id),
+        !prior && code === "FOUNDING" ? 5 : 0,
+      ),
+      usageLimit: input.usageLimit ?? (prior ? undefined : code === "FOUNDING" ? 25 : undefined),
+      createdAt: prior?.createdAt ?? now,
+      updatedAt: now,
+    };
+    return {
+      ...state,
+      cardOrderOffers: prior
+        ? state.cardOrderOffers.map((offer) => (offer.id === id ? saved : offer))
+        : [...state.cardOrderOffers, saved],
+    };
+  });
+  return id;
+}
+
 export async function saveDemoCardOrderReferralCode(input: {
   id?: string;
   code: string;
-  referrerLabel: string;
-  fixedPriceCentavos?: number;
-  usageLimit?: number;
+  offerId?: string;
+  referrerCode?: string;
+  referrerLabel?: string;
   active: boolean;
 }): Promise<string> {
   const code = requiredText(input.code, "Referral code", 40).toUpperCase();
   if (!/^[A-Z0-9_-]+$/.test(code)) {
     throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
   }
-  const referrerLabel = requiredText(input.referrerLabel, "Referrer label", 120);
-  if (
-    input.fixedPriceCentavos !== undefined &&
-    !isValidReferralFixedPriceCentavos(input.fixedPriceCentavos)
-  ) {
-    throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
-  }
-  if (
-    input.usageLimit !== undefined &&
-    (!Number.isSafeInteger(input.usageLimit) || input.usageLimit <= 0)
-  ) {
-    throw new Error("Usage limit must be a positive whole number.");
-  }
+  const referrerLabel = input.referrerLabel
+    ? requiredText(input.referrerLabel, "Referrer label", 120)
+    : undefined;
   const adminId = activeAccount(currentState("admin"), "admin").id;
   const id = input.id ?? crypto.randomUUID();
   await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
     if (input.id && !existing) throw new Error("Referral code unavailable.");
+    if (input.offerId && !state.cardOrderOffers.some((offer) => offer.id === input.offerId)) {
+      throw new Error("Offer unavailable.");
+    }
     if (
       state.cardOrderReferralCodes.some((referral) => referral.code === code && referral.id !== id)
     ) {
@@ -342,9 +437,12 @@ export async function saveDemoCardOrderReferralCode(input: {
     const saved: DemoCardOrderReferralCode = {
       id,
       code,
+      offerId: input.offerId ?? null,
+      referrerCode: input.referrerCode?.trim().toUpperCase() ?? null,
       referrerLabel,
-      fixedPriceCentavos: input.fixedPriceCentavos,
-      usageLimit: input.usageLimit,
+      fixedPriceCentavos: input.offerId ? undefined : existing?.fixedPriceCentavos,
+      usageCount: existing?.usageCount,
+      usageLimit: input.offerId ? undefined : existing?.usageLimit,
       active: input.active,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -402,20 +500,29 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
   const referral = state.cardOrderReferralCodes.find(
     (item) => item.code === code.trim().toUpperCase(),
   );
+  const offer =
+    referral?.offerId === undefined
+      ? undefined
+      : state.cardOrderOffers.find((item) => item.id === referral.offerId);
+  const usageLimit = offer ? offer.usageLimit : referral?.usageLimit;
+  const usageCount = offer
+    ? offerUsageCount(state, offer.id)
+    : referral
+      ? referralUsageCount(state, referral.id)
+      : 0;
+  const fixedPriceCentavos = offer ? offer.fixedPriceCentavos : referral?.fixedPriceCentavos;
   const valid =
     state.cardOrderLaunchEndDate !== null &&
     Number.isFinite(currentTime) &&
     referral?.active === true &&
-    (referral.usageLimit === undefined ||
-      state.cardOrders.filter((order) => order.referralCodeId === referral.id).length <
-        referral.usageLimit) &&
+    (usageLimit === undefined || usageCount < usageLimit) &&
     !state.cardOrders.some((order) => order.customerId === customer.id);
   return {
     valid,
     discountCentavos: valid
       ? calculateReferralDiscountForPriceCentavos(
           getCardPriceCentavos(state.cardOrderLaunchEndDate, currentTime),
-          referral.fixedPriceCentavos,
+          fixedPriceCentavos,
         )
       : 0,
   };
@@ -473,20 +580,29 @@ export async function placeDemoCardOrder(
     const referral = normalizedCode
       ? current.cardOrderReferralCodes.find((item) => item.code === normalizedCode)
       : undefined;
+    const offer =
+      referral?.offerId === undefined
+        ? undefined
+        : current.cardOrderOffers.find((item) => item.id === referral.offerId);
+    const usageLimit = offer ? offer.usageLimit : referral?.usageLimit;
+    const usageCount = offer
+      ? offerUsageCount(current, offer.id)
+      : referral
+        ? referralUsageCount(current, referral.id)
+        : 0;
     if (
       normalizedCode &&
       (!referral?.active ||
-        (referral.usageLimit !== undefined &&
-          current.cardOrders.filter((order) => order.referralCodeId === referral.id).length >=
-            referral.usageLimit) ||
+        (usageLimit !== undefined && usageCount >= usageLimit) ||
         current.cardOrders.some((order) => order.customerId === owner.id))
     ) {
       throw new Error("Referral code is unavailable for this order.");
     }
     const now = Date.now();
     const cardPriceCentavos = getCardPriceCentavos(current.cardOrderLaunchEndDate, now);
+    const fixedPriceCentavos = offer ? offer.fixedPriceCentavos : referral?.fixedPriceCentavos;
     const discountCentavos = referral
-      ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos)
+      ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, fixedPriceCentavos)
       : 0;
     // Same rule as the live mutation: nothing is written unless the reviewed amount still holds.
     const price = { cardPriceCentavos, discountCentavos };
@@ -514,16 +630,44 @@ export async function placeDemoCardOrder(
       },
       referralCodeId: referral?.id,
       referralSnapshot: referral
-        ? { code: referral.code, referrerLabel: referral.referrerLabel }
+        ? {
+            code: referral.code,
+            referrerLabel: referral.referrerLabel ?? referral.referrerCode ?? "",
+          }
+        : undefined,
+      offerId: offer?.id,
+      offerSnapshot: offer
+        ? { code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos }
         : undefined,
       paymentStatus: "unpaid",
       fulfillmentStatus: "awaiting_shipping_quote",
-      commissionStatus: referral ? "pending" : "none",
-      commissionCentavos: referral ? calculateCommissionCentavos(cardPriceCentavos) : 0,
+      commissionStatus: referral?.referrerCode || referral?.referrerLabel ? "pending" : "none",
+      commissionCentavos:
+        referral?.referrerCode || referral?.referrerLabel
+          ? calculateCommissionCentavos(cardPriceCentavos)
+          : 0,
       createdAt: now,
       updatedAt: now,
     };
-    return { ...current, cardOrders: [...current.cardOrders, order] };
+    return {
+      ...current,
+      cardOrderReferralCodes:
+        offer || !referral
+          ? current.cardOrderReferralCodes
+          : current.cardOrderReferralCodes.map((item) =>
+              item.id === referral.id
+                ? { ...item, usageCount: referralUsageCount(current, referral.id) + 1 }
+                : item,
+            ),
+      cardOrderOffers: offer
+        ? current.cardOrderOffers.map((item) =>
+            item.id === offer.id
+              ? { ...item, usageCount: offerUsageCount(current, offer.id) + 1 }
+              : item,
+          )
+        : current.cardOrderOffers,
+      cardOrders: [...current.cardOrders, order],
+    };
   };
   const persistOrder = () =>
     withDemoCardOrderCommitLock(async () => {

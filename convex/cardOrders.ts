@@ -12,6 +12,8 @@ import {
 } from "../src/lib/card-ordering";
 import schema from "./schema";
 
+const FOUNDING_USAGE_VERIFIED = "completed:founding=5";
+
 const designSource = v.union(
   v.object({ kind: v.literal("upload"), uploadId: v.id("cardOrderDesignUploads") }),
   v.object({ kind: v.literal("url"), url: v.string() }),
@@ -195,19 +197,53 @@ export const placeOrder = mutation({
           )
           .first()
       : null;
+    const foundingAlias = referral?.code === "FOUNDING" || referral?.code === "FOUNDING-AHRON";
+    const offer =
+      referral?.offerId !== undefined
+        ? await ctx.db.get(referral.offerId)
+        : foundingAlias
+          ? await ctx.db
+              .query("cardOrderOffers")
+              .withIndex("by_scope_and_code", (q) =>
+                q.eq("scope", customer.scope).eq("code", "FOUNDING"),
+              )
+              .first()
+          : null;
+    const offerAvailable =
+      referral?.offerId === undefined || (offer !== null && sameScope(customer, offer));
+    const offerBackfill =
+      offer === null && !foundingAlias
+        ? null
+        : await ctx.db
+            .query("settings")
+            .withIndex("by_scope_and_key", (q) =>
+              q.eq("scope", customer.scope).eq("key", "cardOrderOfferUsageBackfillStarted"),
+            )
+            .first();
     if (
       normalizedCode &&
       (referral === null ||
+        !offerAvailable ||
         !referral.active ||
+        ((foundingAlias || offer?.code === "FOUNDING") &&
+          offerBackfill?.value !== FOUNDING_USAGE_VERIFIED) ||
         prior !== null ||
-        (referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit))
+        (offer === null
+          ? referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit
+          : offerBackfill?.value.startsWith("completed:") === true &&
+            (offer.code !== "FOUNDING" || offerBackfill.value === FOUNDING_USAGE_VERIFIED) &&
+            offer.usageLimit !== undefined &&
+            offer.usageCount >= offer.usageLimit))
     )
       throw new Error("Referral code is unavailable for this order.");
     const cardPriceCentavos = getCardPriceCentavos(date, now);
     const discountCentavos =
       referral === null
         ? 0
-        : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
+        : calculateReferralDiscountForPriceCentavos(
+            cardPriceCentavos,
+            offer === null ? referral.fixedPriceCentavos : offer.fixedPriceCentavos,
+          );
     // Checked before the first write: a changed amount creates nothing, so the
     // customer must review the authoritative price and submit again.
     if (cardPriceCentavos - discountCentavos !== args.expectedCardAmountCentavos)
@@ -215,8 +251,13 @@ export const placeOrder = mutation({
         kind: "price_changed" as const,
         price: { cardPriceCentavos, discountCentavos },
       };
-    const commissionCentavos =
-      referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
+    const hasReferrer =
+      referral !== null &&
+      referral.code !== "FOUNDING" &&
+      (referral.code === "FOUNDING-AHRON" ||
+        referral.referrerCode !== undefined ||
+        referral.referrerLabel !== undefined);
+    const commissionCentavos = hasReferrer ? calculateCommissionCentavos(cardPriceCentavos) : 0;
     const orderId = await ctx.db.insert("cardOrders", {
       scope: customer.scope,
       customerId: customer._id,
@@ -240,19 +281,32 @@ export const placeOrder = mutation({
           : { qrUploadId: selectedPayment.qrUploadId }),
       },
       referralCodeId: referral?._id,
-      referralSnapshot:
-        referral === null
+      offerId: offer?._id,
+      offerSnapshot:
+        offer === null
           ? undefined
-          : { code: referral.code, referrerLabel: referral.referrerLabel },
+          : { code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos },
+      referralSnapshot:
+        referral === null || !hasReferrer
+          ? undefined
+          : {
+              code: referral.code,
+              referrerLabel:
+                referral.code === "FOUNDING-AHRON"
+                  ? (referral.referrerLabel ?? "Ahron")
+                  : (referral.referrerLabel ?? referral.referrerCode ?? referral.code),
+            },
       paymentStatus: "unpaid",
       fulfillmentStatus: "awaiting_shipping_quote",
-      commissionStatus: referral === null ? "none" : "pending",
+      commissionStatus: hasReferrer ? "pending" : "none",
       commissionCentavos,
       ...(referral === null ? {} : { usageCounted: true }),
+      ...(offer === null ? {} : { offerUsageCounted: true }),
       createdAt: now,
       updatedAt: now,
     });
-    if (referral !== null)
+    if (offer !== null) await ctx.db.patch(offer._id, { usageCount: offer.usageCount + 1 });
+    else if (referral !== null)
       await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
     if (designSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);

@@ -6,12 +6,7 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import { isLocalDemoMode } from "@/lib/demo/mode";
-import {
-  getDemoCardOrderAdminSettings,
-  getDemoCardOrderReferralCodeUsage,
-  saveDemoCardOrderReferralCode,
-  setDemoCardOrderReferralCodeActive,
-} from "@/lib/demo/card-ordering";
+import * as demoOrdering from "@/lib/demo/card-ordering";
 import { useDemoState } from "@/lib/demo/store";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { Button } from "@/components/ui/Button";
@@ -19,14 +14,20 @@ import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 
+type Offer = {
+  id: string;
+  code: string;
+  fixedPriceCentavos?: number;
+  usageCount: number;
+  usageLimit?: number;
+};
 type Code = {
   id: string;
   code: string;
-  referrerLabel: string;
-  fixedPriceCentavos?: number;
-  usageLimit?: number;
+  referrerCode?: string;
+  referrerLabel?: string;
   active: boolean;
-  usageCount: number;
+  offer?: Offer;
 };
 type Usage = {
   date: number;
@@ -37,9 +38,19 @@ type Usage = {
   fulfillmentStatus: string;
   commissionStatus: string;
 };
+type OfferInput = { id?: string; code: string; fixedPriceCentavos?: number; usageLimit?: number };
+type AliasInput = {
+  id?: string;
+  code: string;
+  offerId?: string;
+  referrerCode?: string;
+  referrerLabel?: string;
+  active: boolean;
+};
 const pageSize = 20;
 const money = (centavos: number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(centavos / 100);
+const codePattern = /^[A-Z0-9_-]+$/;
 
 export function CodesManager() {
   return isLocalDemoMode() ? <DemoCodesManager /> : <LiveCodesManager />;
@@ -54,8 +65,10 @@ function CodesWorkspace({
   hasMore,
   loadMore,
   loading,
-  onSave,
+  onSaveAlias,
   onSetActive,
+  offers,
+  onSaveOffer,
 }: {
   codes: Code[];
   selectedId: string;
@@ -65,38 +78,24 @@ function CodesWorkspace({
   hasMore: boolean;
   loadMore: () => void;
   loading: boolean;
-  onSave: (input: {
-    id?: string;
-    code: string;
-    referrerLabel: string;
-    fixedPriceCentavos?: number;
-    usageLimit?: number;
-    active: boolean;
-  }) => Promise<void>;
+  onSaveAlias: (input: AliasInput) => Promise<void>;
   onSetActive: (id: string, active: boolean) => Promise<void>;
+  offers: Offer[];
+  onSaveOffer: (input: OfferInput) => Promise<void>;
 }) {
-  const [editId, setEditId] = useState("");
-  const [code, setCode] = useState("");
-  const [label, setLabel] = useState("");
+  const [aliasId, setAliasId] = useState("");
+  const [aliasCode, setAliasCode] = useState("");
+  const [referrerCode, setReferrerCode] = useState("");
+  const [referrerLabel, setReferrerLabel] = useState("");
+  const [offerId, setOfferId] = useState("");
+  const [active, setActive] = useState(true);
+  const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const [offerCode, setOfferCode] = useState("");
   const [price, setPrice] = useState("");
   const [usageLimit, setUsageLimit] = useState("");
-  const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const selected = codes.find((item) => item.id === selectedId);
-
-  function reset() {
-    setEditId("");
-    setCode("");
-    setLabel("");
-    setPrice("");
-    setUsageLimit("");
-    setActive(true);
-  }
-  function cancelEdit() {
-    reset();
-    setMessage({ tone: "success", text: "Editing cancelled." });
-  }
   async function run(action: () => Promise<void>, success: string) {
     setBusy(true);
     setMessage(null);
@@ -107,195 +106,296 @@ function CodesWorkspace({
     } catch (error) {
       setMessage({
         tone: "error",
-        text: error instanceof Error ? error.message : "Referral code could not be saved.",
+        text: error instanceof Error ? error.message : "Code could not be saved.",
       });
       return false;
     } finally {
       setBusy(false);
     }
   }
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  function resetAlias() {
+    setAliasId("");
+    setAliasCode("");
+    setReferrerCode("");
+    setReferrerLabel("");
+    setOfferId("");
+    setActive(true);
+  }
+  function startOffer(offer?: Offer) {
+    setEditingOffer(offer ?? null);
+    setOfferCode(offer?.code ?? "");
+    setPrice(offer?.fixedPriceCentavos === undefined ? "" : String(offer.fixedPriceCentavos / 100));
+    setUsageLimit(offer?.usageLimit === undefined ? "" : String(offer.usageLimit));
+  }
+  async function submitOffer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalized = code.trim().toUpperCase();
-    if (!/^[A-Z0-9_-]+$/.test(normalized)) {
+    const normalized = offerCode.trim().toUpperCase();
+    if (
+      !codePattern.test(normalized) ||
+      offers.some((item) => item.code === normalized && item.id !== editingOffer?.id)
+    ) {
       setMessage({
         tone: "error",
-        text: "Use letters, numbers, hyphens, or underscores in the code.",
+        text: "Use a unique offer code with letters, numbers, hyphens, or underscores.",
       });
       return;
     }
-    if (codes.some((item) => item.code.toUpperCase() === normalized && item.id !== editId)) {
-      setMessage({ tone: "error", text: "Referral code already exists." });
-      return;
-    }
-    const priceMatch = /^(\d+)(?:\.(\d{1,2}))?$/.exec(price);
-    const centavos =
+    const match = /^(\d+)(?:\.(\d{1,2}))?$/.exec(price);
+    const cents =
       price === ""
         ? undefined
-        : priceMatch
-          ? Number(priceMatch[1]) * 100 + Number((priceMatch[2] ?? "").padEnd(2, "0"))
+        : match
+          ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0"))
           : NaN;
-    if (
-      centavos !== undefined &&
-      (!Number.isSafeInteger(centavos) || centavos <= 0 || centavos > 59900)
-    ) {
+    if (cents !== undefined && (!Number.isSafeInteger(cents) || cents <= 0 || cents > 59900)) {
       setMessage({
         tone: "error",
         text: "Fixed price must be a positive whole-centavo amount no greater than ₱599.",
       });
       return;
     }
-    const parsedUsageLimit = usageLimit === "" ? undefined : Number(usageLimit);
-    if (
-      parsedUsageLimit !== undefined &&
-      (!Number.isSafeInteger(parsedUsageLimit) || parsedUsageLimit < 1)
-    ) {
+    const limit = usageLimit === "" ? undefined : Number(usageLimit);
+    if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1)) {
       setMessage({ tone: "error", text: "Usage limit must be a positive whole number." });
       return;
     }
-    const saved = await run(
-      () =>
-        onSave({
-          ...(editId ? { id: editId } : {}),
-          code: normalized,
-          referrerLabel: label.trim(),
-          fixedPriceCentavos: centavos,
-          usageLimit: parsedUsageLimit,
-          active,
-        }),
-      editId ? "Referral code updated." : "Referral code created.",
-    );
-    if (saved) reset();
+    if (
+      await run(
+        () =>
+          onSaveOffer({
+            ...(editingOffer ? { id: editingOffer.id } : {}),
+            code: normalized,
+            fixedPriceCentavos: cents,
+            usageLimit: limit,
+          }),
+        editingOffer ? "Offer updated." : "Offer created.",
+      )
+    )
+      startOffer();
   }
-
+  async function submitAlias(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const normalized = aliasCode.trim().toUpperCase();
+    if (!codePattern.test(normalized)) {
+      setMessage({
+        tone: "error",
+        text: "Use letters, numbers, hyphens, or underscores in the code.",
+      });
+      return;
+    }
+    if (codes.some((item) => item.code === normalized && item.id !== aliasId)) {
+      setMessage({ tone: "error", text: "Code already exists." });
+      return;
+    }
+    if (
+      await run(
+        () =>
+          onSaveAlias({
+            ...(aliasId ? { id: aliasId } : {}),
+            code: normalized,
+            ...(offerId ? { offerId } : {}),
+            ...(referrerCode.trim() ? { referrerCode: referrerCode.trim().toUpperCase() } : {}),
+            ...(referrerLabel.trim() ? { referrerLabel: referrerLabel.trim() } : {}),
+            active,
+          }),
+        aliasId ? "Code updated." : "Code created.",
+      )
+    )
+      resetAlias();
+  }
   return (
     <div className="flex min-w-0 flex-col gap-6 pt-2">
       <AdminPageHeader title="Codes" description="Manage codes and review their order usage." />
-      <Card>
-        <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={submit}>
+      <Card
+        title="Offers"
+        description="Offer pricing and usage limits are shared by every exact code mapped to that offer."
+      >
+        <div className="mt-4 grid gap-2">
+          {offers.map((offer) => (
+            <section className="rounded-card bg-tapit-paper/60 p-3" key={offer.id}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-tapit-ink">{offer.code}</h3>
+                  <p className="text-sm text-tapit-muted">
+                    {offer.fixedPriceCentavos === undefined
+                      ? "10% off"
+                      : money(offer.fixedPriceCentavos)}{" "}
+                    ·{" "}
+                    {offer.usageLimit === undefined
+                      ? `${offer.usageCount} uses · unlimited`
+                      : `${offer.usageCount} of ${offer.usageLimit} uses · ${Math.max(0, offer.usageLimit - offer.usageCount)} remaining`}
+                  </p>
+                  <p className="mt-1 text-sm text-tapit-muted">
+                    Codes:{" "}
+                    {codes
+                      .filter((code) => code.offer?.id === offer.id)
+                      .map((code) => code.code)
+                      .join(", ") || "None"}
+                  </p>
+                </div>
+                <Button
+                  disabled={busy}
+                  onClick={() => startOffer(offer)}
+                  type="button"
+                  variant="secondary"
+                >
+                  Edit offer
+                </Button>
+              </div>
+              {editingOffer?.id === offer.id ? (
+                <OfferForm
+                  {...{
+                    busy,
+                    offerCode,
+                    setOfferCode,
+                    price,
+                    setPrice,
+                    usageLimit,
+                    setUsageLimit,
+                    onSubmit: submitOffer,
+                    onCancel: () => startOffer(),
+                  }}
+                />
+              ) : null}
+            </section>
+          ))}
+          {offers.length === 0 ? (
+            <p className="text-sm text-tapit-muted">No offers configured.</p>
+          ) : null}
+        </div>
+        {!editingOffer ? (
+          <OfferForm
+            {...{
+              busy,
+              offerCode,
+              setOfferCode,
+              price,
+              setPrice,
+              usageLimit,
+              setUsageLimit,
+              onSubmit: submitOffer,
+              onCancel: undefined,
+            }}
+          />
+        ) : null}
+      </Card>
+      <Card title="Exact codes">
+        <form className="mt-2 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={submitAlias}>
           <Field
             autoCapitalize="characters"
             disabled={busy}
             id="referral-code"
             label="Referral code"
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="PARTNER10"
+            onChange={(e) => setAliasCode(e.target.value)}
+            placeholder="FOUNDING-AHRON"
             required
-            value={code}
+            value={aliasCode}
+          />
+          <label className="grid gap-1 text-sm font-medium text-tapit-ink">
+            Offer (optional)
+            <select
+              className="min-h-11 rounded-control bg-tapit-soft-surface px-4 py-3 text-sm"
+              disabled={busy}
+              value={offerId}
+              onChange={(e) => setOfferId(e.target.value)}
+            >
+              <option value="">No offer</option>
+              {offers.map((offer) => (
+                <option key={offer.id} value={offer.id}>
+                  {offer.code}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Field
+            disabled={busy}
+            id="referrer-code"
+            label="Referrer key (optional)"
+            onChange={(e) => setReferrerCode(e.target.value)}
+            placeholder="AHRON"
+            value={referrerCode}
           />
           <Field
+            disabled={busy}
             id="referrer-label"
-            label="Referrer label"
-            disabled={busy}
-            onChange={(event) => setLabel(event.target.value)}
-            placeholder="Studio Santos"
-            required
-            value={label}
-          />
-          <Field
-            id="referral-fixed-price"
-            label="Fixed card price (₱, optional)"
-            disabled={busy}
-            min="0.01"
-            max="599"
-            onChange={(event) => setPrice(event.target.value)}
-            placeholder="Blank for 10% off"
-            step="0.01"
-            type="number"
-            value={price}
-          />
-          <Field
-            disabled={busy}
-            id="referral-usage-limit"
-            label="Usage limit (orders, optional)"
-            min={1}
-            onChange={(event) => setUsageLimit(event.target.value)}
-            step={1}
-            type="number"
-            value={usageLimit}
+            label="Referrer label (optional)"
+            onChange={(e) => setReferrerLabel(e.target.value)}
+            placeholder="Ahron"
+            value={referrerLabel}
           />
           <label className="flex items-center gap-2 text-sm font-medium text-tapit-ink">
             <input
               checked={active}
-              onChange={(event) => setActive(event.target.checked)}
               disabled={busy}
+              onChange={(e) => setActive(e.target.checked)}
               type="checkbox"
             />{" "}
             Active
           </label>
           <div className="flex gap-3 sm:col-span-2">
             <Button disabled={busy} type="submit">
-              {editId ? "Save code" : "Create code"}
+              {aliasId ? "Save code" : "Create code"}
             </Button>
-            {editId ? (
-              <Button disabled={busy} onClick={cancelEdit} type="button" variant="secondary">
+            {aliasId ? (
+              <Button disabled={busy} onClick={resetAlias} type="button" variant="secondary">
                 Cancel
               </Button>
             ) : null}
           </div>
         </form>
         <div className="mt-4 grid gap-2">
-          {codes.length ? (
-            codes.map((item) => (
-              <div
-                className={`flex flex-wrap items-center gap-3 rounded-card p-3 ${item.id === selectedId ? "bg-tapit-accent-soft" : "bg-tapit-paper/60"}`}
-                key={item.id}
+          {codes.map((item) => (
+            <div
+              className={`flex flex-wrap items-center gap-3 rounded-card p-3 ${item.id === selectedId ? "bg-tapit-accent-soft" : "bg-tapit-paper/60"}`}
+              key={item.id}
+            >
+              <button
+                className="min-w-40 grow text-left"
+                onClick={() => onSelect(item.id)}
+                type="button"
               >
-                <button
-                  className="min-w-40 grow text-left"
-                  onClick={() => onSelect(item.id)}
-                  type="button"
-                >
-                  <span className="font-semibold text-tapit-ink">{item.code}</span>
-                  <span className="ml-2 text-sm text-tapit-muted">
-                    {item.referrerLabel} · {item.active ? "Active" : "Inactive"} ·{" "}
-                    {item.fixedPriceCentavos === undefined
-                      ? "10% off"
-                      : money(item.fixedPriceCentavos)}{" "}
-                    ·{" "}
-                    {item.usageLimit === undefined
-                      ? `${item.usageCount} uses · unlimited`
-                      : `${item.usageCount} of ${item.usageLimit} uses · ${Math.max(0, item.usageLimit - item.usageCount)} remaining`}
-                  </span>
-                </button>
-                <Button
-                  disabled={busy}
-                  onClick={() => {
-                    onSelect(item.id);
-                    setEditId(item.id);
-                    setCode(item.code);
-                    setLabel(item.referrerLabel);
-                    setPrice(
-                      item.fixedPriceCentavos === undefined
-                        ? ""
-                        : String(item.fixedPriceCentavos / 100),
-                    );
-                    setUsageLimit(item.usageLimit === undefined ? "" : String(item.usageLimit));
-                    setActive(item.active);
-                  }}
-                  type="button"
-                  variant="secondary"
-                >
-                  Edit
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void run(
-                      () => onSetActive(item.id, !item.active),
-                      item.active ? "Referral code deactivated." : "Referral code activated.",
-                    )
-                  }
-                  type="button"
-                  variant="quiet"
-                >
-                  {item.active ? "Deactivate" : "Activate"}
-                </Button>
-              </div>
-            ))
-          ) : (
+                <span className="font-semibold text-tapit-ink">{item.code}</span>
+                <span className="ml-2 text-sm text-tapit-muted">
+                  {item.offer?.code ? `→ ${item.offer.code} · ` : ""}
+                  {item.referrerLabel ??
+                    item.referrerCode ??
+                    (item.offer ? "Offer only" : "Referral only")}{" "}
+                  · {item.active ? "Active" : "Inactive"}
+                </span>
+              </button>
+              <Button
+                disabled={busy}
+                onClick={() => {
+                  setAliasId(item.id);
+                  setAliasCode(item.code);
+                  setOfferId(item.offer?.id ?? "");
+                  setReferrerCode(item.referrerCode ?? "");
+                  setReferrerLabel(item.referrerLabel ?? "");
+                  setActive(item.active);
+                }}
+                type="button"
+                variant="secondary"
+              >
+                Edit
+              </Button>
+              <Button
+                disabled={busy}
+                onClick={() =>
+                  void run(
+                    () => onSetActive(item.id, !item.active),
+                    item.active ? "Referral code deactivated." : "Referral code activated.",
+                  )
+                }
+                type="button"
+                variant="quiet"
+              >
+                {item.active ? "Deactivate" : "Activate"}
+              </Button>
+            </div>
+          ))}
+          {codes.length === 0 ? (
             <p className="text-sm text-tapit-muted">No referral codes configured.</p>
-          )}
+          ) : null}
         </div>
       </Card>
       {selected ? (
@@ -364,90 +464,207 @@ function CodesWorkspace({
   );
 }
 
+function OfferForm({
+  busy,
+  offerCode,
+  setOfferCode,
+  price,
+  setPrice,
+  usageLimit,
+  setUsageLimit,
+  onSubmit,
+  onCancel,
+}: {
+  busy: boolean;
+  offerCode: string;
+  setOfferCode: (v: string) => void;
+  price: string;
+  setPrice: (v: string) => void;
+  usageLimit: string;
+  setUsageLimit: (v: string) => void;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  onCancel?: () => void;
+}) {
+  return (
+    <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={onSubmit}>
+      <Field
+        disabled={busy}
+        id="offer-code"
+        label="Offer code"
+        onChange={(e) => setOfferCode(e.target.value)}
+        placeholder="FOUNDING"
+        required
+        value={offerCode}
+      />
+      <Field
+        disabled={busy}
+        id="offer-price"
+        label="Fixed card price (₱, optional)"
+        max="599"
+        min="0.01"
+        onChange={(e) => setPrice(e.target.value)}
+        placeholder="Blank for 10% off"
+        step="0.01"
+        type="number"
+        value={price}
+      />
+      <Field
+        disabled={busy}
+        id="offer-limit"
+        label="Usage limit (orders, optional)"
+        min={1}
+        onChange={(e) => setUsageLimit(e.target.value)}
+        step={1}
+        type="number"
+        value={usageLimit}
+      />
+      <div className="flex gap-3">
+        <Button disabled={busy} type="submit">
+          Save offer
+        </Button>
+        {onCancel ? (
+          <Button disabled={busy} onClick={onCancel} type="button" variant="secondary">
+            Cancel
+          </Button>
+        ) : null}
+      </div>
+    </form>
+  );
+}
+
 function DemoCodesManager() {
   useDemoState();
-  const settings = getDemoCardOrderAdminSettings();
+  const settings = demoOrdering.getDemoCardOrderAdminSettings();
   const [selectedId, setSelectedId] = useState("");
   const [cursor, setCursor] = useState<string | null>(null);
   const [usage, setUsage] = useState<Usage[]>([]);
   const [loadedMore, setLoadedMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const firstPage = selectedId
-    ? getDemoCardOrderReferralCodeUsage(selectedId, { numItems: pageSize, cursor: null })
+    ? demoOrdering.getDemoCardOrderReferralCodeUsage(selectedId, {
+        numItems: pageSize,
+        cursor: null,
+      })
     : null;
-  function selectCode(id: string) {
-    if (id === selectedId) return;
+  const codes: Code[] = settings.referralCodes.map(
+    ({ id, code, referrerCode, referrerLabel, active, offer }) => ({
+      id,
+      code,
+      referrerCode,
+      referrerLabel,
+      active,
+      ...(offer
+        ? {
+            offer: {
+              id: offer.id,
+              code: offer.code,
+              fixedPriceCentavos: offer.fixedPriceCentavos,
+              usageCount: offer.usageCount,
+              usageLimit: offer.usageLimit,
+            },
+          }
+        : {}),
+    }),
+  );
+  const offers: Offer[] = settings.offers.map(
+    ({ id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+      id,
+      code,
+      fixedPriceCentavos,
+      usageCount,
+      usageLimit,
+    }),
+  );
+  const saveOffer = demoOrdering.saveDemoCardOrderOffer;
+  const saveAlias = demoOrdering.saveDemoCardOrderReferralCode;
+  function select(id: string) {
     setSelectedId(id);
     setCursor(null);
     setUsage([]);
     setLoadedMore(false);
     setHasMore(false);
   }
-  const codes: Code[] = settings.referralCodes.map(
-    ({ id, code, referrerLabel, fixedPriceCentavos, usageLimit, active, usageCount }) => ({
-      id,
-      code,
-      referrerLabel,
-      fixedPriceCentavos,
-      usageLimit,
-      active,
-      usageCount,
-    }),
-  );
   return (
     <CodesWorkspace
       codes={codes}
+      offers={offers}
       selectedId={selectedId}
-      onSelect={selectCode}
+      onSelect={select}
       usage={[...(firstPage?.page ?? []), ...usage]}
       usageCodeId={selectedId}
       hasMore={loadedMore ? hasMore : Boolean(firstPage && !firstPage.isDone)}
       loading={false}
       loadMore={() => {
-        const result = getDemoCardOrderReferralCodeUsage(selectedId, {
+        const result = demoOrdering.getDemoCardOrderReferralCodeUsage(selectedId, {
           numItems: pageSize,
           cursor: cursor ?? firstPage?.continueCursor ?? null,
         });
-        setUsage((previous) => [...previous, ...result.page]);
+        setUsage((old) => [...old, ...result.page]);
         setLoadedMore(true);
         setHasMore(!result.isDone);
         setCursor(result.continueCursor || null);
       }}
-      onSave={async (input) => {
-        const id = await saveDemoCardOrderReferralCode({ ...input });
-        selectCode(id);
+      onSaveOffer={async (input) => {
+        await saveOffer(input);
       }}
-      onSetActive={setDemoCardOrderReferralCodeActive}
+      onSaveAlias={async (input) => {
+        select(await saveAlias(input));
+      }}
+      onSetActive={async (id, value) => {
+        await demoOrdering.setDemoCardOrderReferralCodeActive(id, value);
+      }}
     />
   );
 }
 
 function LiveCodesManager() {
-  const codesResult = useQuery(api.cardOrderSettings.adminReferralCodes, {});
+  const result = useQuery(api.cardOrderSettings.adminReferralCodes, {});
+  const offersResult = useQuery(api.cardOrderSettings.adminCardOrderOffers, {});
   const backfill = useMutation(api.cardOrderSettings.startReferralUsageBackfill);
-  const save = useMutation(api.cardOrderSettings.saveReferralCode);
+  const saveAlias = useMutation(api.cardOrderSettings.saveReferralCode);
+  const saveOffer = useMutation(api.cardOrderSettings.saveCardOrderOffer);
   const deactivate = useMutation(api.cardOrderSettings.deactivateReferralCode);
   const activate = useMutation(api.cardOrderSettings.activateReferralCode);
   const [selectedId, setSelectedId] = useState<Id<"cardOrderReferralCodes"> | null>(null);
-  const backfillStarted = useRef(false);
+  const started = useRef(false);
   useEffect(() => {
-    if (backfillStarted.current) return;
-    backfillStarted.current = true;
-    void backfill({});
+    if (!started.current) {
+      started.current = true;
+      void backfill({});
+    }
   }, [backfill]);
   const page = usePaginatedQuery(
     api.cardOrderSettings.adminReferralCodeUsage,
     selectedId ? { codeId: selectedId } : "skip",
     { initialNumItems: pageSize },
   );
-  const codes: Code[] = (codesResult ?? []).map(({ _id, ...item }) => ({ id: _id, ...item }));
-  return codesResult === undefined ? (
+  const offers: Offer[] = (offersResult ?? []).map(
+    ({ _id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+      id: _id,
+      code,
+      fixedPriceCentavos,
+      usageCount,
+      usageLimit,
+    }),
+  );
+  const codes: Code[] = (result ?? []).map(
+    ({ _id, offerId, code, referrerCode, referrerLabel, active }) => ({
+      id: _id,
+      code,
+      referrerCode,
+      referrerLabel,
+      active,
+      ...(offerId ? { offer: offers.find((item) => item.id === offerId) } : {}),
+    }),
+  );
+  return result === undefined || offersResult === undefined ? (
     <div className="pt-2">
       <Notice>Loading referral codes…</Notice>
     </div>
   ) : (
     <CodesWorkspace
       codes={codes}
+      offers={offers}
       selectedId={selectedId ?? ""}
       onSelect={(id) => setSelectedId(id as Id<"cardOrderReferralCodes">)}
       usage={(page.results ?? []) as Usage[]}
@@ -455,13 +672,21 @@ function LiveCodesManager() {
       hasMore={page.status === "CanLoadMore"}
       loading={page.status === "LoadingFirstPage" || page.status === "LoadingMore"}
       loadMore={() => page.loadMore(pageSize)}
-      onSave={async (input) => {
-        const id = await save({
-          ...(input.id ? { id: input.id as Id<"cardOrderReferralCodes"> } : {}),
+      onSaveOffer={async (input) => {
+        await saveOffer({
+          ...(input.id ? { id: input.id as Id<"cardOrderOffers"> } : {}),
           code: input.code,
-          referrerLabel: input.referrerLabel,
           fixedPriceCentavos: input.fixedPriceCentavos,
           usageLimit: input.usageLimit,
+        });
+      }}
+      onSaveAlias={async (input) => {
+        const id = await saveAlias({
+          ...(input.id ? { id: input.id as Id<"cardOrderReferralCodes"> } : {}),
+          code: input.code,
+          ...(input.offerId ? { offerId: input.offerId as Id<"cardOrderOffers"> } : {}),
+          referrerCode: input.referrerCode,
+          referrerLabel: input.referrerLabel,
           active: input.active,
         });
         setSelectedId(id);

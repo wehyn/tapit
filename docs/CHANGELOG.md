@@ -4,10 +4,11 @@
 
 - Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.
 
-## 2026-10-28 — Card-order code usage limits and admin copy
+## 2026-10-28 — Card-order offers, usage limits, and admin copy
 
-- Admins can configure optional order-use caps for combined discount and referral codes. The Codes page shows uses consumed and remaining, and its copy now describes codes more generally.
-- Convex and local demo checkout enforce the same cap, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
+- Admins configure offer pricing and shared order-use caps separately from referrer attribution. Exact aliases such as `FOUNDING` and `FOUNDING-AHRON` share one offer without parsing code strings.
+- The Codes page shows each offer once, its uses consumed and remaining, and each alias's explicit offer/referrer mapping. Its copy describes codes generally.
+- Convex and local demo checkout enforce the same shared caps, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
 
 ## 2026-10-28 — Cardless customer limits
 

@@ -69,10 +69,25 @@ export type DemoCardOrderPaymentMethod = {
 export type DemoCardOrderReferralCode = {
   id: string;
   code: string;
-  referrerLabel: string;
+  offerId?: string | null;
+  referrerCode?: string | null;
+  referrerLabel?: string;
+  /** Legacy standalone codes keep their own pricing and usage until explicitly mapped. */
   fixedPriceCentavos?: number;
+  usageCount?: number;
   usageLimit?: number;
   active: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DemoCardOrderOffer = {
+  id: string;
+  code: string;
+  scope: "demo";
+  fixedPriceCentavos?: number;
+  usageCount?: number;
+  usageLimit?: number;
   createdAt: number;
   updatedAt: number;
 };
@@ -109,6 +124,8 @@ export type DemoCardOrder = {
   };
   referralCodeId?: string;
   referralSnapshot?: { code: string; referrerLabel: string };
+  offerId?: string;
+  offerSnapshot?: { code: string; fixedPriceCentavos?: number };
   paymentStatus: "unpaid" | "received" | "refunded";
   fulfillmentStatus:
     "awaiting_shipping_quote" | "awaiting_payment" | "processing" | "delivered" | "cancelled";
@@ -146,6 +163,7 @@ export type DemoState = {
   cardOrderLaunchEndDate: CardOrderLaunchEndDate | null;
   cardOrderPaymentMethods: DemoCardOrderPaymentMethod[];
   cardOrderReferralCodes: DemoCardOrderReferralCode[];
+  cardOrderOffers: DemoCardOrderOffer[];
   cardOrders: DemoCardOrder[];
   analytics: AnalyticsBucket[];
   audits: DemoAuditEvent[];
@@ -310,6 +328,7 @@ export function createDefaultDemoState(): DemoState {
     cardOrderLaunchEndDate: null,
     cardOrderPaymentMethods: [],
     cardOrderReferralCodes: [],
+    cardOrderOffers: [],
     cardOrders: [],
     analytics: [
       {

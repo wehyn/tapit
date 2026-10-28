@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
@@ -20,6 +20,8 @@ import {
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
 const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
 const REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS = 5 * 60 * 1000;
+const OFFER_USAGE_BACKFILL_KEY = "cardOrderOfferUsageBackfillStarted";
+const FOUNDING_USAGE_VERIFIED = "completed:founding=5";
 const paymentFields = v.object({
   provider: v.string(),
   label: v.string(),
@@ -115,8 +117,18 @@ export const adminReferralCodes = query({
     v.object({
       _id: v.id("cardOrderReferralCodes"),
       code: v.string(),
-      referrerLabel: v.string(),
-      fixedPriceCentavos: v.optional(v.number()),
+      referrerCode: v.optional(v.string()),
+      referrerLabel: v.optional(v.string()),
+      offerId: v.optional(v.id("cardOrderOffers")),
+      offer: v.optional(
+        v.object({
+          _id: v.id("cardOrderOffers"),
+          code: v.string(),
+          fixedPriceCentavos: v.optional(v.number()),
+          usageCount: v.number(),
+          usageLimit: v.optional(v.number()),
+        }),
+      ),
       active: v.boolean(),
       usageCount: v.number(),
       usageLimit: v.optional(v.number()),
@@ -128,17 +140,70 @@ export const adminReferralCodes = query({
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
       .take(500);
-    return codes.map(
-      ({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount, usageLimit }) => ({
-        _id,
-        code,
-        referrerLabel,
-        fixedPriceCentavos,
-        active,
-        usageCount: usageCount ?? 0,
-        usageLimit,
-      }),
+    return Promise.all(
+      codes.map(
+        async ({
+          _id,
+          code,
+          referrerCode,
+          referrerLabel,
+          offerId,
+          active,
+          usageCount,
+          usageLimit,
+        }) => {
+          const offer = offerId === undefined ? null : await ctx.db.get(offerId);
+          return {
+            _id,
+            code,
+            referrerCode,
+            ...(referrerLabel === undefined ? {} : { referrerLabel }),
+            ...(offerId === undefined ? {} : { offerId }),
+            active,
+            usageCount: usageCount ?? 0,
+            ...(usageLimit === undefined ? {} : { usageLimit }),
+            ...(offer === null || !sameScope(account, offer)
+              ? {}
+              : {
+                  offer: {
+                    _id: offer._id,
+                    code: offer.code,
+                    fixedPriceCentavos: offer.fixedPriceCentavos,
+                    usageCount: offer.usageCount,
+                    usageLimit: offer.usageLimit,
+                  },
+                }),
+          };
+        },
+      ),
     );
+  },
+});
+
+export const adminCardOrderOffers = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      _id: v.id("cardOrderOffers"),
+      code: v.string(),
+      fixedPriceCentavos: v.optional(v.number()),
+      usageCount: v.number(),
+      usageLimit: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx) => {
+    const { account } = await requireAdministrator(ctx);
+    const offers = await ctx.db
+      .query("cardOrderOffers")
+      .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope))
+      .take(500);
+    return offers.map(({ _id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
+      _id,
+      code,
+      ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
+      usageCount,
+      ...(usageLimit === undefined ? {} : { usageLimit }),
+    }));
   },
 });
 
@@ -154,27 +219,94 @@ export const startReferralUsageBackfill = mutation({
       )
       .first();
     const now = Date.now();
-    if (existing?.value === "completed") return null;
+    const offerMarker = await ctx.db
+      .query("settings")
+      .withIndex("by_scope_and_key", (q) =>
+        q.eq("scope", account.scope).eq("key", OFFER_USAGE_BACKFILL_KEY),
+      )
+      .first();
+    const foundingOffer = await ctx.db
+      .query("cardOrderOffers")
+      .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope).eq("code", "FOUNDING"))
+      .first();
+    const foundingVerified = offerMarker?.value === FOUNDING_USAGE_VERIFIED;
+    const noFoundingOffer =
+      offerMarker?.value === "completed:no-founding" && foundingOffer === null;
     // Five minutes without a page heartbeat is treated as a stalled backfill.
-    if (
-      existing?.value === "running" &&
-      now - existing.updatedAt <= REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS
-    )
-      return null;
-    if (existing === null) {
-      await ctx.db.insert("settings", {
+    const runningIsFresh = (marker: typeof existing) =>
+      marker?.value === "running" &&
+      now - marker.updatedAt <= REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS;
+    if (existing?.value === "completed" && (foundingVerified || noFoundingOffer)) return null;
+    if (runningIsFresh(existing) || runningIsFresh(offerMarker)) return null;
+    const startMarker = async (marker: typeof existing, key: string) =>
+      marker === null
+        ? await ctx.db.insert("settings", {
+            scope: account.scope,
+            key,
+            value: "running",
+            updatedAt: now,
+            updatedByUserId: userId,
+          })
+        : await ctx.db.patch(marker._id, {
+            value: "running",
+            updatedAt: now,
+            updatedByUserId: userId,
+          });
+    await startMarker(existing, REFERRAL_USAGE_BACKFILL_KEY);
+    await startMarker(offerMarker, OFFER_USAGE_BACKFILL_KEY);
+    const aliases = await ctx.db
+      .query("cardOrderReferralCodes")
+      .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
+      .take(500);
+    const hasFoundingAlias = aliases.some(
+      (alias) => alias.code === "FOUNDING" || alias.code === "FOUNDING-AHRON",
+    );
+    let offer = foundingOffer;
+    if (hasFoundingAlias && offer === null) {
+      const offerId = await ctx.db.insert("cardOrderOffers", {
         scope: account.scope,
-        key: REFERRAL_USAGE_BACKFILL_KEY,
-        value: "running",
+        code: "FOUNDING",
+        fixedPriceCentavos: 29_900,
+        usageCount: 0,
+        createdAt: now,
         updatedAt: now,
         updatedByUserId: userId,
       });
-    } else {
-      await ctx.db.patch(existing._id, {
-        value: "running",
-        updatedAt: now,
-        updatedByUserId: userId,
-      });
+      offer = await ctx.db.get(offerId);
+    }
+    if (!foundingVerified && offer !== null)
+      await ctx.db.patch(offer._id, { fixedPriceCentavos: 29_900, usageLimit: undefined });
+    for (const alias of aliases) {
+      if (alias.code === "FOUNDING" || alias.code === "FOUNDING-AHRON") {
+        if (offer === null) continue;
+        await ctx.db.patch(alias._id, {
+          offerId: offer._id,
+          referrerCode: alias.code === "FOUNDING-AHRON" ? "AHRON" : undefined,
+          referrerLabel:
+            alias.code === "FOUNDING-AHRON" ? (alias.referrerLabel ?? "Ahron") : undefined,
+          usageLimit: undefined,
+        });
+      } else if (alias.offerId === undefined) {
+        const existingOffer = await ctx.db
+          .query("cardOrderOffers")
+          .withIndex("by_scope_and_code", (q) =>
+            q.eq("scope", account.scope).eq("code", alias.code),
+          )
+          .first();
+        const offerId =
+          existingOffer?._id ??
+          (await ctx.db.insert("cardOrderOffers", {
+            scope: account.scope,
+            code: alias.code,
+            fixedPriceCentavos: alias.fixedPriceCentavos,
+            usageCount: 0,
+            usageLimit: alias.usageLimit,
+            createdAt: now,
+            updatedAt: now,
+            updatedByUserId: userId,
+          }));
+        await ctx.db.patch(alias._id, { offerId });
+      }
     }
     await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
       ...(account.scope === undefined ? {} : { scope: account.scope }),
@@ -298,18 +430,50 @@ export const previewReferral = query({
         )
         .first(),
     ]);
+    const foundingAlias = referral?.code === "FOUNDING" || referral?.code === "FOUNDING-AHRON";
+    const offer =
+      referral?.offerId !== undefined
+        ? await ctx.db.get(referral.offerId)
+        : foundingAlias
+          ? await ctx.db
+              .query("cardOrderOffers")
+              .withIndex("by_scope_and_code", (q) =>
+                q.eq("scope", customer.scope).eq("code", "FOUNDING"),
+              )
+              .first()
+          : null;
+    const offerAvailable =
+      referral?.offerId === undefined || (offer !== null && sameScope(customer, offer));
+    const offerBackfill =
+      offer === null && !foundingAlias
+        ? null
+        : await ctx.db
+            .query("settings")
+            .withIndex("by_scope_and_key", (q) =>
+              q.eq("scope", customer.scope).eq("key", OFFER_USAGE_BACKFILL_KEY),
+            )
+            .first();
     const valid =
       date !== null &&
       Number.isFinite(args.currentTime) &&
       referral?.active === true &&
-      (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
+      offerAvailable &&
+      (!(foundingAlias || offer?.code === "FOUNDING") ||
+        offerBackfill?.value === FOUNDING_USAGE_VERIFIED) &&
+      (offer === null
+        ? referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit
+        : offerBackfill?.value.startsWith("completed:") !== true ||
+          (foundingAlias && offerBackfill.value !== FOUNDING_USAGE_VERIFIED) ||
+          (offer.code === "FOUNDING" && offerBackfill.value !== FOUNDING_USAGE_VERIFIED) ||
+          offer.usageLimit === undefined ||
+          offer.usageCount < offer.usageLimit) &&
       prior === null;
     return {
       valid,
       discountCentavos: valid
         ? calculateReferralDiscountForPriceCentavos(
             getCardPriceCentavos(date, args.currentTime),
-            referral.fixedPriceCentavos,
+            offer === null ? referral.fixedPriceCentavos : offer.fixedPriceCentavos,
           )
         : 0,
     };
@@ -429,7 +593,9 @@ export const saveReferralCode = mutation({
   args: {
     id: v.optional(v.id("cardOrderReferralCodes")),
     code: v.string(),
-    referrerLabel: v.string(),
+    referrerLabel: v.optional(v.string()),
+    referrerCode: v.optional(v.string()),
+    offerId: v.optional(v.id("cardOrderOffers")),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
     usageLimit: v.optional(v.number()),
@@ -445,15 +611,46 @@ export const saveReferralCode = mutation({
         )
         .first();
       if (backfill?.value !== "completed")
-        throw new Error("Referral usage backfill must complete before setting a usage limit.");
+        throw new ConvexError(
+          "Usage limits are unavailable until historical order usage has been counted. Please wait and try again.",
+        );
     }
     const existing = args.id === undefined ? null : await ctx.db.get(args.id);
     if (args.id !== undefined && (existing === null || !sameScope(account, existing)))
       throw new Error("Referral code unavailable.");
+    const linkedOffer = args.offerId === undefined ? null : await ctx.db.get(args.offerId);
+    if (args.offerId !== undefined && (linkedOffer === null || !sameScope(account, linkedOffer)))
+      throw new Error("Offer unavailable.");
     const code = requiredText(args.code, "Referral code", 40).toUpperCase();
     if (!/^[A-Z0-9_-]+$/.test(code))
       throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
-    const referrerLabel = requiredText(args.referrerLabel, "Referrer label", 120);
+    if (
+      args.usageLimit !== undefined &&
+      (code === "FOUNDING" ||
+        code === "FOUNDING-AHRON" ||
+        existing?.code === "FOUNDING" ||
+        existing?.code === "FOUNDING-AHRON")
+    ) {
+      const offerBackfill = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", account.scope).eq("key", OFFER_USAGE_BACKFILL_KEY),
+        )
+        .first();
+      if (offerBackfill?.value !== FOUNDING_USAGE_VERIFIED)
+        throw new ConvexError(
+          "Usage limits are unavailable until historical order usage has been counted. Please wait and try again.",
+        );
+    }
+    const referrerLabel =
+      args.referrerLabel === undefined
+        ? undefined
+        : requiredText(args.referrerLabel, "Referrer label", 120);
+    const preserveLegacyPricing = existing?.offerId === undefined && args.offerId === undefined;
+    const fixedPriceCentavos =
+      args.fixedPriceCentavos ?? (preserveLegacyPricing ? existing?.fixedPriceCentavos : undefined);
+    const usageLimit =
+      args.usageLimit ?? (preserveLegacyPricing ? existing?.usageLimit : undefined);
     if (
       args.fixedPriceCentavos !== undefined &&
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
@@ -477,9 +674,11 @@ export const saveReferralCode = mutation({
             scope: account.scope,
             code,
             referrerLabel,
-            fixedPriceCentavos: args.fixedPriceCentavos,
+            referrerCode: args.referrerCode,
+            offerId: args.offerId,
+            fixedPriceCentavos,
             active: args.active,
-            usageLimit: args.usageLimit,
+            usageLimit,
             createdAt: now,
             updatedAt: now,
             updatedByUserId: userId,
@@ -489,9 +688,11 @@ export const saveReferralCode = mutation({
       await ctx.db.patch(id, {
         code,
         referrerLabel,
-        fixedPriceCentavos: args.fixedPriceCentavos,
+        referrerCode: args.referrerCode,
+        offerId: args.offerId,
+        fixedPriceCentavos,
         active: args.active,
-        usageLimit: args.usageLimit,
+        usageLimit,
         updatedAt: now,
         updatedByUserId: userId,
       });
@@ -506,13 +707,93 @@ export const saveReferralCode = mutation({
       after: JSON.stringify({
         id,
         code,
+        offerId: args.offerId,
+        referrerCode: args.referrerCode,
         referrerLabel,
-        fixedPriceCentavos: args.fixedPriceCentavos,
+        fixedPriceCentavos,
         active: args.active,
-        usageLimit: args.usageLimit,
+        usageLimit,
       }),
     });
     return id;
+  },
+});
+
+export const saveCardOrderOffer = mutation({
+  args: {
+    id: v.optional(v.id("cardOrderOffers")),
+    code: v.string(),
+    fixedPriceCentavos: v.optional(v.number()),
+    usageLimit: v.optional(v.number()),
+  },
+  returns: v.id("cardOrderOffers"),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const code = requiredText(args.code, "Offer code", 40).toUpperCase();
+    if (!/^[A-Z0-9_-]+$/.test(code))
+      throw new Error("Offer code may contain letters, numbers, hyphens, and underscores only.");
+    if (
+      args.fixedPriceCentavos !== undefined &&
+      !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
+    )
+      throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+    if (
+      args.usageLimit !== undefined &&
+      (!Number.isSafeInteger(args.usageLimit) || args.usageLimit <= 0)
+    )
+      throw new Error("Usage limit must be a positive safe integer.");
+    const existing = args.id === undefined ? null : await ctx.db.get(args.id);
+    if (args.id !== undefined && (existing === null || !sameScope(account, existing)))
+      throw new Error("Offer unavailable.");
+    if (args.usageLimit !== undefined) {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", account.scope).eq("key", "cardOrderOfferUsageBackfillStarted"),
+        )
+        .first();
+      if (!marker?.value?.startsWith("completed:"))
+        throw new ConvexError(
+          marker?.value?.startsWith("error:")
+            ? `${marker.value} Correct the historical orders/aliases and restart the backfill from Codes.`
+            : "Offer usage backfill must complete before setting a usage limit. Open Codes and wait for the backfill to finish.",
+        );
+      if (
+        (code === "FOUNDING" || existing?.code === "FOUNDING") &&
+        args.usageLimit !== undefined &&
+        marker?.value !== FOUNDING_USAGE_VERIFIED
+      )
+        throw new ConvexError(
+          marker?.value?.startsWith("completed:founding-error:")
+            ? `FOUNDING limit remains disabled: ${marker.value.slice("completed:founding-error:".length)} Correct historical orders/aliases and reload Codes to retry the backfill.`
+            : "FOUNDING limit remains disabled until the five historical uses are verified. Save the offer without a limit, then reload Codes to run the backfill.",
+        );
+    }
+    const collision = await ctx.db
+      .query("cardOrderOffers")
+      .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope).eq("code", code))
+      .first();
+    if (collision !== null && collision._id !== existing?._id)
+      throw new Error("Offer code already exists.");
+    const now = Date.now();
+    const { usageLimit } = args;
+    const value = {
+      code,
+      fixedPriceCentavos: args.fixedPriceCentavos,
+      usageLimit,
+      updatedAt: now,
+      updatedByUserId: userId,
+    };
+    if (existing !== null) {
+      await ctx.db.patch(existing._id, value);
+      return existing._id;
+    }
+    return await ctx.db.insert("cardOrderOffers", {
+      ...value,
+      scope: account.scope,
+      usageCount: 0,
+      createdAt: now,
+    });
   },
 });
 
