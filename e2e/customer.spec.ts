@@ -102,7 +102,7 @@ test("signing out saves the registered profile draft first", async ({ page }) =>
   expect(savedBio).toBe("Saved when signing out.");
 });
 
-test("desktop sidebar groups customer navigation and pins Account and Help", async ({ page }) => {
+test("desktop sidebar shows customer sections and Account and Help", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await resetDemoHarness(page);
   await signInAsCustomer(page);
@@ -115,16 +115,22 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
   await expect(
     navigation.getByRole("heading", { name: "Share & grow", exact: true }),
   ).toBeVisible();
+  await expect(
+    navigation.getByRole("heading", { name: "Account & help", exact: true }),
+  ).toBeVisible();
   for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+    await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  for (const label of ["Account", "Help"]) {
     await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(sidebar.getByText(/^(Live|Draft)$/)).toHaveCount(0);
   const accountMenu = sidebar.getByRole("button", { name: "Account menu for mara@example.test" });
   await expect(accountMenu).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeHidden();
+  const accountOptions = sidebar.getByRole("group", { name: "Account options" });
   await accountMenu.click();
-  await expect(sidebar.getByRole("link", { name: "Account", exact: true })).toBeVisible();
-  await expect(sidebar.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
+  await expect(accountOptions.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(accountOptions.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
     "href",
     /^mailto:/,
   );
@@ -145,7 +151,7 @@ test("desktop sidebar groups customer navigation and pins Account and Help", asy
     );
   }
   await accountMenu.click();
-  await sidebar.getByRole("link", { name: "Account", exact: true }).click();
+  await accountOptions.getByRole("link", { name: "Account", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/account$/);
 });
 
@@ -1048,8 +1054,9 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await island.getByRole("button", { name: /^Account menu for / }).click();
-  await expect(island.getByRole("link", { name: "Account", exact: true })).toBeVisible();
-  await expect(island.getByRole("link", { name: "Help", exact: true })).toBeVisible();
+  const accountOptions = island.getByRole("group", { name: "Account options" });
+  await expect(accountOptions.getByRole("link", { name: "Account", exact: true })).toBeVisible();
+  await expect(accountOptions.getByRole("link", { name: "Help", exact: true })).toBeVisible();
   await island.getByRole("button", { name: /^Account menu for / }).click();
   await expect(
     desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
@@ -3329,7 +3336,10 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   ).toBeVisible();
 
   await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("link", { name: "Account" }).click();
+  await page
+    .getByRole("group", { name: "Account options" })
+    .getByRole("link", { name: "Account" })
+    .click();
   await expect(page).toHaveURL(/\/app\/account$/);
   await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
   await expect

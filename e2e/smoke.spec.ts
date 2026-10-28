@@ -126,7 +126,10 @@ test("homepage profile CTAs preserve customer and admin destinations and start g
 test("homepage routes a stale inactive demo session to account recovery", async ({ page }) => {
   await signInAsCustomer(page);
   await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("link", { name: "Account" }).click();
+  await page
+    .getByRole("group", { name: "Account options" })
+    .getByRole("link", { name: "Account" })
+    .click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
   await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);
@@ -157,7 +160,10 @@ test("customer workspace routes a restricted demo session to account recovery", 
 }) => {
   await signInAsCustomer(page);
   await page.getByRole("button", { name: /^Account menu for / }).click();
-  await page.getByRole("link", { name: "Account" }).click();
+  await page
+    .getByRole("group", { name: "Account options" })
+    .getByRole("link", { name: "Account" })
+    .click();
   await page.getByRole("button", { name: "Request deletion" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Request deletion" }).click();
   await expect(page).toHaveURL(/\/login\?reason=account-inactive$/);

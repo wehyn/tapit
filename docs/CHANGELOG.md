@@ -8,6 +8,7 @@
 ## 2026-10-28 — Cardless customer limits
 
 - Customers can edit and publish before claiming a card, with up to three links and the Paper, Moss, or Night preset. Claiming a card with its one-time code unlocks fine-tuning, slideshow uploads, analytics, and card-owner tools. Profile photos and background images remain available before claiming.
+- Cardless customers can reach ordering and claiming from the Card section. Account and Help appear in both the sidebar and account menu.
 
 ## 2026-10-26 — Remove inert workspace search
 
