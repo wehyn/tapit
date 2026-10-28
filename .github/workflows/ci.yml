@@ -46,6 +46,7 @@ jobs:
         with:
           name: next-production-build
           path: .next
+          include-hidden-files: true
           retention-days: 1
 
   e2e:
