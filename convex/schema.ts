@@ -96,6 +96,7 @@ export default defineSchema({
     ),
     onboardingName: v.optional(v.string()),
     profileId: v.optional(v.id("profiles")),
+    cardOwnerAccessOverride: v.optional(v.boolean()),
     deletionStatus: v.union(v.literal("active"), v.literal("requested"), v.literal("deleted")),
     deletionRequestedAt: v.optional(v.number()),
     createdAt: v.number(),

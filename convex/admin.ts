@@ -67,6 +67,7 @@ export async function hasCardOwnerFeaturesForProfile(
   const profile = await ctx.db.get(profileId);
   if (profile === null || profile.ownerId !== account._id || !sameScope(account, profile))
     return false;
+  if (account.cardOwnerAccessOverride === true) return true;
   const cards = await ctx.db
     .query("cards")
     .withIndex("by_profileId", (query) => query.eq("profileId", profileId))
