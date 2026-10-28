@@ -36,11 +36,12 @@ export const navAudiences: Record<
   },
 };
 
-export const navSectionLabels: Record<Exclude<NavSection, "pinned">, string> = {
+export const navSectionLabels: Record<NavSection, string> = {
   "your-profile": "Your profile",
   "share-and-grow": "Share & grow",
   operations: "Operations",
   governance: "Governance",
+  pinned: "Account & help",
 };
 
 export const navItems: readonly NavItem[] = [
@@ -78,7 +79,6 @@ export const navItems: readonly NavItem[] = [
     audience: "customer",
     section: "share-and-grow",
     match: "prefix",
-    cardOwnerOnly: true,
     surfaces: ["sidebar", "more"],
   },
   {
@@ -200,11 +200,9 @@ export function navItemsFor(
 export function sidebarSectionsFor(
   audience: NavAudience,
   hasCardOwnerFeatures = true,
-): { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] {
-  const sections: { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] =
-    [];
+): { section: NavSection; label: string; items: NavItem[] }[] {
+  const sections: { section: NavSection; label: string; items: NavItem[] }[] = [];
   for (const item of navItemsFor(audience, "sidebar", hasCardOwnerFeatures)) {
-    if (item.section === "pinned") continue;
     const existing = sections.find((entry) => entry.section === item.section);
     if (existing) existing.items.push(item);
     else
