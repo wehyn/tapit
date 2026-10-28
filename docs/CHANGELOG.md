@@ -1,5 +1,10 @@
 # Change log
 
+## 2026-10-28 — Expiring promo offers and separate referral codes
+
+- Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.
+- Admins can set or clear a manual Manila expiry date for each offer. `LAUNCH` pricing now belongs to its offer, while ordering remains available at ₱799 after it expires; Settings no longer has the global launch cutoff.
+
 ## 2026-10-28 — Resettable Demo accounts
 
 - Administrators promote customers to Demo before promoting them to Administrator. Demo customers can reset their Tapit data and linked cards, then onboard again with the same sign-in identity; ordinary customer deletion is unchanged.

@@ -14,13 +14,13 @@ import { StatusChip } from "@/components/ui/Chip";
 import { Field, SelectField, TextareaField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
+import { Switch } from "@/components/ui/Switch";
 import {
+  CARD_REGULAR_PRICE_CENTAVOS,
   cardOrderAmountCentavos,
   type CardOrderPlacementResult,
   type CardOrderPrice,
   type Centavos,
-  getCardPriceCentavos,
-  manilaStartOfDayTimestamp,
 } from "@/lib/card-ordering";
 import { CARD_DESIGN_ACCEPT, validateCardOrderDesignFile } from "@/lib/card-design";
 import { requirePairedConvexSiteUrl } from "@/lib/convex-site-url";
@@ -28,7 +28,7 @@ import {
   getDemoCardOrderCustomerSettings,
   getMyDemoCardOrders,
   placeDemoCardOrder,
-  previewDemoCardOrderReferral,
+  previewDemoCardOrderCodes,
 } from "@/lib/demo/card-ordering";
 import { replaceDemoCardOrderAsset, saveDemoCardOrderAsset } from "@/lib/demo/card-order-assets";
 import {
@@ -56,7 +56,6 @@ type PaymentMethod = {
 };
 
 type OrderSettings = {
-  launchEndDate: string | null;
   paymentMethods: PaymentMethod[];
 };
 
@@ -98,6 +97,7 @@ type SideArtwork = {
 
 type PlaceOrderInput = {
   paymentMethodId: string;
+  promoCode?: string;
   referralCode?: string;
   design: OrderDesign;
   backDesign: OrderDesign;
@@ -115,16 +115,20 @@ type ArtworkUploadCache<Upload> = Partial<
   Record<DesignSide, { actorKey: string; file: File; source: Upload }>
 >;
 
-type ReferralResult =
-  | { kind: "valid"; discountCentavos: number }
-  | { kind: "invalid" }
-  | { kind: "error"; message: string };
-type ReferralState = { kind: "none" } | { kind: "checking" } | ReferralResult;
+type CodePreview = {
+  promoValid: boolean;
+  referralValid: boolean;
+  promoAdjustedPriceCentavos: number;
+  discountCentavos: number;
+};
+type CodePreviewState =
+  { kind: "checking" } | { kind: "error"; message: string } | ({ kind: "ready" } & CodePreview);
+type CodeValidity = "none" | "checking" | "valid" | "invalid" | "error";
 
 type QuoteState = { kind: "preview" } | { kind: "reconfirmed"; price: CardOrderPrice };
 
-function referralPreviewKey(code: string, currentTime: number) {
-  return `${code}|${currentTime}`;
+function codePreviewKey(promoCode: string, referralCode: string, currentTime: number) {
+  return `${promoCode}|${referralCode}|${currentTime}`;
 }
 
 /**
@@ -333,6 +337,7 @@ function LocalDemoOrderExperience() {
           if (!isCurrent()) throw staleSubmissionError();
           const outcome = await placeDemoCardOrder({
             paymentMethodId: input.paymentMethodId,
+            ...(input.promoCode ? { promoCode: input.promoCode } : {}),
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
             designSource,
             backDesignSource,
@@ -382,7 +387,6 @@ function LiveOrderExperience() {
     return <AccessMessage>An active Tapit account is required to order cards.</AccessMessage>;
 
   const normalizedSettings: OrderSettings | undefined = settings && {
-    launchEndDate: settings.launchEndDate,
     paymentMethods: settings.paymentMethods.map(({ _id, ...method }) => ({
       id: _id,
       ...method,
@@ -445,6 +449,7 @@ function LiveOrderExperience() {
           if (!isCurrent()) throw staleSubmissionError();
           const outcome = await placeOrder({
             paymentMethodId: input.paymentMethodId as Id<"cardOrderPaymentMethods">,
+            ...(input.promoCode ? { promoCode: input.promoCode } : {}),
             ...(input.referralCode ? { referralCode: input.referralCode } : {}),
             designSource,
             backDesignSource,
@@ -511,20 +516,22 @@ function CustomerOrderForm({
   const [deliveryPhone, setDeliveryPhone] = useState("");
   const [deliveryAddress, setDeliveryAddress] = useState("");
   const [paymentMethodId, setPaymentMethodId] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [hasReferralCode, setHasReferralCode] = useState(false);
   const [referralCode, setReferralCode] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [quote, setQuote] = useState<QuoteState>({ kind: "preview" });
-  const [referralPreview, setReferralPreview] = useState<{
+  const [codePreview, setCodePreview] = useState<{
     key: string;
-    result: ReferralResult;
+    result: CodePreviewState;
   } | null>(null);
   const submitLock = useSubmitLock();
   const priceInputRevisionRef = useRef(0);
-  const publishReferralPreview = useCallback(
-    (key: string, result: ReferralResult) => setReferralPreview({ key, result }),
+  const publishCodePreview = useCallback(
+    (key: string, result: CodePreviewState) => setCodePreview({ key, result }),
     [],
   );
   const inputRefs = useRef<Record<DesignSide, HTMLInputElement | null>>({
@@ -556,34 +563,64 @@ function CustomerOrderForm({
   const selectedPaymentMethod = paymentMethods.find(
     (method) => method.id === selectedPaymentMethodId,
   );
-  const currentCardPrice = settings ? getCardPriceCentavos(settings.launchEndDate, now) : null;
-  const launchCutoff =
-    settings?.launchEndDate === null || settings?.launchEndDate === undefined
-      ? null
-      : manilaStartOfDayTimestamp(settings.launchEndDate);
-  const isConfigured = settings?.launchEndDate !== null && paymentMethods.length > 0;
-  const normalizedReferralCode = referralCode.trim();
-  const referral: ReferralState =
-    normalizedReferralCode === ""
-      ? { kind: "none" }
-      : referralPreview?.key === referralPreviewKey(normalizedReferralCode, now)
-        ? referralPreview.result
-        : { kind: "checking" };
-  const estimatedPrice: CardOrderPrice | null =
-    currentCardPrice === null
-      ? null
+  const isConfigured = paymentMethods.length > 0;
+  const normalizedPromoCode = promoCode.trim();
+  const normalizedReferralCode = hasReferralCode ? referralCode.trim() : "";
+  const previewKey = codePreviewKey(normalizedPromoCode, normalizedReferralCode, now);
+  const preview: CodePreviewState =
+    normalizedPromoCode || normalizedReferralCode
+      ? codePreview?.key === previewKey
+        ? codePreview.result
+        : { kind: "checking" }
       : {
-          cardPriceCentavos: currentCardPrice,
-          discountCentavos: referral.kind === "valid" ? referral.discountCentavos : 0,
+          kind: "ready",
+          promoValid: true,
+          referralValid: true,
+          promoAdjustedPriceCentavos: CARD_REGULAR_PRICE_CENTAVOS,
+          discountCentavos: 0,
         };
+  const promoValidity: CodeValidity =
+    normalizedPromoCode === ""
+      ? "none"
+      : preview.kind === "checking"
+        ? "checking"
+        : preview.kind === "error"
+          ? "error"
+          : preview.promoValid
+            ? "valid"
+            : "invalid";
+  const referralValidity: CodeValidity =
+    normalizedReferralCode === ""
+      ? "none"
+      : preview.kind === "checking"
+        ? "checking"
+        : preview.kind === "error"
+          ? "error"
+          : preview.referralValid
+            ? "valid"
+            : "invalid";
+  const estimatedPrice: CardOrderPrice = {
+    cardPriceCentavos:
+      preview.kind === "checking" || preview.kind === "error"
+        ? CARD_REGULAR_PRICE_CENTAVOS
+        : preview.promoAdjustedPriceCentavos,
+    discountCentavos:
+      preview.kind === "checking" || preview.kind === "error" || !preview.referralValid
+        ? 0
+        : preview.discountCentavos,
+  };
   const displayedPrice = quote.kind === "reconfirmed" ? quote.price : estimatedPrice;
-  // Null while the referral result is unresolved: the customer cannot confirm an unknown amount.
-  const submitPrice =
-    quote.kind === "reconfirmed"
+  // Require an authoritative preview before confirming any entered code.
+  const codesUnavailable =
+    preview.kind === "checking" ||
+    preview.kind === "error" ||
+    !preview.promoValid ||
+    !preview.referralValid;
+  const submitPrice = codesUnavailable
+    ? null
+    : quote.kind === "reconfirmed"
       ? quote.price
-      : referral.kind === "checking" || referral.kind === "error"
-        ? null
-        : estimatedPrice;
+      : estimatedPrice;
 
   function invalidateReconfirmation() {
     priceInputRevisionRef.current += 1;
@@ -705,9 +742,13 @@ function CustomerOrderForm({
     }
     if (capturedPrice === null) {
       setSubmitError(
-        referral.kind === "error"
-          ? referral.message
-          : "Referral status is still being checked. Try again in a moment.",
+        preview.kind === "error"
+          ? preview.message
+          : promoValidity === "invalid"
+            ? "Remove the unavailable promo code to continue."
+            : referralValidity === "invalid"
+              ? "Remove the unavailable referral code to continue."
+              : "Your codes are still being checked. Try again in a moment.",
       );
       return;
     }
@@ -718,6 +759,7 @@ function CustomerOrderForm({
     try {
       const outcome = await onPlaceOrder({
         paymentMethodId: selectedPaymentMethodId,
+        ...(normalizedPromoCode ? { promoCode: normalizedPromoCode } : {}),
         ...(normalizedReferralCode ? { referralCode: normalizedReferralCode } : {}),
         design,
         backDesign,
@@ -1027,28 +1069,63 @@ function CustomerOrderForm({
                     {fieldErrors.paymentMethod}
                   </p>
                 ) : null}
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 grid gap-4">
                   <Field
                     autoCapitalize="characters"
                     disabled={submitting}
-                    id="referral-code"
-                    label="Referral code"
+                    error={codeError(
+                      promoValidity,
+                      "Promo code is unavailable. Remove it to continue.",
+                    )}
+                    help={codeHelp(promoValidity, "Promo code applied.")}
+                    id="promo-code"
+                    label="Promo code (optional)"
                     maxLength={40}
                     onChange={(event) => {
                       invalidateReconfirmation();
-                      setReferralCode(event.target.value.toUpperCase());
+                      setPromoCode(event.target.value.toUpperCase());
                     }}
-                    value={referralCode}
+                    value={promoCode}
                   />
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-tapit-ink">
+                      Have a referral code?
+                    </span>
+                    <Switch
+                      aria-label="Have a referral code?"
+                      checked={hasReferralCode}
+                      disabled={submitting}
+                      onCheckedChange={(checked) => {
+                        invalidateReconfirmation();
+                        setHasReferralCode(checked);
+                        if (!checked) setReferralCode("");
+                      }}
+                    />
+                  </div>
+                  {hasReferralCode ? (
+                    <Field
+                      autoCapitalize="characters"
+                      disabled={submitting}
+                      error={codeError(
+                        referralValidity,
+                        "Referral code is unavailable. Remove it to continue.",
+                      )}
+                      help={codeHelp(referralValidity, "Referral discount applied.")}
+                      id="referral-code"
+                      label="Referral code"
+                      maxLength={40}
+                      onChange={(event) => {
+                        invalidateReconfirmation();
+                        setReferralCode(event.target.value.toUpperCase());
+                      }}
+                      value={referralCode}
+                    />
+                  ) : null}
                 </div>
               </div>
               {!isConfigured ? (
                 <p className="mt-4 text-sm leading-6 text-tapit-muted" role="status">
-                  {settings.launchEndDate === null && paymentMethods.length === 0
-                    ? "Ordering is unavailable until launch pricing and a payment method are set."
-                    : settings.launchEndDate === null
-                      ? "Ordering is unavailable until launch pricing is set."
-                      : "Ordering is unavailable until a payment method is available."}
+                  Ordering is unavailable until a payment method is available.
                 </p>
               ) : null}
             </Card>
@@ -1102,21 +1179,18 @@ function CustomerOrderForm({
                 <PriceBreakdown
                   pinned={quote.kind === "reconfirmed"}
                   price={displayedPrice}
-                  referral={quote.kind === "preview" ? referral : { kind: "none" }}
+                  promoValidity={quote.kind === "preview" ? promoValidity : "none"}
+                  referralValidity={quote.kind === "preview" ? referralValidity : "none"}
+                  previewError={preview.kind === "error" ? preview.message : ""}
                 />
-                {normalizedReferralCode ? (
-                  <ReferralPreviewReporter
-                    code={normalizedReferralCode}
+                {normalizedPromoCode || normalizedReferralCode ? (
+                  <OrderCodesPreviewReporter
+                    promoCode={normalizedPromoCode}
+                    referralCode={normalizedReferralCode}
                     currentTime={now}
                     mode={mode}
-                    onPreview={publishReferralPreview}
+                    onPreview={publishCodePreview}
                   />
-                ) : null}
-                {launchCutoff !== null ? (
-                  <p className="mt-2 rounded-control bg-tapit-soft-surface p-3 text-xs leading-5 text-tapit-muted">
-                    ₱599 launch price applies before {formatManilaCutoff(launchCutoff)} Manila time.
-                    The card price is ₱799 on or after that cutoff.
-                  </p>
                 ) : null}
               </div>
             </Card>
@@ -1188,88 +1262,99 @@ function DesignChoice({
   );
 }
 
-type ReferralPreviewProps = {
-  code: string;
+type OrderCodesPreviewProps = {
+  promoCode: string;
+  referralCode: string;
   currentTime: number;
-  onPreview: (key: string, result: ReferralResult) => void;
+  onPreview: (key: string, result: CodePreviewState) => void;
 };
 
-/** Publishes a referral result keyed by code and time; it renders nothing itself. */
-function ReferralPreviewReporter({
+/** Publishes code validity and the combined quote keyed by both inputs and time. */
+function OrderCodesPreviewReporter({
   mode,
   ...props
-}: ReferralPreviewProps & { mode: "demo" | "live" }) {
+}: OrderCodesPreviewProps & { mode: "demo" | "live" }) {
   return mode === "demo" ? (
-    <DemoReferralPreviewReporter {...props} />
+    <DemoOrderCodesPreviewReporter {...props} />
   ) : (
-    <LiveReferralPreviewReporter {...props} />
+    <LiveOrderCodesPreviewReporter {...props} />
   );
 }
 
-function DemoReferralPreviewReporter({ code, currentTime, onPreview }: ReferralPreviewProps) {
+function DemoOrderCodesPreviewReporter({
+  promoCode,
+  referralCode,
+  currentTime,
+  onPreview,
+}: OrderCodesPreviewProps) {
   useEffect(() => {
-    let result: ReferralResult;
+    let result: CodePreviewState;
     try {
-      const preview = previewDemoCardOrderReferral(code, currentTime);
-      result = preview.valid
-        ? { kind: "valid", discountCentavos: preview.discountCentavos }
-        : { kind: "invalid" };
+      result = {
+        kind: "ready",
+        ...previewDemoCardOrderCodes({ promoCode, referralCode, currentTime }),
+      };
     } catch {
-      result = { kind: "error", message: "Referral status could not be checked." };
+      result = { kind: "error", message: "Codes could not be checked. Try again." };
     }
-    onPreview(referralPreviewKey(code, currentTime), result);
-  }, [code, currentTime, onPreview]);
+    onPreview(codePreviewKey(promoCode, referralCode, currentTime), result);
+  }, [promoCode, referralCode, currentTime, onPreview]);
   return null;
 }
 
-function LiveReferralPreviewReporter({ code, currentTime, onPreview }: ReferralPreviewProps) {
-  const preview = useQuery(api.cardOrderSettings.previewReferral, { code, currentTime });
+function LiveOrderCodesPreviewReporter({
+  promoCode,
+  referralCode,
+  currentTime,
+  onPreview,
+}: OrderCodesPreviewProps) {
+  const preview = useQuery(api.cardOrderSettings.previewOrderCodes, {
+    ...(promoCode ? { promoCode } : {}),
+    ...(referralCode ? { referralCode } : {}),
+    currentTime,
+  });
   useEffect(() => {
     if (preview === undefined) return;
-    onPreview(
-      referralPreviewKey(code, currentTime),
-      preview.valid
-        ? { kind: "valid", discountCentavos: preview.discountCentavos }
-        : { kind: "invalid" },
-    );
-  }, [code, currentTime, preview, onPreview]);
+    onPreview(codePreviewKey(promoCode, referralCode, currentTime), { kind: "ready", ...preview });
+  }, [promoCode, referralCode, currentTime, preview, onPreview]);
   return null;
 }
 
 function PriceBreakdown({
   price,
-  referral,
+  promoValidity,
+  referralValidity,
+  previewError,
   pinned,
 }: {
   price: CardOrderPrice | null;
-  referral: ReferralState;
+  promoValidity: CodeValidity;
+  referralValidity: CodeValidity;
+  previewError: string;
   pinned: boolean;
 }) {
   if (price === null) {
     return (
       <dl className="grid gap-3">
         <PriceLine label="Card" value="—" />
+        <PriceLine label="Promo code" value={codePriceLabel(promoValidity)} />
         <PriceLine label="Referral discount" value="—" />
+        <PriceLine label="Referral code" value={codePriceLabel(referralValidity)} />
         <PriceLine label="Estimated amount" value="—" strong />
         <PriceLine label="Shipping" value="Pending quote" />
       </dl>
     );
   }
-  const discountValue =
-    price.discountCentavos > 0
-      ? `−${formatPHP(price.discountCentavos)}`
-      : referral.kind === "checking"
-        ? "Checking…"
-        : referral.kind === "invalid"
-          ? "Not available"
-          : referral.kind === "error"
-            ? "Unavailable"
-            : "—";
   return (
     <>
       <dl className="grid gap-3">
         <PriceLine label="Card" value={formatPHP(price.cardPriceCentavos)} />
-        <PriceLine label="Referral discount" value={discountValue} />
+        <PriceLine label="Promo code" value={codePriceLabel(promoValidity)} />
+        <PriceLine
+          label="Referral discount"
+          value={price.discountCentavos > 0 ? `−${formatPHP(price.discountCentavos)}` : "—"}
+        />
+        <PriceLine label="Referral code" value={codePriceLabel(referralValidity)} />
         <PriceLine
           label={pinned ? "Card amount" : "Estimated amount"}
           strong
@@ -1277,11 +1362,37 @@ function PriceBreakdown({
         />
         <PriceLine label="Shipping" value="Pending quote" />
       </dl>
-      {referral.kind === "error" ? (
-        <p className="text-xs text-tapit-danger">{referral.message}</p>
+      {previewError ? (
+        <p className="text-xs text-tapit-danger" role="alert">
+          {previewError}
+        </p>
       ) : null}
     </>
   );
+}
+
+function codePriceLabel(validity: CodeValidity) {
+  return validity === "checking"
+    ? "Checking…"
+    : validity === "valid"
+      ? "Applied"
+      : validity === "invalid"
+        ? "Not available"
+        : validity === "error"
+          ? "Unavailable"
+          : "—";
+}
+
+function codeError(validity: CodeValidity, invalidMessage: string) {
+  return validity === "invalid" ? invalidMessage : undefined;
+}
+
+function codeHelp(validity: CodeValidity, appliedMessage: string) {
+  return validity === "checking"
+    ? "Checking code…"
+    : validity === "valid"
+      ? appliedMessage
+      : undefined;
 }
 
 function SubmittedOrder({
@@ -1743,13 +1854,6 @@ function formatManilaDate(timestamp: number): string {
   return new Intl.DateTimeFormat("en-PH", {
     dateStyle: "medium",
     timeStyle: "short",
-    timeZone: "Asia/Manila",
-  }).format(timestamp);
-}
-
-function formatManilaCutoff(timestamp: number): string {
-  return new Intl.DateTimeFormat("en-PH", {
-    dateStyle: "medium",
     timeZone: "Asia/Manila",
   }).format(timestamp);
 }

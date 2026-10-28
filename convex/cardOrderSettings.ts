@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Doc } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import {
@@ -11,13 +11,14 @@ import {
   sameScope,
 } from "./admin";
 import {
-  isCardOrderLaunchEndDate,
-  getCardPriceCentavos,
+  manilaStartOfDayTimestamp,
+  CARD_REGULAR_PRICE_CENTAVOS,
+  calculatePromoAdjustedPriceCentavos,
   calculateReferralDiscountForPriceCentavos,
+  isCardOrderOfferExpired,
   isValidReferralFixedPriceCentavos,
 } from "../src/lib/card-ordering";
 
-const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
 const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
 const REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS = 5 * 60 * 1000;
 const OFFER_USAGE_BACKFILL_KEY = "cardOrderOfferUsageBackfillStarted";
@@ -33,19 +34,22 @@ const customerPayment = paymentFields.extend({
   qrUrl: v.union(v.string(), v.null()),
 });
 
+export async function foundingOfferUsageVerified(
+  ctx: QueryCtx | MutationCtx,
+  scope: Doc<"cardOrderOffers">["scope"],
+) {
+  const marker = await ctx.db
+    .query("settings")
+    .withIndex("by_scope_and_key", (q) => q.eq("scope", scope).eq("key", OFFER_USAGE_BACKFILL_KEY))
+    .first();
+  return marker?.value === FOUNDING_USAGE_VERIFIED;
+}
+
 export async function activeOrderAccount(ctx: QueryCtx | MutationCtx) {
   const userId = await requireUser(ctx);
   const account = await customerForAuthUser(ctx, userId);
   if (account === null || !isActiveCustomer(account)) throw new Error("Active account required.");
   return account;
-}
-
-export async function launchEndDate(ctx: QueryCtx | MutationCtx, account: Doc<"customers">) {
-  const settings = await ctx.db
-    .query("settings")
-    .withIndex("by_scope_and_key", (q) => q.eq("scope", account.scope).eq("key", LAUNCH_END_KEY))
-    .take(1);
-  return settings[0]?.value ?? null;
 }
 
 function requiredText(value: string, label: string, max: number) {
@@ -70,7 +74,6 @@ async function paymentQrUrl(
 export const adminSettings = query({
   args: {},
   returns: v.object({
-    launchEndDate: v.union(v.string(), v.null()),
     paymentMethods: v.array(
       v.object({
         _id: v.id("cardOrderPaymentMethods"),
@@ -85,15 +88,13 @@ export const adminSettings = query({
   }),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
-    const [date, payments] = await Promise.all([
-      launchEndDate(ctx, account),
+    const [payments] = await Promise.all([
       ctx.db
         .query("cardOrderPaymentMethods")
         .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
         .take(500),
     ]);
     return {
-      launchEndDate: date,
       paymentMethods: await Promise.all(
         payments.map(
           async ({ _id, provider, label, accountDetails, instructions, active, qrUploadId }) => ({
@@ -124,7 +125,9 @@ export const adminReferralCodes = query({
         v.object({
           _id: v.id("cardOrderOffers"),
           code: v.string(),
+          expiresOn: v.optional(v.string()),
           fixedPriceCentavos: v.optional(v.number()),
+          percentOff: v.optional(v.number()),
           usageCount: v.number(),
           usageLimit: v.optional(v.number()),
         }),
@@ -168,7 +171,9 @@ export const adminReferralCodes = query({
                   offer: {
                     _id: offer._id,
                     code: offer.code,
+                    expiresOn: offer.expiresOn,
                     fixedPriceCentavos: offer.fixedPriceCentavos,
+                    percentOff: offer.percentOff,
                     usageCount: offer.usageCount,
                     usageLimit: offer.usageLimit,
                   },
@@ -186,7 +191,9 @@ export const adminCardOrderOffers = query({
     v.object({
       _id: v.id("cardOrderOffers"),
       code: v.string(),
+      expiresOn: v.optional(v.string()),
       fixedPriceCentavos: v.optional(v.number()),
+      percentOff: v.optional(v.number()),
       usageCount: v.number(),
       usageLimit: v.optional(v.number()),
     }),
@@ -197,13 +204,17 @@ export const adminCardOrderOffers = query({
       .query("cardOrderOffers")
       .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope))
       .take(500);
-    return offers.map(({ _id, code, fixedPriceCentavos, usageCount, usageLimit }) => ({
-      _id,
-      code,
-      ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
-      usageCount,
-      ...(usageLimit === undefined ? {} : { usageLimit }),
-    }));
+    return offers.map(
+      ({ _id, code, expiresOn, fixedPriceCentavos, percentOff, usageCount, usageLimit }) => ({
+        _id,
+        code,
+        ...(expiresOn === undefined ? {} : { expiresOn }),
+        ...(fixedPriceCentavos === undefined ? {} : { fixedPriceCentavos }),
+        ...(percentOff === undefined ? {} : { percentOff }),
+        usageCount,
+        ...(usageLimit === undefined ? {} : { usageLimit }),
+      }),
+    );
   },
 });
 
@@ -381,20 +392,17 @@ export const adminReferralCodeUsage = query({
 export const customerSettings = query({
   args: {},
   returns: v.object({
-    launchEndDate: v.union(v.string(), v.null()),
     paymentMethods: v.array(customerPayment),
   }),
   handler: async (ctx) => {
     const customer = await activeOrderAccount(ctx);
-    const [date, payments] = await Promise.all([
-      launchEndDate(ctx, customer),
+    const [payments] = await Promise.all([
       ctx.db
         .query("cardOrderPaymentMethods")
         .withIndex("by_scope_and_active", (q) => q.eq("scope", customer.scope).eq("active", true))
         .take(100),
     ]);
     return {
-      launchEndDate: date,
       paymentMethods: await Promise.all(
         payments.map(
           async ({ _id, provider, label, accountDetails, instructions, qrUploadId }) => ({
@@ -411,115 +419,99 @@ export const customerSettings = query({
   },
 });
 
-export const previewReferral = query({
-  args: { code: v.string(), currentTime: v.number() },
-  returns: v.object({ valid: v.boolean(), discountCentavos: v.number() }),
+export const previewOrderCodes = query({
+  args: {
+    promoCode: v.optional(v.string()),
+    referralCode: v.optional(v.string()),
+    currentTime: v.number(),
+  },
+  returns: v.object({
+    promoValid: v.boolean(),
+    referralValid: v.boolean(),
+    promoAdjustedPriceCentavos: v.number(),
+    discountCentavos: v.number(),
+  }),
   handler: async (ctx, args) => {
     const customer = await activeOrderAccount(ctx);
-    const code = args.code.trim().toUpperCase();
-    const [date, referral, prior] = await Promise.all([
-      launchEndDate(ctx, customer),
-      ctx.db
-        .query("cardOrderReferralCodes")
-        .withIndex("by_scope_and_code", (q) => q.eq("scope", customer.scope).eq("code", code))
-        .first(),
-      ctx.db
-        .query("cardOrders")
-        .withIndex("by_scope_and_customerId_and_createdAt", (q) =>
-          q.eq("scope", customer.scope).eq("customerId", customer._id),
-        )
-        .first(),
-    ]);
-    const foundingAlias = referral?.code === "FOUNDING" || referral?.code === "FOUNDING-AHRON";
-    const offer =
-      referral?.offerId !== undefined
-        ? await ctx.db.get(referral.offerId)
-        : foundingAlias
-          ? await ctx.db
-              .query("cardOrderOffers")
-              .withIndex("by_scope_and_code", (q) =>
-                q.eq("scope", customer.scope).eq("code", "FOUNDING"),
-              )
-              .first()
-          : null;
-    const offerAvailable =
-      referral?.offerId === undefined || (offer !== null && sameScope(customer, offer));
-    const offerBackfill =
-      offer === null && !foundingAlias
-        ? null
-        : await ctx.db
-            .query("settings")
-            .withIndex("by_scope_and_key", (q) =>
-              q.eq("scope", customer.scope).eq("key", OFFER_USAGE_BACKFILL_KEY),
+    const promoCode = args.promoCode?.trim().toUpperCase();
+    const referralCode = args.referralCode?.trim().toUpperCase();
+    const [offer, referral, prior, foundingVerified] = await Promise.all([
+      promoCode
+        ? ctx.db
+            .query("cardOrderOffers")
+            .withIndex("by_scope_and_code", (q) =>
+              q.eq("scope", customer.scope).eq("code", promoCode),
             )
-            .first();
-    const valid =
-      date !== null &&
-      Number.isFinite(args.currentTime) &&
-      referral?.active === true &&
-      offerAvailable &&
-      (!(foundingAlias || offer?.code === "FOUNDING") ||
-        offerBackfill?.value === FOUNDING_USAGE_VERIFIED) &&
-      (offer === null
-        ? referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit
-        : offerBackfill?.value.startsWith("completed:") !== true ||
-          (foundingAlias && offerBackfill.value !== FOUNDING_USAGE_VERIFIED) ||
-          (offer.code === "FOUNDING" && offerBackfill.value !== FOUNDING_USAGE_VERIFIED) ||
-          offer.usageLimit === undefined ||
-          offer.usageCount < offer.usageLimit) &&
-      prior === null;
-    return {
-      valid,
-      discountCentavos: valid
-        ? calculateReferralDiscountForPriceCentavos(
-            getCardPriceCentavos(date, args.currentTime),
-            offer === null ? referral.fixedPriceCentavos : offer.fixedPriceCentavos,
+            .first()
+        : null,
+      referralCode
+        ? ctx.db
+            .query("cardOrderReferralCodes")
+            .withIndex("by_scope_and_code", (q) =>
+              q.eq("scope", customer.scope).eq("code", referralCode),
+            )
+            .first()
+        : null,
+      referralCode
+        ? ctx.db
+            .query("cardOrders")
+            .withIndex("by_scope_and_customerId_and_createdAt", (q) =>
+              q.eq("scope", customer.scope).eq("customerId", customer._id),
+            )
+            .first()
+        : null,
+      promoCode === "FOUNDING" ? foundingOfferUsageVerified(ctx, customer.scope) : true,
+    ]);
+    const promoValid =
+      promoCode === undefined ||
+      (Number.isFinite(args.currentTime) &&
+        offer !== null &&
+        sameScope(customer, offer) &&
+        !isCardOrderOfferExpired(offer.expiresOn, args.currentTime) &&
+        (offer.code !== "FOUNDING" || foundingVerified) &&
+        (offer.usageLimit === undefined || offer.usageCount < offer.usageLimit));
+    const referralValid =
+      referralCode === undefined ||
+      (referral?.active === true &&
+        referral.offerId === undefined &&
+        Boolean(referral.referrerCode?.trim() || referral.referrerLabel?.trim()) &&
+        (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
+        prior === null);
+    const promoPrice =
+      promoValid && offer !== null
+        ? calculatePromoAdjustedPriceCentavos(
+            CARD_REGULAR_PRICE_CENTAVOS,
+            offer.fixedPriceCentavos,
+            offer.percentOff,
           )
-        : 0,
+        : CARD_REGULAR_PRICE_CENTAVOS;
+    return {
+      promoValid,
+      referralValid,
+      promoAdjustedPriceCentavos: promoPrice,
+      discountCentavos:
+        referralValid && referralCode !== undefined
+          ? calculateReferralDiscountForPriceCentavos(promoPrice)
+          : 0,
     };
   },
 });
 
-export const setLaunchEndDate = mutation({
-  args: { date: v.union(v.string(), v.null()) },
-  returns: v.null(),
+// Legacy callers use the split-code query with only a referral code.
+export const previewReferral = query({
+  args: { code: v.string(), currentTime: v.number() },
+  returns: v.object({ valid: v.boolean(), discountCentavos: v.number() }),
   handler: async (ctx, args) => {
-    const { userId, account } = await requireAdministrator(ctx);
-    if (args.date !== null && !isCardOrderLaunchEndDate(args.date))
-      throw new Error("Use a valid YYYY-MM-DD date.");
-    const existing = await ctx.db
-      .query("settings")
-      .withIndex("by_scope_and_key", (q) => q.eq("scope", account.scope).eq("key", LAUNCH_END_KEY))
-      .first();
-    const now = Date.now();
-    if (args.date === null) {
-      if (existing !== null) await ctx.db.delete(existing._id);
-    } else if (existing === null) {
-      await ctx.db.insert("settings", {
-        scope: account.scope,
-        key: LAUNCH_END_KEY,
-        value: args.date,
-        updatedAt: now,
-        updatedByUserId: userId,
-      });
-    } else {
-      await ctx.db.patch(existing._id, {
-        value: args.date,
-        updatedAt: now,
-        updatedByUserId: userId,
-      });
-    }
-    await ctx.db.insert("auditLogs", {
-      scope: account.scope,
-      actorUserId: userId,
-      actorLabel: "Administrator",
-      action: "card_order.launch_end_date_changed",
-      accountId: account._id,
-      occurredAt: now,
-      before: existing?.value,
-      after: args.date ?? undefined,
+    const result: {
+      promoValid: boolean;
+      referralValid: boolean;
+      promoAdjustedPriceCentavos: number;
+      discountCentavos: number;
+    } = await ctx.runQuery(api.cardOrderSettings.previewOrderCodes, {
+      referralCode: args.code,
+      currentTime: args.currentTime,
     });
-    return null;
+    return { valid: result.referralValid, discountCentavos: result.discountCentavos };
   },
 });
 
@@ -723,7 +715,9 @@ export const saveCardOrderOffer = mutation({
   args: {
     id: v.optional(v.id("cardOrderOffers")),
     code: v.string(),
+    expiresOn: v.optional(v.string()),
     fixedPriceCentavos: v.optional(v.number()),
+    percentOff: v.optional(v.number()),
     usageLimit: v.optional(v.number()),
   },
   returns: v.id("cardOrderOffers"),
@@ -732,11 +726,20 @@ export const saveCardOrderOffer = mutation({
     const code = requiredText(args.code, "Offer code", 40).toUpperCase();
     if (!/^[A-Z0-9_-]+$/.test(code))
       throw new Error("Offer code may contain letters, numbers, hyphens, and underscores only.");
+    if (args.expiresOn !== undefined && manilaStartOfDayTimestamp(args.expiresOn) === null)
+      throw new Error("Offer expiry must be a valid YYYY-MM-DD date.");
     if (
       args.fixedPriceCentavos !== undefined &&
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
     )
       throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+    if (args.fixedPriceCentavos !== undefined && args.percentOff !== undefined)
+      throw new Error("Choose a fixed price or percentage discount, not both.");
+    if (
+      args.percentOff !== undefined &&
+      (!Number.isSafeInteger(args.percentOff) || args.percentOff < 1 || args.percentOff > 99)
+    )
+      throw new Error("Percentage discount must be a whole number from 1 to 99.");
     if (
       args.usageLimit !== undefined &&
       (!Number.isSafeInteger(args.usageLimit) || args.usageLimit <= 0)
@@ -779,7 +782,9 @@ export const saveCardOrderOffer = mutation({
     const { usageLimit } = args;
     const value = {
       code,
+      expiresOn: args.expiresOn,
       fixedPriceCentavos: args.fixedPriceCentavos,
+      percentOff: args.percentOff,
       usageLimit,
       updatedAt: now,
       updatedByUserId: userId,

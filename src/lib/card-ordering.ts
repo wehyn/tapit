@@ -1,12 +1,9 @@
-export const CARD_LAUNCH_PRICE_CENTAVOS = 59_900;
 export const CARD_REGULAR_PRICE_CENTAVOS = 79_900;
-export const CARD_LOWEST_PRICE_CENTAVOS = CARD_LAUNCH_PRICE_CENTAVOS;
+export const CARD_LOWEST_PRICE_CENTAVOS = 59_900;
 export const REFERRAL_PERCENT = 10;
 export const COMMISSION_PERCENT = 10;
 
-export type CardOrderLaunchEndDate = string;
-
-const launchDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const calendarDatePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
 const manilaDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -18,8 +15,8 @@ const manilaDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-function parseLaunchEndDate(value: string): [year: number, month: number, day: number] | null {
-  const match = launchDatePattern.exec(value);
+function parseCalendarDate(value: string): [year: number, month: number, day: number] | null {
+  const match = calendarDatePattern.exec(value);
   if (!match) return null;
 
   const year = Number(match[1]);
@@ -38,13 +35,9 @@ function parseLaunchEndDate(value: string): [year: number, month: number, day: n
   return [year, month, day];
 }
 
-export function isCardOrderLaunchEndDate(value: unknown): value is CardOrderLaunchEndDate {
-  return typeof value === "string" && parseLaunchEndDate(value) !== null;
-}
-
 /** Convert an admin YYYY-MM-DD date to midnight in Asia/Manila. */
 export function manilaStartOfDayTimestamp(date: string): number | null {
-  const parts = parseLaunchEndDate(date);
+  const parts = parseCalendarDate(date);
   if (parts === null) return null;
 
   const [year, month, day] = parts;
@@ -75,14 +68,10 @@ export function manilaStartOfDayTimestamp(date: string): number | null {
   return timestamp;
 }
 
-export function getCardPriceCentavos(
-  launchEndDate: CardOrderLaunchEndDate | null,
-  now = Date.now(),
-): number {
-  const launchEndAt = launchEndDate === null ? null : manilaStartOfDayTimestamp(launchEndDate);
-  return launchEndAt !== null && now < launchEndAt
-    ? CARD_LAUNCH_PRICE_CENTAVOS
-    : CARD_REGULAR_PRICE_CENTAVOS;
+export function isCardOrderOfferExpired(expiresOn: string | undefined, now = Date.now()): boolean {
+  if (expiresOn === undefined) return false;
+  const expiresAt = manilaStartOfDayTimestamp(expiresOn);
+  return expiresAt === null || now >= expiresAt;
 }
 
 export function percentageCentavos(amountCentavos: number, percent: number): number {
@@ -102,6 +91,29 @@ export function percentageCentavos(amountCentavos: number, percent: number): num
 
 export function calculateReferralDiscountCentavos(cardPriceCentavos: number): number {
   return percentageCentavos(cardPriceCentavos, REFERRAL_PERCENT);
+}
+
+export function calculatePromoAdjustedPriceCentavos(
+  basePriceCentavos: number,
+  fixedPriceCentavos?: number,
+  percentOff?: number,
+): number {
+  if (fixedPriceCentavos !== undefined && percentOff !== undefined)
+    throw new RangeError("An offer cannot have both fixedPriceCentavos and percentOff.");
+  if (fixedPriceCentavos !== undefined) {
+    if (
+      !isValidReferralFixedPriceCentavos(fixedPriceCentavos) ||
+      fixedPriceCentavos > basePriceCentavos
+    )
+      throw new RangeError(
+        "fixedPriceCentavos must be a valid price no greater than the base price.",
+      );
+    return fixedPriceCentavos;
+  }
+  const percent = percentOff ?? REFERRAL_PERCENT;
+  if (!Number.isSafeInteger(percent) || percent < 1 || percent > 99)
+    throw new RangeError("percentOff must be a whole number from 1 to 99.");
+  return basePriceCentavos - percentageCentavos(basePriceCentavos, percent);
 }
 
 export function isValidReferralFixedPriceCentavos(value: unknown): value is number {

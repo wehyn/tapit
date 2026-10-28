@@ -1,5 +1,4 @@
 import type { CardRecord, ProfileRecord } from "@/lib/domain";
-import type { CardOrderLaunchEndDate } from "../card-ordering";
 
 import { DEFAULT_DEMO_PASSWORD_HASH } from "./password";
 
@@ -100,6 +99,8 @@ export type DemoCardOrderOffer = {
   code: string;
   scope: "demo";
   fixedPriceCentavos?: number;
+  percentOff?: number;
+  expiresOn?: string;
   usageCount?: number;
   usageLimit?: number;
   createdAt: number;
@@ -139,7 +140,7 @@ export type DemoCardOrder = {
   referralCodeId?: string;
   referralSnapshot?: { code: string; referrerLabel: string };
   offerId?: string;
-  offerSnapshot?: { code: string; fixedPriceCentavos?: number };
+  offerSnapshot?: { code: string; fixedPriceCentavos?: number; percentOff?: number };
   paymentStatus: "unpaid" | "received" | "refunded";
   fulfillmentStatus:
     "awaiting_shipping_quote" | "awaiting_payment" | "processing" | "delivered" | "cancelled";
@@ -176,7 +177,6 @@ export type DemoState = {
   themes: Record<string, ProfileTheme>;
   theme: ProfileTheme;
   cards: DemoCard[];
-  cardOrderLaunchEndDate: CardOrderLaunchEndDate | null;
   cardOrderPaymentMethods: DemoCardOrderPaymentMethod[];
   cardOrderReferralCodes: DemoCardOrderReferralCode[];
   cardOrderOffers: DemoCardOrderOffer[];
@@ -343,7 +343,6 @@ export function createDefaultDemoState(): DemoState {
         profileId: "profile-mara",
       },
     ],
-    cardOrderLaunchEndDate: null,
     cardOrderPaymentMethods: [],
     cardOrderReferralCodes: [],
     cardOrderOffers: [],

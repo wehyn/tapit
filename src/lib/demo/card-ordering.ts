@@ -1,13 +1,15 @@
 "use client";
 
 import {
+  calculatePromoAdjustedPriceCentavos,
   calculateCommissionCentavos,
-  calculateReferralDiscountForPriceCentavos,
+  calculateReferralDiscountCentavos,
   cardOrderAmountCentavos,
+  CARD_REGULAR_PRICE_CENTAVOS,
+  manilaStartOfDayTimestamp,
   type CardOrderPlacementResult,
   type CardOrderPrice,
-  getCardPriceCentavos,
-  isCardOrderLaunchEndDate,
+  isCardOrderOfferExpired,
   isValidReferralFixedPriceCentavos,
 } from "../card-ordering";
 import {
@@ -32,6 +34,7 @@ import {
 
 type PlaceOrderInput = {
   paymentMethodId: string;
+  promoCode?: string;
   referralCode?: string;
   designSource: DemoCardOrderDesignSource;
   backDesignSource: DemoCardOrderDesignSource;
@@ -174,12 +177,13 @@ function audit(state: DemoState, action: string, target: string, before?: string
 export function getDemoCardOrderAdminSettings() {
   const state = currentState("admin");
   return {
-    launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods,
     offers: state.cardOrderOffers.map((offer) => ({
       id: offer.id,
       code: offer.code,
       fixedPriceCentavos: offer.fixedPriceCentavos,
+      percentOff: offer.percentOff,
+      expiresOn: offer.expiresOn,
       usageCount: offerUsageCount(state, offer.id),
       usageLimit: offer.usageLimit,
     })),
@@ -202,6 +206,8 @@ export function getDemoCardOrderAdminSettings() {
                 id: offer.id,
                 code: offer.code,
                 fixedPriceCentavos: offer.fixedPriceCentavos,
+                percentOff: offer.percentOff,
+                expiresOn: offer.expiresOn,
                 usageCount: offerUsageCount(state, offer.id),
                 usageLimit: offer.usageLimit,
               },
@@ -261,7 +267,6 @@ export function getDemoCardOrderReferralCodeUsage(
 export function getDemoCardOrderCustomerSettings() {
   const state = currentOrderState();
   return {
-    launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods
       .filter((method) => method.active)
       .map(({ id, provider, label, accountDetails, instructions }) => ({
@@ -272,26 +277,6 @@ export function getDemoCardOrderCustomerSettings() {
         instructions,
       })),
   };
-}
-
-export async function setDemoCardOrderLaunchEndDate(date: string | null): Promise<void> {
-  if (date !== null && !isCardOrderLaunchEndDate(date)) {
-    throw new Error("Use a valid YYYY-MM-DD date.");
-  }
-  const adminId = activeAccount(currentState("admin"), "admin").id;
-  await updateDemoCardOrderAdminState(adminId, (state) => {
-    return {
-      ...state,
-      cardOrderLaunchEndDate: date,
-      audits: audit(
-        state,
-        "launch_end_date_changed",
-        "Card ordering",
-        state.cardOrderLaunchEndDate ?? undefined,
-        date ?? undefined,
-      ),
-    };
-  });
 }
 
 export async function saveDemoCardOrderPaymentMethod(input: {
@@ -357,6 +342,8 @@ export async function saveDemoCardOrderOffer(input: {
   id?: string;
   code: string;
   fixedPriceCentavos?: number;
+  percentOff?: number;
+  expiresOn?: string | null;
   usageLimit?: number;
 }): Promise<string> {
   const code = requiredText(input.code, "Offer code", 40).toUpperCase();
@@ -367,6 +354,18 @@ export async function saveDemoCardOrderOffer(input: {
     !isValidReferralFixedPriceCentavos(input.fixedPriceCentavos)
   )
     throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+  if (
+    input.percentOff !== undefined &&
+    (!Number.isSafeInteger(input.percentOff) || input.percentOff < 1 || input.percentOff > 99)
+  ) {
+    throw new Error("Percentage discount must be a whole number from 1 to 99.");
+  }
+  if (input.fixedPriceCentavos !== undefined && input.percentOff !== undefined) {
+    throw new Error("Choose a fixed price or a percentage discount.");
+  }
+  if (input.expiresOn != null && manilaStartOfDayTimestamp(input.expiresOn) === null) {
+    throw new Error("Use a valid YYYY-MM-DD expiry date.");
+  }
   if (
     input.usageLimit !== undefined &&
     (!Number.isSafeInteger(input.usageLimit) || input.usageLimit <= 0)
@@ -385,7 +384,14 @@ export async function saveDemoCardOrderOffer(input: {
       code,
       scope: "demo",
       fixedPriceCentavos:
-        input.fixedPriceCentavos ?? (prior ? undefined : code === "FOUNDING" ? 29_900 : undefined),
+        input.fixedPriceCentavos ??
+        (prior
+          ? undefined
+          : code === "FOUNDING" && input.percentOff === undefined
+            ? 29_900
+            : undefined),
+      percentOff: input.percentOff,
+      expiresOn: input.expiresOn ?? undefined,
       usageCount: Math.max(
         prior?.usageCount ?? 0,
         offerUsageCount(state, id),
@@ -494,37 +500,52 @@ export async function deactivateDemoCardOrderReferralCode(id: string): Promise<v
   return setDemoCardOrderReferralCodeActive(id, false);
 }
 
-export function previewDemoCardOrderReferral(code: string, currentTime: number) {
+export function previewDemoCardOrderCodes(input: {
+  promoCode?: string;
+  referralCode?: string;
+  currentTime: number;
+}) {
   const state = currentOrderState();
   const customer = activeOrderAccount(state);
-  const referral = state.cardOrderReferralCodes.find(
-    (item) => item.code === code.trim().toUpperCase(),
-  );
-  const offer =
-    referral?.offerId === undefined
-      ? undefined
-      : state.cardOrderOffers.find((item) => item.id === referral.offerId);
-  const usageLimit = offer ? offer.usageLimit : referral?.usageLimit;
-  const usageCount = offer
-    ? offerUsageCount(state, offer.id)
-    : referral
-      ? referralUsageCount(state, referral.id)
-      : 0;
-  const fixedPriceCentavos = offer ? offer.fixedPriceCentavos : referral?.fixedPriceCentavos;
-  const valid =
-    state.cardOrderLaunchEndDate !== null &&
-    Number.isFinite(currentTime) &&
-    referral?.active === true &&
-    (usageLimit === undefined || usageCount < usageLimit) &&
-    !state.cardOrders.some((order) => order.customerId === customer.id);
-  return {
-    valid,
-    discountCentavos: valid
-      ? calculateReferralDiscountForPriceCentavos(
-          getCardPriceCentavos(state.cardOrderLaunchEndDate, currentTime),
-          fixedPriceCentavos,
+  const promoInput = input.promoCode?.trim().toUpperCase() || undefined;
+  const referralInput = input.referralCode?.trim().toUpperCase() || undefined;
+  const offer = promoInput
+    ? state.cardOrderOffers.find((item) => item.code === promoInput)
+    : undefined;
+  const referral = referralInput
+    ? state.cardOrderReferralCodes.find((item) => item.code === referralInput)
+    : undefined;
+  const promoValid =
+    promoInput === undefined ||
+    (Number.isFinite(input.currentTime) &&
+      offer !== undefined &&
+      !isCardOrderOfferExpired(offer.expiresOn, input.currentTime) &&
+      (offer.usageLimit === undefined || offerUsageCount(state, offer.id) < offer.usageLimit));
+  const referralValid =
+    referralInput === undefined ||
+    (referral?.active === true &&
+      (referral.offerId === undefined || referral.offerId === null) &&
+      (Boolean(referral.referrerCode?.trim()) || Boolean(referral.referrerLabel?.trim())) &&
+      (referral.usageLimit === undefined ||
+        referralUsageCount(state, referral.id) < referral.usageLimit) &&
+      !state.cardOrders.some((order) => order.customerId === customer.id));
+  const cardPriceCentavos = offer
+    ? promoValid
+      ? calculatePromoAdjustedPriceCentavos(
+          CARD_REGULAR_PRICE_CENTAVOS,
+          offer.fixedPriceCentavos,
+          offer.percentOff,
         )
-      : 0,
+      : CARD_REGULAR_PRICE_CENTAVOS
+    : CARD_REGULAR_PRICE_CENTAVOS;
+  return {
+    promoValid,
+    referralValid,
+    promoAdjustedPriceCentavos: cardPriceCentavos,
+    discountCentavos:
+      referralValid && referralInput !== undefined
+        ? calculateReferralDiscountCentavos(cardPriceCentavos)
+        : 0,
   };
 }
 
@@ -552,10 +573,7 @@ export async function placeDemoCardOrder(
   const updateOrder = (current: DemoState) => {
     const owner = activeOrderAccount(current);
     if (owner.id !== customer.id) throw new Error("Account session changed. Try again.");
-    if (
-      current.cardOrderLaunchEndDate === null ||
-      !current.cardOrderPaymentMethods.some((method) => method.active)
-    ) {
+    if (!current.cardOrderPaymentMethods.some((method) => method.active)) {
       throw new Error("Card ordering is not configured.");
     }
     const payment = current.cardOrderPaymentMethods.find(
@@ -576,34 +594,39 @@ export async function placeDemoCardOrder(
         throw new Error("The uploaded card design is unavailable.");
       }
     }
-    const normalizedCode = input.referralCode?.trim().toUpperCase();
-    const referral = normalizedCode
-      ? current.cardOrderReferralCodes.find((item) => item.code === normalizedCode)
+    const normalizedPromo = input.promoCode?.trim().toUpperCase();
+    const normalizedReferral = input.referralCode?.trim().toUpperCase();
+    const offer = normalizedPromo
+      ? current.cardOrderOffers.find((item) => item.code === normalizedPromo)
       : undefined;
-    const offer =
-      referral?.offerId === undefined
-        ? undefined
-        : current.cardOrderOffers.find((item) => item.id === referral.offerId);
-    const usageLimit = offer ? offer.usageLimit : referral?.usageLimit;
-    const usageCount = offer
-      ? offerUsageCount(current, offer.id)
-      : referral
-        ? referralUsageCount(current, referral.id)
-        : 0;
+    const referral = normalizedReferral
+      ? current.cardOrderReferralCodes.find((item) => item.code === normalizedReferral)
+      : undefined;
     if (
-      normalizedCode &&
-      (!referral?.active ||
-        (usageLimit !== undefined && usageCount >= usageLimit) ||
-        current.cardOrders.some((order) => order.customerId === owner.id))
+      (normalizedPromo &&
+        (!offer ||
+          isCardOrderOfferExpired(offer.expiresOn) ||
+          (offer.usageLimit !== undefined &&
+            offerUsageCount(current, offer.id) >= offer.usageLimit))) ||
+      (normalizedReferral &&
+        (!referral?.active ||
+          (referral.offerId !== undefined && referral.offerId !== null) ||
+          (!referral?.referrerCode?.trim() && !referral?.referrerLabel?.trim()) ||
+          (referral.usageLimit !== undefined &&
+            referralUsageCount(current, referral.id) >= referral.usageLimit) ||
+          current.cardOrders.some((order) => order.customerId === owner.id)))
     ) {
-      throw new Error("Referral code is unavailable for this order.");
+      throw new Error("Promo or referral code is unavailable for this order.");
     }
     const now = Date.now();
-    const cardPriceCentavos = getCardPriceCentavos(current.cardOrderLaunchEndDate, now);
-    const fixedPriceCentavos = offer ? offer.fixedPriceCentavos : referral?.fixedPriceCentavos;
-    const discountCentavos = referral
-      ? calculateReferralDiscountForPriceCentavos(cardPriceCentavos, fixedPriceCentavos)
-      : 0;
+    const cardPriceCentavos = offer
+      ? calculatePromoAdjustedPriceCentavos(
+          CARD_REGULAR_PRICE_CENTAVOS,
+          offer.fixedPriceCentavos,
+          offer.percentOff,
+        )
+      : CARD_REGULAR_PRICE_CENTAVOS;
+    const discountCentavos = referral ? calculateReferralDiscountCentavos(cardPriceCentavos) : 0;
     // Same rule as the live mutation: nothing is written unless the reviewed amount still holds.
     const price = { cardPriceCentavos, discountCentavos };
     if (cardOrderAmountCentavos(price) !== input.expectedCardAmountCentavos) {
@@ -637,28 +660,29 @@ export async function placeDemoCardOrder(
         : undefined,
       offerId: offer?.id,
       offerSnapshot: offer
-        ? { code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos }
+        ? {
+            code: offer.code,
+            fixedPriceCentavos: offer.fixedPriceCentavos,
+            percentOff:
+              offer.percentOff ?? (offer.fixedPriceCentavos === undefined ? 10 : undefined),
+          }
         : undefined,
       paymentStatus: "unpaid",
       fulfillmentStatus: "awaiting_shipping_quote",
       commissionStatus: referral?.referrerCode || referral?.referrerLabel ? "pending" : "none",
-      commissionCentavos:
-        referral?.referrerCode || referral?.referrerLabel
-          ? calculateCommissionCentavos(cardPriceCentavos)
-          : 0,
+      commissionCentavos: referral ? calculateCommissionCentavos(cardPriceCentavos) : 0,
       createdAt: now,
       updatedAt: now,
     };
     return {
       ...current,
-      cardOrderReferralCodes:
-        offer || !referral
-          ? current.cardOrderReferralCodes
-          : current.cardOrderReferralCodes.map((item) =>
-              item.id === referral.id
-                ? { ...item, usageCount: referralUsageCount(current, referral.id) + 1 }
-                : item,
-            ),
+      cardOrderReferralCodes: referral
+        ? current.cardOrderReferralCodes.map((item) =>
+            item.id === referral.id
+              ? { ...item, usageCount: referralUsageCount(current, referral.id) + 1 }
+              : item,
+          )
+        : current.cardOrderReferralCodes,
       cardOrderOffers: offer
         ? current.cardOrderOffers.map((item) =>
             item.id === offer.id

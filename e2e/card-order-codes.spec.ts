@@ -121,14 +121,14 @@ test("administrator manages offers, exact aliases, and safe code usage history",
   });
 
   await page.getByLabel("Offer code").fill("launch");
-  await page.getByLabel("Fixed card price (₱, optional)").fill("399");
+  await page.getByLabel("Fixed card price (₱)").fill("599");
   await page.getByLabel("Usage limit (orders, optional)").fill("10");
   await page.getByRole("button", { name: "Save offer" }).click();
   const launchOffer = page
     .getByRole("heading", { name: "LAUNCH", exact: true })
     .locator("..")
     .locator("..");
-  await expect(launchOffer).toContainText("₱399.00");
+  await expect(launchOffer).toContainText("₱599.00");
   await expect(launchOffer).toContainText("0 of 10 uses · 10 remaining");
   await expect(launchOffer).toContainText("Codes: None");
 
@@ -197,7 +197,7 @@ test("administrator manages offers, exact aliases, and safe code usage history",
 
 test("customers share an offer cap across exact aliases and keep launch offers independent", async ({
   page,
-}) => {
+}, testInfo) => {
   await signInAsAdmin(page);
   const initialState = serializeDemoState(createDefaultDemoState());
   await page.evaluate((serializedState) => {
@@ -218,7 +218,7 @@ test("customers share an offer cap across exact aliases and keep launch offers i
         id: "offer-launch-checkout",
         code: "LAUNCH",
         scope: "demo",
-        fixedPriceCentavos: 39900,
+        fixedPriceCentavos: 59900,
         usageCount: 0,
         createdAt: now,
         updatedAt: now,
@@ -261,6 +261,15 @@ test("customers share an offer cap across exact aliases and keep launch offers i
         createdAt: now,
         updatedAt: now,
       },
+      {
+        id: "referrer-ahron-checkout",
+        code: "AHRON",
+        referrerCode: "AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        createdAt: now,
+        updatedAt: now,
+      },
     ];
     state.cardOrders = Array.from({ length: 24 }, (_, index) => ({
       id: `prior-founding-${index + 1}`,
@@ -270,8 +279,8 @@ test("customers share an offer cap across exact aliases and keep launch offers i
       deliveryName: "Fictional Prior Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Demo Lane",
-      cardPriceCentavos: 59900,
-      discountCentavos: 30000,
+      cardPriceCentavos: 29900,
+      discountCentavos: 2990,
       paymentMethodId: "checkout-test-payment",
       paymentSnapshot: {
         provider: "Bank transfer",
@@ -279,10 +288,10 @@ test("customers share an offer cap across exact aliases and keep launch offers i
         accountDetails: "Demo account",
         instructions: "Transfer after ordering.",
       },
-      referralCodeId: index % 2 ? "alias-founding-ahron-checkout" : "alias-founding-checkout",
+      referralCodeId: "referrer-ahron-checkout",
       referralSnapshot: {
-        code: index % 2 ? "FOUNDING-AHRON" : "FOUNDING",
-        referrerLabel: index % 2 ? "Ahron" : "",
+        code: "AHRON",
+        referrerLabel: "Ahron",
       },
       offerId: "offer-founding-checkout",
       offerSnapshot: { code: "FOUNDING", fixedPriceCentavos: 29900 },
@@ -297,15 +306,13 @@ test("customers share an offer cap across exact aliases and keep launch offers i
   }, initialState);
   await page.reload();
   await page.goto("/admin/settings");
-  await page.getByLabel("Launch end date").fill("2027-01-01");
-  await page.getByRole("button", { name: "Save date", exact: true }).click();
   await page.getByLabel("Provider", { exact: true }).fill("Bank transfer");
   await page.getByLabel("Method label", { exact: true }).fill("Checkout test bank");
   await page.getByLabel("Account details", { exact: true }).fill("Demo account");
   await page.getByLabel("Payment instructions", { exact: true }).fill("Transfer after ordering.");
   await page.getByRole("button", { name: "Add payment method", exact: true }).click();
 
-  const fillCheckout = async (email: string, code: string) => {
+  const fillCheckout = async (email: string, promoCode: string, referralCode?: string) => {
     await page.goto("/login");
     await page.evaluate(() => window.localStorage.removeItem("tapit:demo-session:v1"));
     await page.reload();
@@ -324,13 +331,23 @@ test("customers share an offer cap across exact aliases and keep launch offers i
     await page
       .getByLabel("Payment method")
       .selectOption({ label: "Checkout test bank · Bank transfer" });
-    await page.getByLabel("Referral code").fill(code);
+    await page.getByLabel("Promo code (optional)").fill(promoCode);
+    if (referralCode) {
+      await page.getByRole("switch", { name: "Have a referral code?" }).click();
+      await page.getByRole("textbox", { name: "Referral code", exact: true }).fill(referralCode);
+    }
   };
 
-  await fillCheckout("mara@example.test", "FOUNDING-AHRON");
+  await fillCheckout("mara@example.test", "FOUNDING", "AHRON");
   const preview = page.getByText("Price preview", { exact: true }).locator("../..");
   await expect(preview).toContainText("₱299.00");
-  await expect(preview).toContainText("−₱300.00");
+  await expect(preview).toContainText("−₱29.90");
+  const checkoutPreviewPath = testInfo.outputPath("checkout-offer-referral.png");
+  await preview.screenshot({ path: checkoutPreviewPath });
+  await testInfo.attach("checkout-offer-referral", {
+    path: checkoutPreviewPath,
+    contentType: "image/png",
+  });
   await page.getByRole("button", { name: "Place order", exact: true }).click();
   await expect(page.getByText("Your card order has been saved.", { exact: false })).toBeVisible();
   const savedOrder = await page.evaluate(() => {
@@ -340,10 +357,10 @@ test("customers share an offer cap across exact aliases and keep launch offers i
     );
   });
   expect(savedOrder).toMatchObject({
-    cardPriceCentavos: 59900,
-    discountCentavos: 30000,
+    cardPriceCentavos: 29900,
+    discountCentavos: 2990,
     offerSnapshot: { code: "FOUNDING", fixedPriceCentavos: 29900 },
-    referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+    referralSnapshot: { code: "AHRON", referrerLabel: "Ahron" },
   });
   const finalOfferCount = await page.evaluate(
     () =>
@@ -355,12 +372,10 @@ test("customers share an offer cap across exact aliases and keep launch offers i
 
   await fillCheckout("owner@example.test", "FOUNDING");
   await expect(page.getByText("Not available", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Place order", exact: true }).click();
-  await expect(
-    page.getByText("Referral code is unavailable for this order.", { exact: true }),
-  ).toBeVisible();
-  await page.getByLabel("Referral code").fill("LAUNCH-AHRON");
-  const launchPreview = page.getByText("Price preview", { exact: true }).locator("../..");
-  await expect(launchPreview).toContainText("−₱200.00");
-  await expect(launchPreview).not.toContainText("Not available");
+  await page.getByLabel("Promo code (optional)").fill("");
+  await page.getByRole("switch", { name: "Have a referral code?" }).click();
+  await page.getByRole("textbox", { name: "Referral code", exact: true }).fill("AHRON");
+  const referralPreview = page.getByText("Price preview", { exact: true }).locator("../..");
+  await expect(referralPreview).toContainText("−₱79.90");
+  await expect(referralPreview).not.toContainText("Not available");
 });

@@ -58,7 +58,7 @@ vi.mock("@/lib/demo/card-order-assets", () => ({
 import {
   getDemoCardOrderAdminSettings,
   placeDemoCardOrder,
-  previewDemoCardOrderReferral,
+  previewDemoCardOrderCodes,
   deactivateDemoCardOrderReferralCode,
   saveDemoCardOrderReferralCode,
   saveDemoCardOrderOffer,
@@ -80,7 +80,6 @@ beforeEach(() => {
   mocks.role = "customer";
   mocks.beforeCommit = undefined;
   mocks.state = {
-    cardOrderLaunchEndDate: "2099-12-31",
     cardOrderPaymentMethods: [
       {
         id: "method-1",
@@ -101,6 +100,13 @@ beforeEach(() => {
         referrerLabel: "Ahron",
         active: true,
       },
+      {
+        id: "referrer-ahron",
+        code: "AHRON",
+        referrerCode: "AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+      },
     ],
     cardOrderOffers: [
       { id: "founding", code: "FOUNDING", fixedPriceCentavos: 29_900, usageLimit: 1 },
@@ -111,24 +117,33 @@ beforeEach(() => {
 });
 
 describe("demo card order price confirmation", () => {
-  it("does not preview an exhausted code", () => {
+  it("keeps a standalone referral preview when the promo is exhausted", () => {
     mocks.state.cardOrders = [
       { id: "prior", customerId: "someone-else", referralCodeId: "code-1" },
     ];
 
-    expect(previewDemoCardOrderReferral("FOUNDING-AHRON", Date.now())).toEqual({
-      valid: false,
-      discountCentavos: 0,
+    expect(
+      previewDemoCardOrderCodes({
+        promoCode: "FOUNDING",
+        referralCode: "AHRON",
+        currentTime: Date.now(),
+      }),
+    ).toMatchObject({
+      promoValid: false,
+      referralValid: true,
+      promoAdjustedPriceCentavos: 79_900,
+      discountCentavos: 7_990,
     });
   });
 
   it("allows the final use and rejects a later order from another customer", async () => {
     const first = await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "FOUNDING-AHRON",
+      promoCode: "FOUNDING",
+      referralCode: "AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 29_900,
+      expectedCardAmountCentavos: 26_910,
     });
     expect(first.kind).toBe("created");
 
@@ -136,12 +151,13 @@ describe("demo card order price confirmation", () => {
     await expect(
       placeDemoCardOrder({
         paymentMethodId: "method-1",
-        referralCode: "FOUNDING-AHRON",
+        promoCode: "FOUNDING",
+        referralCode: "AHRON",
         ...urlDesigns,
         ...delivery,
-        expectedCardAmountCentavos: 29_900,
+        expectedCardAmountCentavos: 26_910,
       }),
-    ).rejects.toThrow("Referral code is unavailable for this order.");
+    ).rejects.toThrow("Promo or referral code is unavailable for this order.");
     expect(mocks.state.cardOrders).toHaveLength(1);
   });
 
@@ -163,12 +179,12 @@ describe("demo card order price confirmation", () => {
     (mocks.state.cardOrderOffers as Record<string, unknown>[]).push({
       id: "launch-offer",
       code: "LAUNCH",
-      fixedPriceCentavos: 39_900,
+      fixedPriceCentavos: 59_900,
       usageLimit: 1,
     });
     await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "FOUNDING",
+      promoCode: "FOUNDING",
       ...urlDesigns,
       ...delivery,
       expectedCardAmountCentavos: 29_900,
@@ -176,31 +192,39 @@ describe("demo card order price confirmation", () => {
     mocks.customerId = "customer-launch";
     await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "LAUNCH",
+      promoCode: "LAUNCH",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 39_900,
+      expectedCardAmountCentavos: 59_900,
     });
     mocks.customerId = "customer-launch-two";
     await expect(
       placeDemoCardOrder({
         paymentMethodId: "method-1",
-        referralCode: "LAUNCH-AHRON",
+        promoCode: "LAUNCH",
+        referralCode: "AHRON",
         ...urlDesigns,
         ...delivery,
-        expectedCardAmountCentavos: 39_900,
+        expectedCardAmountCentavos: 53_910,
       }),
-    ).rejects.toThrow("Referral code is unavailable for this order.");
+    ).rejects.toThrow("Promo or referral code is unavailable for this order.");
     expect(mocks.state.cardOrders).toHaveLength(2);
     expect((mocks.state.cardOrders as Record<string, unknown>[])[1]).toMatchObject({
       offerId: "launch-offer",
-      referralSnapshot: { code: "LAUNCH", referrerLabel: "" },
+      offerSnapshot: { code: "LAUNCH", fixedPriceCentavos: 59_900 },
+      referralSnapshot: undefined,
       commissionStatus: "none",
     });
   });
 
   it("rechecks the limit when another order consumes the last use before commit", async () => {
-    expect(previewDemoCardOrderReferral("FOUNDING-AHRON", Date.now()).valid).toBe(true);
+    expect(
+      previewDemoCardOrderCodes({
+        promoCode: "FOUNDING",
+        referralCode: "AHRON",
+        currentTime: Date.now(),
+      }).promoValid,
+    ).toBe(true);
     mocks.beforeCommit = () => {
       (mocks.state.cardOrders as { id: string; customerId: string; referralCodeId: string }[]).push(
         { id: "competing-order", customerId: "customer-other", referralCodeId: "code-1" },
@@ -210,12 +234,13 @@ describe("demo card order price confirmation", () => {
     await expect(
       placeDemoCardOrder({
         paymentMethodId: "method-1",
-        referralCode: "FOUNDING-AHRON",
+        promoCode: "FOUNDING",
+        referralCode: "AHRON",
         ...urlDesigns,
         ...delivery,
-        expectedCardAmountCentavos: 29_900,
+        expectedCardAmountCentavos: 26_910,
       }),
-    ).rejects.toThrow("Referral code is unavailable for this order.");
+    ).rejects.toThrow("Promo or referral code is unavailable for this order.");
     expect(mocks.state.cardOrders).toHaveLength(1);
   });
 
@@ -316,10 +341,9 @@ describe("demo card order price confirmation", () => {
     mocks.role = "customer";
     for (let index = 0; index < 20; index += 1) {
       mocks.customerId = `founding-customer-${index}`;
-      const code = index % 2 === 0 ? "FOUNDING" : "FOUNDING-AHRON";
       const result = await placeDemoCardOrder({
         paymentMethodId: "method-1",
-        referralCode: code,
+        promoCode: "FOUNDING",
         ...urlDesigns,
         ...delivery,
         expectedCardAmountCentavos: 29_900,
@@ -330,19 +354,19 @@ describe("demo card order price confirmation", () => {
       expect.objectContaining({ id: offerId, usageCount: 25 }),
     );
     mocks.customerId = "founding-customer-21";
-    expect(previewDemoCardOrderReferral("FOUNDING", Date.now())).toEqual({
-      valid: false,
-      discountCentavos: 0,
-    });
+    expect(
+      previewDemoCardOrderCodes({ promoCode: "FOUNDING", currentTime: Date.now() }),
+    ).toMatchObject({ promoValid: false, discountCentavos: 0 });
     await expect(
       placeDemoCardOrder({
         paymentMethodId: "method-1",
-        referralCode: "FOUNDING-AHRON",
+        promoCode: "FOUNDING",
+        referralCode: "AHRON",
         ...urlDesigns,
         ...delivery,
         expectedCardAmountCentavos: 29_900,
       }),
-    ).rejects.toThrow("Referral code is unavailable for this order.");
+    ).rejects.toThrow("Promo or referral code is unavailable for this order.");
   });
 
   it("lists offers without aliases and keeps them after their last alias is deactivated", async () => {
@@ -399,22 +423,23 @@ describe("demo card order price confirmation", () => {
     );
   });
 
-  it("keeps referral-only codes discounted without creating a commission", async () => {
+  it("applies referral-only discount and commission to the regular price", async () => {
     mocks.state.cardOrderReferralCodes = [
-      { id: "legacy", code: "LEGACY", referrerLabel: "", active: true },
+      { id: "legacy", code: "AHRON", referrerCode: "AHRON", referrerLabel: "Ahron", active: true },
     ];
     const result = await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "LEGACY",
+      referralCode: "AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
     expect(result.kind).toBe("created");
     expect((mocks.state.cardOrders as Record<string, unknown>[])[0]).toMatchObject({
-      discountCentavos: 5_990,
-      commissionStatus: "none",
-      commissionCentavos: 0,
+      cardPriceCentavos: 79_900,
+      discountCentavos: 7_990,
+      commissionStatus: "pending",
+      commissionCentavos: 7_990,
     });
   });
 
@@ -423,6 +448,8 @@ describe("demo card order price confirmation", () => {
       {
         id: "legacy-limited",
         code: "LEGACY-LIMITED",
+        referrerCode: "AHRON",
+        referrerLabel: "Ahron",
         fixedPriceCentavos: 29_900,
         usageCount: 2,
         usageLimit: 2,
@@ -430,8 +457,13 @@ describe("demo card order price confirmation", () => {
       },
     ];
 
-    expect(previewDemoCardOrderReferral("LEGACY-LIMITED", Date.now())).toEqual({
-      valid: false,
+    expect(
+      previewDemoCardOrderCodes({
+        referralCode: "LEGACY-LIMITED",
+        currentTime: Date.now(),
+      }),
+    ).toMatchObject({
+      referralValid: false,
       discountCentavos: 0,
     });
     await expect(
@@ -442,7 +474,7 @@ describe("demo card order price confirmation", () => {
         ...delivery,
         expectedCardAmountCentavos: 29_900,
       }),
-    ).rejects.toThrow("Referral code is unavailable for this order.");
+    ).rejects.toThrow("Promo or referral code is unavailable for this order.");
     expect(mocks.state.cardOrderReferralCodes).toContainEqual(
       expect.objectContaining({
         id: "legacy-limited",
@@ -475,7 +507,8 @@ describe("demo card order price confirmation", () => {
 
     const outcome = await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "FOUNDING-AHRON",
+      promoCode: "FOUNDING",
+      referralCode: "AHRON",
       ...urlDesigns,
       ...delivery,
       expectedCardAmountCentavos: 59_900,
@@ -483,7 +516,7 @@ describe("demo card order price confirmation", () => {
 
     expect(outcome).toEqual({
       kind: "price_changed",
-      price: { cardPriceCentavos: 59_900, discountCentavos: 30_000 },
+      price: { cardPriceCentavos: 29_900, discountCentavos: 2_990 },
     });
     expect(mocks.state).toBe(before);
     expect(mocks.state.cardOrders).toHaveLength(0);
@@ -500,7 +533,8 @@ describe("demo card order price confirmation", () => {
 
     const outcome = await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "FOUNDING-AHRON",
+      promoCode: "FOUNDING",
+      referralCode: "AHRON",
       designSource: upload,
       backDesignSource: { ...urlDesigns.backDesignSource },
       ...delivery,
@@ -515,10 +549,11 @@ describe("demo card order price confirmation", () => {
   it("creates the order at the reviewed amount and persists the server's snapshot", async () => {
     const outcome = await placeDemoCardOrder({
       paymentMethodId: "method-1",
-      referralCode: "FOUNDING-AHRON",
+      promoCode: "FOUNDING",
+      referralCode: "AHRON",
       ...urlDesigns,
       ...delivery,
-      expectedCardAmountCentavos: 29_900,
+      expectedCardAmountCentavos: 26_910,
     });
 
     expect(outcome.kind).toBe("created");
@@ -528,8 +563,8 @@ describe("demo card order price confirmation", () => {
     }[];
     expect(orders).toHaveLength(1);
     expect(orders[0]).toMatchObject({
-      cardPriceCentavos: 59_900,
-      discountCentavos: 30_000,
+      cardPriceCentavos: 29_900,
+      discountCentavos: 2_990,
       offerId: "founding",
       offerSnapshot: { code: "FOUNDING", fixedPriceCentavos: 29_900 },
     });
