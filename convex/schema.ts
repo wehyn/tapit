@@ -192,6 +192,7 @@ export default defineSchema({
     size: v.number(),
     width: v.number(),
     height: v.number(),
+    target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
     createdAt: v.number(),
   })
     .index("by_storageId", ["storageId"])
@@ -208,6 +209,7 @@ export default defineSchema({
     storageId: v.optional(v.id("_storage")),
     previewStorageId: v.optional(v.id("_storage")),
     expectedMediaRevision: v.number(),
+    target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
     status: v.union(v.literal("pending"), v.literal("attached"), v.literal("failed")),
     createdAt: v.number(),
     uploadWindowEndsAt: v.number(),

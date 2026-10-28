@@ -45,21 +45,26 @@ const cardFilterOptions: readonly { value: CardFilter; label: string }[] = [
 
 const cardRowColumns = "grid-cols-[minmax(0,1.6fr)_112px_minmax(0,1fr)_16px]";
 
-// Registered and claimable cards both still wait for the profile owner to claim them.
-function cardGroup(status: string): CardGroup {
-  if (status === "active") return "claimed";
-  if (status === "inactive" || status === "replaced") return "inactive";
+type CardGroupSource = {
+  status: string;
+  claimedAt?: number;
+  claimCodeClaimedAt?: number;
+};
+
+function cardGroup(card: CardGroupSource): CardGroup {
+  if (card.status === "inactive" || card.status === "replaced") return "inactive";
+  if ((card.claimedAt ?? card.claimCodeClaimedAt) !== undefined) return "claimed";
   return "unclaimed";
 }
 
-function countCards(statuses: string[]): Record<CardFilter, number> {
+function countCards(cards: CardGroupSource[]): Record<CardFilter, number> {
   const counts: Record<CardFilter, number> = {
-    all: statuses.length,
+    all: cards.length,
     unclaimed: 0,
     claimed: 0,
     inactive: 0,
   };
-  for (const status of statuses) counts[cardGroup(status)] += 1;
+  for (const card of cards) counts[cardGroup(card)] += 1;
   return counts;
 }
 
@@ -300,7 +305,7 @@ function DemoCardsManager() {
   } | null>(null);
   const selectedProfile = getDemoProfileById(state, selectedProfileId) ?? profiles[0];
 
-  const counts = useMemo(() => countCards(state.cards.map((card) => card.status)), [state.cards]);
+  const counts = useMemo(() => countCards(state.cards), [state.cards]);
 
   const cards = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -308,7 +313,7 @@ function DemoCardsManager() {
       .map((card, index) => ({ card, createdAt: card.createdAt ?? index }))
       .filter(
         ({ card }) =>
-          (filter === "all" || cardGroup(card.status) === filter) &&
+          (filter === "all" || cardGroup(card) === filter) &&
           (!normalized ||
             `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
       )
@@ -389,17 +394,17 @@ function DemoCardsManager() {
   }
 
   function assignCard(card: DemoCard, profileId: string) {
-    const targetStatus = "claimable" as const;
+    const profile = getDemoProfileById(state, profileId);
+    if (profile === undefined) {
+      setMessage({ tone: "error", text: "Create a profile before assigning a card." });
+      return;
+    }
+    const targetStatus = profile.status === "published" ? "active" : "claimable";
     if (!canTransitionCard(card.status, targetStatus)) {
       setMessage({
         tone: "error",
         text: "Only a registered card can be assigned. Inactive and replaced cards cannot be reused.",
       });
-      return;
-    }
-    const profile = getDemoProfileById(state, profileId);
-    if (profile === undefined) {
-      setMessage({ tone: "error", text: "Create a profile before assigning a card." });
       return;
     }
     const owner = state.customers.find((customer) => customer.id === profile.ownerId);
@@ -429,7 +434,10 @@ function DemoCardsManager() {
     setConfirmation(null);
     setMessage({
       tone: "success",
-      text: `Card ${card.token} is claimable and assigned to ${profile.draft.name || profile.draft.slug}. It must be activated with a claim code.`,
+      text:
+        targetStatus === "active"
+          ? `Card ${card.token} is active for ${profile.draft.name || profile.draft.slug}. Generate and share a claim code so the owner can unlock card-owner features.`
+          : `Card ${card.token} is claimable and assigned to ${profile.draft.name || profile.draft.slug}. It must be activated with a claim code.`,
     });
   }
 
@@ -634,11 +642,16 @@ function DemoCardsManager() {
                           Assign to profile
                         </Button>
                       ) : null}
-                      {card.status === "claimable" ? (
+                      {card.claimedAt === undefined &&
+                      (card.status === "claimable" || card.status === "active") ? (
                         <div className="flex flex-wrap gap-2">
                           <Button
                             onClick={() => {
-                              const generatedCode = `DEMO${Date.now().toString(36).slice(-4).toUpperCase()}`;
+                              const generatedCode = `DEMA${Date.now()
+                                .toString(36)
+                                .slice(-4)
+                                .toUpperCase()
+                                .replace(/[IO01]/g, "2")}`;
                               setClaimCode({
                                 cardId: card.id,
                                 code: generatedCode,
@@ -816,7 +829,7 @@ function DemoCardsManager() {
           confirmation?.type === "replace"
             ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
             : confirmation?.type === "attach"
-              ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? The card will be claimable and must be activated with a claim code before it can serve profile content.`
+              ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "Its card URL will serve the published profile now; the owner must complete a claim code to unlock card-owner features." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
               : confirmation?.type === "deactivate"
                 ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
                 : ""
@@ -888,12 +901,12 @@ function LiveCardsManager() {
     () => [...cards].sort((first, second) => second.createdAt - first.createdAt),
     [cards],
   );
-  const counts = useMemo(() => countCards(orderedCards.map((card) => card.status)), [orderedCards]);
+  const counts = useMemo(() => countCards(orderedCards), [orderedCards]);
   const visibleCards = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return orderedCards.filter(
       (card) =>
-        (filter === "all" || cardGroup(card.status) === filter) &&
+        (filter === "all" || cardGroup(card) === filter) &&
         (!normalized ||
           `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
     );
@@ -1160,7 +1173,8 @@ function LiveCardsManager() {
                           </Button>
                         </>
                       ) : null}
-                      {card.status === "claimable" ? (
+                      {card.claimCodeClaimedAt === undefined &&
+                      (card.status === "claimable" || card.status === "active") ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             disabled={pending}
@@ -1296,7 +1310,7 @@ function LiveCardsManager() {
         confirmLabel="Confirm attachment"
         description={
           attachment
-            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? The card must be activated with a claim code before it can serve profile content. Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
+            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? ${attachment.profileStatus === "published" ? "Its card URL can serve the published profile now; the owner must complete a claim code to unlock card-owner features." : "The card must be activated with a claim code before it can serve profile content."} Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
             : ""
         }
         onCancel={() => setAttachment(null)}
@@ -1307,7 +1321,7 @@ function LiveCardsManager() {
           void run(
             () =>
               attach({ cardId: pendingAttachment.cardId, profileId: pendingAttachment.profileId }),
-            `Card ${pendingAttachment.token} is claimable and attached to ${pendingAttachment.profile}. It must be activated with a claim code.`,
+            `Card ${pendingAttachment.token} is attached to ${pendingAttachment.profile}. Generate and share a claim code so the owner can unlock card-owner features.`,
           );
         }}
         open={attachment !== null}

@@ -6,6 +6,7 @@ import { env, mutation, query } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import { profileAccess } from "./profileAccess";
 import schema from "./schema";
 import { analyticsSourceValidator, MAX_PROFILE_LINKS } from "./validators";
 import { components } from "./components";
@@ -317,6 +318,8 @@ export const mine = query({
         isComplete: true,
         continueCursor: null,
       };
+    if (!(await profileAccess(ctx, account.profileId)).hasCardOwnerFeatures)
+      throw new Error("Card owner access required.");
     const cutoff = cutoffForRange(args.range, args.now);
     const page = await ctx.db
       .query("analytics")
@@ -365,6 +368,8 @@ export const minePage = query({
       .unique();
     if (account === null || !isActiveCustomer(account) || account.profileId === undefined)
       return { page: [], isDone: true, continueCursor: "" };
+    if (!(await profileAccess(ctx, account.profileId)).hasCardOwnerFeatures)
+      throw new Error("Card owner access required.");
     return await ctx.db
       .query("analytics")
       .withIndex("by_profile_bucket", (query) =>

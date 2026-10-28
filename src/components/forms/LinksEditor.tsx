@@ -7,9 +7,11 @@ import { useMutation, useQuery } from "convex/react";
 
 import {
   hasUnpublishedChanges,
+  MAX_LIMITED_PROFILE_LINKS,
   projectPublicProfile,
   publishProfile,
   validateLinkDestination,
+  validateLimitedProfileContent,
   validatePublication,
   validatePublicationAccess,
   validateProfileRedirect,
@@ -22,6 +24,7 @@ import {
   getDemoProfileForSession,
   getDemoProfiles,
   getDemoTheme,
+  resolveDemoSessionAccess,
   updateDemoProfile,
   useDemoSession,
   useDemoState,
@@ -93,8 +96,8 @@ export function normalizeLinkIcon(value: string | undefined): LinkIcon {
     : "link";
 }
 
-export function canAddProfileLink(linkCount: number): boolean {
-  return linkCount < MAX_PROFILE_LINKS;
+export function canAddProfileLink(linkCount: number, maxLinks = MAX_PROFILE_LINKS): boolean {
+  return linkCount < maxLinks;
 }
 
 export function appendProfileLink(links: readonly ProfileLink[], id: string): ProfileLink[] {
@@ -150,6 +153,9 @@ function DemoLinksEditor() {
   const state = useDemoState();
   const session = useDemoSession();
   const profile = getDemoProfileForSession(state, session);
+  const access = resolveDemoSessionAccess(state, session);
+  const hasCardOwnerFeatures = access.kind === "active" && access.hasCardOwnerFeatures;
+  const maxLinks = hasCardOwnerFeatures ? MAX_PROFILE_LINKS : MAX_LIMITED_PROFILE_LINKS;
   const [links, setLinks] = useState<ProfileLink[]>(() => copyLinks(profile.draft.links));
   const [redirect, setRedirect] = useState<ProfileRedirect>(
     () => profile.draft.redirect ?? { enabled: false, destination: "" },
@@ -215,14 +221,9 @@ function DemoLinksEditor() {
         ]),
     }),
     ...lifecycleErrors,
-    ...(state.cards.some(
-      (card) =>
-        card.profileId === profile.id &&
-        card.status === "claimable" &&
-        card.claimedAt === undefined,
-    )
-      ? ["Claim the attached card before publishing this profile."]
-      : []),
+    ...(hasCardOwnerFeatures
+      ? []
+      : validateLimitedProfileContent({ ...draft, theme: draft.theme ?? legacyTheme })),
   ];
   const preview = canPreviewLinks(
     validation,
@@ -260,8 +261,11 @@ function DemoLinksEditor() {
   }
 
   function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
-    if (!canAddProfileLink(links.length))
-      return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    if (!canAddProfileLink(links.length, maxLinks))
+      return setMessage({
+        tone: "error",
+        text: `A profile cannot contain more than ${maxLinks} links.`,
+      });
     const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
     setLinks((current) => [...current, { id: linkId, ...details, enabled: true }]);
@@ -297,6 +301,11 @@ function DemoLinksEditor() {
   const saveDraft = useCallback(async (): Promise<DraftSaveOutcome> => {
     if (pendingAction !== null) return { kind: "deferred", reason: "pending-save" };
     if (!isDirty) return { kind: "saved" };
+    if (links.length > maxLinks) {
+      const error = `A profile cannot contain more than ${maxLinks} links.`;
+      setMessage({ tone: "error", text: error });
+      return { kind: "blocked", blocker: { kind: "links-validation", messages: [error] } };
+    }
     if (Object.keys(validation).length > 0) {
       setMessage({
         tone: "error",
@@ -336,7 +345,7 @@ function DemoLinksEditor() {
     } finally {
       setPendingAction(null);
     }
-  }, [isDirty, links, pendingAction, profile.id, redirect, redirectError, validation]);
+  }, [isDirty, links, maxLinks, pendingAction, profile.id, redirect, redirectError, validation]);
 
   useDraftSaveRegistration(saveDraft);
   useDraftStatusReport(pendingAction !== null ? "saving" : isDirty ? "unsaved" : "saved");
@@ -417,6 +426,7 @@ function DemoLinksEditor() {
       isDirty={isDirty}
       hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
+      maxLinks={maxLinks}
       onUpdateLink={updateLink}
       onRedirectChange={updateRedirect}
       onAddLink={addLink}
@@ -435,16 +445,26 @@ export function LinksEditor() {
 
 function LiveLinksEditor() {
   const profile = useQuery(api.profiles.mine);
-  if (profile === undefined) return <div className="min-h-[60vh] bg-tapit-paper" />;
+  const access = useQuery(api.admin.currentAccess);
+  if (profile === undefined || access === undefined)
+    return <div className="min-h-[60vh] bg-tapit-paper" />;
   if (profile === null) return <Notice tone="error">Your profile could not be found.</Notice>;
-  return <LiveLinksEditorContent profile={profile} />;
+  return (
+    <LiveLinksEditorContent
+      profile={profile}
+      hasCardOwnerFeatures={access.hasCardOwnerFeatures ?? false}
+    />
+  );
 }
 
 export function LiveLinksEditorContent({
   profile,
+  hasCardOwnerFeatures = true,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
+  hasCardOwnerFeatures?: boolean;
 }) {
+  const maxLinks = hasCardOwnerFeatures ? MAX_PROFILE_LINKS : MAX_LIMITED_PROFILE_LINKS;
   const saveLinks = useMutation(api.links.replaceDraft);
   const publishMutation = useMutation(api.profiles.publish);
   const [links, setLinks] = useState<ProfileLink[] | null>(null);
@@ -586,8 +606,11 @@ export function LiveLinksEditorContent({
     setMessage(null);
   }
   function addLink(details: Pick<ProfileLink, "label" | "destination" | "icon">) {
-    if (!canAddProfileLink(currentDraft.links.length))
-      return setMessage({ tone: "error", text: "A profile cannot contain more than 100 links." });
+    if (!canAddProfileLink(currentDraft.links.length, maxLinks))
+      return setMessage({
+        tone: "error",
+        text: `A profile cannot contain more than ${maxLinks} links.`,
+      });
     const linkId = `link-${Date.now()}`;
     draftRevisionRef.current += 1;
     setLinks((currentLinks) => [
@@ -748,6 +771,7 @@ export function LiveLinksEditorContent({
       isDirty={isDirty}
       hasUnpublishedChanges={hasChangesSincePublish}
       publicationLabel={publicationLabel}
+      maxLinks={maxLinks}
       onUpdateLink={updateLink}
       onRedirectChange={updateRedirect}
       onAddLink={addLink}

@@ -19,11 +19,17 @@ import { api } from "../../../convex/_generated/api";
 
 const RETURN_PATH = (token: string) => `/c/${encodeURIComponent(token)}`;
 
-export function UnpublishedCardClaim({ cardToken }: { cardToken: string }) {
+export function UnpublishedCardClaim({
+  cardToken,
+  returnHref,
+}: {
+  cardToken: string;
+  returnHref?: string;
+}) {
   return !isLocalDemoMode() ? (
-    <LiveUnpublishedCardClaim cardToken={cardToken} />
+    <LiveUnpublishedCardClaim cardToken={cardToken} returnHref={returnHref} />
   ) : (
-    <DemoUnpublishedCardClaim cardToken={cardToken} />
+    <DemoUnpublishedCardClaim cardToken={cardToken} returnHref={returnHref} />
   );
 }
 
@@ -33,6 +39,7 @@ type ClaimScreenProps = {
   error: string;
   onChange: (value: string) => void;
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  backHref?: string;
   signInHref?: string;
   submitting: boolean;
 };
@@ -40,10 +47,12 @@ type ClaimScreenProps = {
 function ClaimPageShell({
   busy = false,
   children,
+  backHref,
   signInHref,
 }: {
   busy?: boolean;
   children: ReactNode;
+  backHref?: string;
   signInHref?: string;
 }) {
   return (
@@ -54,15 +63,25 @@ function ClaimPageShell({
     >
       <header className="mx-auto flex w-full max-w-md items-center justify-between px-4 py-4">
         <Brand />
-        {signInHref ? (
-          <Link
-            aria-label="Sign in to continue"
-            className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
-            href={signInHref}
-          >
-            Sign in
-          </Link>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {backHref ? (
+            <Link
+              className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+              href={backHref}
+            >
+              Back to profile
+            </Link>
+          ) : null}
+          {signInHref ? (
+            <Link
+              aria-label="Sign in to continue"
+              className="inline-flex min-h-11 items-center rounded-control px-3 text-sm font-semibold text-tapit-muted transition-colors hover:bg-tapit-soft-surface hover:text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+              href={signInHref}
+            >
+              Sign in
+            </Link>
+          ) : null}
+        </div>
       </header>
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-6 px-4 py-6 sm:py-8">
         <div
@@ -84,18 +103,21 @@ function ClaimScreen({
   error,
   onChange,
   onSubmit,
+  backHref,
   signInHref,
   submitting,
 }: ClaimScreenProps) {
   return (
-    <ClaimPageShell signInHref={signInHref}>
+    <ClaimPageShell backHref={backHref} signInHref={signInHref}>
       <div className="flex flex-col items-center gap-2 text-center">
-        <p className="tapit-eyebrow">New card</p>
+        <p className="tapit-eyebrow">{backHref ? "Card ownership" : "New card"}</p>
         <h1 className="tapit-display text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
-          This card is ready to set up
+          {backHref ? "Confirm card ownership" : "This card is ready to set up"}
         </h1>
         <p className="text-sm leading-5 text-tapit-muted">
-          Enter the claim code that came with it. The card will open your profile from now on.
+          {backHref
+            ? "Enter the claim code to confirm ownership and unlock card-owner features."
+            : "Enter the claim code that came with it. The card will open your profile from now on."}
         </p>
       </div>
       <section className="grid gap-4 rounded-card bg-tapit-surface p-6 shadow-card">
@@ -130,7 +152,13 @@ function ClaimScreen({
   );
 }
 
-function DemoUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
+function DemoUnpublishedCardClaim({
+  cardToken,
+  returnHref,
+}: {
+  cardToken: string;
+  returnHref?: string;
+}) {
   const router = useRouter();
   const session = useDemoSession();
   const [code, setCode] = useState("");
@@ -179,7 +207,7 @@ function DemoUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
         sessionStorage.removeItem(`tapit:claim:${cardToken}`);
         router.replace("/app/profile");
       } else {
-        router.replace(`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`);
+        router.replace(`/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`);
       }
     } catch {
       setError(
@@ -196,13 +224,24 @@ function DemoUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
       error={error}
       onChange={setCode}
       onSubmit={submit}
-      signInHref={session ? undefined : `/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}
+      backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
+      signInHref={
+        session
+          ? undefined
+          : `/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`
+      }
       submitting={submitting}
     />
   );
 }
 
-function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
+function LiveUnpublishedCardClaim({
+  cardToken,
+  returnHref,
+}: {
+  cardToken: string;
+  returnHref?: string;
+}) {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const verifyCode = useMutation(api.cardClaims.verifyCode);
@@ -266,17 +305,21 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
   if (authLoading) return <ClaimLoading />;
   if (!isAuthenticated) {
     return (
-      <ClaimPageShell signInHref={`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`}>
+      <ClaimPageShell
+        backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
+        signInHref={`/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`}
+      >
         <section className="flex flex-col items-center gap-4 text-center">
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
-            New card
+            {returnHref ? "Card ownership" : "New card"}
           </p>
           <h1 className="tapit-display text-xl font-semibold leading-tight tracking-tight text-tapit-ink">
-            This card is ready to set up
+            {returnHref ? "Confirm card ownership" : "This card is ready to set up"}
           </h1>
           <p className="text-sm leading-6 text-tapit-muted">
-            Sign in to your Tapit account first. Then enter the private claim code supplied with
-            your card to activate it and confirm ownership.
+            {returnHref
+              ? "Sign in to your Tapit account, then enter the private claim code to confirm ownership and unlock card-owner features."
+              : "Sign in to your Tapit account first. Then enter the private claim code supplied with your card to activate it and confirm ownership."}
           </p>
         </section>
       </ClaimPageShell>
@@ -289,6 +332,7 @@ function LiveUnpublishedCardClaim({ cardToken }: { cardToken: string }) {
       error={error}
       onChange={setCode}
       onSubmit={submit}
+      backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
       submitting={submitting}
     />
   );

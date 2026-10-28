@@ -433,6 +433,12 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
     const admin = t.withIdentity(identity(data.adminUserId));
+    const cardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/analytics-card",
+      token: "analytics-card",
+    });
+    await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeClaimedAt: 1 }));
 
     await t.run(async (ctx) => {
       await ctx.db.insert("analytics", {
@@ -472,14 +478,16 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       uniqueViews: 1,
       clicks: 1,
     });
-    await expect(other.query(api.analytics.mine, { range: "lifetime", now })).resolves.toEqual({
-      views: 0,
-      uniqueViews: 0,
-      clicks: 0,
-      linkClicks: {},
-      isComplete: true,
-      continueCursor: null,
-    });
+    await expect(other.query(api.analytics.mine, { range: "lifetime", now })).rejects.toThrow(
+      "Card owner access required.",
+    );
+    await expect(
+      other.query(api.analytics.minePage, {
+        range: "lifetime",
+        now,
+        paginationOpts: { numItems: 50, cursor: null },
+      }),
+    ).rejects.toThrow("Card owner access required.");
     await expect(other.query(api.analytics.all, { range: "lifetime", now })).rejects.toThrow(
       "Administrator permission required.",
     );

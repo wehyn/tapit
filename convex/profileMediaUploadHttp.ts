@@ -14,7 +14,7 @@ function headers(origin: string | null): Record<string, string> {
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers":
-          "Authorization, Content-Type, X-Profile-Id, X-Media-Revision",
+          "Authorization, Content-Type, X-Profile-Id, X-Media-Revision, X-Media-Target",
         Vary: "Origin",
       }
     : {};
@@ -34,9 +34,12 @@ async function handleUpload(
     return new Response("Authentication required.", { status: 401, headers: cors });
   const profileId = request.headers.get("X-Profile-Id");
   const rawRevision = request.headers.get("X-Media-Revision");
+  const target = request.headers.get("X-Media-Target");
   const revision = rawRevision === null ? NaN : Number(rawRevision);
   if (profileId === null)
     return new Response("X-Profile-Id is required.", { status: 400, headers: cors });
+  if (target !== "background" && target !== "slideshow")
+    return new Response("A valid media target is required.", { status: 400, headers: cors });
   if (
     rawRevision === null ||
     !/^(0|[1-9][0-9]*)$/.test(rawRevision) ||
@@ -53,6 +56,11 @@ async function handleUpload(
     const access = adminOnly
       ? await ctx.runQuery(internal.profileMedia.getAdminAccess, accessArgs)
       : await ctx.runQuery(internal.profileMedia.getOwnerAccess, accessArgs);
+    if (!adminOnly && target === "slideshow" && !access.hasCardOwnerFeatures)
+      return new Response("Slideshow uploads require a claimed card.", {
+        status: 403,
+        headers: cors,
+      });
     const bodyResult = await readBoundedRequestBody(request, MAX_UPLOAD_SIZE);
     if (bodyResult.kind === "invalid-length" || bodyResult.kind === "length-mismatch")
       return new Response("Content-Length does not match the request body.", {
@@ -75,6 +83,7 @@ async function handleUpload(
       accessMode: adminOnly ? "admin" : "owner",
       sha256,
       expectedMediaRevision: revision,
+      target,
     });
     storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
     await ctx.runMutation(internal.profileMedia.markUploadJob, { jobId, storageId });

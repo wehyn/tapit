@@ -684,11 +684,13 @@ export type DemoSessionResolution =
       kind: "active";
       account: DemoCustomer & { role: "customer" };
       profile: DemoProfile;
+      hasCardOwnerFeatures: boolean;
     }
   | {
       kind: "active";
       account: DemoCustomer & { role: "admin" };
       profile: DemoProfile | null;
+      hasCardOwnerFeatures: true;
     }
   | { kind: "restricted"; reason: "invitation" | "inactive" };
 
@@ -717,11 +719,18 @@ export function resolveDemoSessionAccess(
     const customer = { ...account, role: "customer" } satisfies DemoCustomer & {
       role: "customer";
     };
-    return { kind: "active", account: customer, profile };
+    return {
+      kind: "active",
+      account: customer,
+      profile,
+      hasCardOwnerFeatures: current.cards.some(
+        (card) => card.profileId === profile.id && card.claimedAt !== undefined,
+      ),
+    };
   }
   if (account.role === "admin") {
     const admin = { ...account, role: "admin" } satisfies DemoCustomer & { role: "admin" };
-    return { kind: "active", account: admin, profile: profile ?? null };
+    return { kind: "active", account: admin, profile: profile ?? null, hasCardOwnerFeatures: true };
   }
   return { kind: "restricted", reason: "inactive" };
 }
@@ -995,7 +1004,7 @@ export function recordLinkClick(
 export function verifyDemoCardClaim(cardToken: string, code: string): string {
   const card = getDemoState().cards.find((candidate) => candidate.token === cardToken);
   if (
-    card?.status !== "claimable" ||
+    (card?.status !== "claimable" && card?.status !== "active") ||
     card.claimCode !== code ||
     card.claimCodeInvalidatedAt !== undefined ||
     (card.claimCodeExpiresAt !== undefined && card.claimCodeExpiresAt <= Date.now())
@@ -1028,7 +1037,7 @@ export function completeDemoCardClaim(cardToken: string, challenge: string, emai
       ? undefined
       : getDemoState().customers.find((candidate) => candidate.id === profile.ownerId);
   if (
-    card?.status !== "claimable" ||
+    (card?.status !== "claimable" && card?.status !== "active") ||
     card.claimedAt !== undefined ||
     owner?.email !== email ||
     card.claimChallenge !== challenge ||

@@ -13,6 +13,7 @@ import {
 } from "./profileProjection";
 import { assertOwnedProfileImage, removeIfUnreferenced } from "./profileImages";
 import {
+  assertSlideshowAccess,
   assertOwnedProfileMediaSet,
   MEDIA_REVISION_CONFLICT,
   MEDIA_UPLOAD_PENDING,
@@ -35,6 +36,7 @@ import {
 } from "./validators";
 import { replaceProfileLinks } from "./links";
 import { IMAGE_REVISION_CONFLICT, IMAGE_UPLOAD_PENDING } from "./storage";
+import { validateLimitedProfileContent } from "../src/lib/domain";
 
 const DRAFT_REVISION_CONFLICT =
   "The profile draft changed while you were editing. Refresh and try again.";
@@ -261,7 +263,10 @@ export const saveDraft = mutation({
     mediaRevision: v.number(),
   }),
   handler: async (ctx, args) => {
-    const { account, profile, userId } = await profileAccess(ctx, args.profileId);
+    const { account, profile, userId, hasCardOwnerFeatures } = await profileAccess(
+      ctx,
+      args.profileId,
+    );
     const draftRevision = profile.draftRevision ?? 0;
     if (
       !Number.isSafeInteger(args.expectedDraftRevision) ||
@@ -292,6 +297,16 @@ export const saveDraft = mutation({
     if (slugError !== null) throw new Error(slugError);
     const safetyErrors = validateDraftSafety(draft);
     if (safetyErrors.length > 0) throw new Error(safetyErrors.join(" "));
+    const limitedErrors = hasCardOwnerFeatures ? [] : validateLimitedProfileContent(draft);
+    if (limitedErrors.length > 0) throw new Error(limitedErrors.join(" "));
+    assertSlideshowAccess(
+      draft.media,
+      new Set([
+        ...(profile.draft.media?.slideshow.map((slide) => slide.assetId) ?? []),
+        ...(profile.published?.media?.slideshow.map((slide) => slide.assetId) ?? []),
+      ]),
+      hasCardOwnerFeatures,
+    );
     await assertOwnedProfileMediaSet(
       ctx,
       profile._id,
@@ -386,7 +401,7 @@ export const publish = mutation({
     publishedAt: v.number(),
   }),
   handler: async (ctx, args) => {
-    const { profile, userId } = await profileAccess(ctx, args.profileId);
+    const { profile, userId, hasCardOwnerFeatures } = await profileAccess(ctx, args.profileId);
     const imageRevision = profile.imageRevision ?? 0;
     const mediaRevision = profile.mediaRevision ?? 0;
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== imageRevision)
@@ -421,6 +436,16 @@ export const publish = mutation({
     if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");
     const errors = validateProfileContent(profile.draft);
     if (errors.length > 0) throw new Error(errors.join(" "));
+    const limitedErrors = hasCardOwnerFeatures ? [] : validateLimitedProfileContent(profile.draft);
+    if (limitedErrors.length > 0) throw new Error(limitedErrors.join(" "));
+    assertSlideshowAccess(
+      profile.draft.media,
+      new Set([
+        ...(profile.draft.media?.slideshow.map((slide) => slide.assetId) ?? []),
+        ...(profile.published?.media?.slideshow.map((slide) => slide.assetId) ?? []),
+      ]),
+      hasCardOwnerFeatures,
+    );
     if (
       profile.draft.slug !== profile.slug ||
       (profile.published !== undefined && profile.published.slug !== profile.slug)
@@ -446,13 +471,6 @@ export const publish = mutation({
       .take(1001);
     if (attachedCards.length > 1000)
       throw new Error("Too many cards are assigned to this profile.");
-    if (
-      attachedCards.some(
-        (card) => card.status === "claimable" && card.claimCodeClaimedAt === undefined,
-      )
-    ) {
-      throw new Error("Claim the attached card before publishing this profile.");
-    }
     const now = Date.now();
     const publishedContent = { ...profile.draft };
     delete publishedContent.imageUrl;

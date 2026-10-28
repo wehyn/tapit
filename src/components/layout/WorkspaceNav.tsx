@@ -32,6 +32,7 @@ export type WorkspaceLive = { slug: string; published: boolean };
 
 export type WorkspaceChromeProps = {
   audience: NavAudience;
+  hasCardOwnerFeatures?: boolean;
   beforeNavigate?: (href: string) => Promise<boolean>;
   children: ReactNode;
   email: string;
@@ -48,6 +49,7 @@ const saveStatusCopy: Record<DraftStatus, { label: string; tone: "ok" | "warn" |
 
 export function WorkspaceChrome({
   audience,
+  hasCardOwnerFeatures = true,
   beforeNavigate,
   children,
   email,
@@ -63,7 +65,7 @@ export function WorkspaceChrome({
   const moreButtonRef = useRef<HTMLButtonElement>(null);
   const sheetId = useId();
   const audienceCopy = navAudiences[audience];
-  const currentItem = activeNavItemFor(audience, pathname);
+  const currentItem = activeNavItemFor(audience, pathname, hasCardOwnerFeatures);
 
   const closeMore = useCallback(() => {
     setMoreOpen(false);
@@ -125,10 +127,12 @@ export function WorkspaceChrome({
     [beforeNavigate, closeMore, moreOpen, router],
   );
 
-  const sidebarSections = sidebarSectionsFor(audience);
-  const pinnedItems = navItemsFor(audience, "sidebar").filter((item) => item.section === "pinned");
-  const tabItems = navItemsFor(audience, "tabs");
-  const moreItems = navItemsFor(audience, "more");
+  const sidebarSections = sidebarSectionsFor(audience, hasCardOwnerFeatures);
+  const pinnedItems = navItemsFor(audience, "sidebar", hasCardOwnerFeatures).filter(
+    (item) => item.section === "pinned",
+  );
+  const tabItems = navItemsFor(audience, "tabs", hasCardOwnerFeatures);
+  const moreItems = navItemsFor(audience, "more", hasCardOwnerFeatures);
   const otherAudiences = navAudienceSwitch.filter((option) => option.audience !== audience);
   const saveStatus = saveStatusCopy[draftStatus];
 

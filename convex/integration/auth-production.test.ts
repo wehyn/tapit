@@ -43,6 +43,7 @@ describe("production authentication boundaries", () => {
       role: null,
       accountId: null,
       profileId: null,
+      hasCardOwnerFeatures: false,
       onboardingName: null,
     });
   });

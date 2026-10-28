@@ -50,6 +50,7 @@ vi.mock("@/components/layout/DraftSaveContext", () => ({
 }));
 
 vi.mock("@/lib/demo/store", () => ({
+  resolveDemoSessionAccess: () => ({ kind: "active", hasCardOwnerFeatures: true }),
   getDemoProfileForSession: (state: { profile: unknown }) => state.profile,
   getDemoProfiles: (state: { profiles: unknown[] }) => state.profiles,
   getDemoTheme: () => "paper",
@@ -125,6 +126,7 @@ const draft = {
 const demoProfile = {
   id: "demo-profile",
   ownerId: "demo-owner",
+  hasCardOwnerFeatures: true,
   status: "unpublished",
   theme: "paper",
   draft,

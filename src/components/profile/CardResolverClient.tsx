@@ -4,7 +4,7 @@ import { useConvexAuth } from "@convex-dev/auth/react";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMutation, useQuery, useQuery_experimental } from "convex/react";
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -37,19 +37,56 @@ function sourceValue(source?: string): "nfc" | "qr" | "unknown" {
   return "unknown";
 }
 
-function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
+function useClaimCodeAvailable(expiresAt: number | undefined): boolean {
+  const [expiredAt, setExpiredAt] = useState<number>();
+  useEffect(() => {
+    if (expiresAt === undefined) return;
+    const timeout = window.setTimeout(
+      () => setExpiredAt(expiresAt),
+      Math.max(0, expiresAt - Date.now()),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [expiresAt]);
+  return expiresAt !== undefined && expiredAt !== expiresAt;
+}
+
+function DemoCardResolver({
+  cardToken,
+  claim,
+  source,
+}: {
+  cardToken: string;
+  claim: boolean;
+  source?: string;
+}) {
   const { hydrated, state } = useHydratedDemoState();
   const session = useDemoSession();
+  const card = state.cards.find((candidate) => candidate.token === cardToken);
+  const claimAvailable = useClaimCodeAvailable(
+    card?.status === "active" &&
+      card.claimCode !== undefined &&
+      card.claimedAt === undefined &&
+      card.claimCodeInvalidatedAt === undefined
+      ? card.claimCodeExpiresAt
+      : undefined,
+  );
   if (!hydrated) {
     return <CardResolverLoading />;
   }
-  const card = state.cards.find((candidate) => candidate.token === cardToken);
   if (card === undefined) return <MissingProfilePage />;
   const profile = getDemoProfileById(state, card.profileId);
   if (card.status === "claimable") return <UnpublishedCardClaim cardToken={cardToken} />;
   if (card.status !== "active" || profile === undefined) {
     return <InactiveCardPage supportUrl={state.supportUrl} />;
   }
+  const claimHref = claimAvailable ? `/c/${encodeURIComponent(cardToken)}?claim=1` : undefined;
+  if (claim && claimAvailable)
+    return (
+      <UnpublishedCardClaim
+        cardToken={cardToken}
+        returnHref={`/c/${encodeURIComponent(cardToken)}?claim=1`}
+      />
+    );
   const owner = state.customers.find((customer) => customer.id === profile.ownerId);
   if (!isActiveAccount(owner?.status, owner?.deletionStatus)) {
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;
@@ -78,6 +115,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
         visitKey={cardToken}
         profileId={profile.id}
         destination={redirectDestination}
+        claimHref={claimHref}
         recordView={async () => {
           recordProfileView(profile.id, sourceValue(source));
         }}
@@ -91,6 +129,7 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
       profileId={profile.id}
       profileUrl={`/${projection.slug}`}
       showOwnerShortcut={showOwnerShortcut}
+      claimHref={claimHref}
       theme={projection.theme}
       onLinkClick={(key, id) => recordLinkClick(key, id, sourceValue(source))}
       onView={(id) => recordProfileView(id, sourceValue(source))}
@@ -98,15 +137,31 @@ function DemoCardResolver({ cardToken, source }: { cardToken: string; source?: s
   );
 }
 
-export function CardResolverClient({ cardToken, source }: { cardToken: string; source?: string }) {
+export function CardResolverClient({
+  cardToken,
+  claim = false,
+  source,
+}: {
+  cardToken: string;
+  claim?: boolean;
+  source?: string;
+}) {
   return !isLocalDemoMode() ? (
-    <LiveCardResolver cardToken={cardToken} source={source} />
+    <LiveCardResolver cardToken={cardToken} claim={claim} source={source} />
   ) : (
-    <DemoCardResolver cardToken={cardToken} source={source} />
+    <DemoCardResolver cardToken={cardToken} claim={claim} source={source} />
   );
 }
 
-function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: string }) {
+function LiveCardResolver({
+  cardToken,
+  claim,
+  source,
+}: {
+  cardToken: string;
+  claim: boolean;
+  source?: string;
+}) {
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const result = useQuery(api.cards.resolve, { token: cardToken });
   const ownedProfile = useQuery_experimental({
@@ -115,6 +170,9 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
+  const claimAvailable = useClaimCodeAvailable(
+    result?.status === "active" ? result.claimCodeExpiresAt : undefined,
+  );
   const recordProfileViewForVisit = useCallback(
     async (profileId: string) => {
       await recordView({
@@ -152,12 +210,16 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
   if (result.status === "unavailable") return <UnavailableProfilePage />;
   if (result.status !== "active" || result.profile == null) return <UnavailableProfilePage />;
   const activeResult = result;
+  const claimHref = claimAvailable ? `/c/${encodeURIComponent(cardToken)}?claim=1` : undefined;
+  if (claim && claimHref !== undefined)
+    return <UnpublishedCardClaim cardToken={cardToken} returnHref={claimHref} />;
   if (activeResult.redirectDestination !== undefined) {
     return (
       <ProfileRedirectingPage
         visitKey={cardToken}
         profileId={activeResult.profile.id}
         destination={activeResult.redirectDestination}
+        claimHref={claimHref}
         recordView={() => recordProfileViewForVisit(activeResult.profile.id)}
       />
     );
@@ -180,6 +242,7 @@ function LiveCardResolver({ cardToken, source }: { cardToken: string; source?: s
       profileId={profile.id}
       profileUrl={`/${profile.slug}`}
       showOwnerShortcut={showOwnerShortcut}
+      claimHref={claimHref}
       theme={profile.theme}
     />
   );

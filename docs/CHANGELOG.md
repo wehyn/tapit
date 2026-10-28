@@ -5,6 +5,10 @@
 - Admins can configure optional order-use caps for combined discount and referral codes. The Codes page shows uses consumed and remaining, and its copy now describes codes more generally.
 - Convex and local demo checkout enforce the same cap, including when orders are submitted concurrently. Canceled and refunded orders remain counted.
 
+## 2026-10-28 — Cardless customer limits
+
+- Customers can edit and publish before claiming a card, with up to three links and the Paper, Moss, or Night preset. Claiming a card with its one-time code unlocks fine-tuning, slideshow uploads, analytics, and card-owner tools. Profile photos and background images remain available before claiming.
+
 ## 2026-10-26 — Remove inert workspace search
 
 - The workspace top bar no longer shows the ⌘K search button, which had no behaviour.

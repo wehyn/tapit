@@ -8,6 +8,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useQuery } from "convex/react";
@@ -100,6 +101,7 @@ function DemoWorkspaceShell({
   const accessKind = access.kind;
   const hasProfileAccess = access.kind === "active" && access.profile !== null;
   const isAdminAccount = access.kind === "active" && access.account.role === "admin";
+  const hasCardOwnerFeatures = access.kind === "active" && access.hasCardOwnerFeatures;
   const hasAudienceAccess =
     access.kind === "active" && (audience === "admin" ? isAdminAccount : access.profile !== null);
   const adminRedirect =
@@ -159,6 +161,7 @@ function DemoWorkspaceShell({
   return (
     <WorkspaceChrome
       audience={audience}
+      hasCardOwnerFeatures={hasCardOwnerFeatures}
       beforeNavigate={beforeNavigate}
       email={access.account.email}
       live={live}
@@ -177,7 +180,11 @@ function DemoWorkspaceShell({
       }}
       showAudienceSwitch={isAdminAccount}
     >
-      {children}
+      {!hasCardOwnerFeatures && (pathname === "/app/analytics" || pathname === "/app/card") ? (
+        <CardOwnerAccessNotice />
+      ) : (
+        children
+      )}
     </WorkspaceChrome>
   );
 }
@@ -195,6 +202,7 @@ function LiveWorkspaceShell({
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const access = useQuery(api.admin.currentAccess, isAuthenticated ? {} : "skip");
   const activeAccess = isActiveAccess(access);
+  const hasCardOwnerFeatures = activeAccess && access.hasCardOwnerFeatures === true;
   const draftSave = useDraftSave();
   const beforeNavigate = useCallback(
     async (href: string) => (await draftSave(href)).kind === "saved",
@@ -242,6 +250,7 @@ function LiveWorkspaceShell({
   return (
     <WorkspaceChrome
       audience={audience}
+      hasCardOwnerFeatures={hasCardOwnerFeatures}
       beforeNavigate={beforeNavigate}
       email={access.email ?? (audience === "admin" ? "Administrator" : "Account")}
       live={live}
@@ -253,7 +262,34 @@ function LiveWorkspaceShell({
       }}
       showAudienceSwitch={access.role === "admin"}
     >
-      {children}
+      {!hasCardOwnerFeatures && (pathname === "/app/analytics" || pathname === "/app/card") ? (
+        <CardOwnerAccessNotice />
+      ) : (
+        children
+      )}
     </WorkspaceChrome>
+  );
+}
+
+function CardOwnerAccessNotice() {
+  return (
+    <section
+      aria-labelledby="card-owner-access-heading"
+      className="max-w-2xl rounded-card bg-tapit-surface p-6 shadow-card"
+    >
+      <h1 className="text-xl font-semibold text-tapit-ink" id="card-owner-access-heading">
+        Claim a card to unlock owner tools
+      </h1>
+      <p className="mt-3 text-sm text-tapit-muted">
+        Order a card, then scan or open its URL and enter the one-time claim code to unlock
+        analytics and card-owner tools.
+      </p>
+      <Link
+        className="mt-4 inline-flex min-h-11 items-center rounded-control bg-tapit-accent px-4 text-sm font-semibold text-white"
+        href="/app/card/order-card"
+      >
+        Order a card
+      </Link>
+    </section>
   );
 }

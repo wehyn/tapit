@@ -109,6 +109,24 @@ async function seed(t: ReturnType<typeof convexTest>) {
   });
 }
 
+async function claimCardOwnerFeatures(
+  t: ReturnType<typeof convexTest>,
+  profileId: Id<"profiles">,
+  token = "claimed-owner",
+) {
+  await t.run((ctx) =>
+    ctx.db.insert("cards", {
+      cardUrl: `https://cards.test/${token}`,
+      token,
+      profileId,
+      status: "active",
+      claimCodeClaimedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }),
+  );
+}
+
 async function asset(
   t: ReturnType<typeof convexTest>,
   profileId: Id<"profiles">,
@@ -157,6 +175,7 @@ describe("profile media hardening", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
+    await claimCardOwnerFeatures(t, ids.ownerProfileId);
     const otherAsset = await asset(t, ids.otherProfileId, ids.otherId);
 
     await expect(
@@ -224,6 +243,7 @@ describe("profile media hardening", () => {
         Origin: "http://localhost:3000",
         "X-Profile-Id": ids.ownerProfileId,
         "X-Media-Revision": "0",
+        "X-Media-Target": "background",
         "Content-Type": "image/png",
       },
       body: new Uint8Array(image),
@@ -282,6 +302,7 @@ describe("profile media hardening", () => {
         Origin: "http://localhost:3000",
         "X-Profile-Id": profileId,
         "X-Media-Revision": "0",
+        "X-Media-Target": "background",
         "Content-Type": "image/png",
       },
       body: new Uint8Array(image),
@@ -342,6 +363,7 @@ describe("profile media hardening", () => {
           Origin: "http://localhost:3000",
           "X-Profile-Id": ids.ownerProfileId,
           "X-Media-Revision": "0",
+          "X-Media-Target": "background",
           "Content-Type": "image/png",
         },
         body: new Uint8Array(image),
@@ -375,6 +397,7 @@ describe("profile media hardening", () => {
         accessMode: "admin",
         sha256: "a".repeat(64),
         expectedMediaRevision: 0,
+        target: "background",
       }),
     ).rejects.toThrow("Profile access denied.");
     expect(
@@ -397,6 +420,7 @@ describe("profile media hardening", () => {
       accessMode: "admin",
       sha256: "a".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
     const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
@@ -440,6 +464,7 @@ describe("profile media hardening", () => {
       accessMode: "admin",
       sha256: "a".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
     const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
@@ -469,6 +494,7 @@ describe("profile media hardening", () => {
         accessMode: "admin",
         sha256: "b".repeat(64),
         expectedMediaRevision: 0,
+        target: "background",
       }),
     ).rejects.toThrow("Profile access denied");
     expect((await t.run((ctx) => ctx.db.get(ids.ownerProfileId)))?.mediaRevision ?? 0).toBe(0);
@@ -492,6 +518,7 @@ describe("profile media hardening", () => {
       accessMode: "admin",
       sha256: "c".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["source"])));
     const previewStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["preview"])));
@@ -547,6 +574,7 @@ describe("profile media hardening", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
+    await claimCardOwnerFeatures(t, ids.ownerProfileId);
     const oldItem = await asset(t, ids.ownerProfileId, ids.ownerId);
     const replacement = await asset(t, ids.ownerProfileId, ids.ownerId);
 
@@ -599,6 +627,7 @@ describe("profile media hardening", () => {
           Origin: "http://localhost:3000",
           "X-Profile-Id": ids.ownerProfileId,
           "X-Media-Revision": "0",
+          "X-Media-Target": "background",
           "Content-Type": "image/png",
         },
         body: new Uint8Array(image),
@@ -625,6 +654,7 @@ describe("profile media hardening", () => {
           Origin: "http://localhost:3000",
           "X-Profile-Id": ids.adminProfileId,
           "X-Media-Revision": "0",
+          "X-Media-Target": "background",
           "Content-Type": "image/png",
         },
         body: new Uint8Array(image),
@@ -660,6 +690,7 @@ describe("profile media hardening", () => {
           Origin: "http://localhost:3000",
           "X-Profile-Id": ids.ownerProfileId,
           "X-Media-Revision": "0",
+          "X-Media-Target": "background",
           "Content-Type": "image/png",
         },
         body: new Uint8Array(image),
@@ -674,16 +705,7 @@ describe("profile media hardening", () => {
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
     const item = await asset(t, ids.ownerProfileId, ids.ownerId);
-    await t.run((ctx) =>
-      ctx.db.insert("cards", {
-        cardUrl: "https://cards.test/owner",
-        token: "owner",
-        profileId: ids.ownerProfileId,
-        status: "active",
-        createdAt: 1,
-        updatedAt: 1,
-      }),
-    );
+    await claimCardOwnerFeatures(t, ids.ownerProfileId, "owner");
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(item.assetId)),
@@ -709,6 +731,7 @@ describe("profile media hardening", () => {
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
     const item = await asset(t, ids.ownerProfileId, ids.ownerId);
+    await claimCardOwnerFeatures(t, ids.ownerProfileId);
 
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
@@ -737,6 +760,7 @@ describe("profile media hardening", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
+    await claimCardOwnerFeatures(t, ids.ownerProfileId);
     const item = await asset(t, ids.ownerProfileId, ids.ownerId);
     const draftMedia = {
       ...mediaWithBackground(item.assetId),
@@ -808,6 +832,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "a".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     await expect(
       owner.mutation(api.profiles.publish, { profileId: ids.ownerProfileId }),
@@ -835,6 +860,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "b".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     const orphanStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["orphan"])));
     await t.mutation(internal.profileMedia.markUploadJob, {
@@ -846,6 +872,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const crashStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["crashed"])));
     const crashSha256 = await t.run(
@@ -878,6 +905,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const crossProfileSha256 = await t.run(
       async (ctx) => (await ctx.db.system.get("_storage", otherProfileImageStorageId))!.sha256,
@@ -1025,6 +1053,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "c".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     const failedStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["failed"])));
     await t.mutation(internal.profileMedia.markUploadJob, {
@@ -1053,6 +1082,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const firstFillerStorageId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["profile-media-scan-filler-0"])),
@@ -1171,6 +1201,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const storageIds = await t.run(async (ctx) => {
       const created: Id<"_storage">[] = [];
@@ -1385,6 +1416,7 @@ describe("profile media hardening", () => {
         ownerId: ids.ownerId,
         sha256: "a".repeat(64),
         expectedMediaRevision: 0,
+        target: "background",
       });
       const storageId = await t.run((ctx) => ctx.storage.store(new Blob([value])));
       const metadata = await t.run(
@@ -1450,6 +1482,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "d".repeat(64),
       expectedMediaRevision: 0,
+      target: "background",
     });
     await t.run(async (ctx) => {
       await ctx.db.patch(jobId, {
@@ -1511,6 +1544,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const orphanStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["crashed-source"])));
     const orphanSha256 = await t.run(
@@ -1535,6 +1569,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const first = await t.run((ctx) => ctx.storage.store(new Blob(["ambiguous-source"])));
     const second = await t.run((ctx) => ctx.storage.store(new Blob(["ambiguous-source"])));
@@ -1570,6 +1605,7 @@ describe("profile media hardening", () => {
         ownerId: ids.ownerId,
         sha256: "placeholder",
         expectedMediaRevision: 0,
+        target: "background",
       });
       if (index === 0)
         for (let filler = 0; filler < 65; filler += 1)
@@ -1596,6 +1632,7 @@ describe("profile media hardening", () => {
       ownerId: ids.ownerId,
       sha256: "placeholder",
       expectedMediaRevision: 0,
+      target: "background",
     });
     const orphanStorageId = await t.run((ctx) => ctx.storage.store(new Blob(["later-orphan"])));
     const orphanSha256 = await t.run(

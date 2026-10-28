@@ -61,6 +61,15 @@ async function seed(t: ReturnType<typeof convexTest>) {
       publishedAt: 1,
     });
     await ctx.db.patch(customerId, { profileId });
+    await ctx.db.insert("cards", {
+      cardUrl: "https://cards.example/owner",
+      token: "owner-card",
+      profileId,
+      status: "active",
+      claimCodeClaimedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
     const unpublishedId = await ctx.db.insert("profiles", {
       ownerId: customerId,
       slug: "unpublished",

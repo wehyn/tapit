@@ -26,6 +26,7 @@ export type ProfileMediaEditorProps = {
   barePanels?: boolean;
   media?: ProfileMediaPresentation;
   section?: "background" | "slideshow";
+  hasCardOwnerFeatures?: boolean;
   onChange: (next: ProfileMediaPresentation | undefined) => void;
   onUpload: (file: File, target: "background" | "slideshow") => Promise<ProfileMediaImage>;
   onPendingPreviewChange?: (pending: PendingProfileMediaUpload[]) => void;
@@ -57,6 +58,7 @@ function imageSource(image: ProfileMediaImage): string | undefined {
 export function ProfileMediaEditor({
   media,
   section,
+  hasCardOwnerFeatures = true,
   onChange,
   onUpload,
   onPendingPreviewChange,
@@ -629,6 +631,7 @@ export function ProfileMediaEditor({
               aria-invalid={uploadError("slideshow") ? true : undefined}
               aria-label="Add slideshow image"
               disabled={
+                !hasCardOwnerFeatures ||
                 value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
               }
               onClick={() => slideshowInput.current?.click()}
@@ -646,6 +649,7 @@ export function ProfileMediaEditor({
             aria-invalid={uploadError("slideshow") ? true : undefined}
             className="sr-only"
             disabled={
+              !hasCardOwnerFeatures ||
               value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES
             }
             multiple

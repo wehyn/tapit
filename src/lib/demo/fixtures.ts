@@ -287,6 +287,7 @@ export function createDefaultDemoState(): DemoState {
         cardUrl: "/c/mara-card-7f2q",
         status: "active",
         profileId: "profile-mara",
+        claimedAt: 1,
       },
       {
         id: "card-claimable-demo",

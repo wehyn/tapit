@@ -3,6 +3,8 @@
 import type { Id } from "../../../convex/_generated/dataModel";
 import { isReservedProfileSlug } from "./reserved-profile-slug";
 import {
+  defaultProfileLayoutOrder,
+  defaultProfileCustomizationForTheme,
   normalizeProfileCustomization,
   type ProfileCustomization,
   type ProfileCustomizationValidationOptions,
@@ -145,6 +147,41 @@ export interface ProfileSlugValidationOptions {
 }
 
 export const MAX_PROFILE_SLUG_LENGTH = 64;
+export const MAX_LIMITED_PROFILE_LINKS = 3;
+
+/** Content rules applied when a customer has not claimed a card for this profile. */
+export function validateLimitedProfileContent(content: {
+  links: readonly unknown[];
+  theme?: ProfileTheme;
+  customization?: ProfileCustomization;
+}): string[] {
+  const errors: string[] = [];
+  if (content.links.length > MAX_LIMITED_PROFILE_LINKS)
+    errors.push(`A profile cannot contain more than ${MAX_LIMITED_PROFILE_LINKS} links.`);
+  const theme = content.theme ?? "paper";
+  if (theme !== "paper" && theme !== "moss" && theme !== "night")
+    errors.push("Choose the Paper, Moss, or Night profile preset.");
+  const customization = content.customization;
+  if (customization !== undefined) {
+    const defaults = defaultProfileCustomizationForTheme(theme);
+    if (
+      customization.preset !== theme ||
+      customization.accent !== defaults.accent ||
+      customization.typeScale !== defaults.typeScale ||
+      customization.linkTreatment !== defaults.linkTreatment ||
+      customization.contentOrder !== defaults.contentOrder ||
+      (customization.layoutOrder !== undefined &&
+        JSON.stringify(customization.layoutOrder) !==
+          JSON.stringify(defaultProfileLayoutOrder(defaults.contentOrder))) ||
+      (customization.contactDisplay !== undefined &&
+        customization.contactDisplay !== (defaults.contactDisplay ?? "labels")) ||
+      customization.customColors !== undefined ||
+      customization.identityColors !== undefined
+    )
+      errors.push("Use the default Paper, Moss, or Night appearance without fine tuning.");
+  }
+  return errors;
+}
 
 export type AccountStatus = "invited" | "active" | "deleted";
 
@@ -509,7 +546,7 @@ export function canManageCard(actor: Actor): boolean {
 }
 
 const CARD_TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
-  registered: ["claimable"],
+  registered: ["claimable", "active"],
   claimable: ["active"],
   active: ["inactive", "replaced"],
   inactive: [],

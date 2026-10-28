@@ -17,6 +17,7 @@ vi.mock("convex/react", () => ({
   useAction: () => vi.fn(),
   useMutation: () => mutation,
   useQuery: () => ({
+    hasCardOwnerFeatures: true,
     _id: "profile-1",
     _creationTime: 1,
     ownerId: "customer-1",
@@ -290,6 +291,7 @@ it("uploads live profile media with the media revision and strips URLs before sa
         Authorization: "Bearer test-token",
         "Content-Type": "image/png",
         "X-Media-Revision": "3",
+        "X-Media-Target": "background",
         "X-Profile-Id": "profile-1",
       },
     }),

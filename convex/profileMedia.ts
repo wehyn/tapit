@@ -8,7 +8,13 @@ import {
   type QueryCtx,
 } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
+import {
+  hasCardOwnerFeaturesForProfile,
+  isActiveCustomer,
+  requireAdministrator,
+  requireUser,
+  sameScope,
+} from "./admin";
 import { inspectProfileStorage, profileMediaAssetIds } from "./profileStorageReferences";
 import { profileMediaValidator } from "./validators";
 
@@ -28,6 +34,16 @@ export const mediaContentTypeValidator = v.union(
 type DbContext = Pick<QueryCtx | MutationCtx, "db" | "storage">;
 type Media = Doc<"profiles">["draft"]["media"];
 type UploadAccessMode = "owner" | "admin";
+
+export function assertSlideshowAccess(
+  media: Media,
+  allowedExistingSlideshowAssetIds: ReadonlySet<Id<"profileMediaAssets">>,
+  hasCardOwnerFeatures: boolean,
+) {
+  if (hasCardOwnerFeatures || media === undefined) return;
+  if (media.slideshow.some((slide) => !allowedExistingSlideshowAssetIds.has(slide.assetId)))
+    throw new Error("Adding slideshow images requires a claimed card.");
+}
 
 function canUploadMediaForProfile(
   actor: Doc<"customers"> | null,
@@ -67,7 +83,12 @@ export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId:
   ) {
     throw new Error("Profile access denied.");
   }
-  return { account, profile, userId };
+  return {
+    account,
+    profile,
+    userId,
+    hasCardOwnerFeatures: await hasCardOwnerFeaturesForProfile(ctx, account, profile._id),
+  };
 }
 
 /** Internal bridge for the customer upload action; only the profile owner can use it. */
@@ -77,10 +98,11 @@ export const getOwnerAccess = internalQuery({
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
     userId: v.id("users"),
+    hasCardOwnerFeatures: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { profile, userId } = await profileOwnerAccess(ctx, args.profileId);
-    return { profileId: profile._id, ownerId: profile.ownerId, userId };
+    const { profile, userId, hasCardOwnerFeatures } = await profileOwnerAccess(ctx, args.profileId);
+    return { profileId: profile._id, ownerId: profile.ownerId, userId, hasCardOwnerFeatures };
   },
 });
 
@@ -91,6 +113,7 @@ export const getAdminAccess = internalQuery({
     profileId: v.id("profiles"),
     ownerId: v.id("customers"),
     userId: v.id("users"),
+    hasCardOwnerFeatures: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const { account, userId } = await requireAdministrator(ctx);
@@ -105,7 +128,12 @@ export const getAdminAccess = internalQuery({
     ) {
       throw new Error("Profile access denied.");
     }
-    return { profileId: profile._id, ownerId: profile.ownerId, userId };
+    return {
+      profileId: profile._id,
+      ownerId: profile.ownerId,
+      userId,
+      hasCardOwnerFeatures: true,
+    };
   },
 });
 
@@ -140,8 +168,14 @@ export async function assertOwnedProfileMediaSet(
   ownerId: Id<"customers">,
   media: Media,
 ) {
-  for (const assetId of profileMediaAssetIds(media))
-    await assertOwnedProfileMedia(ctx, profileId, ownerId, assetId);
+  if (media === undefined) return;
+  const check = async (assetId: Id<"profileMediaAssets">, target: "background" | "slideshow") => {
+    const asset = await assertOwnedProfileMedia(ctx, profileId, ownerId, assetId);
+    if (asset.target !== undefined && asset.target !== target)
+      throw new Error("This media asset cannot be used in that profile slot.");
+  };
+  if (media.background !== undefined) await check(media.background.assetId, "background");
+  for (const slide of media.slideshow) await check(slide.assetId, "slideshow");
 }
 
 async function resolveImage(ctx: DbContext, asset: Doc<"profileMediaAssets">) {
@@ -390,6 +424,7 @@ export const createUploadJob = internalMutation({
     accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
     sha256: v.string(),
     expectedMediaRevision: v.number(),
+    target: v.union(v.literal("background"), v.literal("slideshow")),
   },
   returns: v.id("profileMediaUploadJobs"),
   handler: async (ctx, args) => {
@@ -411,6 +446,10 @@ export const createUploadJob = internalMutation({
             .unique();
     if (!canUploadMediaForProfile(actor, args.actorUserId, args.accessMode, owner, profile))
       throw new Error("Profile access denied.");
+    if (args.target === "slideshow" && args.accessMode === "owner" && actor?._id === owner._id) {
+      if (!(await hasCardOwnerFeaturesForProfile(ctx, owner, profile._id)))
+        throw new Error("Slideshow uploads require a claimed card.");
+    }
     if (args.expectedMediaRevision !== (profile.mediaRevision ?? 0))
       throw new Error(MEDIA_REVISION_CONFLICT);
     const now = Date.now();
@@ -447,6 +486,7 @@ export const getUploadJob = internalQuery({
       scanPreviewCandidateId: v.optional(v.id("_storage")),
       scanSourceAmbiguous: v.optional(v.boolean()),
       scanPreviewAmbiguous: v.optional(v.boolean()),
+      target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
     }),
   ),
   handler: async (ctx, args) => await ctx.db.get(args.jobId),
@@ -490,6 +530,7 @@ export const attach = internalMutation({
     url: v.string(),
     previewUrl: v.string(),
     mediaRevision: v.number(),
+    target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
   }),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
@@ -516,6 +557,10 @@ export const attach = internalMutation({
             .unique();
     if (!canUploadMediaForProfile(actor, actorUserId, job.accessMode, owner, profile))
       throw new Error("Upload job does not match this media set.");
+    if (job.target === "slideshow" && job.accessMode === "owner") {
+      if (!(await hasCardOwnerFeaturesForProfile(ctx, owner, profile._id)))
+        throw new Error("Slideshow uploads require a claimed card.");
+    }
     if ((profile.mediaRevision ?? 0) !== job.expectedMediaRevision)
       throw new Error(MEDIA_REVISION_CONFLICT);
     const source = await ctx.db.system.get("_storage", args.storageId);
@@ -532,6 +577,7 @@ export const attach = internalMutation({
       size: args.size,
       width: args.width,
       height: args.height,
+      target: job.target,
       createdAt: Date.now(),
     });
     await ctx.db.patch(profile._id, {
@@ -552,7 +598,13 @@ export const attach = internalMutation({
     const url = await ctx.storage.getUrl(args.storageId);
     const previewUrl = await ctx.storage.getUrl(args.previewStorageId);
     if (url === null || previewUrl === null) throw new Error("The uploaded media was not found.");
-    return { assetId, url, previewUrl, mediaRevision: (profile.mediaRevision ?? 0) + 1 };
+    return {
+      assetId,
+      url,
+      previewUrl,
+      mediaRevision: (profile.mediaRevision ?? 0) + 1,
+      ...(job.target === undefined ? {} : { target: job.target }),
+    };
   },
 });
 

@@ -12,6 +12,7 @@ import type { ProfileTheme } from "@/lib/domain";
 import {
   DEFAULT_CUSTOM_PROFILE_COLORS,
   DEFAULT_WARM_STUDIO_CUSTOMIZATION,
+  defaultProfileCustomizationForTheme,
   IDENTITY_COLOR_PALETTE,
   defaultProfileLayoutOrder,
   isProfileIdentityHex,
@@ -38,6 +39,7 @@ import { segmentedClass, segmentedItemClass } from "@/components/ui/Segmented";
 
 export type ProfileCustomizationEditorProps = {
   barePanels?: boolean;
+  hasCardOwnerFeatures?: boolean;
   customization?: ProfileCustomization;
   errors?: readonly string[];
   categoryFocusRequest?: ProfileCustomizationFocusRequest;
@@ -508,6 +510,7 @@ function CategoryErrorList({ errors }: { errors: readonly string[] }) {
 
 export function ProfileCustomizationEditor({
   barePanels = false,
+  hasCardOwnerFeatures = true,
   customization,
   errors = [],
   categoryFocusRequest,
@@ -546,6 +549,11 @@ export function ProfileCustomizationEditor({
   );
   const selectedPreset: ProfileAppearancePreset =
     customization?.preset === "warm-studio" ? "warm-studio" : (theme ?? "paper");
+  const availableCategories: readonly ProfileCustomizationCategory[] = hasCardOwnerFeatures
+    ? PROFILE_CUSTOMIZATION_CATEGORIES
+    : PROFILE_CUSTOMIZATION_CATEGORIES.filter(
+        (category) => category === "overview" || category === "media" || category === "slideshow",
+      );
   const activeCustomization: ProfileCustomization =
     customization?.preset === selectedPreset
       ? customization
@@ -554,11 +562,14 @@ export function ProfileCustomizationEditor({
           preset: selectedPreset,
           ...(customization?.customColors ? { customColors: customization.customColors } : {}),
         };
-  const activeCategory =
+  const requestedCategory =
     categoryFocusRequest !== undefined &&
     categorySelection.categoryFocusSequence !== categoryFocusRequest.sequence
       ? categoryFocusRequest.category
       : categorySelection.category;
+  const activeCategory = availableCategories.includes(requestedCategory)
+    ? requestedCategory
+    : "overview";
   const mediaPanelIsActive = activeCategory === "media" || activeCategory === "slideshow";
   const mediaPanelCategory = mediaPanelIsActive ? activeCategory : "media";
   const mediaEditorSection = activeCategory === "slideshow" ? "slideshow" : "background";
@@ -648,7 +659,7 @@ export function ProfileCustomizationEditor({
     event: ReactKeyboardEvent<HTMLButtonElement>,
     category: ProfileCustomizationCategory,
   ) {
-    const enabledCategories = PROFILE_CUSTOMIZATION_CATEGORIES;
+    const enabledCategories = availableCategories;
     const currentIndex = enabledCategories.indexOf(category);
     if (currentIndex < 0) return;
 
@@ -688,19 +699,28 @@ export function ProfileCustomizationEditor({
     setCategory("overview");
     focusOverviewAfterTransitionRef.current = true;
     onChange(
-      copyCustomization({
-        ...activeCustomization,
-        preset,
-        ...(preset === "custom"
-          ? { customColors: activeCustomization.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS }
-          : {}),
-      }),
+      hasCardOwnerFeatures
+        ? copyCustomization({
+            ...activeCustomization,
+            preset,
+            ...(preset === "custom"
+              ? { customColors: activeCustomization.customColors ?? DEFAULT_CUSTOM_PROFILE_COLORS }
+              : {}),
+          })
+        : {
+            ...defaultProfileCustomizationForTheme(
+              preset === "paper" || preset === "moss" || preset === "night" ? preset : "paper",
+            ),
+            ...(activeCustomization.section === undefined
+              ? {}
+              : { section: activeCustomization.section }),
+          },
     );
     onThemeChange?.(preset === "warm-studio" ? "paper" : preset);
   }
 
   function choosePreset(preset: ProfileAppearancePreset) {
-    if (preset === selectedPreset) return;
+    if (preset === selectedPreset && hasCardOwnerFeatures) return;
     applyPreset(preset);
   }
 
@@ -719,7 +739,7 @@ export function ProfileCustomizationEditor({
         className={`${segmentedClass(barePanels ? "white" : "soft")} min-w-0 max-w-full justify-self-start overflow-x-auto`}
         role="tablist"
       >
-        {PROFILE_CUSTOMIZATION_CATEGORIES.map((category) => {
+        {availableCategories.map((category) => {
           const selected = activeCategory === category;
           const tabStatusId = `${baseId}-tab-${category}-status`;
           return (
@@ -770,7 +790,9 @@ export function ProfileCustomizationEditor({
                 <fieldset className="flex min-w-0 flex-col gap-4">
                   <legend className={groupLegendClass}>Profile preset</legend>
                   <p className={groupDescriptionClass}>
-                    Presets set every colour at once. You can change any of them after.
+                    {hasCardOwnerFeatures
+                      ? "Presets set every colour at once. You can change any of them after."
+                      : "Choose a ready-to-use Paper, Moss, or Night appearance."}
                   </p>
                   {presetError ? (
                     <p className="sr-only" id={errorId("preset")} role="alert">
@@ -778,104 +800,114 @@ export function ProfileCustomizationEditor({
                     </p>
                   ) : null}
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {appearancePresets.map((preset) => (
-                      <PresetRadio
-                        ariaDescribedBy={presetError ? errorId("preset") : undefined}
-                        checked={selectedPreset === preset.value}
-                        colors={
-                          preset.value === "custom" && customization?.customColors
-                            ? customization.customColors
-                            : preset.colors
-                        }
-                        description={preset.description}
-                        disabled={preset.value !== "warm-studio" && onThemeChange === undefined}
-                        key={preset.value}
-                        label={preset.label}
-                        name={`${baseId}-preset`}
-                        onChange={choosePreset}
-                        value={preset.value}
-                      />
-                    ))}
+                    {appearancePresets
+                      .filter(
+                        (preset) =>
+                          hasCardOwnerFeatures ||
+                          preset.value === "paper" ||
+                          preset.value === "moss" ||
+                          preset.value === "night",
+                      )
+                      .map((preset) => (
+                        <PresetRadio
+                          ariaDescribedBy={presetError ? errorId("preset") : undefined}
+                          checked={selectedPreset === preset.value}
+                          colors={
+                            preset.value === "custom" && customization?.customColors
+                              ? customization.customColors
+                              : preset.colors
+                          }
+                          description={preset.description}
+                          disabled={preset.value !== "warm-studio" && onThemeChange === undefined}
+                          key={preset.value}
+                          label={preset.label}
+                          name={`${baseId}-preset`}
+                          onChange={choosePreset}
+                          value={preset.value}
+                        />
+                      ))}
                   </div>
                 </fieldset>
               </div>
-              <details className="group">
-                <summary
-                  className={`flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-card px-6 py-4 text-base font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus [&::-webkit-details-marker]:hidden ${
-                    barePanels ? "bg-tapit-surface shadow-card" : "bg-tapit-soft-surface"
-                  }`}
-                >
-                  Fine tune
-                  <Icon
-                    className="size-4 text-tapit-muted transition-transform group-open:rotate-180"
-                    name="caretDown"
-                    weight="bold"
-                  />
-                </summary>
-                <div className="mt-4 @container">
-                  <div className={barePanels ? "grid gap-4 @2xl:grid-cols-2" : "grid gap-8"}>
-                    {selectedPreset === "custom" ? (
-                      <CustomPaletteControls
+              {hasCardOwnerFeatures ? (
+                <details className="group">
+                  <summary
+                    className={`flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-card px-6 py-4 text-base font-semibold text-tapit-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus [&::-webkit-details-marker]:hidden ${
+                      barePanels ? "bg-tapit-surface shadow-card" : "bg-tapit-soft-surface"
+                    }`}
+                  >
+                    Fine tune
+                    <Icon
+                      className="size-4 text-tapit-muted transition-transform group-open:rotate-180"
+                      name="caretDown"
+                      weight="bold"
+                    />
+                  </summary>
+                  <div className="mt-4 @container">
+                    <div className={barePanels ? "grid gap-4 @2xl:grid-cols-2" : "grid gap-8"}>
+                      {selectedPreset === "custom" ? (
+                        <CustomPaletteControls
+                          barePanels={barePanels}
+                          customization={activeCustomization}
+                          error={customColorError}
+                          onChange={onChange}
+                        />
+                      ) : null}
+                      <ChoiceGroup
                         barePanels={barePanels}
-                        customization={activeCustomization}
-                        error={customColorError}
-                        onChange={onChange}
+                        error={accentError}
+                        label="Accent colour"
+                        name={`${baseId}-accent`}
+                        onChange={(value) => update({ accent: value })}
+                        options={
+                          selectedPreset === "custom"
+                            ? [
+                                ["ink", "Palette accent", selectedPresetColors?.accent],
+                                ["coral", "Coral", coral.name],
+                                ["jade", "Jade", jade.name],
+                              ]
+                            : [
+                                [
+                                  "jade",
+                                  selectedPreset === "warm-studio" ? "Jade" : "Preset accent",
+                                  selectedPresetColors?.accent,
+                                ],
+                                ["coral", "Coral", coral.name],
+                                ["ink", "Ink", ink.name],
+                              ]
+                        }
+                        value={activeCustomization.accent}
                       />
-                    ) : null}
-                    <ChoiceGroup
-                      barePanels={barePanels}
-                      error={accentError}
-                      label="Accent colour"
-                      name={`${baseId}-accent`}
-                      onChange={(value) => update({ accent: value })}
-                      options={
-                        selectedPreset === "custom"
-                          ? [
-                              ["ink", "Palette accent", selectedPresetColors?.accent],
-                              ["coral", "Coral", coral.name],
-                              ["jade", "Jade", jade.name],
-                            ]
-                          : [
-                              [
-                                "jade",
-                                selectedPreset === "warm-studio" ? "Jade" : "Preset accent",
-                                selectedPresetColors?.accent,
-                              ],
-                              ["coral", "Coral", coral.name],
-                              ["ink", "Ink", ink.name],
-                            ]
-                      }
-                      value={activeCustomization.accent}
-                    />
-                    <ChoiceGroup
-                      barePanels={barePanels}
-                      error={scaleError}
-                      label="Type scale"
-                      name={`${baseId}-scale`}
-                      onChange={(value) => update({ typeScale: value })}
-                      options={[
-                        ["compact", "Compact"],
-                        ["comfortable", "Comfortable"],
-                        ["editorial", "Editorial"],
-                      ]}
-                      value={activeCustomization.typeScale}
-                    />
-                    <ChoiceGroup
-                      barePanels={barePanels}
-                      error={treatmentError}
-                      hint="Filled uses your accent colour."
-                      label="Save contact button"
-                      name={`${baseId}-treatment`}
-                      onChange={(value) => update({ linkTreatment: value })}
-                      options={[
-                        ["filled", "Filled"],
-                        ["outlined", "Outlined"],
-                      ]}
-                      value={activeCustomization.linkTreatment}
-                    />
+                      <ChoiceGroup
+                        barePanels={barePanels}
+                        error={scaleError}
+                        label="Type scale"
+                        name={`${baseId}-scale`}
+                        onChange={(value) => update({ typeScale: value })}
+                        options={[
+                          ["compact", "Compact"],
+                          ["comfortable", "Comfortable"],
+                          ["editorial", "Editorial"],
+                        ]}
+                        value={activeCustomization.typeScale}
+                      />
+                      <ChoiceGroup
+                        barePanels={barePanels}
+                        error={treatmentError}
+                        hint="Filled uses your accent colour."
+                        label="Save contact button"
+                        name={`${baseId}-treatment`}
+                        onChange={(value) => update({ linkTreatment: value })}
+                        options={[
+                          ["filled", "Filled"],
+                          ["outlined", "Outlined"],
+                        ]}
+                        value={activeCustomization.linkTreatment}
+                      />
+                    </div>
                   </div>
-                </div>
-              </details>
+                </details>
+              ) : null}
             </div>
           ) : null}
 
@@ -902,6 +934,7 @@ export function ProfileCustomizationEditor({
                     barePanels={barePanels}
                     busy={mediaBusy}
                     error={visibleMediaError}
+                    hasCardOwnerFeatures={hasCardOwnerFeatures}
                     media={media}
                     onChange={onMediaChange}
                     onMediaErrorClear={onMediaErrorClear}

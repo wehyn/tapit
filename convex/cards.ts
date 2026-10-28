@@ -18,6 +18,7 @@ const resolveResultValidator = v.union(
     status: v.literal("active"),
     profile: publicProfileValidator,
     redirectDestination: v.optional(v.string()),
+    claimCodeExpiresAt: v.optional(v.number()),
   }),
 );
 
@@ -71,6 +72,12 @@ export const resolve = query({
       status: "active" as const,
       profile: projection,
       ...(redirectDestination === undefined ? {} : { redirectDestination }),
+      ...(card.claimCodeHash !== undefined &&
+      card.claimCodeClaimedAt === undefined &&
+      card.claimCodeInvalidatedAt === undefined &&
+      card.claimCodeExpiresAt !== undefined
+        ? { claimCodeExpiresAt: card.claimCodeExpiresAt }
+        : {}),
     };
   },
 });
@@ -270,11 +277,12 @@ export const generateClaimCode = mutation({
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
+    // Published profiles keep active card URLs while the owner still needs to claim the card.
     if (
       card === null ||
       !sameScope(account, card) ||
       card.profileId === undefined ||
-      card.status !== "claimable" ||
+      (card.status !== "claimable" && card.status !== "active") ||
       card.claimCodeClaimedAt !== undefined
     )
       throw new Error("Claim code unavailable.");

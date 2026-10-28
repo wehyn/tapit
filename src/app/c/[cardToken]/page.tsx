@@ -5,13 +5,17 @@ export default async function CardResolverPage({
   searchParams,
 }: {
   params: Promise<{ cardToken: string }>;
-  searchParams: Promise<{ source?: string | string[] | undefined }>;
+  searchParams: Promise<{
+    claim?: string | string[] | undefined;
+    source?: string | string[] | undefined;
+  }>;
 }) {
   const { cardToken } = await params;
-  const { source } = await searchParams;
+  const { claim, source } = await searchParams;
   return (
     <CardResolverClient
       cardToken={cardToken}
+      claim={claim === "1"}
       source={typeof source === "string" ? source : undefined}
     />
   );

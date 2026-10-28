@@ -221,7 +221,7 @@ test("owner shortcut is hidden when signed out and links Mara to profile editor"
   const editProfile = page.getByRole("link", { name: "Edit profile", exact: true });
   await expect(editProfile).toBeVisible();
   await expect(editProfile).toHaveAttribute("href", "/app/profile");
-  const ownerActions = page.getByRole("navigation", { name: "Profile owner actions" });
+  const ownerActions = page.getByRole("navigation", { name: "Profile actions" });
   await expect(ownerActions).toHaveCSS("position", "absolute");
   const [ownerBox, heroBox] = await Promise.all([
     ownerActions.boundingBox(),
@@ -837,10 +837,7 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   await page.goto("/app/links");
-  await expect(
-    page.getByText("Claim the attached card before publishing this profile."),
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "Account menu for owner@example.test" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
 

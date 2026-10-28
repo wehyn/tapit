@@ -278,7 +278,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     `https://tapit.test/c/${MARA_TOKEN}`,
     "active",
     maraId,
-    { assignedAt: now },
+    { assignedAt: now, claimCodeClaimedAt: now },
   );
   const claimableCardId = await card(
     CLAIMABLE_TOKEN,

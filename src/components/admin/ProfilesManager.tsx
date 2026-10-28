@@ -1195,7 +1195,10 @@ function LiveProfilesManager() {
     revisions.draftRevision = result.draftRevision;
   }
 
-  async function uploadMedia(file: File): Promise<ProfileMediaImage> {
+  async function uploadMedia(
+    file: File,
+    target: "background" | "slideshow",
+  ): Promise<ProfileMediaImage> {
     if (!profile) throw new Error("Select a profile before uploading media.");
     if (authToken === null) throw new Error("Authentication is required to upload media.");
     const revisions = uploadRevisionsFor(profile);
@@ -1210,6 +1213,7 @@ function LiveProfilesManager() {
         Authorization: `Bearer ${authToken}`,
         "Content-Type": file.type,
         "X-Media-Revision": String(revisions.mediaRevision),
+        "X-Media-Target": target,
         "X-Profile-Id": profile._id,
       },
     });
