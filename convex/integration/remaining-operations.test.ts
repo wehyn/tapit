@@ -481,6 +481,13 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     await expect(other.query(api.analytics.mine, { range: "lifetime", now })).rejects.toThrow(
       "Card owner access required.",
     );
+    await expect(
+      other.query(api.analytics.minePage, {
+        range: "lifetime",
+        now,
+        paginationOpts: { numItems: 50, cursor: null },
+      }),
+    ).rejects.toThrow("Card owner access required.");
     await expect(other.query(api.analytics.all, { range: "lifetime", now })).rejects.toThrow(
       "Administrator permission required.",
     );
