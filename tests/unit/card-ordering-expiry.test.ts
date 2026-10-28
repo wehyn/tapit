@@ -9,7 +9,7 @@ describe("card order offer expiry", () => {
 
   it("expires at the start of the selected Manila date", () => {
     const cutoff = manilaStartOfDayTimestamp("2026-10-28");
-    expect(cutoff).not.toBeNull();
+    expect(cutoff).toBe(Date.parse("2026-10-27T16:00:00.000Z"));
     expect(isCardOrderOfferExpired("2026-10-28", cutoff! - 1)).toBe(false);
     expect(isCardOrderOfferExpired("2026-10-28", cutoff!)).toBe(true);
     expect(isCardOrderOfferExpired("2026-10-28", cutoff! + 1)).toBe(true);

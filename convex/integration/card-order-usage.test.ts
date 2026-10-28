@@ -140,6 +140,7 @@ describe("card order referral usage", () => {
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
       { code: "FOUNDING-AHRON", offer: { expiresOn: "2099-02-28" } },
     ]);
+    await t.run((ctx) => ctx.db.patch(offerId, { usageCount: 7 }));
     await admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
       id: offerId,
       code: "LIMITED",
@@ -147,14 +148,18 @@ describe("card order referral usage", () => {
     });
     await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({
       expiresOn: "2099-03-01",
-      usageCount: 0,
+      usageCount: 7,
     });
     await admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
       id: offerId,
       code: "LIMITED",
       expiresOn: undefined,
     });
-    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 0 });
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 7 });
+    const clearedOffer = (await admin.query(api.cardOrderSettings.adminCardOrderOffers, {})).find(
+      (offer) => offer._id === offerId,
+    );
+    expect(clearedOffer).not.toHaveProperty("expiresOn");
     await expect(
       admin.mutation(api.cardOrderSettings.saveCardOrderOffer, {
         id: offerId,
@@ -162,7 +167,7 @@ describe("card order referral usage", () => {
         expiresOn: "2099-02-30",
       }),
     ).rejects.toThrow("valid YYYY-MM-DD date");
-    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 0 });
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 7 });
     await expect(admin.query(api.cardOrderSettings.adminCardOrderOffers, {})).resolves.toEqual(
       expect.arrayContaining([{ _id: legacyId, code: "LEGACY", usageCount: 3 }]),
     );
