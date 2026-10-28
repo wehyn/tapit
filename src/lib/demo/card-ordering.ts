@@ -166,6 +166,13 @@ export function getDemoCardOrderAdminSettings() {
   return {
     launchEndDate: state.cardOrderLaunchEndDate,
     paymentMethods: state.cardOrderPaymentMethods,
+    offers: state.cardOrderOffers.map((offer) => ({
+      id: offer.id,
+      code: offer.code,
+      fixedPriceCentavos: offer.fixedPriceCentavos,
+      usageCount: offerUsageCount(state, offer.id),
+      usageLimit: offer.usageLimit,
+    })),
     referralCodes: state.cardOrderReferralCodes.map((code) => {
       const offer = state.cardOrderOffers.find((item) => item.id === code.offerId);
       return {

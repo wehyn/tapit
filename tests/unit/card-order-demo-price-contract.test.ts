@@ -59,6 +59,7 @@ import {
   getDemoCardOrderAdminSettings,
   placeDemoCardOrder,
   previewDemoCardOrderReferral,
+  deactivateDemoCardOrderReferralCode,
   saveDemoCardOrderReferralCode,
   saveDemoCardOrderOffer,
 } from "@/lib/demo/card-ordering";
@@ -250,6 +251,51 @@ describe("demo card order price confirmation", () => {
     expect(
       getDemoCardOrderAdminSettings().referralCodes.find((code) => code.id === id)?.offer,
     ).toMatchObject({ usageLimit: undefined });
+  });
+
+  it("lists offers without aliases and keeps them after their last alias is deactivated", async () => {
+    mocks.customerId = "customer-admin";
+    mocks.role = "admin";
+    const offerId = await saveDemoCardOrderOffer({ code: "SOLO", usageLimit: 3 });
+    expect(getDemoCardOrderAdminSettings().offers).toContainEqual({
+      id: offerId,
+      code: "SOLO",
+      fixedPriceCentavos: undefined,
+      usageCount: 0,
+      usageLimit: 3,
+    });
+
+    const aliasId = await saveDemoCardOrderReferralCode({
+      code: "SOLO-AHRON",
+      offerId,
+      referrerCode: "AHRON",
+      active: true,
+    });
+    const secondAliasId = await saveDemoCardOrderReferralCode({
+      code: "SOLO-MARA",
+      offerId,
+      referrerCode: "MARA",
+      active: true,
+    });
+    (mocks.state.cardOrders as Record<string, unknown>[]).push(
+      { id: "solo-use-1", referralCodeId: aliasId },
+      { id: "solo-use-2", referralCodeId: secondAliasId },
+      { id: "founding-use", referralCodeId: "founding-only" },
+    );
+    expect(getDemoCardOrderAdminSettings().offers.find((offer) => offer.id === offerId)?.usageCount)
+      .toBe(2);
+
+    await deactivateDemoCardOrderReferralCode(aliasId);
+    await deactivateDemoCardOrderReferralCode(secondAliasId);
+    const settings = getDemoCardOrderAdminSettings();
+    expect(settings.referralCodes.find((code) => code.id === aliasId)?.active).toBe(false);
+    expect(settings.offers).toContainEqual({
+      id: offerId,
+      code: "SOLO",
+      fixedPriceCentavos: undefined,
+      usageCount: 2,
+      usageLimit: 3,
+    });
   });
 
   it("rejects an invalid usage limit when saving", async () => {
