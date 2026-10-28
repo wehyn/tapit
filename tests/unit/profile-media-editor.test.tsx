@@ -165,7 +165,8 @@ describe("ProfileMediaEditor", () => {
     expect(media.autoplay).toBe(true);
   });
 
-  it("keeps over-limit slides removable and explains how many to remove", () => {
+  it("keeps over-limit slides removable and explains how many to remove", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     const overLimitMedia = {
       ...media,
@@ -183,6 +184,12 @@ describe("ProfileMediaEditor", () => {
     );
     expect(screen.getByText("Remove 2 images before saving.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Add slideshow image" })).toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Remove slideshow image 1" }));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ slideshow: overLimitMedia.slideshow.slice(1) }),
+    );
+    expect(overLimitMedia.slideshow).toHaveLength(MAX_PROFILE_SLIDESHOW_IMAGES + 2);
   });
 
   it("uses singular removal guidance for one over-limit image", () => {
