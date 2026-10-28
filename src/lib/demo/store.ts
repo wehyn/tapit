@@ -1085,23 +1085,22 @@ export function beginCurrentDemoAccountReset(): string {
     account.role !== "customer" ||
     account.isDemo !== true ||
     account.status !== "active" ||
-    account.demoResetInProgress === true
+    account.deletionStatus !== "active" ||
+    (account.demoOnboardingPending === true && account.demoResetInProgress !== true)
   ) {
     throw new Error("Active Demo account required.");
   }
-  updateDemoState((state) => ({
-    ...state,
-    customers: state.customers.map((customer) =>
-      customer.id === account.id ? { ...customer, demoResetInProgress: true } : customer,
-    ),
-  }));
+  if (account.demoResetInProgress !== true)
+    updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === account.id ? { ...customer, demoResetInProgress: true } : customer,
+      ),
+    }));
   return account.id;
 }
 
-export function finishCurrentDemoAccountReset(
-  customerId: string,
-  removedOrderIds: string[] = [],
-): void {
+export function finishCurrentDemoAccountReset(customerId: string): void {
   const currentSession = getDemoSession();
   const current = getDemoState();
   const account =
@@ -1125,12 +1124,9 @@ export function finishCurrentDemoAccountReset(
     ...current.cards.filter((card) => profileIds.has(card.profileId ?? "")).map((card) => card.id),
     ...(account.claimedCardIds ?? []),
   ]);
-  const orderIds = new Set([
-    ...removedOrderIds,
-    ...current.cardOrders
-      .filter((order) => order.customerId === account.id)
-      .map((order) => order.id),
-  ]);
+  const orderIds = new Set(
+    current.cardOrders.filter((order) => order.customerId === account.id).map((order) => order.id),
+  );
   const ownedAuditActors = new Set([
     account.email,
     ...ownedProfiles.map((profile) => profile.draft.name),
@@ -1179,25 +1175,18 @@ export function finishCurrentDemoAccountReset(
   }));
 }
 
-export function cancelCurrentDemoAccountReset(customerId: string): void {
-  const currentSession = getDemoSession();
-  const current = getDemoState();
-  const account =
-    currentSession && current.customers.find((customer) => customer.email === currentSession.email);
-  if (!account || account.id !== customerId || account.demoResetInProgress !== true) return;
-  updateDemoState((state) => ({
-    ...state,
-    customers: state.customers.map((customer) =>
-      customer.id === customerId ? { ...customer, demoResetInProgress: undefined } : customer,
-    ),
-  }));
-}
-
 export function promoteDemoCustomerToDemo(customerId: string): void {
   updateDemoState((state) => {
     const actor = state.customers.find((customer) => customer.email === getDemoSession()?.email);
     const target = state.customers.find((customer) => customer.id === customerId);
-    if (actor?.role !== "admin" || target?.role !== "customer" || target.status !== "active") {
+    if (
+      actor?.role !== "admin" ||
+      target?.role !== "customer" ||
+      target.isDemo === true ||
+      target.status !== "active" ||
+      target.deletionStatus !== "active" ||
+      target.demoResetInProgress === true
+    ) {
       throw new Error("Active administrator and customer accounts required.");
     }
     return {
@@ -1227,7 +1216,9 @@ export function promoteDemoCustomerToAdmin(customerId: string): void {
       actor?.role !== "admin" ||
       target?.role !== "customer" ||
       target.isDemo !== true ||
-      target.status !== "active"
+      target.status !== "active" ||
+      target.deletionStatus !== "active" ||
+      target.demoResetInProgress === true
     ) {
       throw new Error("Active Demo customer required.");
     }

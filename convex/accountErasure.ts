@@ -24,7 +24,7 @@ async function eraseProfilePass(
   ctx: MutationCtx,
   profileId: Id<"profiles">,
   mode: "permanentDeletion" | "demoReset",
-): Promise<boolean> {
+): Promise<boolean | "waiting"> {
   const card = await ctx.db
     .query("cards")
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
@@ -119,11 +119,30 @@ async function eraseProfilePass(
     return true;
   }
   if (await deleteProfileMedia(ctx, profileId)) return true;
-  const hasImageJobs = await ctx.db
-    .query("profileImageUploadJobs")
-    .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
-    .first();
-  if (hasImageJobs !== null)
+  const [imageJob, mediaJob] = await Promise.all([
+    ctx.db
+      .query("profileImageUploadJobs")
+      .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
+      .first(),
+    ctx.db
+      .query("profileMediaUploadJobs")
+      .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
+      .first(),
+  ]);
+  if (mode === "demoReset" && (imageJob !== null || mediaJob !== null)) {
+    if (imageJob !== null)
+      await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
+        profileId,
+        cursor: null,
+      });
+    if (mediaJob !== null)
+      await ctx.scheduler.runAfter(0, internal.profileMediaCleanup.prepareProfileForErasure, {
+        profileId,
+        cursor: null,
+      });
+    return "waiting";
+  }
+  if (imageJob !== null)
     await ctx.scheduler.runAfter(0, internal.profileImageCleanup.prepareProfileForErasure, {
       profileId,
       cursor: null,
@@ -226,7 +245,7 @@ async function eraseAccountDataPass(
   ctx: MutationCtx,
   customerId: Id<"customers">,
   mode: "permanentDeletion" | "demoReset",
-): Promise<boolean> {
+): Promise<boolean | "waiting"> {
   const customer = await ctx.db.get(customerId);
   if (customer === null) return false;
   let approvedRequest: Doc<"deletionRequests"> | null = null;
@@ -439,7 +458,39 @@ export const resetDemoAccountPass = internalMutation({
     const customer = await ctx.db.get(args.customerId);
     if (customer === null || customer.demoResetInProgress !== true) return null;
     const more = await eraseAccountDataPass(ctx, args.customerId, "demoReset");
-    if (more) await ctx.scheduler.runAfter(0, internal.accountErasure.resetDemoAccountPass, args);
+    if (more === true)
+      await ctx.scheduler.runAfter(0, internal.accountErasure.resetDemoAccountPass, args);
+    return null;
+  },
+});
+
+export const resumeDemoResetAfterProfileUploads = internalMutation({
+  args: { customerId: v.id("customers"), profileId: v.id("profiles") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.customerId);
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.isDemo !== true ||
+      customer.demoResetInProgress !== true ||
+      customer.profileId !== args.profileId
+    )
+      return null;
+    const [imageJob, mediaJob] = await Promise.all([
+      ctx.db
+        .query("profileImageUploadJobs")
+        .withIndex("by_profileId", (q) => q.eq("profileId", args.profileId))
+        .first(),
+      ctx.db
+        .query("profileMediaUploadJobs")
+        .withIndex("by_profileId", (q) => q.eq("profileId", args.profileId))
+        .first(),
+    ]);
+    if (imageJob === null && mediaJob === null)
+      await ctx.scheduler.runAfter(0, internal.accountErasure.resetDemoAccountPass, {
+        customerId: args.customerId,
+      });
     return null;
   },
 });

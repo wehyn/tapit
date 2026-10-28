@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -106,6 +106,41 @@ describe("Demo account reset", () => {
         size: 20,
         createdAt: 1,
       });
+      const imageUploadStorageId = await ctx.storage.store(new Blob(["unfinished image upload"]));
+      const duplicateImageUploadStorageId = await ctx.storage.store(
+        new Blob(["unfinished image upload"]),
+      );
+      const secondDuplicateImageUploadStorageId = await ctx.storage.store(
+        new Blob(["unfinished image upload"]),
+      );
+      const imageUploadMetadata = (await ctx.db.system.get("_storage", imageUploadStorageId))!;
+      const imageUploadJobId = await ctx.db.insert("profileImageUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        largeStorageId: imageUploadStorageId,
+        largeSha256: imageUploadMetadata.sha256,
+        status: "pending",
+        createdAt: imageUploadMetadata._creationTime - 1,
+        uploadWindowEndsAt: imageUploadMetadata._creationTime + 60_000,
+      });
+      const mediaUploadStorageId = await ctx.storage.store(new Blob(["unfinished media upload"]));
+      const duplicateMediaUploadStorageId = await ctx.storage.store(
+        new Blob(["unfinished media upload"]),
+      );
+      const secondDuplicateMediaUploadStorageId = await ctx.storage.store(
+        new Blob(["unfinished media upload"]),
+      );
+      const mediaUploadMetadata = (await ctx.db.system.get("_storage", mediaUploadStorageId))!;
+      const mediaUploadJobId = await ctx.db.insert("profileMediaUploadJobs", {
+        profileId,
+        ownerId: customerId,
+        storageId: mediaUploadStorageId,
+        sha256: mediaUploadMetadata.sha256,
+        expectedMediaRevision: 0,
+        status: "pending",
+        createdAt: mediaUploadMetadata._creationTime - 1,
+        uploadWindowEndsAt: mediaUploadMetadata._creationTime + 60_000,
+      });
       const cardId = await ctx.db.insert("cards", {
         cardUrl: "https://tapit.test/c/demo-card",
         token: "demo-card-token",
@@ -145,6 +180,14 @@ describe("Demo account reset", () => {
         otherProfileId,
         sharedStorageId,
         cardId,
+        imageUploadStorageId,
+        duplicateImageUploadStorageId,
+        secondDuplicateImageUploadStorageId,
+        imageUploadJobId,
+        mediaUploadStorageId,
+        duplicateMediaUploadStorageId,
+        secondDuplicateMediaUploadStorageId,
+        mediaUploadJobId,
       };
     });
 
@@ -161,6 +204,63 @@ describe("Demo account reset", () => {
     await expect(
       owner.mutation(api.customers.completeSelfServiceOnboarding, { name: "Too Soon" }),
     ).rejects.toThrow("Pending customer account required.");
+
+    let waitingForUploadCleanup = false;
+    for (let pass = 0; pass < 20; pass += 1) {
+      await t.mutation(internal.accountErasure.resetDemoAccountPass, {
+        customerId: ids.customerId,
+      });
+      waitingForUploadCleanup = await t.run(async (ctx) => {
+        const [profile, cards, links, analytics, images, mediaAssets, imageJobs, mediaJobs] =
+          await Promise.all([
+            ctx.db.get(ids.profileId),
+            ctx.db
+              .query("cards")
+              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("links")
+              .withIndex("by_profile_position", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("analytics")
+              .withIndex("by_profile_bucket", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("profileImages")
+              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("profileMediaAssets")
+              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("profileImageUploadJobs")
+              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+            ctx.db
+              .query("profileMediaUploadJobs")
+              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+              .collect(),
+          ]);
+        return (
+          profile !== null &&
+          cards.length === 0 &&
+          links.length === 0 &&
+          analytics.length === 0 &&
+          images.length === 0 &&
+          mediaAssets.length === 0 &&
+          imageJobs.length > 0 &&
+          mediaJobs.length > 0
+        );
+      });
+      if (waitingForUploadCleanup) break;
+    }
+    expect(waitingForUploadCleanup).toBe(true);
+    await expect(owner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      accountStatus: "pending",
+      demoResetInProgress: true,
+    });
 
     vi.useFakeTimers();
     await t.finishAllScheduledFunctions(vi.runAllTimers);
@@ -185,6 +285,14 @@ describe("Demo account reset", () => {
       expect(await ctx.db.query("cardClaimChallenges").collect()).toHaveLength(0);
       expect(await ctx.db.query("links").collect()).toHaveLength(0);
       expect(await ctx.db.query("analytics").collect()).toHaveLength(0);
+      expect(await ctx.db.get(ids.imageUploadJobId)).toBeNull();
+      expect(await ctx.db.get(ids.mediaUploadJobId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.imageUploadStorageId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.mediaUploadStorageId)).toBeNull();
+      expect(await ctx.storage.getUrl(ids.duplicateImageUploadStorageId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.secondDuplicateImageUploadStorageId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.duplicateMediaUploadStorageId)).not.toBeNull();
+      expect(await ctx.storage.getUrl(ids.secondDuplicateMediaUploadStorageId)).not.toBeNull();
       expect(await ctx.db.get(ids.otherProfileId)).not.toBeNull();
       expect(await ctx.db.get(ids.otherCustomerId)).not.toBeNull();
       expect(await ctx.storage.get(ids.sharedStorageId)).not.toBeNull();

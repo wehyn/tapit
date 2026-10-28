@@ -823,6 +823,9 @@ describe("Convex authentication and ownership", () => {
         role: "admin",
       }),
     ).rejects.toThrow("Promote the customer to Demo first.");
+    await expect(
+      admin.mutation(api.customers.promoteToDemo, { customerId: data.adminCustomerId }),
+    ).rejects.toThrow("Active customer account required.");
     await admin.mutation(api.customers.promoteToDemo, { customerId: data.ownerCustomerId });
     await admin.mutation(api.customers.setRole, {
       customerId: data.ownerCustomerId,

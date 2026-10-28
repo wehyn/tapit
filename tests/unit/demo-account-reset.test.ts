@@ -26,6 +26,7 @@ describe("local Demo account state", () => {
 
     const id = store.beginCurrentDemoAccountReset();
     expect(id).toBe(mara.id);
+    expect(store.beginCurrentDemoAccountReset()).toBe(id);
     expect(
       store.getDemoState().customers.find((customer) => customer.id === mara.id),
     ).toMatchObject({
@@ -49,6 +50,15 @@ describe("local Demo account state", () => {
     expect(result.audits.some((event) => event.target === "mara-velasquez")).toBe(false);
     expect(result.cardOrderPaymentMethods).toEqual(state.cardOrderPaymentMethods);
     expect(store.getDemoSession()).toEqual({ email: mara.email, role: "customer" });
+
+    const { resetCurrentDemoAccountData } = await import("../../src/lib/demo/card-order-assets");
+    await expect(resetCurrentDemoAccountData()).resolves.toBeUndefined();
+    expect(
+      store.getDemoState().customers.find((customer) => customer.id === mara.id),
+    ).toMatchObject({
+      demoOnboardingPending: true,
+      demoResetInProgress: undefined,
+    });
 
     store.completeDemoReOnboarding({ name: "Mara Again", slug: "mara-again" });
     result = store.getDemoState();

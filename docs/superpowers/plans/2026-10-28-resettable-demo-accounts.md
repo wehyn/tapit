@@ -29,6 +29,12 @@
 - `tests/unit/demo-account-reset.test.ts` — new local reset and sidecar cleanup coverage.
 - `e2e/admin.spec.ts`, `e2e/customer.spec.ts`, `docs/spec.md`, and `docs/CHANGELOG.md` — deterministic browser proof, product behavior, and user-visible change note.
 
+## Sequencing and file ownership
+
+- Tasks 1, 3, and 4 touch the same Convex schema/customer lifecycle. Keep them with one owner or complete them in sequence; run codegen and the reset integration test only after Task 4 defines `internal.accountErasure.resetDemoAccountPass`.
+- Tasks 2 and 5 share the local customer/store and reset tests. Keep them with one owner or complete them in sequence.
+- Tasks 6 and 7 can start after the backend and local APIs they call exist. Do not let separate workers stage or commit another task's files.
+
 ## Task 1: Add the Convex Demo marker and enforce staged promotion
 
 **Files:** `convex/schema.ts`, `convex/customers.ts`, `convex/integration/auth-ownership.test.ts`
@@ -48,6 +54,7 @@ expect(promoted?.isDemo).toBeUndefined();
 
 - [ ] Run `npx vitest run convex/integration/auth-ownership.test.ts`; confirm the new test fails because Demo promotion is not implemented.
 - [ ] Add `isDemo: v.optional(v.boolean())` to `customers` in `convex/schema.ts`. Add an admin-only `promoteToDemo` mutation in `convex/customers.ts` that requires an active same-scope customer, leaves `role: "customer"`, sets `isDemo: true`, and writes an audit event.
+- [ ] Enforce `target.role === "customer"` server-side and test that administrators cannot be marked Demo.
 - [ ] Update `setRole` so customer→admin requires `isDemo === true` and clears the marker; admin→customer clears the marker and keeps the last-active-admin guard. Preserve the target’s `userId`, profile, and other customer data on promotion.
 - [ ] Keep the transition checks in this shape so the rule remains server-enforced:
 
@@ -91,12 +98,16 @@ export type DemoCustomer = {
 - [ ] Gate the two customer actions on the state, not just the account role:
 
 ```tsx
-{customer.status === "active" && customer.role === "customer" && !customer.isDemo ? (
-  <Button onClick={() => promoteToDemo(customer)}>Promote to Demo</Button>
-) : null}
-{customer.status === "active" && customer.role === "customer" && customer.isDemo ? (
-  <Button onClick={() => promoteToAdmin(customer)}>Promote to Administrator</Button>
-) : null}
+{
+  customer.status === "active" && customer.role === "customer" && !customer.isDemo ? (
+    <Button onClick={() => promoteToDemo(customer)}>Promote to Demo</Button>
+  ) : null;
+}
+{
+  customer.status === "active" && customer.role === "customer" && customer.isDemo ? (
+    <Button onClick={() => promoteToAdmin(customer)}>Promote to Administrator</Button>
+  ) : null;
+}
 ```
 
 - [ ] Run `npx vitest run tests/unit/demo-storage-store.test.ts tests/unit/admin-auth-pagination.test.tsx`; expect local persistence and both action paths to pass.
@@ -118,13 +129,17 @@ const customer = await ctx.db
   .withIndex("by_userId", (q) => q.eq("userId", userId))
   .unique();
 if (
-  customer === null || customer.role !== "customer" || customer.isDemo !== true ||
-  customer.status !== "active" || customer.deletionStatus !== "active"
-) throw new Error("Active Demo account required.");
+  customer === null ||
+  customer.role !== "customer" ||
+  customer.isDemo !== true ||
+  customer.status !== "active" ||
+  customer.deletionStatus !== "active"
+)
+  throw new Error("Active Demo account required.");
 ```
 
 - [ ] Return `demoResetInProgress` from `admin.currentAccess` and its internal counterpart. Make `completeSelfServiceOnboarding` reject while reset is in progress and accept the account again only after reset finalization leaves it pending with no profile.
-- [ ] Run `npx convex codegen`, then `npx vitest run convex/integration/demo-account-reset.test.ts`; expect authorization and reset-state assertions to pass.
+- [ ] Defer codegen and the reset integration test until Task 4 adds `internal.accountErasure.resetDemoAccountPass`; then run both tasks' Convex tests together.
 
 ## Task 4: Reuse bounded Convex cleanup without deleting Auth or unrelated records
 
@@ -135,8 +150,9 @@ if (
 - [ ] Extract the bounded product-data cleanup from `eraseCustomerPass` into `eraseAccountDataPass(ctx, customerId, mode)` with `mode: "permanentDeletion" | "demoReset"`. Keep the existing approved-deletion gate and terminal Auth/customer deletion for `permanentDeletion`; require the Demo reset marker and preserve Auth/customer records for `demoReset`.
 - [ ] Implement `resetDemoAccountPass` as a separate internal mutation. After each pass, schedule itself again only while the customer still has `demoResetInProgress === true`; the final pass clears that marker, preventing the retained customer row from causing an infinite cleanup loop.
 - [ ] For reset mode, delete each Demo profile’s card rows only after its claim challenges and card audit references are removed. Keep the existing permanent-erasure behavior that deactivates/unassigns inventory. Use the existing storage reference inspection so files still referenced elsewhere survive.
+- [ ] Keep `demoResetInProgress` set until profile image and media upload cleanup jobs have reconciled. If a profile still has upload jobs, start the existing cleanup path, retain reset state, and resume account cleanup after the final reconciliation removes its job; do not spin a zero-delay reset loop or expose onboarding early.
 - [ ] Delete account-owned orders, receipt/design uploads, assets, profile media, links, analytics, profile data, and account-specific claim state. Keep global payment methods and shared payment QR assets. On the final pass, clear `profileId`, `onboardingName`, and `cardOwnerAccessOverride`, restore `deletionStatus: "active"`, clear reset progress, and leave `status: "pending"`, `role: "customer"`, `isDemo: true`, `userId`, and the Auth records intact.
-- [ ] Run `npx vitest run convex/integration/demo-account-reset.test.ts convex/integration/card-order-receipt-erasure.test.ts convex/integration/retention.test.ts`; expect reset, shared-file safety, and unchanged approved deletion behavior to pass.
+- [ ] Run `npx vitest run convex/integration/demo-account-reset.test.ts convex/integration/card-order-receipt-erasure.test.ts convex/integration/retention.test.ts`; expect reset, shared-file safety, and unchanged approved deletion behavior to pass. Assert the retained customer still references the same `userId`, and complete onboarding as that authenticated user after cleanup.
 - [ ] Commit as `feat: reset demo accounts without deleting auth`.
 
 ## Task 5: Add local per-account reset and same-identity re-onboarding
@@ -152,15 +168,20 @@ if (
 const session = getDemoSession();
 const account = session && getDemoState().customers.find((item) => item.email === session.email);
 if (
-  !account || account.role !== "customer" || account.isDemo !== true ||
-  account.status !== "active" || account.demoResetInProgress === true
+  !account ||
+  account.role !== "customer" ||
+  account.isDemo !== true ||
+  account.status !== "active" ||
+  account.demoResetInProgress === true
 ) {
   throw new Error("Active Demo account required.");
 }
 ```
 
+- [ ] After marking reset in progress, authorize sidecar cleanup from the captured owner/session and the same account's reset marker inside the IndexedDB lock. Do not call the ordinary active-account access helper after reset begins.
 - [ ] Reuse the existing locked IndexedDB order-asset/receipt cleanup, but add an owner-authorized reset path instead of calling `deleteDemoCardOrderAssetsForApprovedDeletion` without its approval check. Retain shared administrator QR assets and protect concurrent order-asset changes.
-- [ ] Let a pending local Demo session route to `/onboarding`; render `DemoOnboardingForm` in local mode and complete the profile on the existing customer record rather than creating a duplicate account. Preserve the same local password and Demo marker. Leave hosted-demo and live onboarding paths unchanged.
+- [ ] Let a pending local Demo session route to `/onboarding`; render `DemoOnboardingForm` in local mode and complete the profile on the existing customer record rather than creating a duplicate account. Preserve the same local password and Demo marker. If the tab closes during cleanup, retain the reset marker, allow idempotent cleanup to resume on the next valid sign-in, and route to onboarding only after cleanup finishes. Leave hosted-demo and live onboarding paths unchanged.
+- [ ] Test sign-out/reload, sign-in with the same credentials, interrupted sidecar cleanup recovery, and re-onboarding under the same identity.
 - [ ] Run `npx vitest run tests/unit/demo-account-reset.test.ts tests/unit/demo-storage-store.test.ts`; expect old local storage, account isolation, sidecar cleanup, and re-onboarding tests to pass.
 - [ ] Commit as `feat: reset local demo customer accounts`.
 

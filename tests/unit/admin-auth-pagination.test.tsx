@@ -190,6 +190,49 @@ describe("paginated administrator account lists", () => {
     expect(loadMore).toHaveBeenCalledWith(50);
   });
 
+  it("requires staged customer to Demo to administrator promotion", async () => {
+    const promoteToDemo = vi.fn().mockResolvedValue(null);
+    const setRole = vi.fn().mockResolvedValue(null);
+    convexHooks.useMutation.mockImplementation((mutation: unknown) => {
+      if (queryName(mutation) === "customers:promoteToDemo") return promoteToDemo;
+      if (queryName(mutation) === "customers:setRole") return setRole;
+      return vi.fn();
+    });
+    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) =>
+      queryName(query) === "customers:list"
+        ? { results: [customer], status: "Exhausted", loadMore: vi.fn() }
+        : { results: [], status: "Exhausted", loadMore: vi.fn() },
+    );
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    const { unmount } = render(<CustomersManager />);
+    expect(screen.getByRole("button", { name: "Promote to Demo" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Promote to Administrator" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Promote to Demo" }));
+    expect(await screen.findByText("Customer promoted to Demo.")).toBeInTheDocument();
+    expect(promoteToDemo).toHaveBeenCalledWith({ customerId: "customers:1" });
+    expect(setRole).not.toHaveBeenCalled();
+    unmount();
+
+    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) =>
+      queryName(query) === "customers:list"
+        ? {
+            results: [{ ...customer, isDemo: true }],
+            status: "Exhausted",
+            loadMore: vi.fn(),
+          }
+        : { results: [], status: "Exhausted", loadMore: vi.fn() },
+    );
+    render(<CustomersManager />);
+    expect(screen.getByRole("button", { name: "Promote to Administrator" })).toBeInTheDocument();
+    expect(screen.getByText(/customer · demo/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Promote to Demo" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Promote to Administrator" }));
+    expect(await screen.findByText("Role updated to administrator.")).toBeInTheDocument();
+    expect(setRole).toHaveBeenCalledWith({ customerId: "customers:1", role: "admin" });
+    confirm.mockRestore();
+  });
+
   it("shows the invitation's server-generated profile name and slug", () => {
     convexHooks.usePaginatedQuery
       .mockReturnValueOnce({

@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
+import { resetCurrentDemoAccountData } from "@/lib/demo/card-order-assets";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import {
   createDemoSelfServiceAccount,
@@ -166,6 +167,12 @@ function DemoLoginForm({
         }
 
         const candidateSession = { email: currentAccount.email, role: currentAccount.role };
+        if (currentAccount.demoResetInProgress === true && currentAccount.isDemo === true) {
+          setDemoSession(candidateSession);
+          await resetCurrentDemoAccountData();
+          router.replace("/onboarding");
+          return;
+        }
         const access = resolveDemoSessionAccess(after.snapshot.state, candidateSession);
         if (access.kind === "restricted") {
           if (currentAccount.demoOnboardingPending === true && currentAccount.isDemo === true) {

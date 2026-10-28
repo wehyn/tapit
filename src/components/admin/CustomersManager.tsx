@@ -13,6 +13,8 @@ import {
 import { validateProfileSlug } from "@/lib/domain";
 import {
   getDemoProfiles,
+  promoteDemoCustomerToAdmin,
+  promoteDemoCustomerToDemo,
   updateDemoProfile,
   updateDemoState,
   useDemoState,
@@ -433,6 +435,7 @@ function DemoCustomersManager() {
                       </span>
                       <span className="flex shrink-0 items-center gap-2">
                         <StatusChip status={customer.status} />
+                        {customer.isDemo === true ? <StatusChip status="Demo" /> : null}
                         <Icon name="caretRight" size={16} />
                       </span>
                     </button>
@@ -494,6 +497,63 @@ function DemoCustomersManager() {
                           Approve deletion
                         </Button>
                       ) : null}
+                      {customer.status === "active" &&
+                      customer.deletionStatus === "active" &&
+                      customer.role === "customer" &&
+                      !customer.isDemo ? (
+                        <Button
+                          onClick={() => {
+                            if (window.confirm("Promote this customer to a Demo account?")) {
+                              try {
+                                promoteDemoCustomerToDemo(customer.id);
+                                setMessage({ tone: "success", text: "Customer promoted to Demo." });
+                              } catch (error) {
+                                setMessage({
+                                  tone: "error",
+                                  text:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "The customer could not be promoted to Demo.",
+                                });
+                              }
+                            }
+                          }}
+                          type="button"
+                          variant="quiet"
+                        >
+                          Promote to Demo
+                        </Button>
+                      ) : null}
+                      {customer.status === "active" &&
+                      customer.deletionStatus === "active" &&
+                      customer.role === "customer" &&
+                      customer.isDemo === true ? (
+                        <Button
+                          onClick={() => {
+                            if (window.confirm("Promote this Demo account to administrator?")) {
+                              try {
+                                promoteDemoCustomerToAdmin(customer.id);
+                                setMessage({
+                                  tone: "success",
+                                  text: "Demo account promoted to administrator.",
+                                });
+                              } catch (error) {
+                                setMessage({
+                                  tone: "error",
+                                  text:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "The Demo account could not be promoted.",
+                                });
+                              }
+                            }
+                          }}
+                          type="button"
+                          variant="quiet"
+                        >
+                          Promote to Administrator
+                        </Button>
+                      ) : null}
                     </div>
                   </article>
                 );
@@ -532,6 +592,7 @@ function DemoCustomersManager() {
                             : selectedCustomer.status
                         }
                       />
+                      {selectedCustomer.isDemo === true ? <StatusChip status="Demo" /> : null}
                     </div>
                     <div className="flex flex-col gap-2">
                       <Tile className="min-h-12">
@@ -662,6 +723,7 @@ function LiveCustomersManager() {
   const revokeInvitation = useMutation(api.invitations.revoke);
   const replaceInvitation = useMutation(api.invitations.replace);
   const setRole = useMutation(api.customers.setRole);
+  const promoteToDemoMutation = useMutation(api.customers.promoteToDemo);
   const setOwnerAccess = useMutation(api.customers.setCardOwnerAccessOverride);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -802,6 +864,19 @@ function LiveCustomersManager() {
       });
     }
   }
+  async function promoteToDemo(customerId: Id<"customers">) {
+    setMessage(null);
+    try {
+      await promoteToDemoMutation({ customerId });
+      setMessage({ tone: "success", text: "Customer promoted to Demo." });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text:
+          error instanceof Error ? error.message : "The customer could not be promoted to Demo.",
+      });
+    }
+  }
   async function changeOwnerAccess(customerId: Id<"customers">, enabled: boolean) {
     setMessage(null);
     try {
@@ -910,6 +985,7 @@ function LiveCustomersManager() {
                     <p className="text-sm text-tapit-muted">
                       {[
                         customer.role,
+                        ...(customer.isDemo === true ? ["Demo"] : []),
                         ...new Set(
                           [customer.status, customer.deletionStatus].filter(
                             (status) => status !== "active",
@@ -971,16 +1047,34 @@ function LiveCustomersManager() {
                             Replace invitation
                           </Button>
                         ) : null}
-                        {customer.status === "active" && customer.role === "customer" ? (
+                        {customer.status === "active" &&
+                        customer.deletionStatus === "active" &&
+                        customer.role === "customer" &&
+                        !customer.isDemo ? (
                           <Button
                             onClick={() => {
-                              if (window.confirm("Promote this customer to administrator?"))
+                              if (window.confirm("Promote this customer to a Demo account?"))
+                                void promoteToDemo(customer._id);
+                            }}
+                            type="button"
+                            variant="quiet"
+                          >
+                            Promote to Demo
+                          </Button>
+                        ) : null}
+                        {customer.status === "active" &&
+                        customer.deletionStatus === "active" &&
+                        customer.role === "customer" &&
+                        customer.isDemo === true ? (
+                          <Button
+                            onClick={() => {
+                              if (window.confirm("Promote this Demo account to administrator?"))
                                 void changeRole(customer._id, "admin");
                             }}
                             type="button"
                             variant="quiet"
                           >
-                            Promote to administrator
+                            Promote to Administrator
                           </Button>
                         ) : null}
                         {customer.status === "active" &&
