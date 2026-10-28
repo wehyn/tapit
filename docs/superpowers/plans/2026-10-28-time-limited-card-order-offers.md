@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 16 App Router, React 19, Convex 1.45, TypeScript, Vitest, Playwright, deterministic local demo store.
 
-**Spec:** `docs/superpowers/specs/2026-10-28-time-limited-card-order-offers-design.md`  
+**Spec:** `docs/superpowers/specs/2026-10-28-time-limited-card-order-offers-design.md`\
 **Issue:** https://github.com/wehyn/tapit/issues/182
 
 ## File map

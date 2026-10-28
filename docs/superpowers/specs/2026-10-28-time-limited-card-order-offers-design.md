@@ -1,8 +1,8 @@
 # Time-limited card-order offers and separate referral codes
 
-**Date:** 2026-10-28  
+**Date:** 2026-10-28\
 **Status:** Approved, updated 2026-10-28
-**Issue:** [#182](https://github.com/wehyn/tapit/issues/182)  
+**Issue:** [#182](https://github.com/wehyn/tapit/issues/182)\
 **Related design:** [Card-order offers and referrer attribution](2026-10-28-card-order-offer-and-referrer-model-design.md)
 
 This spec updates the earlier design's single-code checkout behavior.
