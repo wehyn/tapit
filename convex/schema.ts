@@ -89,6 +89,8 @@ export default defineSchema({
     userId: v.optional(v.id("users")),
     email: v.string(),
     role: v.union(v.literal("customer"), v.literal("admin")),
+    isDemo: v.optional(v.boolean()),
+    demoResetInProgress: v.optional(v.boolean()),
     status: v.union(
       v.literal("pending"),
       v.literal("invited"),

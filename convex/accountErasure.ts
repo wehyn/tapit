@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { analyticsRateLimiter, analyticsRateLimitNames } from "./analytics";
@@ -20,7 +20,11 @@ async function deleteStoredFile(
   if (inspection.kind === "unreferenced") await ctx.storage.delete(id);
 }
 
-async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Promise<boolean> {
+async function eraseProfilePass(
+  ctx: MutationCtx,
+  profileId: Id<"profiles">,
+  mode: "permanentDeletion" | "demoReset",
+): Promise<boolean> {
   const card = await ctx.db
     .query("cards")
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
@@ -36,20 +40,23 @@ async function eraseProfilePass(ctx: MutationCtx, profileId: Id<"profiles">): Pr
       .take(BATCH);
     for (const row of challenges) await ctx.db.delete(row._id);
     for (const row of logs) await ctx.db.delete(row._id);
-    if (challenges.length === 0 && logs.length === 0)
-      await ctx.db.patch(card._id, {
-        status: "inactive",
-        profileId: undefined,
-        assignmentReason: undefined,
-        assignedAt: undefined,
-        claimCodeHash: undefined,
-        claimCodeGeneratedAt: undefined,
-        claimCodeExpiresAt: undefined,
-        claimCodeInvalidatedAt: Date.now(),
-        claimCodeClaimedAt: undefined,
-        deactivatedAt: card.deactivatedAt ?? Date.now(),
-        updatedAt: Date.now(),
-      });
+    if (challenges.length === 0 && logs.length === 0) {
+      if (mode === "demoReset") await ctx.db.delete(card._id);
+      else
+        await ctx.db.patch(card._id, {
+          status: "inactive",
+          profileId: undefined,
+          assignmentReason: undefined,
+          assignedAt: undefined,
+          claimCodeHash: undefined,
+          claimCodeGeneratedAt: undefined,
+          claimCodeExpiresAt: undefined,
+          claimCodeInvalidatedAt: Date.now(),
+          claimCodeClaimedAt: undefined,
+          deactivatedAt: card.deactivatedAt ?? Date.now(),
+          updatedAt: Date.now(),
+        });
+    }
     return true;
   }
 
@@ -215,30 +222,42 @@ async function eraseAuthPass(ctx: MutationCtx, userId: Id<"users">): Promise<boo
   return true;
 }
 
-async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">): Promise<boolean> {
+async function eraseAccountDataPass(
+  ctx: MutationCtx,
+  customerId: Id<"customers">,
+  mode: "permanentDeletion" | "demoReset",
+): Promise<boolean> {
   const customer = await ctx.db.get(customerId);
   if (customer === null) return false;
-  if (
-    customer.role !== "customer" ||
-    customer.status !== "deleted" ||
-    customer.deletionStatus !== "deleted" ||
-    customer.deletionRequestedAt === undefined
-  )
-    throw new Error("Only a verified customer deletion request may be erased.");
-  const approvedRequest = await ctx.db
-    .query("deletionRequests")
-    .withIndex("by_customerId_and_status", (q) =>
-      q.eq("customerId", customerId).eq("status", "approved"),
+  let approvedRequest: Doc<"deletionRequests"> | null = null;
+  if (mode === "permanentDeletion") {
+    if (
+      customer.role !== "customer" ||
+      customer.status !== "deleted" ||
+      customer.deletionStatus !== "deleted" ||
+      customer.deletionRequestedAt === undefined
     )
-    .first();
-  if (approvedRequest === null)
-    throw new Error("Administrator approval is required before account erasure.");
+      throw new Error("Only a verified customer deletion request may be erased.");
+    approvedRequest = await ctx.db
+      .query("deletionRequests")
+      .withIndex("by_customerId_and_status", (q) =>
+        q.eq("customerId", customerId).eq("status", "approved"),
+      )
+      .first();
+    if (approvedRequest === null)
+      throw new Error("Administrator approval is required before account erasure.");
+  } else if (
+    customer.role !== "customer" ||
+    customer.isDemo !== true ||
+    customer.demoResetInProgress !== true
+  )
+    throw new Error("Demo account reset is not in progress.");
 
   const profile = await ctx.db
     .query("profiles")
     .withIndex("by_ownerId", (q) => q.eq("ownerId", customerId))
     .first();
-  if (profile !== null) return await eraseProfilePass(ctx, profile._id);
+  if (profile !== null) return await eraseProfilePass(ctx, profile._id, mode);
   if (await eraseAssetPass(ctx, customerId)) return true;
 
   const orders = await ctx.db
@@ -270,7 +289,15 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
           .take(2),
         ctx.db.system.get("_storage", receipt.storageId),
       ]);
-      if (metadata !== null && !otherReceipts.some((other) => other._id !== receipt._id))
+      const inspection = await inspectProfileStorage(ctx, receipt.storageId, {
+        kind: "accountErasure",
+        excluded: { kind: "none" },
+      });
+      if (
+        metadata !== null &&
+        !otherReceipts.some((other) => other._id !== receipt._id) &&
+        inspection.kind === "unreferenced"
+      )
         await ctx.storage.delete(receipt.storageId);
     }
     await ctx.db.delete(receipt._id);
@@ -333,7 +360,7 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
       .query("auditLogs")
       .withIndex("by_accountId", (q) => q.eq("accountId", customerId))
       .take(BATCH),
-    customer.userId === undefined
+    mode === "demoReset" || customer.userId === undefined
       ? Promise.resolve([])
       : ctx.db
           .query("auditLogs")
@@ -341,16 +368,37 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
           .take(BATCH),
   ]);
   for (const row of invitations) await ctx.db.delete(row._id);
-  for (const row of requests) if (row._id !== approvedRequest._id) await ctx.db.delete(row._id);
+  for (const row of requests) if (row._id !== approvedRequest?._id) await ctx.db.delete(row._id);
   for (const row of designs) await ctx.db.delete(row._id);
   for (const row of accountLogs) await ctx.db.delete(row._id);
   for (const row of actorLogs)
     if (!accountLogs.some((accountLog) => accountLog._id === row._id)) await ctx.db.delete(row._id);
   if (
     [invitations, designs, accountLogs, actorLogs].some((rows) => rows.length > 0) ||
-    requests.some((row) => row._id !== approvedRequest._id)
+    requests.some((row) => row._id !== approvedRequest?._id)
   )
     return true;
+
+  if (mode === "demoReset") {
+    await ctx.db.patch(customerId, {
+      profileId: undefined,
+      onboardingName: undefined,
+      cardOwnerAccessOverride: undefined,
+      deletionStatus: "active",
+      deletionRequestedAt: undefined,
+      demoResetInProgress: undefined,
+      status: "pending",
+      updatedAt: Date.now(),
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorLabel: "System",
+      action: "account.demo_reset",
+      accountId: customerId,
+      occurredAt: Date.now(),
+    });
+    return false;
+  }
 
   if (customer.userId !== undefined) {
     const otherLinks = await ctx.db
@@ -361,7 +409,7 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
       throw new Error("Auth user is linked to another account.");
     if (await ctx.db.get(customer.userId)) return await eraseAuthPass(ctx, customer.userId);
   }
-  await ctx.db.delete(approvedRequest._id);
+  await ctx.db.delete(approvedRequest!._id);
   await ctx.db.delete(customerId);
   await ctx.db.insert("auditLogs", {
     scope: customer.scope,
@@ -374,11 +422,25 @@ async function eraseCustomerPass(ctx: MutationCtx, customerId: Id<"customers">):
 
 export const eraseAccountPass = internalMutation({
   args: { customerId: v.id("customers") },
+  returns: v.null(),
   handler: async (ctx, args) => {
     if ((await ctx.db.get(args.customerId)) === null) return;
-    await eraseCustomerPass(ctx, args.customerId);
+    await eraseAccountDataPass(ctx, args.customerId, "permanentDeletion");
     if ((await ctx.db.get(args.customerId)) !== null)
       await ctx.scheduler.runAfter(0, internal.accountErasure.eraseAccountPass, args);
+    return null;
+  },
+});
+
+export const resetDemoAccountPass = internalMutation({
+  args: { customerId: v.id("customers") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const customer = await ctx.db.get(args.customerId);
+    if (customer === null || customer.demoResetInProgress !== true) return null;
+    const more = await eraseAccountDataPass(ctx, args.customerId, "demoReset");
+    if (more) await ctx.scheduler.runAfter(0, internal.accountErasure.resetDemoAccountPass, args);
+    return null;
   },
 });
 

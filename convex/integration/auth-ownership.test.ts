@@ -817,9 +817,24 @@ describe("Convex authentication and ownership", () => {
     const t = testConvex();
     const data = await seed(t);
     const admin = t.withIdentity(identity(data.adminUserId));
+    await expect(
+      admin.mutation(api.customers.setRole, {
+        customerId: data.ownerCustomerId,
+        role: "admin",
+      }),
+    ).rejects.toThrow("Promote the customer to Demo first.");
+    await admin.mutation(api.customers.promoteToDemo, { customerId: data.ownerCustomerId });
     await admin.mutation(api.customers.setRole, {
       customerId: data.ownerCustomerId,
       role: "admin",
+    });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(data.ownerCustomerId)).toMatchObject({
+        role: "admin",
+        userId: data.ownerUserId,
+        profileId: data.ownerProfileId,
+      });
+      expect((await ctx.db.get(data.ownerCustomerId))?.isDemo).toBeUndefined();
     });
     await admin.mutation(api.customers.setRole, {
       customerId: data.ownerCustomerId,

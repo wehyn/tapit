@@ -249,7 +249,11 @@ export const completeSelfServiceOnboarding = mutation({
       if (profile !== null)
         return { customerId: customer._id, profileId: profile._id, slug: profile.slug };
     }
-    if (customer.status !== "pending" || customer.profileId !== undefined)
+    if (
+      customer.status !== "pending" ||
+      customer.profileId !== undefined ||
+      customer.demoResetInProgress === true
+    )
       throw new Error("Pending customer account required.");
     const limit = await signupLimiter.limit(ctx, "selfServiceSignup", {
       key: `onboarding:${userId}`,
@@ -363,6 +367,8 @@ export const setRole = mutation({
     if (target === null || !sameScope(account, target) || !isActiveCustomer(target))
       throw new Error("Customer account unavailable.");
     if (target.role === args.role) return null;
+    if (target.role === "customer" && args.role === "admin" && target.isDemo !== true)
+      throw new Error("Promote the customer to Demo first.");
     if (target.role === "admin" && args.role === "customer") {
       let anotherActiveAdministrator = false;
       for await (const admin of ctx.db
@@ -377,7 +383,7 @@ export const setRole = mutation({
         throw new Error("Cannot remove the last active administrator.");
     }
     const now = Date.now();
-    await ctx.db.patch(target._id, { role: args.role, updatedAt: now });
+    await ctx.db.patch(target._id, { role: args.role, isDemo: undefined, updatedAt: now });
     await ctx.db.insert("auditLogs", {
       scope: target.scope,
       actorUserId: userId,
@@ -388,6 +394,76 @@ export const setRole = mutation({
       occurredAt: now,
       before: target.role,
       after: args.role,
+    });
+    return null;
+  },
+});
+
+export const promoteToDemo = mutation({
+  args: { customerId: v.id("customers") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const target = await ctx.db.get(args.customerId);
+    if (
+      target === null ||
+      !sameScope(account, target) ||
+      !isActiveCustomer(target) ||
+      target.role !== "customer" ||
+      target.isDemo === true
+    )
+      throw new Error("Active customer account required.");
+    const now = Date.now();
+    await ctx.db.patch(target._id, { isDemo: true, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: target.scope,
+      actorUserId: userId,
+      actorLabel: account.email,
+      action: "customer.promoted_to_demo",
+      accountId: target._id,
+      profileId: target.profileId,
+      occurredAt: now,
+      after: "demo",
+    });
+    return null;
+  },
+});
+
+export const resetDemoAccount = mutation({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
+    const customer = await ctx.db
+      .query("customers")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (
+      customer === null ||
+      customer.role !== "customer" ||
+      customer.isDemo !== true ||
+      customer.status !== "active" ||
+      customer.deletionStatus !== "active"
+    )
+      throw new Error("Active Demo account required.");
+    const now = Date.now();
+    if (customer.profileId !== undefined) {
+      const profile = await ctx.db.get(customer.profileId);
+      if (profile !== null && profile.ownerId === customer._id)
+        await ctx.db.patch(profile._id, {
+          status: "unpublished",
+          published: undefined,
+          unpublishedAt: now,
+          updatedAt: now,
+        });
+    }
+    await ctx.db.patch(customer._id, {
+      status: "pending",
+      demoResetInProgress: true,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(0, internal.accountErasure.resetDemoAccountPass, {
+      customerId: customer._id,
     });
     return null;
   },
