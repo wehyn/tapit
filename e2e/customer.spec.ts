@@ -2003,7 +2003,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
   await page.getByLabel("Slideshow image 1 description").fill("Studio detail one");
   await slideshowInput.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await page.getByLabel("Slideshow image 2 description").fill("Studio detail two");
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
@@ -2180,9 +2180,9 @@ test("slideshow saves without descriptions and its arrows navigate in preview an
   await page.getByRole("tab", { name: "Slideshow" }).click();
   const upload = page.getByLabel("Upload slideshow images");
   await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
-  await expect(page.getByText("1 of 10 images")).toBeVisible();
+  await expect(page.getByText("1 of 5 images")).toBeVisible();
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await page.getByRole("textbox", { name: "Slideshow image 1 description" }).fill("");
   await page.getByRole("textbox", { name: "Slideshow image 2 description" }).fill("");
 
@@ -2447,12 +2447,12 @@ test("slideshow upload queue waits for the active upload and preserves selection
   await upload.setInputFiles("tests/fixtures/profile-images/transparent-logo.png");
   await expect(page.getByText("Waiting", { exact: true })).toBeVisible();
 
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await expect(page.getByLabel("Slideshow image 1 description")).toBeVisible();
   await expect(page.getByText("Uploading", { exact: true })).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true })).toHaveCount(0, { timeout: 10_000 });
   await expect(page.getByText("Uploading", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 2 description")).toHaveCount(1);
   await expect(page.getByLabel("Slideshow image 1 description")).toHaveValue(
@@ -2496,7 +2496,7 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(
     page.getByRole("button", { name: /^(?:Publish(?: changes)?|Published)$/ }),
   ).toBeDisabled();
-  await expect(page.getByText("2 of 10 images")).toBeVisible();
+  await expect(page.getByText("2 of 5 images")).toBeVisible();
 
   await setDemoMediaUploadControl(page, { delayMs: 1200, fail: false });
   await page.getByRole("button", { name: "Retry upload" }).click();
@@ -2672,14 +2672,14 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
     .screenshot({ path: "test-results/tapit-slideshow-order-mobile.png" });
 });
 
-test("slideshow upload queue counts failed and queued items toward the ten image limit", async ({
+test("slideshow upload queue counts failed and queued items toward the five image limit", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
   const upload = page.getByLabel("Upload slideshow images");
-  for (let index = 0; index < 8; index += 1) {
+  for (let index = 0; index < 3; index += 1) {
     await upload.setInputFiles("tests/fixtures/profile-images/opaque-landscape.png");
-    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+    await expect(page.getByText(`${index + 1} of 5 images`)).toBeVisible();
   }
 
   await setDemoMediaUploadControl(page, { delayMs: 1500, fail: true });
@@ -2689,14 +2689,12 @@ test("slideshow upload queue counts failed and queued items toward the ten image
     page.getByRole("alert").filter({ hasText: "The media upload failed. Try again." }),
   ).toBeVisible();
   await expect(page.getByText("Waiting", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("10 of 10 images")).toBeVisible();
+  await expect(page.getByText("5 of 5 images")).toBeVisible();
   await expect(upload).toBeDisabled();
-  await expect(
-    page.getByText(/maximum of 10 images|10 image limit|remove an image/i),
-  ).toBeVisible();
+  await expect(page.getByText(/maximum of 5 images|5 image limit|remove an image/i)).toBeVisible();
 });
 
-test("ten distinct demo slideshow images fit local storage and keep public controls usable on mobile", async ({
+test("five distinct demo slideshow images fit local storage and keep public controls usable on mobile", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -2707,7 +2705,7 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await page.goto("/app/customize");
   await page.getByRole("tab", { name: "Slideshow" }).click();
 
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 5; index += 1) {
     await page.evaluate(async (slideIndex) => {
       const input = document.querySelector<HTMLInputElement>(
         'input[aria-label="Upload slideshow images"]',
@@ -2735,7 +2733,7 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
       input.files = transfer.files;
       input.dispatchEvent(new Event("change", { bubbles: true }));
     }, index);
-    await expect(page.getByText(`${index + 1} of 10 images`)).toBeVisible();
+    await expect(page.getByText(`${index + 1} of 5 images`)).toBeVisible();
   }
 
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
@@ -2746,7 +2744,8 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   expect(savedLength).toBeLessThan(2_000_000);
   await page.reload();
   await page.getByRole("tab", { name: "Slideshow" }).click();
-  await expect(page.getByText("10 of 10 images")).toBeVisible();
+  await expect(page.getByText("5 of 5 images")).toBeVisible();
+  await expect(page.getByLabel("Upload slideshow images")).toBeDisabled();
 
   await page.getByRole("button", { name: "Publish changes" }).click();
   await page.goto("/mara-velasquez");
@@ -2808,6 +2807,104 @@ test("ten distinct demo slideshow images fit local storage and keep public contr
   await page.waitForTimeout(3_100);
   await expect(controls).toHaveCSS("opacity", "1");
   await expect(controls).toHaveCSS("pointer-events", "auto");
+});
+
+test("legacy over-limit slideshow stays intact until explicitly trimmed and published", async ({
+  page,
+}) => {
+  await resetDemoHarness(page);
+  await signInAsCustomer(page);
+  await page.goto("/app/profile");
+  await page.getByLabel("Bio or role").fill("Legacy slideshow preservation test.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Expected the demo profile to seed legacy slideshow data.");
+    const state = JSON.parse(raw);
+    const slideshow = Array.from({ length: 6 }, (_, index) => ({
+      assetId: `legacy-slide-${index + 1}`,
+      altText: `Legacy slide ${index + 1}`,
+      url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 48"><rect width="64" height="48" fill="hsl(${index * 55} 70% 50%)"/></svg>`)}`,
+    }));
+    const addLegacySlides = (profile: {
+      id?: string;
+      draft: Record<string, unknown>;
+      published?: Record<string, unknown> | null;
+    }) => {
+      if (profile.id !== "profile-mara") return profile;
+      const addMedia = (content: Record<string, unknown>) => ({
+        ...content,
+        media: { heroHeight: 320, autoplay: false, slideshow },
+      });
+      return {
+        ...profile,
+        draft: addMedia(profile.draft),
+        published: profile.published ? addMedia(profile.published) : null,
+      };
+    };
+    state.profile = addLegacySlides(state.profile);
+    state.profiles = state.profiles.map(addLegacySlides);
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+  await page.goto("/app/customize");
+  await page.getByRole("tab", { name: "Slideshow" }).click();
+
+  for (let index = 1; index <= 6; index += 1) {
+    await expect(page.getByLabel(`Slideshow image ${index} description`)).toHaveValue(
+      `Legacy slide ${index}`,
+    );
+  }
+  await expect(page.getByText("Remove 1 image before saving.", { exact: true })).toBeVisible();
+  await page.getByLabel("Slideshow image 1 description").fill("Unsaved edit before rejected save");
+  const beforeSave = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
+  });
+  const saveDraft = page.getByRole("button", { name: "Save draft", exact: true });
+  await expect(saveDraft).toBeDisabled();
+  const afterBlockedSave = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
+  });
+  expect(afterBlockedSave).toEqual(beforeSave);
+
+  await page.getByLabel("Slideshow image 1 description").fill("Legacy slide 1");
+  await page.getByRole("button", { name: "Remove slideshow image 6" }).click();
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
+  const savedCounts = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const profile = state.profiles.find(
+      (candidate: { id: string }) => candidate.id === "profile-mara",
+    );
+    return {
+      draft: profile.draft.media.slideshow.length,
+      published: profile.published.media.slideshow.length,
+      primaryDraft: state.profile.draft.media.slideshow.length,
+      primaryPublished: state.profile.published.media.slideshow.length,
+    };
+  });
+  expect(savedCounts).toEqual({ draft: 5, published: 6, primaryDraft: 5, primaryPublished: 6 });
+
+  const publicSlideshow = async (count: number) => {
+    await page.goto("/mara-velasquez");
+    const slideshow = page.getByRole("region", { name: "Profile slideshow" });
+    const next = slideshow.getByRole("button", { name: "Next image" });
+    for (let index = 1; index <= count; index += 1) {
+      await expect(slideshow.getByRole("img", { name: `Legacy slide ${index}` })).toBeVisible();
+      if (index < count) await next.click();
+    }
+  };
+  await publicSlideshow(6);
+
+  await page.goto("/app/customize");
+  await page.getByRole("button", { name: "Publish changes" }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+  await publicSlideshow(5);
 });
 
 test("customize mobile profile preview keeps its hero full-width and identity free of backplates", async ({

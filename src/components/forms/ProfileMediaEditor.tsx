@@ -147,6 +147,18 @@ export function ProfileMediaEditor({
     uploadFailure?.target === target ? uploadFailure.message : undefined;
   const uploadDescription = (target: "background" | "slideshow") =>
     uploadError(target) ? `${baseId}-${target}-upload-error` : undefined;
+  const slideshowCount = value.slideshow.length + slideshowQueue.length;
+  const slideshowImagesToRemove = slideshowCount - MAX_PROFILE_SLIDESHOW_IMAGES;
+  const slideshowLimitDescription = `${baseId}-slideshow-limit`;
+  const slideshowQueueError = slideshowQueue.find((image) => image.status === "failed")?.error;
+  const slideshowUploadDescription = [
+    slideshowLimitDescription,
+    uploadError("slideshow") || slideshowQueueError
+      ? `${baseId}-slideshow-upload-error`
+      : undefined,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   function update(patch: Partial<ProfileMediaPresentation>) {
     const next = { ...value, ...patch, slideshow: patch.slideshow ?? value.slideshow };
@@ -627,7 +639,7 @@ export function ProfileMediaEditor({
               Preview slideshow
             </Button>
             <Button
-              aria-describedby={uploadDescription("slideshow")}
+              aria-describedby={slideshowUploadDescription}
               aria-invalid={uploadError("slideshow") ? true : undefined}
               aria-label="Add slideshow image"
               disabled={
@@ -645,7 +657,7 @@ export function ProfileMediaEditor({
           <input
             accept={imageAccept}
             aria-label="Upload slideshow images"
-            aria-describedby={uploadDescription("slideshow")}
+            aria-describedby={slideshowUploadDescription}
             aria-invalid={uploadError("slideshow") ? true : undefined}
             className="sr-only"
             disabled={
@@ -799,12 +811,16 @@ export function ProfileMediaEditor({
         </ol>
         <div className="grid gap-1 text-xs text-tapit-muted">
           <p>
-            Shown as a slideshow under your name. {value.slideshow.length + slideshowQueue.length}{" "}
-            of {MAX_PROFILE_SLIDESHOW_IMAGES} images.
+            Shown as a slideshow under your name. {slideshowCount} of {MAX_PROFILE_SLIDESHOW_IMAGES}{" "}
+            images.
           </p>
-          {value.slideshow.length + slideshowQueue.length >= MAX_PROFILE_SLIDESHOW_IMAGES ? (
-            <p>Maximum of 10 images. Remove an image to add another.</p>
-          ) : null}
+          <p id={slideshowLimitDescription}>
+            {slideshowCount > MAX_PROFILE_SLIDESHOW_IMAGES
+              ? `Remove ${slideshowImagesToRemove} ${slideshowImagesToRemove === 1 ? "image" : "images"} before saving.`
+              : slideshowCount >= MAX_PROFILE_SLIDESHOW_IMAGES
+                ? `Maximum of ${MAX_PROFILE_SLIDESHOW_IMAGES} images. Remove an image to add another.`
+                : `You can add up to ${MAX_PROFILE_SLIDESHOW_IMAGES} slideshow images.`}
+          </p>
           {missingSlideshowImageCount > 0 ? (
             <p>Some slideshow images are unavailable for preview.</p>
           ) : null}
@@ -833,9 +849,11 @@ export function ProfileMediaEditor({
           {activeUploadFailure.message}
         </span>
       ) : null}
-      {activeUploadFailure?.target === "slideshow" ? (
+      {activeUploadFailure?.target === "slideshow" || slideshowQueueError ? (
         <span className="sr-only" id={`${baseId}-slideshow-upload-error`}>
-          {activeUploadFailure.message}
+          {activeUploadFailure?.target === "slideshow"
+            ? activeUploadFailure.message
+            : slideshowQueueError}
         </span>
       ) : null}
       {slideshowPreviewOpen && canPreviewSlideshow ? (
