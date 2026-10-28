@@ -1,7 +1,7 @@
 # Time-limited card-order offers and launch pricing
 
 **Date:** 2026-10-28  
-**Status:** Draft for review  
+**Status:** Approved
 **Issue:** [#182](https://github.com/wehyn/tapit/issues/182)  
 **Related design:** [Card-order offers and referrer attribution](2026-10-28-card-order-offer-and-referrer-model-design.md)
 
