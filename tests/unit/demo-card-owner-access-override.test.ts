@@ -17,7 +17,9 @@ it("combines the admin override with claimed-card access", () => {
     {
       ...cardless,
       customers: cardless.customers.map((customer) =>
-        customer.email === session.email ? { ...customer, cardOwnerAccessOverride: true } : customer,
+        customer.email === session.email
+          ? { ...customer, cardOwnerAccessOverride: true }
+          : customer,
       ),
     },
     session,
@@ -41,7 +43,9 @@ it("combines the admin override with claimed-card access", () => {
     {
       ...fixture,
       customers: fixture.customers.map((customer) =>
-        customer.email === session.email ? { ...customer, cardOwnerAccessOverride: false } : customer,
+        customer.email === session.email
+          ? { ...customer, cardOwnerAccessOverride: false }
+          : customer,
       ),
     },
     session,
