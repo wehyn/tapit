@@ -5,6 +5,7 @@ import type { ActiveCustomerRow, PreparedRow } from "./types";
 
 export type PreparedConfirmation =
   | { kind: "revoke" | "delete"; row: PreparedRow }
+  | { kind: "approve"; row: ActiveCustomerRow }
   | { kind: "ownerAccess"; row: ActiveCustomerRow; enabled: boolean }
   | null;
 
@@ -32,6 +33,18 @@ export function PreparedConfirmDialogs({
         title="Delete this draft?"
         description="This permanently deletes the prepared account. This can't be undone."
         confirmLabel="Delete draft"
+        onCancel={onCancel}
+        onConfirm={onConfirm}
+      />
+      <ConfirmDialog
+        open={confirmation?.kind === "approve"}
+        title="Approve account deletion?"
+        description={
+          confirmation?.kind === "approve"
+            ? `Close ${confirmation.row.email}'s account? Its profile will stay unavailable and assigned cards will remain inactive.`
+            : ""
+        }
+        confirmLabel="Approve deletion"
         onCancel={onCancel}
         onConfirm={onConfirm}
       />

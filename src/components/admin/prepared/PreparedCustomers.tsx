@@ -113,7 +113,13 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
         await data.setOwnerAccess(confirmation.row, confirmation.enabled);
         setNotice({
           tone: "success",
-          text: `Owner access ${confirmation.enabled ? "granted" : "revoked"}.`,
+          text: `Owner access ${confirmation.enabled ? "granted" : "revoked"} for ${confirmation.row.email}.`,
+        });
+      } else if (confirmation.kind === "approve") {
+        await data.approveDeletion(confirmation.row.id);
+        setNotice({
+          tone: "success",
+          text: "Deletion approved. The account is closed and its profile and cards remain unavailable. Orders and original artwork were removed.",
         });
       } else {
         await data.remove(confirmation.row.id);
@@ -122,8 +128,14 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
     } catch (error) {
       setNotice({
         tone: "error",
-        text: error instanceof Error ? error.message : "The action could not be completed.",
+        text:
+          error instanceof Error
+            ? error.message
+            : confirmation.kind === "approve"
+              ? "Deletion approval could not be completed. The request remains available to retry."
+              : "The action could not be completed.",
       });
+      if (confirmation.kind === "approve") return;
     }
     setConfirmation(null);
   }
@@ -239,7 +251,10 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
               .then(() =>
                 setNotice({
                   tone: "success",
-                  text: `Role updated to ${role === "admin" ? "administrator" : "customer"}.`,
+                  text:
+                    role === "admin" && isLocalDemoMode()
+                      ? "Demo account promoted to administrator."
+                      : `Role updated to ${role === "admin" ? "administrator" : "customer"}.`,
                 }),
               )
               .catch((error: unknown) =>
@@ -265,18 +280,7 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
               );
         }}
         onOwnerAccess={(row, enabled) => setConfirmation({ kind: "ownerAccess", row, enabled })}
-        onApproveDeletion={(row) => {
-          if (window.confirm(`Approve account deletion for ${row.email}?`))
-            void data
-              .approveDeletion(row.id)
-              .then(() => setNotice({ tone: "success", text: "Deletion approved." }))
-              .catch((error: unknown) =>
-                setNotice({
-                  tone: "error",
-                  text: error instanceof Error ? error.message : "Deletion could not be approved.",
-                }),
-              );
-        }}
+        onApproveDeletion={(row) => setConfirmation({ kind: "approve", row })}
         legacySetupLink={legacySetupLink}
       />
       <LegacyCustomersManager />

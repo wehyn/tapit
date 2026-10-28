@@ -50,6 +50,9 @@ export function PreparedCustomerRow({
     "Open setup link",
     "Grant owner access",
     "Revoke owner access",
+    "Promote to Demo",
+    "Promote to Administrator",
+    "Approve deletion",
   ];
   const primaryActions = actions.filter((action) => primaryActionNames.includes(action));
   const secondaryActions = actions.filter((action) => !primaryActionNames.includes(action));
