@@ -1,6 +1,6 @@
-import { SetupForm } from "@/components/auth/SetupForm";
+import { SetupRoute } from "@/components/auth/SetupRoute";
 
 export default async function SetupPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  return <SetupForm token={token} />;
+  return <SetupRoute token={token} />;
 }
