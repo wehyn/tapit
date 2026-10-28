@@ -226,13 +226,7 @@ function CardRow({
   );
 }
 
-function CopyCardLinkButton({
-  ariaLabel,
-  token,
-}: {
-  ariaLabel?: string;
-  token: string;
-}) {
+function CopyCardLinkButton({ ariaLabel, token }: { ariaLabel?: string; token: string }) {
   const [copyMessage, setCopyMessage] = useState<{
     tone: "success" | "error";
     text: string;
