@@ -115,6 +115,7 @@ export const placeOrder = mutation({
     v.object({ kind: v.literal("price_changed"), price: cardPrice }),
   ),
   handler: async (ctx, args) => {
+    const offer = referral?.offerId === undefined ? null : await ctx.db.get(referral.offerId);
     if (
       !Number.isSafeInteger(args.expectedCardAmountCentavos) ||
       args.expectedCardAmountCentavos < 0
@@ -200,14 +201,16 @@ export const placeOrder = mutation({
       (referral === null ||
         !referral.active ||
         prior !== null ||
-        (referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit))
+        (offer === null
+          ? referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit
+          : offer.usageLimit !== undefined && offer.usageCount >= offer.usageLimit))
     )
       throw new Error("Referral code is unavailable for this order.");
     const cardPriceCentavos = getCardPriceCentavos(date, now);
     const discountCentavos =
       referral === null
         ? 0
-        : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, referral.fixedPriceCentavos);
+        : calculateReferralDiscountForPriceCentavos(cardPriceCentavos, offer?.fixedPriceCentavos ?? referral.fixedPriceCentavos);
     // Checked before the first write: a changed amount creates nothing, so the
     // customer must review the authoritative price and submit again.
     if (cardPriceCentavos - discountCentavos !== args.expectedCardAmountCentavos)
@@ -216,7 +219,7 @@ export const placeOrder = mutation({
         price: { cardPriceCentavos, discountCentavos },
       };
     const commissionCentavos =
-      referral === null ? 0 : calculateCommissionCentavos(cardPriceCentavos);
+      referral === null || (referral.referrerCode === undefined && referral.referrerLabel === undefined) ? 0 : calculateCommissionCentavos(cardPriceCentavos);
     const orderId = await ctx.db.insert("cardOrders", {
       scope: customer.scope,
       customerId: customer._id,
@@ -240,19 +243,24 @@ export const placeOrder = mutation({
           : { qrUploadId: selectedPayment.qrUploadId }),
       },
       referralCodeId: referral?._id,
+      offerId: offer?._id,
+      offerSnapshot: offer === null ? undefined : { code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos },
       referralSnapshot:
-        referral === null
+        referral === null || (referral.referrerCode === undefined && referral.referrerLabel === undefined)
           ? undefined
-          : { code: referral.code, referrerLabel: referral.referrerLabel },
+          : { code: referral.code, referrerLabel: referral.referrerLabel ?? referral.referrerCode ?? referral.code },
       paymentStatus: "unpaid",
       fulfillmentStatus: "awaiting_shipping_quote",
       commissionStatus: referral === null ? "none" : "pending",
       commissionCentavos,
       ...(referral === null ? {} : { usageCounted: true }),
+      ...(offer === null ? {} : { offerUsageCounted: true }),
       createdAt: now,
       updatedAt: now,
     });
-    if (referral !== null)
+    if (offer !== null)
+      await ctx.db.patch(offer._id, { usageCount: offer.usageCount + 1 });
+    else if (referral !== null)
       await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
     if (designSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);

@@ -115,8 +115,12 @@ export const adminReferralCodes = query({
     v.object({
       _id: v.id("cardOrderReferralCodes"),
       code: v.string(),
-      referrerLabel: v.string(),
-      fixedPriceCentavos: v.optional(v.number()),
+      referrerCode: v.optional(v.string()),
+      referrerLabel: v.optional(v.string()),
+      offer: v.optional(v.object({
+        _id: v.id("cardOrderOffers"), code: v.string(), fixedPriceCentavos: v.optional(v.number()),
+        usageCount: v.number(), usageLimit: v.optional(v.number()),
+      })),
       active: v.boolean(),
       usageCount: v.number(),
       usageLimit: v.optional(v.number()),
@@ -128,17 +132,13 @@ export const adminReferralCodes = query({
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
       .take(500);
-    return codes.map(
-      ({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount, usageLimit }) => ({
-        _id,
-        code,
-        referrerLabel,
-        fixedPriceCentavos,
-        active,
-        usageCount: usageCount ?? 0,
-        usageLimit,
-      }),
-    );
+    return Promise.all(codes.map(async ({ _id, code, referrerCode, referrerLabel, offerId, active }) => {
+      const offer = offerId === undefined ? null : await ctx.db.get(offerId);
+      return { _id, code, referrerCode, referrerLabel, active, ...(offer === null ? {} : { offer: {
+        _id: offer._id, code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos,
+        usageCount: offer.usageCount, usageLimit: offer.usageLimit,
+      } }) };
+    }));
   },
 });
 
@@ -298,18 +298,21 @@ export const previewReferral = query({
         )
         .first(),
     ]);
+    const offer = referral?.offerId === undefined ? null : await ctx.db.get(referral.offerId);
     const valid =
       date !== null &&
       Number.isFinite(args.currentTime) &&
       referral?.active === true &&
-      (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
+      (offer === null
+        ? referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit
+        : offer.usageLimit === undefined || offer.usageCount < offer.usageLimit) &&
       prior === null;
     return {
       valid,
       discountCentavos: valid
         ? calculateReferralDiscountForPriceCentavos(
             getCardPriceCentavos(date, args.currentTime),
-            referral.fixedPriceCentavos,
+            offer?.fixedPriceCentavos ?? referral.fixedPriceCentavos,
           )
         : 0,
     };
@@ -429,7 +432,9 @@ export const saveReferralCode = mutation({
   args: {
     id: v.optional(v.id("cardOrderReferralCodes")),
     code: v.string(),
-    referrerLabel: v.string(),
+    referrerLabel: v.optional(v.string()),
+    referrerCode: v.optional(v.string()),
+    offerId: v.optional(v.id("cardOrderOffers")),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
     usageLimit: v.optional(v.number()),
@@ -453,7 +458,7 @@ export const saveReferralCode = mutation({
     const code = requiredText(args.code, "Referral code", 40).toUpperCase();
     if (!/^[A-Z0-9_-]+$/.test(code))
       throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
-    const referrerLabel = requiredText(args.referrerLabel, "Referrer label", 120);
+    const referrerLabel = args.referrerLabel === undefined ? undefined : requiredText(args.referrerLabel, "Referrer label", 120);
     if (
       args.fixedPriceCentavos !== undefined &&
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
@@ -477,6 +482,8 @@ export const saveReferralCode = mutation({
             scope: account.scope,
             code,
             referrerLabel,
+            referrerCode: args.referrerCode,
+            offerId: args.offerId,
             fixedPriceCentavos: args.fixedPriceCentavos,
             active: args.active,
             usageLimit: args.usageLimit,
@@ -489,6 +496,8 @@ export const saveReferralCode = mutation({
       await ctx.db.patch(id, {
         code,
         referrerLabel,
+        referrerCode: args.referrerCode,
+        offerId: args.offerId,
         fixedPriceCentavos: args.fixedPriceCentavos,
         active: args.active,
         usageLimit: args.usageLimit,
@@ -513,6 +522,39 @@ export const saveReferralCode = mutation({
       }),
     });
     return id;
+  },
+});
+
+export const saveCardOrderOffer = mutation({
+  args: {
+    id: v.optional(v.id("cardOrderOffers")),
+    code: v.string(),
+    fixedPriceCentavos: v.optional(v.number()),
+    usageLimit: v.optional(v.number()),
+  },
+  returns: v.id("cardOrderOffers"),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const code = requiredText(args.code, "Offer code", 40).toUpperCase();
+    if (!/^[A-Z0-9_-]+$/.test(code)) throw new Error("Offer code may contain letters, numbers, hyphens, and underscores only.");
+    if (args.fixedPriceCentavos !== undefined && !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos))
+      throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+    if (args.usageLimit !== undefined && (!Number.isSafeInteger(args.usageLimit) || args.usageLimit <= 0))
+      throw new Error("Usage limit must be a positive safe integer.");
+    const existing = args.id === undefined ? null : await ctx.db.get(args.id);
+    if (args.id !== undefined && (existing === null || !sameScope(account, existing))) throw new Error("Offer unavailable.");
+    if (args.usageLimit !== undefined) {
+      const marker = await ctx.db.query("settings").withIndex("by_scope_and_key", q =>
+        q.eq("scope", account.scope).eq("key", "cardOrderOfferUsageBackfillStarted")).first();
+      if (marker?.value !== "completed") throw new Error("Offer usage backfill must complete before setting a usage limit.");
+    }
+    const collision = await ctx.db.query("cardOrderOffers").withIndex("by_scope_and_code", q =>
+      q.eq("scope", account.scope).eq("code", code)).first();
+    if (collision !== null && collision._id !== existing?._id) throw new Error("Offer code already exists.");
+    const now = Date.now();
+    const value = { code, fixedPriceCentavos: args.fixedPriceCentavos, usageLimit, updatedAt: now, updatedByUserId: userId };
+    if (existing !== null) { await ctx.db.patch(existing._id, value); return existing._id; }
+    return await ctx.db.insert("cardOrderOffers", { ...value, scope: account.scope, usageCount: 0, createdAt: now });
   },
 });
 

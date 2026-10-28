@@ -532,7 +532,9 @@ export default defineSchema({
   cardOrderReferralCodes: defineTable({
     scope: v.optional(v.literal("demo")),
     code: v.string(),
-    referrerLabel: v.string(),
+    referrerLabel: v.optional(v.string()),
+    referrerCode: v.optional(v.string()),
+    offerId: v.optional(v.id("cardOrderOffers")),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
     usageCount: v.optional(v.number()),
@@ -543,6 +545,16 @@ export default defineSchema({
   })
     .index("by_scope_and_code", ["scope", "code"])
     .index("by_scope_and_active", ["scope", "active"]),
+  cardOrderOffers: defineTable({
+    scope: v.optional(v.literal("demo")),
+    code: v.string(),
+    fixedPriceCentavos: v.optional(v.number()),
+    usageCount: v.number(),
+    usageLimit: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    updatedByUserId: v.optional(v.id("users")),
+  }).index("by_scope_and_code", ["scope", "code"]),
   cardOrderDesignUploads: defineTable({
     scope: v.optional(v.literal("demo")),
     ownerId: v.id("customers"),
@@ -580,6 +592,9 @@ export default defineSchema({
     qrUploadId: v.optional(v.id("cardOrderQrUploads")),
     receiptUploadId: v.optional(v.id("cardOrderReceiptUploads")),
     referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
+    offerId: v.optional(v.id("cardOrderOffers")),
+    offerSnapshot: v.optional(v.object({ code: v.string(), fixedPriceCentavos: v.optional(v.number()) })),
+    offerUsageCounted: v.optional(v.boolean()),
     usageCounted: v.optional(v.boolean()),
     referralSnapshot: v.optional(cardOrderReferralSnapshot),
     paymentStatus: v.union(v.literal("unpaid"), v.literal("received"), v.literal("refunded")),
