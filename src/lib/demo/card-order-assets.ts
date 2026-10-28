@@ -3,7 +3,16 @@
 import { validateCardOrderDesignFile } from "../card-design";
 import type { DemoCardOrderDesignSource, DemoState } from "./fixtures";
 import { deleteDemoCardOrderReceiptsForCustomer } from "./card-order-receipts";
-import { refreshDemoAccessSnapshot, resolveDemoSessionAccess, updateDemoState } from "./store";
+import {
+  beginCurrentDemoAccountReset,
+  cancelCurrentDemoAccountReset,
+  finishCurrentDemoAccountReset,
+  getDemoSession,
+  getDemoState,
+  refreshDemoAccessSnapshot,
+  resolveDemoSessionAccess,
+  updateDemoState,
+} from "./store";
 
 const DATABASE_NAME = "tapit-card-order-assets";
 const STORE_NAME = "originals";
@@ -508,5 +517,81 @@ export async function deleteDemoCardOrderAssetsForApprovedDeletion(
         updateDemoState((current) => finalizeDeletion(current));
       });
     });
+  });
+}
+
+export async function resetCurrentDemoAccountData(): Promise<void> {
+  const initial = access().account;
+  if (initial.role !== "customer" || initial.isDemo !== true) {
+    throw new Error("Active Demo account required.");
+  }
+  await withCustomerAssetsLock(initial.id, async () => {
+    const accountId = beginCurrentDemoAccountReset();
+    try {
+      if (accountId !== initial.id) throw new Error("Demo account session changed. Try again.");
+      await withDemoCardOrderCommitLock(async () => {
+        const assetKeys = await withStore("readonly", (store) =>
+          requestValue<IDBValidKey[]>(store.index("by_ownerId").getAllKeys(accountId)),
+        );
+        await withAssetLocks(assetKeys.map(String), async () => {
+          const snapshot = refreshDemoAccessSnapshot();
+          const account =
+            snapshot.kind === "ready" &&
+            snapshot.snapshot.state.customers.find((item) => item.id === accountId);
+          if (
+            !account ||
+            account.demoResetInProgress !== true ||
+            getDemoSession()?.email !== account.email
+          ) {
+            throw new Error("Demo account session changed. Try again.");
+          }
+          let removedOrderIds: string[] = [];
+          await withStore("readwrite", async (store, transaction) => {
+            const keys = await requestValue<IDBValidKey[]>(
+              store.index("by_ownerId").getAllKeys(accountId),
+            );
+            if (keys.some((key) => !assetKeys.includes(key))) {
+              transaction.abort();
+              throw new Error("Artwork changed during reset. Try again.");
+            }
+            const currentState = getDemoState();
+            removedOrderIds = currentState.cardOrders
+              .filter((order) => order.customerId === accountId)
+              .map((order) => order.id);
+            for (const key of keys) {
+              const stored = await requestValue<StoredAsset | undefined>(store.get(key as string));
+              if (!stored) continue;
+              const sharedQr =
+                stored.kind === "payment-qr" &&
+                (currentState.cardOrderPaymentMethods.some(
+                  (method) => method.qrAssetKey === stored.assetKey,
+                ) ||
+                  currentState.cardOrders.some(
+                    (order) =>
+                      order.customerId !== accountId &&
+                      order.paymentSnapshot.qrAssetKey === stored.assetKey,
+                  ));
+              const sharedDesign = currentState.cardOrders.some(
+                (order) =>
+                  order.customerId !== accountId &&
+                  [order.designSource, order.backDesignSource].some(
+                    (source) => source?.kind === "upload" && source.assetKey === stored.assetKey,
+                  ),
+              );
+              if (!sharedQr && !sharedDesign) await requestValue(store.delete(stored.assetKey));
+            }
+            updateDemoState((state) => ({
+              ...state,
+              cardOrders: state.cardOrders.filter((order) => order.customerId !== accountId),
+            }));
+          });
+          await deleteDemoCardOrderReceiptsForCustomer(accountId, new Set());
+          finishCurrentDemoAccountReset(accountId, removedOrderIds);
+        });
+      });
+    } catch (error) {
+      cancelCurrentDemoAccountReset(initial.id);
+      throw error;
+    }
   });
 }

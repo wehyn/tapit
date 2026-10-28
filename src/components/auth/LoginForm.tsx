@@ -168,6 +168,11 @@ function DemoLoginForm({
         const candidateSession = { email: currentAccount.email, role: currentAccount.role };
         const access = resolveDemoSessionAccess(after.snapshot.state, candidateSession);
         if (access.kind === "restricted") {
+          if (currentAccount.demoOnboardingPending === true && currentAccount.isDemo === true) {
+            setDemoSession(candidateSession);
+            router.replace("/onboarding");
+            return;
+          }
           setSubmitting(false);
           router.replace(
             access.reason === "invitation"

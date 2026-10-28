@@ -299,6 +299,36 @@ describe("demo auth isolation", () => {
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
   });
 
+  it("routes the same local Demo identity to onboarding after reset", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    const store = await import("../../src/lib/demo/store");
+    store.updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === "customer-mara"
+          ? { ...customer, isDemo: true, profileId: undefined, demoOnboardingPending: true }
+          : customer,
+      ),
+      profiles: state.profiles.filter((profile) => profile.id !== "profile-mara"),
+      profile: state.profiles.find((profile) => profile.id === "profile-admin-demo")!,
+    }));
+    const LoginForm = await loadLogin();
+    const user = userEvent.setup();
+
+    render(<LoginForm />);
+    await user.type(screen.getByLabelText("Email"), "mara@example.test");
+    await user.type(screen.getByLabelText("Password"), "tapit-demo");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+    expect(JSON.parse(localStorage.getItem("tapit:demo-session:v1") ?? "null")).toEqual({
+      email: "mara@example.test",
+      role: "customer",
+    });
+  });
+
   it("keeps hosted demo on its isolated password form", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
