@@ -32,7 +32,12 @@ export const repair = internalMutation({
       .collect();
     const result: AdminProfileRepairResult = { created: [], skipped: [], failed: [] };
     for (const customer of admins) {
-      if (customer.status !== "active" || customer.deletionStatus !== "active") continue;
+      if (
+        customer.status !== "active" ||
+        customer.deletionStatus !== "active" ||
+        customer.email === undefined
+      )
+        continue;
       try {
         const ensured = await ensureAdminPersonalProfile(ctx, {
           customerId: customer._id,

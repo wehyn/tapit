@@ -3,7 +3,7 @@ import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { v } from "convex/values";
 
-import { action, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalQuery, mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import {
   isActiveCustomer,
@@ -23,6 +23,8 @@ import {
 } from "./validators";
 import { components } from "./components";
 import { allocateProfileSlug } from "./profileSlug";
+import { deriveSetupState, latestSetupExpiry } from "./preparedSetup";
+import { replaceProfileLinks } from "./links";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -34,6 +36,69 @@ const signupLimiter = new RateLimiter(components.rateLimiter, {
   selfServiceSignup: { kind: "fixed window", rate: 3, period: HOUR },
 });
 const authEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const preparedProfileValidator = v.object({
+  name: v.string(),
+  slug: v.string(),
+  bio: v.optional(v.string()),
+  contactEmail: v.optional(v.string()),
+  phone: v.optional(v.string()),
+  website: v.optional(v.string()),
+  links: v.array(v.object({ label: v.string(), url: v.string() })),
+});
+
+function prepareProfile(profile: {
+  name: string;
+  slug: string;
+  bio?: string;
+  contactEmail?: string;
+  phone?: string;
+  website?: string;
+  links: Array<{ label: string; url: string }>;
+}) {
+  const slug = profile.slug.trim();
+  if (slug !== profile.slug || normalizeProfileSlug(slug) !== slug)
+    throw new Error("The profile slug must be lowercase.");
+  const slugError = validateProfileSlugValue(slug);
+  if (slugError !== null) throw new Error(slugError);
+  if (!profile.name.trim()) throw new Error("A nonblank profile name is required.");
+  const links = profile.links.map((link, index) => ({
+    id: `${slug}-${index + 1}`,
+    label: link.label.trim(),
+    destination: link.url.trim(),
+    enabled: true,
+  }));
+  for (const link of links) {
+    if (!link.label) throw new Error("Every setup link needs a label.");
+    try {
+      const url = new URL(link.destination);
+      if (url.protocol !== "https:" || !url.hostname || url.username || url.password)
+        throw new Error();
+    } catch {
+      throw new Error("Every setup link must be a valid HTTPS URL without credentials.");
+    }
+  }
+  const draft = {
+    name: profile.name.trim(),
+    slug,
+    ...(profile.bio?.trim() ? { bio: profile.bio.trim() } : {}),
+    ...(profile.contactEmail?.trim() ? { email: profile.contactEmail.trim() } : {}),
+    ...(profile.phone?.trim() ? { phone: profile.phone.trim() } : {}),
+    ...(profile.website?.trim() ? { website: profile.website.trim() } : {}),
+    links,
+  };
+  const errors = validateDraftSafety(draft);
+  if (errors.length > 0) throw new Error(errors.join(" "));
+  return draft;
+}
+
+async function assertUnusedTokenHash(ctx: MutationCtx, tokenHash: string) {
+  if (!/^[a-f0-9]{64}$/.test(tokenHash)) throw new Error("A SHA-256 token hash is required.");
+  const duplicate = await ctx.db
+    .query("invitations")
+    .withIndex("by_tokenHash", (q) => q.eq("tokenHash", tokenHash))
+    .unique();
+  if (duplicate !== null) throw new Error("That setup token is already registered.");
+}
 
 export const createCustomer = mutation({
   args: {
@@ -126,6 +191,183 @@ export const createCustomer = mutation({
     });
 
     return { customerId, profileId, invitationId };
+  },
+});
+
+export const createPrepared = mutation({
+  args: { profile: preparedProfileValidator, tokenHash: v.string() },
+  returns: v.object({
+    customerId: v.id("customers"),
+    invitationId: v.id("invitations"),
+    expiresAt: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const draft = prepareProfile(args.profile);
+    await assertUnusedTokenHash(ctx, args.tokenHash);
+    const duplicate = await ctx.db
+      .query("profiles")
+      .withIndex("by_slug", (q) => q.eq("slug", draft.slug))
+      .unique();
+    if (duplicate !== null) throw new Error("That profile slug is already in use.");
+    const now = Date.now();
+    const expiresAt = now + 7 * 24 * 60 * 60 * 1000;
+    const customerId = await ctx.db.insert("customers", {
+      ...(account.scope !== undefined ? { scope: account.scope } : {}),
+      role: "customer",
+      status: "invited",
+      deletionStatus: "active",
+      createdAt: now,
+      updatedAt: now,
+    });
+    const profileId = await ctx.db.insert("profiles", {
+      ...(account.scope !== undefined ? { scope: account.scope } : {}),
+      ownerId: customerId,
+      slug: draft.slug,
+      status: "draft",
+      draft,
+      draftRevision: 0,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await replaceProfileLinks(ctx, profileId, draft.links, now);
+    await ctx.db.patch(customerId, { profileId, updatedAt: now });
+    const invitationId = await ctx.db.insert("invitations", {
+      ...(account.scope !== undefined ? { scope: account.scope } : {}),
+      customerId,
+      kind: "prepared_setup",
+      tokenHash: args.tokenHash,
+      expiresAt,
+      createdByUserId: userId,
+      createdAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "customer.prepared_created",
+      accountId: customerId,
+      profileId,
+      occurredAt: now,
+      after: JSON.stringify({ slug: draft.slug, invitationId, expiresAt }),
+    });
+    return { customerId, invitationId, expiresAt };
+  },
+});
+
+export const updatePrepared = mutation({
+  args: { customerId: v.id("customers"), profile: preparedProfileValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const customer = await ctx.db.get(args.customerId);
+    if (
+      customer === null ||
+      !sameScope(account, customer) ||
+      customer.role !== "customer" ||
+      customer.userId !== undefined ||
+      customer.status !== "invited" ||
+      customer.profileId === undefined
+    )
+      throw new Error("Prepared customer unavailable.");
+    const profile = await ctx.db.get(customer.profileId);
+    if (
+      profile === null ||
+      profile.ownerId !== customer._id ||
+      !sameScope(account, profile) ||
+      profile.status !== "draft"
+    )
+      throw new Error("Prepared profile unavailable.");
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
+      .take(1000);
+    if (
+      !invitations.some(
+        (invitation) => invitation.kind === "prepared_setup" && sameScope(account, invitation),
+      ) ||
+      invitations.some((invitation) => !sameScope(account, invitation))
+    )
+      throw new Error("Prepared customer unavailable.");
+    const draft = prepareProfile(args.profile);
+    if (draft.slug !== profile.slug) throw new Error("The assigned profile slug cannot change.");
+    const now = Date.now();
+    await ctx.db.patch(profile._id, {
+      draft,
+      updatedAt: now,
+      draftRevision: (profile.draftRevision ?? 0) + 1,
+    });
+    await replaceProfileLinks(ctx, profile._id, draft.links, now);
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "customer.prepared_updated",
+      accountId: customer._id,
+      profileId: profile._id,
+      occurredAt: now,
+      after: JSON.stringify({ slug: draft.slug }),
+    });
+    return null;
+  },
+});
+
+export const deletePreparedDraft = mutation({
+  args: { customerId: v.id("customers") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const customer = await ctx.db.get(args.customerId);
+    if (
+      customer === null ||
+      !sameScope(account, customer) ||
+      customer.role !== "customer" ||
+      customer.userId !== undefined ||
+      customer.status !== "invited" ||
+      customer.profileId === undefined
+    )
+      throw new Error("Prepared customer unavailable.");
+    const profile = await ctx.db.get(customer.profileId);
+    if (
+      profile === null ||
+      profile.ownerId !== customer._id ||
+      !sameScope(account, profile) ||
+      profile.status !== "draft"
+    )
+      throw new Error("Prepared profile unavailable.");
+    const invitations = await ctx.db
+      .query("invitations")
+      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
+      .take(1000);
+    if (
+      !invitations.some(
+        (invitation) => invitation.kind === "prepared_setup" && sameScope(account, invitation),
+      ) ||
+      invitations.some((invitation) => !sameScope(account, invitation))
+    )
+      throw new Error("Prepared customer unavailable.");
+    const now = Date.now();
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "customer.prepared_deleted",
+      accountId: customer._id,
+      profileId: profile._id,
+      occurredAt: now,
+      before: JSON.stringify({ slug: profile.slug }),
+    });
+    const storedLinks = await ctx.db
+      .query("links")
+      .withIndex("by_profile_position", (q) => q.eq("profileId", profile._id))
+      .take(101);
+    if (storedLinks.length > 100 || storedLinks.some((link) => !sameScope(account, link)))
+      throw new Error("Prepared profile links are unavailable.");
+    await Promise.all(storedLinks.map((link) => ctx.db.delete(link._id)));
+    await Promise.all(invitations.map((invitation) => ctx.db.delete(invitation._id)));
+    await ctx.db.delete(profile._id);
+    await ctx.db.delete(customer._id);
+    return null;
   },
 });
 
@@ -320,7 +562,7 @@ export const deletePendingAccount = mutation({
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: userId,
-      actorLabel: customer.email,
+      actorLabel: customer.email ?? "Customer",
       action: "account.pending_deleted",
       accountId: customer._id,
       occurredAt: now,
@@ -381,7 +623,7 @@ export const setRole = mutation({
     await ctx.db.insert("auditLogs", {
       scope: target.scope,
       actorUserId: userId,
-      actorLabel: account.email,
+      actorLabel: account.email ?? "Administrator",
       action: "customer.role_changed",
       accountId: target._id,
       profileId: target.profileId,
@@ -413,7 +655,12 @@ export const preflightSetupEmail = mutation({
     )
       return false;
     const email = args.email.trim().toLowerCase();
-    return email.length > 0 && email === invitation.email.trim().toLowerCase();
+    return (
+      invitation.kind !== "prepared_setup" &&
+      invitation.email !== undefined &&
+      email.length > 0 &&
+      email === invitation.email.trim().toLowerCase()
+    );
   },
 });
 
@@ -435,6 +682,8 @@ export const completeSetup = mutation({
       .unique();
     if (
       invitation === null ||
+      invitation.kind === "prepared_setup" ||
+      invitation.email === undefined ||
       invitation.invalidatedAt !== undefined ||
       (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
     ) {
@@ -446,7 +695,11 @@ export const completeSetup = mutation({
     const customer = await ctx.db.get(invitation.customerId);
     if (customer === null || customer.role !== "customer" || customer.status === "deleted")
       throw new Error("Customer account unavailable.");
-    if (user?.email?.trim().toLowerCase() !== invitation.email.trim().toLowerCase())
+    if (
+      invitation.kind === "prepared_setup" ||
+      invitation.email === undefined ||
+      user?.email?.trim().toLowerCase() !== invitation.email.trim().toLowerCase()
+    )
       throw new Error("This authenticated account does not match the invitation email.");
     if (customer.userId !== undefined && customer.userId !== userId) {
       throw new Error("This setup link has already been used.");
@@ -477,7 +730,7 @@ export const completeSetup = mutation({
       await ctx.db.insert("auditLogs", {
         scope: customer.scope,
         actorUserId: userId,
-        actorLabel: customer.email,
+        actorLabel: customer.email ?? "Customer",
         action: "customer.setup_completed",
         accountId: customer._id,
         profileId: customer.profileId,
@@ -491,14 +744,17 @@ export const completeSetup = mutation({
 
 export const myAccount = query({
   args: {},
-  returns: v.union(v.null(), schema.doc("customers")),
+  returns: v.union(v.null(), schema.doc("customers").extend({ email: v.string() })),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) return null;
-    return await ctx.db
+    const account = await ctx.db
       .query("customers")
       .withIndex("by_userId", (query) => query.eq("userId", userId))
       .unique();
+    return account === null || account.email === undefined
+      ? null
+      : { ...account, email: account.email };
   },
 });
 
@@ -515,21 +771,89 @@ export const byIdForAdmin = internalQuery({
 });
 
 export const list = query({
-  args: { search: v.optional(v.string()), paginationOpts: paginationOptsValidator },
-  returns: paginationResultValidator(schema.doc("customers")),
+  args: {
+    search: v.optional(v.string()),
+    setupState: v.optional(
+      v.union(v.null(), v.literal("waiting"), v.literal("draft"), v.literal("active")),
+    ),
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(
+    schema.doc("customers").extend({
+      setupState: v.union(v.null(), v.literal("waiting"), v.literal("draft"), v.literal("active")),
+      linkExpiresAt: v.union(v.number(), v.null()),
+      profileName: v.union(v.string(), v.null()),
+      profileSlug: v.union(v.string(), v.null()),
+    }),
+  ),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const search = args.search?.trim().toLowerCase();
-    const customers = await ctx.db
+    const customerQuery = ctx.db
       .query("customers")
-      .withIndex("by_scope", (query) => query.eq("scope", account.scope))
-      .paginate(args.paginationOpts);
+      .withIndex("by_scope", (query) => query.eq("scope", account.scope));
+    const filteredCursorPrefix = `setup:${args.setupState ?? "null"}:`;
+    const requestedOffset =
+      args.setupState === undefined
+        ? 0
+        : args.paginationOpts.cursor?.startsWith(filteredCursorPrefix)
+          ? Number(args.paginationOpts.cursor.slice(filteredCursorPrefix.length)) || 0
+          : 0;
+    const customers =
+      args.setupState === undefined
+        ? await customerQuery.paginate(args.paginationOpts)
+        : {
+            page: await customerQuery.collect(),
+            isDone: true,
+            continueCursor: "",
+          };
+    const now = Date.now();
+    const annotated = await Promise.all(
+      customers.page.map(async (customer) => {
+        const [profile, invitations] = await Promise.all([
+          customer.profileId === undefined ? null : ctx.db.get(customer.profileId),
+          ctx.db
+            .query("invitations")
+            .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
+            .take(1000),
+        ]);
+        const safeInvitations = invitations.filter((invitation) => sameScope(customer, invitation));
+        const setupState = deriveSetupState(customer, safeInvitations, now);
+        const safeProfile =
+          profile !== null && profile.ownerId === customer._id && sameScope(customer, profile)
+            ? profile
+            : null;
+        return {
+          ...customer,
+          setupState,
+          linkExpiresAt: latestSetupExpiry(customer, safeInvitations, now),
+          profileName: safeProfile?.draft.name ?? null,
+          profileSlug: safeProfile?.slug ?? null,
+        };
+      }),
+    );
+    const filtered = annotated.filter((customer) => {
+      if (args.setupState !== undefined && customer.setupState !== args.setupState) return false;
+      return (
+        search === undefined ||
+        search.length === 0 ||
+        (customer.email?.includes(search) ?? false) ||
+        (customer.profileName?.toLowerCase().includes(search) ?? false) ||
+        (customer.profileSlug?.includes(search) ?? false)
+      );
+    });
+    if (args.setupState !== undefined) {
+      const page = filtered.slice(requestedOffset, requestedOffset + args.paginationOpts.numItems);
+      const nextOffset = requestedOffset + page.length;
+      return {
+        page,
+        isDone: nextOffset >= filtered.length,
+        continueCursor: `${filteredCursorPrefix}${nextOffset}`,
+      };
+    }
     return {
       ...customers,
-      page:
-        search === undefined || search.length === 0
-          ? customers.page
-          : customers.page.filter((customer) => customer.email.includes(search)),
+      page: filtered,
     };
   },
 });
@@ -593,7 +917,7 @@ export const requestDeletion = mutation({
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: userId,
-      actorLabel: customer.email,
+      actorLabel: customer.email ?? "Customer",
       action: "account.deletion_requested",
       accountId: customer._id,
       profileId: profile._id,

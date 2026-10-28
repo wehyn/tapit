@@ -162,7 +162,7 @@ export const currentAccess = query({
       profileId,
       hasCardOwnerFeatures,
       onboardingName: account?.onboardingName ?? null,
-      email: active && account !== null ? account.email : null,
+      email: active && account !== null ? (account.email ?? null) : null,
     };
   },
 });

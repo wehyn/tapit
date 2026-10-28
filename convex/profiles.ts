@@ -186,7 +186,7 @@ export const adminDetails = query({
       .take(1001);
     return {
       profile: await projectOwnedProfile(ctx, profile),
-      customerEmail: owner.email,
+      customerEmail: owner.email ?? null,
       assignedCardCount: Math.min(cards.length, 1000),
       assignedCardCountIsCapped: cards.length > 1000,
     };
@@ -559,7 +559,7 @@ export const unpublishMine = mutation({
     await ctx.db.insert("auditLogs", {
       scope: profile.scope,
       actorUserId: userId,
-      actorLabel: customer.email,
+      actorLabel: customer.email ?? "Customer",
       action: "profile.unpublished",
       profileId: profile._id,
       accountId: customer._id,

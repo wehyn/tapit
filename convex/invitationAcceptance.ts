@@ -35,6 +35,8 @@ export const consumeAttempt = internalMutation({
       .unique();
     if (
       invitation !== null &&
+      invitation.kind !== "prepared_setup" &&
+      invitation.email !== undefined &&
       invitation.invalidatedAt === undefined &&
       invitation.acceptedAt !== undefined &&
       email === invitation.email.trim().toLowerCase() &&
@@ -72,6 +74,8 @@ export const finishAcceptance = internalMutation({
       .query("invitations")
       .withIndex("by_tokenHash", (q) => q.eq("tokenHash", args.tokenHash))
       .unique();
+    if (invitation?.kind === "prepared_setup" || invitation?.email === undefined)
+      throw new Error("This invitation is invalid or expired.");
     if (invitation !== null && invitation.acceptedAt !== undefined) {
       const acceptedCustomer = await ctx.db.get(invitation.customerId);
       const acceptedLink = await ctx.db
@@ -91,7 +95,12 @@ export const finishAcceptance = internalMutation({
       )
         return { profileId: acceptedCustomer.profileId ?? null };
     }
-    if (invitation === null || invitation.invalidatedAt !== undefined)
+    if (
+      invitation === null ||
+      invitation.kind === "prepared_setup" ||
+      invitation.email === undefined ||
+      invitation.invalidatedAt !== undefined
+    )
       throw new Error("This invitation is invalid or expired.");
     if (email !== invitation.email.trim().toLowerCase())
       throw new Error("This authenticated account does not match the invitation email.");
@@ -126,7 +135,7 @@ export const finishAcceptance = internalMutation({
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: args.userId,
-      actorLabel: customer.email,
+      actorLabel: customer.email ?? "Customer",
       action: "invitation.accepted",
       accountId: customer._id,
       profileId: customer.profileId,
