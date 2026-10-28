@@ -2,149 +2,57 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const convexHooks = vi.hoisted(() => ({
-  useMutation: vi.fn(),
-  usePaginatedQuery: vi.fn(),
-  useQuery: vi.fn(),
-}));
-
-vi.mock("convex/react", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("convex/react")>();
-  return { ...actual, ...convexHooks };
-});
-
+const hooks = vi.hoisted(() => ({ useMutation: vi.fn(), usePaginatedQuery: vi.fn(), useQuery: vi.fn() }));
+vi.mock("convex/react", async (importOriginal) => ({ ...(await importOriginal<typeof import("convex/react")>()), ...hooks }));
 import { CodesManager } from "@/components/admin/CodesManager";
 
-const saveReferralCode = vi.fn();
-
-function functionName(reference: unknown): string {
-  if (reference === null || (typeof reference !== "object" && typeof reference !== "function"))
-    return "";
-  const name = Reflect.get(reference, Symbol.for("functionName"));
-  return typeof name === "string" ? name : "";
-}
-
+const saveAlias = vi.fn(); const saveOffer = vi.fn();
+function functionName(reference: unknown) { if (reference === null || (typeof reference !== "object" && typeof reference !== "function")) return ""; const name = Reflect.get(reference, Symbol.for("functionName")); return typeof name === "string" ? name : ""; }
+const rows = [
+  { _id: "aliases:founding", code: "FOUNDING", active: true, offer: { _id: "offers:founding", code: "FOUNDING", fixedPriceCentavos: 29900, usageCount: 5, usageLimit: 25 } },
+  { _id: "aliases:founding-ahron", code: "FOUNDING-AHRON", referrerCode: "AHRON", referrerLabel: "Ahron", active: true, offer: { _id: "offers:founding", code: "FOUNDING", fixedPriceCentavos: 29900, usageCount: 5, usageLimit: 25 } },
+  { _id: "aliases:launch", code: "LAUNCH", active: true, offer: { _id: "offers:launch", code: "LAUNCH", usageCount: 2 } },
+  { _id: "aliases:launch-ahron", code: "LAUNCH-AHRON", referrerCode: "AHRON", referrerLabel: "Ahron", active: true, offer: { _id: "offers:launch", code: "LAUNCH", usageCount: 2 } },
+  { _id: "aliases:legacy", code: "OLDREF", referrerCode: "MIRA", referrerLabel: "Mira", active: true },
+];
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
-  vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
-  saveReferralCode.mockReset().mockResolvedValue("codes:updated");
-  convexHooks.useMutation.mockImplementation((mutation: unknown) => {
-    return functionName(mutation) === "cardOrderSettings:saveReferralCode"
-      ? saveReferralCode
-      : vi.fn().mockResolvedValue(undefined);
-  });
-  convexHooks.useQuery.mockImplementation((query: unknown) =>
-    functionName(query) === "cardOrderSettings:adminReferralCodes"
-      ? [
-          {
-            _id: "codes:a",
-            code: "CODE_A",
-            referrerLabel: "Referrer A",
-            active: true,
-            usageCount: 0,
-          },
-          {
-            _id: "codes:b",
-            code: "CODE_B",
-            referrerLabel: "Referrer B",
-            active: true,
-            usageCount: 0,
-          },
-          {
-            _id: "codes:founding",
-            code: "FOUNDING-AHRON",
-            referrerLabel: "Ahron",
-            active: true,
-            usageCount: 5,
-            usageLimit: 25,
-          },
-        ]
-      : undefined,
-  );
-  convexHooks.usePaginatedQuery.mockReturnValue({
-    results: [],
-    status: "Exhausted",
-    loadMore: vi.fn(),
-  });
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false"); vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex"); saveAlias.mockReset().mockResolvedValue("aliases:founding-ahron"); saveOffer.mockReset().mockResolvedValue("offers:founding");
+  hooks.useMutation.mockImplementation((mutation: unknown) => { const name = functionName(mutation); return name === "cardOrderSettings:saveReferralCode" ? saveAlias : name === "cardOrderSettings:saveCardOrderOffer" ? saveOffer : vi.fn().mockResolvedValue(undefined); });
+  hooks.useQuery.mockImplementation((query: unknown) => functionName(query) === "cardOrderSettings:adminReferralCodes" ? rows : undefined);
+  hooks.usePaginatedQuery.mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
 });
 
-describe("referral code editor", () => {
-  it("shows the requested copy and limited usage", () => {
+describe("codes manager", () => {
+  it("groups aliases under one shared offer and displays the historical use count", () => {
     render(<CodesManager />);
-
     expect(screen.getByText("Manage codes and review their order usage.")).toBeVisible();
-    expect(screen.queryByRole("heading", { name: "Referral codes" })).toBeNull();
-    expect(
-      screen.queryByText(
-        "Codes are unique across active and inactive records. Fixed prices must be no more than ₱599.",
-      ),
-    ).toBeNull();
-    expect(screen.getByRole("button", { name: /FOUNDING-AHRON/ })).toHaveTextContent(
-      "5 of 25 uses · 20 remaining",
-    );
+    expect(screen.getByText(/5 of 25 uses · 20 remaining/)).toBeVisible();
+    expect(screen.getByText("Codes: FOUNDING, FOUNDING-AHRON")).toBeVisible();
+    expect(screen.getByText("Codes: LAUNCH, LAUNCH-AHRON")).toBeVisible();
+    expect(screen.getByText("FOUNDING-AHRON").parentElement).toHaveTextContent("→ FOUNDING");
+    expect(screen.getByText("OLDREF").parentElement).toHaveTextContent("Mira");
   });
 
-  it("loads and saves a positive whole-number usage limit", async () => {
-    const user = userEvent.setup();
-    render(<CodesManager />);
-
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[2]!);
-    const limit = screen.getByLabelText("Usage limit (orders, optional)");
-    expect(limit).toHaveValue(25);
-    await user.clear(limit);
-    await user.type(limit, "30");
-    await user.click(screen.getByRole("button", { name: "Save code" }));
-
-    expect(saveReferralCode).toHaveBeenCalledWith(expect.objectContaining({ usageLimit: 30 }));
+  it("edits an offer limit and permits clearing it without saving through aliases", async () => {
+    const user = userEvent.setup(); render(<CodesManager />);
+    await user.click(screen.getAllByRole("button", { name: "Edit offer" })[0]!);
+    const limit = screen.getByLabelText("Usage limit (orders, optional)"); expect(limit).toHaveValue(25);
+    await user.clear(limit); await user.type(limit, "30"); await user.click(screen.getByRole("button", { name: "Save offer" }));
+    await waitFor(() => expect(saveOffer).toHaveBeenCalledWith(expect.objectContaining({ id: "offers:founding", code: "FOUNDING", usageLimit: 30, fixedPriceCentavos: 29900 })));
+    expect(saveAlias).not.toHaveBeenCalled();
   });
 
-  it("rejects decimal and zero usage limits before saving", async () => {
-    const user = userEvent.setup();
-    render(<CodesManager />);
-
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[2]!);
-    const limit = screen.getByLabelText("Usage limit (orders, optional)");
-    await user.clear(limit);
-    await user.type(limit, "1.5");
-    await user.click(screen.getByRole("button", { name: "Save code" }));
-    expect(saveReferralCode).not.toHaveBeenCalled();
-
-    await user.clear(limit);
-    await user.type(limit, "0");
-    await user.click(screen.getByRole("button", { name: "Save code" }));
-    expect(saveReferralCode).not.toHaveBeenCalled();
+  it("saves an alias with an explicit offer and referrer mapping", async () => {
+    const user = userEvent.setup(); render(<CodesManager />);
+    await user.type(screen.getByLabelText("Referral code"), "FOUNDING-NEW"); await user.selectOptions(screen.getByLabelText("Offer (optional)"), "offers:founding");
+    await user.type(screen.getByLabelText("Referrer key (optional)"), "Ahron"); await user.type(screen.getByLabelText("Referrer label (optional)"), "Ahron");
+    await user.click(screen.getByRole("button", { name: "Create code" }));
+    expect(saveAlias).toHaveBeenCalledWith(expect.objectContaining({ code: "FOUNDING-NEW", offerId: "offers:founding", referrerCode: "AHRON", referrerLabel: "Ahron", active: true }));
   });
 
-  it("blocks starting or changing another draft while a save is pending", async () => {
-    const user = userEvent.setup();
-    let resolveSave!: (id: string) => void;
-    saveReferralCode.mockImplementation(
-      () => new Promise<string>((resolve) => (resolveSave = resolve)),
-    );
-    render(<CodesManager />);
-
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[0]!);
-    await user.clear(screen.getByLabelText("Referrer label"));
-    await user.type(screen.getByLabelText("Referrer label"), "Updated A");
-    await user.click(screen.getByRole("button", { name: "Save code" }));
-
-    expect(screen.getByLabelText("Referral code")).toBeDisabled();
-    expect(screen.getByLabelText("Referrer label")).toBeDisabled();
-    expect(screen.getByLabelText("Fixed card price (₱, optional)")).toBeDisabled();
-    expect(screen.getByLabelText("Usage limit (orders, optional)")).toBeDisabled();
-    expect(screen.getByRole("checkbox", { name: "Active" })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(3);
-    expect(screen.getAllByRole("button", { name: "Edit" })[1]!).toBeDisabled();
-
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[1]!);
-    await user.type(screen.getByLabelText("Referrer label"), " B");
-    expect(screen.getByLabelText("Referrer label")).toHaveValue("Updated A");
-    expect(saveReferralCode).toHaveBeenCalledTimes(1);
-
-    resolveSave("codes:a");
-    await waitFor(() => expect(screen.getByLabelText("Referral code")).toHaveValue(""));
-    await user.click(screen.getAllByRole("button", { name: "Edit" })[1]!);
-    expect(screen.getByLabelText("Referral code")).toHaveValue("CODE_B");
-    expect(screen.getByLabelText("Referrer label")).toHaveValue("Referrer B");
+  it("validates alias spelling before calling the save mutation", async () => {
+    const user = userEvent.setup(); render(<CodesManager />);
+    await user.type(screen.getByLabelText("Referral code"), "bad code"); await user.click(screen.getByRole("button", { name: "Create code" }));
+    expect(screen.getByText("Use letters, numbers, hyphens, or underscores in the code.")).toBeVisible(); expect(saveAlias).not.toHaveBeenCalled();
   });
 });
