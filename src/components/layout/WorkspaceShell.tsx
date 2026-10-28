@@ -117,8 +117,9 @@ function DemoWorkspaceShell({
     if (!hydrated || signingOut.current) return;
     if (accessKind === "guest") router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     else if (demoResetInProgress) return;
-    else if (demoOnboardingPending && !resumingDemoReset) router.replace("/onboarding");
-    else if (audience === "admin") {
+    else if (demoOnboardingPending) {
+      if (!resumingDemoReset) router.replace("/onboarding");
+    } else if (audience === "admin") {
       if (accessKind === "restricted" && recoveryPath !== null) router.replace(recoveryPath);
       else if (adminRedirect !== null) router.replace(adminRedirect);
     } else if (!hasProfileAccess && !sessionError) {

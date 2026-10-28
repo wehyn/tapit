@@ -3458,7 +3458,7 @@ test("customer analytics and account controls stay scoped to the customer", asyn
 
 test("Demo customer resets linked data and onboards again with the same identity", async ({
   page,
-}) => {
+}, testInfo) => {
   const email = "resettable-customer@example.test";
   const password = "resettable-password";
   await resetDemoHarness(page);
@@ -3522,8 +3522,10 @@ test("Demo customer resets linked data and onboards again with the same identity
   await page.getByRole("button", { name: "Reset account" }).click();
   const resetDialog = page.getByRole("dialog", { name: "Reset Demo account?" });
   await expect(resetDialog).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("demo-reset-confirmation.png") });
   await resetDialog.getByRole("button", { name: "Reset account" }).click();
   await expect(page).toHaveURL(/\/onboarding$/);
+  await page.screenshot({ path: testInfo.outputPath("demo-reset-onboarding.png") });
 
   const cleared = await page.evaluate(
     ({ customerEmail, oldProfileId }) => {
@@ -3567,6 +3569,10 @@ test("Demo customer resets linked data and onboards again with the same identity
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByLabel("Name")).toHaveValue("Resettable Customer Again");
   await expect(page.getByLabel("Bio or role")).toHaveValue("");
+  const republishGuidance = page.getByRole("dialog", { name: "Before you publish" });
+  if (await republishGuidance.isVisible()) {
+    await republishGuidance.getByRole("button", { name: "Maybe later" }).click();
+  }
   const completed = await page.evaluate((customerEmail) => {
     const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
     const account = state.customers.find(

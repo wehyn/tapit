@@ -605,7 +605,9 @@ test("a new customer setup flow receives its own empty profile", async ({ page }
   await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
 });
 
-test("administrator promotes a customer through Demo before Administrator", async ({ page }) => {
+test("administrator promotes a customer through Demo before Administrator", async ({
+  page,
+}, testInfo) => {
   await signInAsAdmin(page);
   await page.getByLabel("Search customers").fill("mara@example.test");
   const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
@@ -614,6 +616,7 @@ test("administrator promotes a customer through Demo before Administrator", asyn
   await expect(customer.getByText("Demo", { exact: true })).toBeVisible();
   await expect(customer.getByRole("button", { name: "Promote to Administrator" })).toBeVisible();
   await expect(customer.getByRole("button", { name: "Promote to Demo" })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("customer-promoted-to-demo.png") });
 
   await page.once("dialog", (dialog) => dialog.accept());
   await customer.getByRole("button", { name: "Promote to Administrator" }).click();
