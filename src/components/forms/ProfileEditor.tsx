@@ -12,6 +12,7 @@ import {
   hasUnpublishedChanges,
   projectPublicProfile,
   publishProfile,
+  validateLimitedProfileContent,
   validateLinkDestination,
   validatePublicationIssues,
   validatePublicationAccess,
@@ -23,6 +24,7 @@ import {
   getDemoProfileForSession,
   getDemoProfiles,
   getDemoTheme,
+  resolveDemoSessionAccess,
   updateDemoProfile,
   useDemoSession,
   useDemoState,
@@ -246,6 +248,8 @@ function DemoProfileEditor({
   const router = useRouter();
   const state = useDemoState();
   const session = useDemoSession();
+  const access = resolveDemoSessionAccess(state, session);
+  const hasCardOwnerFeatures = access.kind === "active" && access.hasCardOwnerFeatures;
   const profile = getDemoProfileForSession(state, session);
   const legacyTheme = getDemoTheme(state, profile.id);
   const [draft, setDraft] = useState<ProfileContent>(() => ({
@@ -305,13 +309,10 @@ function DemoProfileEditor({
   const lifecycleErrors = customer
     ? validatePublicationAccess(profile.status, customer.status, customer.deletionStatus)
     : [];
-  const cardErrors = state.cards.some(
-    (card) =>
-      card.profileId === profile.id && card.status === "claimable" && card.claimedAt === undefined,
-  )
-    ? ["Claim the attached card before publishing this profile."]
-    : [];
-  const errors = [...publicationErrors, ...lifecycleErrors, ...cardErrors];
+  const limitedContentErrors = hasCardOwnerFeatures
+    ? []
+    : validateLimitedProfileContent({ ...draft, theme });
+  const errors = [...publicationErrors, ...lifecycleErrors, ...limitedContentErrors];
   const publishRequirements = getPublishRequirements(publicationIssues);
   const { profile: profileErrors, customization: customizationErrors } =
     splitProfileWorkspaceErrors(errors);
@@ -350,6 +351,11 @@ function DemoProfileEditor({
       };
     }
     if (!isDirty) return { kind: "saved" };
+    if (limitedContentErrors.length > 0) {
+      const text = limitedContentErrors.join(" ");
+      setMessage({ tone: "error", text });
+      return { kind: "failed", message: text };
+    }
     try {
       let assignedSlug = profile.draft.slug;
       updateDemoState((current) =>
@@ -535,7 +541,12 @@ function DemoProfileEditor({
     }
   }
 
-  async function uploadDemoMedia(file: File): Promise<ProfileMediaImage> {
+  async function uploadDemoMedia(
+    file: File,
+    target: "background" | "slideshow",
+  ): Promise<ProfileMediaImage> {
+    if (target === "slideshow" && !hasCardOwnerFeatures)
+      throw new Error("Claim a card to upload slideshow images.");
     const requestId = ++mediaRequestRef.current;
     setMediaBusy(true);
     setMediaError("");
@@ -630,6 +641,7 @@ function DemoProfileEditor({
         categoryFocusRequest={categoryFocusRequest}
         customization={draft.customization}
         errors={customizationErrors}
+        hasCardOwnerFeatures={hasCardOwnerFeatures}
         media={draft.media}
         mediaBusy={mediaBusy}
         mediaError={mediaError}
@@ -742,7 +754,6 @@ function DemoProfileEditor({
       hasDraftChanges={isDirty || hasChangesSincePublish || hasUnresolvedMedia}
       publishDisabled={
         lifecycleErrors.length > 0 ||
-        cardErrors.length > 0 ||
         publicationLabel === "Published" ||
         cropFile !== null ||
         imagePending ||
@@ -811,11 +822,13 @@ function LiveProfileEditor({
   onRequirementAction: (requirement: PublishRequirement) => void;
 }) {
   const profile = useQuery(api.profiles.mine);
-  if (profile === undefined) return <ProfileEditorLoading />;
+  const access = useQuery(api.admin.currentAccess, {});
+  if (profile === undefined || access === undefined) return <ProfileEditorLoading />;
   if (profile === null) return <MissingProfilePage />;
   return (
     <LiveProfileEditorContent
       categoryFocusRequest={categoryFocusRequest}
+      hasCardOwnerFeatures={access.hasCardOwnerFeatures === true}
       requestCategoryFocus={requestCategoryFocus}
       onRequirementAction={onRequirementAction}
       profile={profile}
@@ -830,8 +843,10 @@ function LiveProfileEditorContent({
   categoryFocusRequest,
   requestCategoryFocus,
   onRequirementAction,
+  hasCardOwnerFeatures,
 }: {
   profile: NonNullable<ReturnType<typeof useQuery<typeof api.profiles.mine>>>;
+  hasCardOwnerFeatures: boolean;
   view: ProfileEditorView;
   categoryFocusRequest: ProfileCustomizationFocusRequest;
   requestCategoryFocus: (category: ProfileCustomizationCategory) => void;
@@ -921,7 +936,10 @@ function LiveProfileEditorContent({
   const publicationIssues = validatePublicationIssues(currentDraft, publishedForValidation, {
     immutableSlug: liveProfile.slug,
   });
-  const errors = publicationIssues.map((issue) => issue.message);
+  const limitedContentErrors = hasCardOwnerFeatures
+    ? []
+    : validateLimitedProfileContent(currentDraft);
+  const errors = [...publicationIssues.map((issue) => issue.message), ...limitedContentErrors];
   const publishRequirements = getPublishRequirements(publicationIssues);
   const mediaErrors = validateProfileMedia(currentDraft.media);
   const { profile: profileErrors, customization: customizationErrors } =
@@ -1056,7 +1074,6 @@ function LiveProfileEditorContent({
     file: File,
     target: "background" | "slideshow",
   ): Promise<ProfileMediaImage> {
-    void target;
     const requestId = ++mediaRequestRef.current;
     mediaAbortControllerRef.current?.abort();
     const controller = new AbortController();
@@ -1078,6 +1095,7 @@ function LiveProfileEditorContent({
           Authorization: `Bearer ${authToken}`,
           "Content-Type": file.type,
           "X-Media-Revision": String(mediaRevisionRef.current),
+          "X-Media-Target": target,
           "X-Profile-Id": liveProfile._id,
         },
         signal: controller.signal,
@@ -1148,6 +1166,11 @@ function LiveProfileEditorContent({
       };
     }
     if (!isDirty) return { kind: "saved" };
+    if (limitedContentErrors.length > 0) {
+      const text = limitedContentErrors.join(" ");
+      setMessage({ tone: "error", text });
+      return { kind: "failed", message: text };
+    }
     setPending(keepPublishPending ? "publish" : "save");
     setMessage(null);
     try {
@@ -1346,6 +1369,7 @@ function LiveProfileEditorContent({
         categoryFocusRequest={categoryFocusRequest}
         customization={currentDraft.customization}
         errors={customizationErrors}
+        hasCardOwnerFeatures={hasCardOwnerFeatures}
         media={currentDraft.media}
         mediaBusy={mediaBusy}
         mediaError={mediaError}

@@ -6,6 +6,7 @@ export type AccessSnapshot = {
   accountStatus?: AccountAccessStatus;
   role: "admin" | "customer" | null;
   profileId: string | null;
+  hasCardOwnerFeatures?: boolean;
 };
 
 /**

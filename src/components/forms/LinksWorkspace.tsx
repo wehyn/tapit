@@ -40,6 +40,7 @@ export type LinksWorkspaceProps = {
   isDirty: boolean;
   hasUnpublishedChanges: boolean;
   publicationLabel: string;
+  maxLinks?: number;
   onUpdateLink: (id: string, patch: Partial<ProfileLink>) => void;
   onRedirectChange?: (redirect: ProfileRedirect) => void;
   onAddLink: (link: Pick<ProfileLink, "label" | "destination" | "icon">) => void;
@@ -75,6 +76,7 @@ export function LinksWorkspace({
   isDirty,
   hasUnpublishedChanges,
   publicationLabel,
+  maxLinks = 100,
   onUpdateLink,
   onRedirectChange = () => {},
   onAddLink,
@@ -279,7 +281,8 @@ export function LinksWorkspace({
                     Profile links
                   </h2>
                   <p className="text-sm text-tapit-muted">
-                    {shownCount} shown · {links.length - shownCount} hidden
+                    {links.length} of {maxLinks} total · {shownCount} shown ·{" "}
+                    {links.length - shownCount} hidden
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
@@ -296,7 +299,12 @@ export function LinksWorkspace({
                       {publicationLabel}
                     </Button>
                   ) : null}
-                  <Button onClick={() => setAddDialogOpen(true)} type="button" variant="secondary">
+                  <Button
+                    disabled={links.length >= maxLinks}
+                    onClick={() => setAddDialogOpen(true)}
+                    type="button"
+                    variant="secondary"
+                  >
                     <Icon name="plus" size={18} weight="bold" />
                     Add link
                   </Button>

@@ -56,6 +56,24 @@ export async function customerForAuthUser(
     .unique();
 }
 
+export async function hasCardOwnerFeaturesForProfile(
+  ctx: AuthContext,
+  account: Doc<"customers">,
+  profileId: Doc<"profiles">["_id"] | null,
+): Promise<boolean> {
+  if (!isActiveCustomer(account)) return false;
+  if (account.role === "admin") return true;
+  if (profileId === null) return false;
+  const profile = await ctx.db.get(profileId);
+  if (profile === null || profile.ownerId !== account._id || !sameScope(account, profile))
+    return false;
+  const cards = await ctx.db
+    .query("cards")
+    .withIndex("by_profileId", (query) => query.eq("profileId", profileId))
+    .take(1001);
+  return cards.some((card) => card.claimCodeClaimedAt !== undefined && sameScope(account, card));
+}
+
 type AccountAccessStatus = "pending" | "invited" | "active" | "deleted" | "unprovisioned";
 
 function accountAccessStatus(
@@ -91,6 +109,7 @@ export const currentAccess = query({
     role: v.union(v.literal("admin"), v.literal("customer"), v.null()),
     accountId: v.union(v.id("customers"), v.null()),
     profileId: v.union(v.id("profiles"), v.null()),
+    hasCardOwnerFeatures: v.boolean(),
     onboardingName: v.union(v.string(), v.null()),
     email: v.union(v.string(), v.null()),
   }),
@@ -103,6 +122,7 @@ export const currentAccess = query({
         role: null,
         accountId: null,
         profileId: null,
+        hasCardOwnerFeatures: false,
         onboardingName: null,
         email: null,
       };
@@ -130,12 +150,17 @@ export const currentAccess = query({
     const status = accountAccessStatus(account, invited);
     const active = isActiveCustomer(account);
     const profileId = await ownedProfileId(ctx, account);
+    const hasCardOwnerFeatures =
+      active && account !== null
+        ? await hasCardOwnerFeaturesForProfile(ctx, account, profileId)
+        : false;
     return {
       authenticated: active,
       accountStatus: status,
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
       profileId,
+      hasCardOwnerFeatures,
       onboardingName: account?.onboardingName ?? null,
       email: active && account !== null ? account.email : null,
     };
@@ -157,6 +182,7 @@ export const currentAccessInternal = internalQuery({
     role: v.union(v.literal("admin"), v.literal("customer"), v.null()),
     accountId: v.union(v.id("customers"), v.null()),
     profileId: v.union(v.id("profiles"), v.null()),
+    hasCardOwnerFeatures: v.boolean(),
     onboardingName: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
@@ -168,11 +194,16 @@ export const currentAccessInternal = internalQuery({
         role: null,
         accountId: null,
         profileId: null,
+        hasCardOwnerFeatures: false,
         onboardingName: null,
       };
     const account = await customerForAuthUser(ctx, userId);
     const active = isActiveCustomer(account);
     const profileId = await ownedProfileId(ctx, account);
+    const hasCardOwnerFeatures =
+      active && account !== null
+        ? await hasCardOwnerFeaturesForProfile(ctx, account, profileId)
+        : false;
     const user = await ctx.db.get(userId);
     const verifiedEmail =
       user?.emailVerificationTime !== undefined &&
@@ -195,6 +226,7 @@ export const currentAccessInternal = internalQuery({
       role: active ? (account?.role ?? null) : null,
       accountId: active ? (account?._id ?? null) : null,
       profileId,
+      hasCardOwnerFeatures,
       onboardingName: account?.onboardingName ?? null,
     };
   },

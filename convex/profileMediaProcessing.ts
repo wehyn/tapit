@@ -21,6 +21,7 @@ export const process = internalAction({
     url: v.string(),
     previewUrl: v.string(),
     mediaRevision: v.number(),
+    target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
   }),
   handler: async (
     ctx,
@@ -30,6 +31,7 @@ export const process = internalAction({
     url: string;
     previewUrl: string;
     mediaRevision: number;
+    target?: "background" | "slideshow";
   }> => {
     const job: Doc<"profileMediaUploadJobs"> | null = await ctx.runQuery(
       internal.profileMedia.getUploadJob,

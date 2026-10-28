@@ -13,6 +13,7 @@ export type NavItem = {
   section: NavSection;
   match: "exact" | "prefix";
   surfaces: readonly NavSurface[];
+  cardOwnerOnly?: boolean;
 };
 
 export const supportHref = "mailto:wayneegarcia@gmail.com";
@@ -77,6 +78,7 @@ export const navItems: readonly NavItem[] = [
     audience: "customer",
     section: "share-and-grow",
     match: "prefix",
+    cardOwnerOnly: true,
     surfaces: ["sidebar", "more"],
   },
   {
@@ -87,6 +89,7 @@ export const navItems: readonly NavItem[] = [
     audience: "customer",
     section: "share-and-grow",
     match: "prefix",
+    cardOwnerOnly: true,
     surfaces: ["sidebar", "tabs"],
   },
   {
@@ -181,16 +184,26 @@ export const navItems: readonly NavItem[] = [
   },
 ];
 
-export function navItemsFor(audience: NavAudience, surface: NavSurface): NavItem[] {
-  return navItems.filter((item) => item.audience === audience && item.surfaces.includes(surface));
+export function navItemsFor(
+  audience: NavAudience,
+  surface: NavSurface,
+  hasCardOwnerFeatures = true,
+): NavItem[] {
+  return navItems.filter(
+    (item) =>
+      item.audience === audience &&
+      item.surfaces.includes(surface) &&
+      (hasCardOwnerFeatures || !item.cardOwnerOnly),
+  );
 }
 
 export function sidebarSectionsFor(
   audience: NavAudience,
+  hasCardOwnerFeatures = true,
 ): { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] {
   const sections: { section: Exclude<NavSection, "pinned">; label: string; items: NavItem[] }[] =
     [];
-  for (const item of navItemsFor(audience, "sidebar")) {
+  for (const item of navItemsFor(audience, "sidebar", hasCardOwnerFeatures)) {
     if (item.section === "pinned") continue;
     const existing = sections.find((entry) => entry.section === item.section);
     if (existing) existing.items.push(item);
@@ -210,8 +223,12 @@ export function isNavItemActive(item: NavItem, pathname: string): boolean {
     : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export function activeNavItemFor(audience: NavAudience, pathname: string): NavItem | undefined {
-  return navItemsFor(audience, "sidebar")
+export function activeNavItemFor(
+  audience: NavAudience,
+  pathname: string,
+  hasCardOwnerFeatures = true,
+): NavItem | undefined {
+  return navItemsFor(audience, "sidebar", hasCardOwnerFeatures)
     .filter((item) => isNavItemActive(item, pathname))
     .sort((left, right) => right.href.length - left.href.length)[0];
 }

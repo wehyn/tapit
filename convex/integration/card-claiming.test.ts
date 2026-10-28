@@ -223,7 +223,7 @@ describe("card claiming contracts", () => {
     expect(JSON.stringify(unpublishedResolution)).not.toContain("Owner");
     await expect(
       owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
-    ).rejects.toThrow("Claim the attached card before publishing");
+    ).resolves.toMatchObject({ slug: "owner" });
     const { code: firstCode } = await admin.mutation(api.cards.generateClaimCode, {
       cardId: ids.cardId,
     });
@@ -317,8 +317,76 @@ describe("card claiming contracts", () => {
       status: "active",
       profile: { slug: "owner-two" },
     });
-    // A published profile becomes public as soon as a newly attached card is
-    // assigned; a claim step is only required for unpublished profiles.
+    // A published profile becomes public as soon as a newly attached card is assigned.
+
+    const cardlessUserId = await t.run((ctx) =>
+      ctx.db.insert("users", { email: "cardless@example.com" }),
+    );
+    const cardlessCustomerId = await t.run((ctx) =>
+      ctx.db.insert("customers", {
+        userId: cardlessUserId,
+        email: "cardless@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+    const cardlessProfileId = await t.run(async (ctx) => {
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: cardlessCustomerId,
+        slug: "cardless-published",
+        status: "published",
+        draft: { name: "Cardless", slug: "cardless-published", links: [] },
+        published: { name: "Cardless", slug: "cardless-published", links: [], publishedAt: 1 },
+        createdAt: 1,
+        updatedAt: 1,
+        publishedAt: 1,
+      });
+      await ctx.db.patch(cardlessCustomerId, { profileId });
+      return profileId;
+    });
+    const cardlessOwner = t.withIdentity(identity(cardlessUserId));
+    const claimablePublishedCardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/cardless-published",
+      token: "cardless-published",
+    });
+    await expect(
+      admin.mutation(api.cards.attach, {
+        cardId: claimablePublishedCardId,
+        profileId: cardlessProfileId,
+      }),
+    ).resolves.toEqual({ status: "active" });
+    const { code: publishedProfileCode } = await admin.mutation(api.cards.generateClaimCode, {
+      cardId: claimablePublishedCardId,
+    });
+    await expect(
+      t.query(api.cards.resolve, { token: "cardless-published" }),
+    ).resolves.toMatchObject({
+      status: "active",
+      claimCodeExpiresAt: expect.any(Number),
+    });
+    const publishedProfileVerification = await cardlessOwner.mutation(api.cardClaims.verifyCode, {
+      token: "cardless-published",
+      code: publishedProfileCode,
+    });
+    expect(publishedProfileVerification.ok).toBe(true);
+    if (!publishedProfileVerification.ok) throw new Error("Expected the claim code to verify.");
+    await expect(
+      cardlessOwner.mutation(api.cardClaims.complete, {
+        challenge: publishedProfileVerification.challenge,
+      }),
+    ).resolves.toMatchObject({ profileId: cardlessProfileId });
+    await expect(cardlessOwner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+    await expect(
+      t.query(api.cards.resolve, { token: "cardless-published" }),
+    ).resolves.toMatchObject({
+      status: "active",
+      profile: { slug: "cardless-published" },
+    });
 
     const invited = await admin.mutation(api.customers.createCustomer, {
       email: "invited@example.com",

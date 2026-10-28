@@ -196,6 +196,7 @@ export function PublicProfile({
   profileUrl,
   profileId,
   showOwnerShortcut = false,
+  claimHref,
   preview = false,
   mobileLayout = false,
   fitPhonePreviewContent = false,
@@ -209,6 +210,7 @@ export function PublicProfile({
   profileUrl?: string;
   profileId?: string;
   showOwnerShortcut?: boolean;
+  claimHref?: string;
   preview?: boolean;
   mobileLayout?: boolean;
   fitPhonePreviewContent?: boolean;
@@ -657,6 +659,7 @@ export function PublicProfile({
             ? "overflow-hidden rounded-card shadow-card"
             : "overflow-hidden rounded-none border-0 shadow-none sm:rounded-card sm:shadow-card";
   const showEditProfileLink = showOwnerShortcut && !preview;
+  const showProfileActions = !preview && (showEditProfileLink || claimHref !== undefined);
   const identityColumnSpacing = phonePreview
     ? compactPhonePreview
       ? "grid content-start gap-3 px-3 py-4"
@@ -678,16 +681,27 @@ export function PublicProfile({
       ? "min-[480px]:grid min-[480px]:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]"
       : "lg:grid lg:grid-cols-[minmax(18rem,0.84fr)_minmax(0,1.16fr)]"
     : "";
-  const ownerShortcut = showEditProfileLink ? (
-    <nav aria-label="Profile owner actions" className="absolute right-4 top-4 z-20">
-      <Link
-        aria-label="Edit profile"
-        className="inline-flex min-h-11 items-center gap-2 rounded-control bg-tapit-surface px-3 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
-        href="/app/profile"
-      >
-        <Icon aria-hidden="true" name="edit" size={16} />
-        Edit
-      </Link>
+  const ownerShortcut = showProfileActions ? (
+    <nav aria-label="Profile actions" className="absolute right-4 top-4 z-20 flex gap-2">
+      {claimHref ? (
+        <Link
+          aria-label="Claim this card"
+          className="inline-flex min-h-11 items-center rounded-control bg-tapit-surface px-3 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          href={claimHref}
+        >
+          Claim card
+        </Link>
+      ) : null}
+      {showEditProfileLink ? (
+        <Link
+          aria-label="Edit profile"
+          className="inline-flex min-h-11 items-center gap-2 rounded-control bg-tapit-surface px-3 text-sm font-semibold text-tapit-ink shadow-card transition-colors hover:bg-tapit-soft-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
+          href="/app/profile"
+        >
+          <Icon aria-hidden="true" name="edit" size={16} />
+          Edit
+        </Link>
+      ) : null}
     </nav>
   ) : null;
   const identityColumn = background ? (

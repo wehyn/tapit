@@ -2,8 +2,14 @@ import { v } from "convex/values";
 
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireAdministrator, requireUser } from "./admin";
+import {
+  hasCardOwnerFeaturesForProfile,
+  isActiveCustomer,
+  requireAdministrator,
+  requireUser,
+} from "./admin";
 import schema from "./schema";
+import { MAX_LIMITED_PROFILE_LINKS } from "../src/lib/domain";
 import {
   isSafeDestination,
   linkValidator,
@@ -96,9 +102,12 @@ export const replaceDraft = mutation({
   },
   returns: v.object({ updatedAt: v.number(), draftRevision: v.number() }),
   handler: async (ctx, args) => {
-    if (args.links.length > MAX_PROFILE_LINKS)
-      throw new Error("A profile cannot contain more than 100 links.");
-    const { profile, userId } = await accessibleProfile(ctx, args.profileId);
+    const { account, profile, userId } = await accessibleProfile(ctx, args.profileId);
+    const maxLinks = (await hasCardOwnerFeaturesForProfile(ctx, account, profile._id))
+      ? MAX_PROFILE_LINKS
+      : MAX_LIMITED_PROFILE_LINKS;
+    if (args.links.length > maxLinks)
+      throw new Error(`A profile cannot contain more than ${maxLinks} links.`);
     const draftRevision = profile.draftRevision ?? 0;
     if (
       !Number.isSafeInteger(args.expectedDraftRevision) ||

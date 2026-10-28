@@ -96,6 +96,15 @@ async function seed(t: ReturnType<typeof convexTest>) {
       publishedAt: 1,
     });
     await ctx.db.patch(ownerCustomerId, { profileId: ownerProfileId });
+    await ctx.db.insert("cards", {
+      cardUrl: "https://cards.example/owner",
+      token: "owner-card",
+      profileId: ownerProfileId,
+      status: "active",
+      claimCodeClaimedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    });
     await ctx.db.patch(otherCustomerId, { profileId: otherProfileId });
     return {
       adminUserId,
@@ -472,14 +481,9 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       uniqueViews: 1,
       clicks: 1,
     });
-    await expect(other.query(api.analytics.mine, { range: "lifetime", now })).resolves.toEqual({
-      views: 0,
-      uniqueViews: 0,
-      clicks: 0,
-      linkClicks: {},
-      isComplete: true,
-      continueCursor: null,
-    });
+    await expect(other.query(api.analytics.mine, { range: "lifetime", now })).rejects.toThrow(
+      "Card owner access required.",
+    );
     await expect(other.query(api.analytics.all, { range: "lifetime", now })).rejects.toThrow(
       "Administrator permission required.",
     );

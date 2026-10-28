@@ -2,7 +2,13 @@ import { v } from "convex/values";
 
 import { internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-import { isActiveCustomer, requireAdministrator, requireUser, sameScope } from "./admin";
+import {
+  hasCardOwnerFeaturesForProfile,
+  isActiveCustomer,
+  requireAdministrator,
+  requireUser,
+  sameScope,
+} from "./admin";
 
 type DbContext = QueryCtx | MutationCtx;
 
@@ -23,7 +29,12 @@ export async function profileAccess(ctx: DbContext, profileId: Id<"profiles">) {
   ) {
     throw new Error("Profile access denied.");
   }
-  return { account, profile, userId };
+  return {
+    account,
+    profile,
+    userId,
+    hasCardOwnerFeatures: await hasCardOwnerFeaturesForProfile(ctx, account, profile._id),
+  };
 }
 
 /** Resolves an active profile owner; customer photo operations must use this boundary. */
@@ -43,7 +54,12 @@ export async function profileOwnerAccess(ctx: DbContext, profileId: Id<"profiles
   ) {
     throw new Error("Profile access denied.");
   }
-  return { account, profile, userId };
+  return {
+    account,
+    profile,
+    userId,
+    hasCardOwnerFeatures: await hasCardOwnerFeaturesForProfile(ctx, account, profile._id),
+  };
 }
 
 /** Resolves an active administrator and a profile within that administrator's scope. */

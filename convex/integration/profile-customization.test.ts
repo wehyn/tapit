@@ -97,6 +97,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
       createdAt: 1,
       updatedAt: 1,
       assignedAt: 1,
+      claimCodeClaimedAt: 1,
     });
     return { ownerUserId, otherUserId, profileId };
   });
