@@ -231,7 +231,7 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
         onChangeRole={(row, role) => {
           if (
             window.confirm(
-              `${role === "admin" ? "Promote this customer to administrator" : "Demote this administrator to customer"}?`,
+              `${role === "admin" ? "Promote this Demo account to administrator" : "Demote this administrator to customer"}?`,
             )
           )
             void data
@@ -246,6 +246,21 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
                 setNotice({
                   tone: "error",
                   text: error instanceof Error ? error.message : "The role could not be changed.",
+                }),
+              );
+        }}
+        onPromoteToDemo={(row) => {
+          if (window.confirm("Promote this customer to a Demo account?"))
+            void data
+              .promoteToDemo(row.id)
+              .then(() => setNotice({ tone: "success", text: "Customer promoted to Demo." }))
+              .catch((error: unknown) =>
+                setNotice({
+                  tone: "error",
+                  text:
+                    error instanceof Error
+                      ? error.message
+                      : "The customer could not be promoted to Demo.",
                 }),
               );
         }}

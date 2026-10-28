@@ -1,5 +1,9 @@
 # Change log
 
+## 2026-10-28 — Resettable Demo accounts
+
+- Administrators promote customers to Demo before promoting them to Administrator. Demo customers can reset their Tapit data and linked cards, then onboard again with the same sign-in identity; ordinary customer deletion is unchanged.
+
 ## 2026-10-28 — Admin owner-access override
 
 - Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.

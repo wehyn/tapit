@@ -31,6 +31,9 @@ export type DemoCustomer = {
   passwordHash?: string;
   claimedCardIds?: string[];
   cardOwnerAccessOverride?: boolean;
+  isDemo?: boolean;
+  demoResetInProgress?: boolean;
+  demoOnboardingPending?: boolean;
 };
 
 export type DemoSetupInvitation = {

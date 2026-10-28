@@ -18,6 +18,7 @@ export function PreparedCustomerRow({
   onLegacyReplace,
   onChangeRole,
   onOwnerAccess,
+  onPromoteToDemo,
   onApproveDeletion,
 }: {
   row: PreparedRow;
@@ -29,6 +30,7 @@ export function PreparedCustomerRow({
   onLegacyReplace: () => void;
   onChangeRole: (role: "customer" | "admin") => void;
   onOwnerAccess: (enabled: boolean) => void;
+  onPromoteToDemo: () => void;
   onApproveDeletion: () => void;
 }) {
   const [now] = useState(() => Date.now());
@@ -115,10 +117,16 @@ export function PreparedCustomerRow({
             Replace invitation
           </Button>
         );
-      case "Promote to administrator":
+      case "Promote to Demo":
+        return (
+          <Button key={action} onClick={onPromoteToDemo} variant="quiet">
+            Promote to Demo
+          </Button>
+        );
+      case "Promote to Administrator":
         return (
           <Button key={action} onClick={() => onChangeRole("admin")} variant="quiet">
-            Promote to administrator
+            Promote to Administrator
           </Button>
         );
       case "Demote to customer":
@@ -173,7 +181,10 @@ export function PreparedCustomerRow({
                 )}
               </>
             ) : row.setupState === "active" ? (
-              <Chip tone="ok">Active</Chip>
+              <>
+                <Chip tone="ok">Active</Chip>
+                {row.isDemo ? <StatusChip status="Demo" /> : null}
+              </>
             ) : (
               <StatusChip status={row.status ?? "invited"} />
             )}

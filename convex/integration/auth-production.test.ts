@@ -45,6 +45,8 @@ describe("production authentication boundaries", () => {
       profileId: null,
       hasCardOwnerFeatures: false,
       onboardingName: null,
+      isDemo: false,
+      demoResetInProgress: false,
     });
   });
 

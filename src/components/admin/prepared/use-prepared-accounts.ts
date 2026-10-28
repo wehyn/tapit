@@ -15,6 +15,8 @@ import {
   deletePreparedDraft as deleteDemo,
   updateDemoState,
   updateDemoProfile,
+  promoteDemoCustomerToDemo,
+  promoteDemoCustomerToAdmin,
 } from "@/lib/demo/store";
 import { createSetupToken, hashSetupToken } from "@/lib/auth/setup-token";
 import {
@@ -39,6 +41,7 @@ type Result = {
   revokeLegacy: (invitationId: string) => Promise<void>;
   replaceLegacy: (customerId: string) => Promise<string>;
   changeRole: (customerId: string, role: "customer" | "admin") => Promise<void>;
+  promoteToDemo: (customerId: string) => Promise<void>;
   approveDeletion: (customerId: string) => Promise<void>;
   setOwnerAccess: (row: ActiveCustomerRow, enabled: boolean) => Promise<void>;
 };
@@ -81,6 +84,7 @@ export function useConvexPreparedAccounts(): Result {
   const revokeMutation = useMutation(api.invitations.revoke);
   const replaceMutation = useMutation(api.invitations.replace);
   const setRoleMutation = useMutation(api.customers.setRole);
+  const promoteToDemoMutation = useMutation(api.customers.promoteToDemo);
   const approveMutation = useMutation(api.customers.approveDeletion);
   const ownerAccessMutation = useMutation(api.customers.setCardOwnerAccessOverride);
 
@@ -162,6 +166,7 @@ export function useConvexPreparedAccounts(): Result {
           ({ request }) => request.customerId === customer._id && request.status === "requested",
         ),
         cardOwnerAccessOverride: customer.cardOwnerAccessOverride === true,
+        isDemo: customer.isDemo === true,
         ownsProfile: profile !== undefined,
         legacyInvitationActive: legacyInvitation !== undefined,
         invitationStatus: latestLegacyInvitation
@@ -222,6 +227,9 @@ export function useConvexPreparedAccounts(): Result {
   async function changeRole(customerId: string, role: "customer" | "admin") {
     await setRoleMutation({ customerId: customerId as Id<"customers">, role });
   }
+  async function promoteToDemo(customerId: string) {
+    await promoteToDemoMutation({ customerId: customerId as Id<"customers"> });
+  }
   async function approveDeletion(customerId: string) {
     const request =
       deletionsResult.status === "success" && Array.isArray(deletionsResult.data?.page)
@@ -266,6 +274,7 @@ export function useConvexPreparedAccounts(): Result {
     revokeLegacy,
     replaceLegacy,
     changeRole,
+    promoteToDemo,
     approveDeletion,
     setOwnerAccess,
   };
@@ -325,6 +334,7 @@ export function useDemoPreparedAccounts(): Result {
             : 0,
           hasDeletionRequest: owner?.deletionStatus === "requested",
           cardOwnerAccessOverride: owner?.cardOwnerAccessOverride === true,
+          isDemo: owner?.isDemo === true,
           ownsProfile: profile !== undefined && profile.ownerId === owner?.id,
           legacyInvitationActive: Boolean(owner?.setupToken),
           setupToken: owner?.setupToken,
@@ -383,7 +393,9 @@ export function useDemoPreparedAccounts(): Result {
       }));
       return token;
     },
+    promoteToDemo: async (customerId) => promoteDemoCustomerToDemo(customerId),
     changeRole: async (customerId, role) => {
+      if (role === "admin") return promoteDemoCustomerToAdmin(customerId);
       updateDemoState((current) => ({
         ...current,
         customers: current.customers.map((customer) =>

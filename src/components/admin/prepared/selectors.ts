@@ -41,7 +41,8 @@ export type CustomerAction =
   | "Open setup link"
   | "Revoke invitation"
   | "Replace invitation"
-  | "Promote to administrator"
+  | "Promote to Demo"
+  | "Promote to Administrator"
   | "Demote to customer"
   | "Grant owner access"
   | "Revoke owner access"
@@ -71,12 +72,9 @@ export function actionsForRow(row: PreparedRow): CustomerAction[] {
         ...(row.legacyInvitationActive
           ? ["Revoke invitation" as const, "Replace invitation" as const]
           : []),
-        ...(row.status === "active"
-          ? [
-              row.role === "customer"
-                ? ("Promote to administrator" as const)
-                : ("Demote to customer" as const),
-            ]
+        ...(row.status === "active" && row.role === "admin" ? ["Demote to customer" as const] : []),
+        ...(row.status === "active" && row.deletionStatus === "active" && row.role === "customer"
+          ? [row.isDemo ? ("Promote to Administrator" as const) : ("Promote to Demo" as const)]
           : []),
         ...(row.status === "active" && row.deletionStatus === "active" && row.role === "customer"
           ? [

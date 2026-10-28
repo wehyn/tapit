@@ -248,6 +248,114 @@ describe("demo auth isolation", () => {
     }
   });
 
+  it("preserves a Demo session during reset and routes the pending account to onboarding", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    currentPath = "/app/profile";
+    localStorage.clear();
+    const { CustomerShell } = await loadShells();
+    const { finishCurrentDemoAccountReset, resetDemoState, setDemoSession, updateDemoState } =
+      await import("../../src/lib/demo/store");
+    resetDemoState();
+    updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === "customer-mara"
+          ? { ...customer, isDemo: true, demoResetInProgress: true }
+          : customer,
+      ),
+    }));
+    setDemoSession({ email: "mara@example.test", role: "customer" });
+
+    try {
+      render(
+        <CustomerShell>
+          <div>customer content</div>
+        </CustomerShell>,
+      );
+
+      expect(replace).not.toHaveBeenCalled();
+      expect(JSON.parse(localStorage.getItem("tapit:demo-session:v1") ?? "null")).toEqual({
+        email: "mara@example.test",
+        role: "customer",
+      });
+
+      finishCurrentDemoAccountReset("customer-mara");
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+      expect(JSON.parse(localStorage.getItem("tapit:demo-session:v1") ?? "null")).toEqual({
+        email: "mara@example.test",
+        role: "customer",
+      });
+    } finally {
+      const { clearDemoSession } = await import("../../src/lib/demo/store");
+      clearDemoSession();
+      resetDemoState();
+      localStorage.clear();
+    }
+  });
+
+  it("can resume an interrupted Demo reset after a cleanup failure", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    currentPath = "/app/profile";
+    localStorage.clear();
+    const resumeReset = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("Cleanup could not access storage"))
+      .mockImplementationOnce(async () => {
+        const store = await import("../../src/lib/demo/store");
+        store.finishCurrentDemoAccountReset("customer-mara");
+      });
+    vi.doMock("@/lib/demo/card-order-assets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("@/lib/demo/card-order-assets")>()),
+      resetCurrentDemoAccountData: resumeReset,
+    }));
+
+    try {
+      const { CustomerShell } = await loadShells();
+      const store = await import("../../src/lib/demo/store");
+      store.resetDemoState();
+      store.updateDemoState((state) => ({
+        ...state,
+        customers: state.customers.map((customer) =>
+          customer.id === "customer-mara"
+            ? { ...customer, isDemo: true, demoResetInProgress: true }
+            : customer,
+        ),
+      }));
+      store.setDemoSession({ email: "mara@example.test", role: "customer" });
+      const user = userEvent.setup();
+
+      render(
+        <CustomerShell>
+          <div>customer content</div>
+        </CustomerShell>,
+      );
+
+      expect(
+        screen.getByRole("heading", { name: "Resume Demo account reset" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("customer content")).not.toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Resume reset" }));
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Cleanup could not access storage",
+      );
+      expect(screen.queryByText("customer content")).not.toBeInTheDocument();
+      expect(store.getDemoSession()).toEqual({ email: "mara@example.test", role: "customer" });
+
+      await user.click(screen.getByRole("button", { name: "Resume reset" }));
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+      expect(store.getDemoSession()).toEqual({ email: "mara@example.test", role: "customer" });
+    } finally {
+      vi.doUnmock("@/lib/demo/card-order-assets");
+      const store = await import("../../src/lib/demo/store");
+      store.clearDemoSession();
+      store.resetDemoState();
+      localStorage.clear();
+      vi.resetModules();
+    }
+  });
+
   it("keeps an invalid demo session on the error screen when storage cannot clear it", async () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
@@ -297,6 +405,150 @@ describe("demo auth isolation", () => {
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Continue with Google" })).not.toBeInTheDocument();
+  });
+
+  it("routes the same local Demo identity to onboarding after reset", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    const store = await import("../../src/lib/demo/store");
+    store.resetDemoState();
+    store.updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === "customer-mara"
+          ? { ...customer, isDemo: true, profileId: undefined, demoOnboardingPending: true }
+          : customer,
+      ),
+      profiles: state.profiles.filter((profile) => profile.id !== "profile-mara"),
+      profile: state.profiles.find((profile) => profile.id === "profile-admin-demo")!,
+    }));
+    const LoginForm = await loadLogin();
+    const user = userEvent.setup();
+
+    render(<LoginForm />);
+    await user.type(screen.getByLabelText("Email"), "mara@example.test");
+    await user.type(screen.getByLabelText("Password"), "tapit-demo");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+    expect(JSON.parse(localStorage.getItem("tapit:demo-session:v1") ?? "null")).toEqual({
+      email: "mara@example.test",
+      role: "customer",
+    });
+  });
+
+  it("resumes an interrupted local Demo reset after signing in again", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    const store = await import("../../src/lib/demo/store");
+    store.resetDemoState();
+    store.updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === "customer-mara"
+          ? { ...customer, isDemo: true, demoResetInProgress: true }
+          : customer,
+      ),
+    }));
+    const resumeReset = vi.fn(async () => {
+      const currentStore = await import("../../src/lib/demo/store");
+      currentStore.finishCurrentDemoAccountReset("customer-mara");
+    });
+    vi.doMock("@/lib/demo/card-order-assets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../../src/lib/demo/card-order-assets")>()),
+      resetCurrentDemoAccountData: resumeReset,
+    }));
+
+    try {
+      const LoginForm = await loadLogin();
+      const user = userEvent.setup();
+      render(<LoginForm />);
+      await user.type(screen.getByLabelText("Email"), "mara@example.test");
+      await user.type(screen.getByLabelText("Password"), "tapit-demo");
+      await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+      expect(resumeReset).toHaveBeenCalledOnce();
+      const finalStore = await import("../../src/lib/demo/store");
+      expect(
+        finalStore.getDemoState().customers.find((customer) => customer.id === "customer-mara"),
+      ).toMatchObject({ isDemo: true, demoOnboardingPending: true });
+    } finally {
+      vi.doUnmock("@/lib/demo/card-order-assets");
+      vi.resetModules();
+    }
+  });
+
+  it("confirms local Demo reset without invoking it on cancellation", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    const store = await import("../../src/lib/demo/store");
+    store.resetDemoState();
+    store.updateDemoState((state) => ({
+      ...state,
+      customers: state.customers.map((customer) =>
+        customer.id === "customer-mara" ? { ...customer, isDemo: true } : customer,
+      ),
+    }));
+    store.setDemoSession({ email: "mara@example.test", role: "customer" });
+    const resetAccount = vi.fn().mockResolvedValue(undefined);
+    vi.doMock("@/lib/demo/card-order-assets", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("../../src/lib/demo/card-order-assets")>()),
+      resetCurrentDemoAccountData: resetAccount,
+    }));
+
+    try {
+      const { AccountSettings } = await import("../../src/components/forms/AccountSettings");
+      const user = userEvent.setup();
+      render(<AccountSettings />);
+
+      expect(screen.getByRole("button", { name: "Reset account" })).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Reset account" }));
+      const dialog = screen.getByRole("dialog", { name: "Reset Demo account?" });
+      expect(dialog).toHaveTextContent("Your sign-in identity and Demo access will remain");
+      await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+      expect(resetAccount).not.toHaveBeenCalled();
+
+      await user.click(screen.getByRole("button", { name: "Reset account" }));
+      await user.click(
+        within(screen.getByRole("dialog", { name: "Reset Demo account?" })).getByRole("button", {
+          name: "Reset account",
+        }),
+      );
+      await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+      expect(resetAccount).toHaveBeenCalledOnce();
+    } finally {
+      vi.doUnmock("@/lib/demo/card-order-assets");
+      store.clearDemoSession();
+      localStorage.clear();
+    }
+  });
+
+  it("keeps account deletion for an ordinary local customer", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    localStorage.clear();
+    const store = await import("../../src/lib/demo/store");
+    store.resetDemoState();
+    store.setDemoSession({ email: "mara@example.test", role: "customer" });
+    const { AccountSettings } = await import("../../src/components/forms/AccountSettings");
+    const user = userEvent.setup();
+
+    render(<AccountSettings />);
+
+    expect(screen.getByRole("button", { name: "Request deletion" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reset account" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Request deletion" }));
+    expect(screen.getByRole("dialog", { name: "Request account deletion?" })).toBeInTheDocument();
+    expect(
+      store.getDemoState().customers.find((customer) => customer.email === "mara@example.test")
+        ?.deletionStatus,
+    ).toBe("active");
+    store.clearDemoSession();
+    localStorage.clear();
   });
 
   it("keeps hosted demo on its isolated password form", async () => {
@@ -814,6 +1066,26 @@ describe("pending Google onboarding", () => {
     render(<OnboardingForm />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(/use your invitation link/i);
+  });
+
+  it("waits for Demo reset cleanup before showing onboarding fields", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: false,
+      accountStatus: "pending",
+      role: "customer",
+      accountId: "customer_1",
+      profileId: null,
+      onboardingName: null,
+      isDemo: true,
+      demoResetInProgress: true,
+    });
+    const OnboardingForm = await loadOnboarding();
+
+    render(<OnboardingForm />);
+
+    expect(screen.getByRole("status")).toHaveTextContent(/resetting your demo account/i);
+    expect(screen.queryByRole("button", { name: /complete onboarding/i })).not.toBeInTheDocument();
   });
 
   it("routes an already active account back to its profile", async () => {

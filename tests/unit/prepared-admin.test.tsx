@@ -46,6 +46,7 @@ const records = [
     cardCount: 2,
     hasDeletionRequest: true,
     cardOwnerAccessOverride: false,
+    isDemo: false,
     ownsProfile: true,
     legacyInvitationActive: true,
   },
@@ -78,6 +79,7 @@ function createPreparedAccounts(overrides: Partial<PreparedAccounts> = {}): Prep
     revokeLegacy: vi.fn(),
     replaceLegacy: vi.fn(async () => "replacement-token"),
     changeRole: vi.fn(),
+    promoteToDemo: vi.fn(),
     approveDeletion: vi.fn(),
     setOwnerAccess: vi.fn(),
     ...overrides,
@@ -88,7 +90,7 @@ describe("prepared admin interactions", () => {
   it("offers lifecycle actions for prepared rows and legacy actions for active rows", () => {
     expect(actionsForRow(records[0])).toEqual(["Edit", "Regenerate link", "Revoke"]);
     expect(actionsForRow(records[1])).toEqual(["Edit", "Generate link", "Delete draft"]);
-    expect(actionsForRow(records[2])).toContain("Promote to administrator");
+    expect(actionsForRow(records[2])).toContain("Promote to Demo");
   });
 
   it("filters by setup state and searches name, email, and slug", () => {
@@ -111,7 +113,7 @@ describe("prepared admin interactions", () => {
     expect(screen.getByRole("link", { name: "View profile" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View cards" })).toBeInTheDocument();
     await userEvent.click(screen.getByText("More actions"));
-    expect(screen.getByRole("button", { name: "Promote to administrator" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Promote to Demo" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve deletion" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /^Active$/ }));
     expect(screen.getByText("Active User")).toBeInTheDocument();
@@ -223,6 +225,7 @@ describe("prepared admin interactions", () => {
       revokeLegacy: vi.fn(),
       replaceLegacy: vi.fn(),
       changeRole: vi.fn(),
+      promoteToDemo: vi.fn(),
       approveDeletion: vi.fn(),
       setOwnerAccess: vi.fn(),
     };

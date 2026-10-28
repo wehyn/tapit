@@ -112,6 +112,8 @@ export const currentAccess = query({
     profileId: v.union(v.id("profiles"), v.null()),
     hasCardOwnerFeatures: v.boolean(),
     onboardingName: v.union(v.string(), v.null()),
+    isDemo: v.boolean(),
+    demoResetInProgress: v.boolean(),
     email: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
@@ -125,6 +127,8 @@ export const currentAccess = query({
         profileId: null,
         hasCardOwnerFeatures: false,
         onboardingName: null,
+        isDemo: false,
+        demoResetInProgress: false,
         email: null,
       };
 
@@ -163,6 +167,8 @@ export const currentAccess = query({
       profileId,
       hasCardOwnerFeatures,
       onboardingName: account?.onboardingName ?? null,
+      isDemo: account?.isDemo === true,
+      demoResetInProgress: account?.demoResetInProgress === true,
       email: active && account !== null ? (account.email ?? null) : null,
     };
   },
@@ -185,6 +191,8 @@ export const currentAccessInternal = internalQuery({
     profileId: v.union(v.id("profiles"), v.null()),
     hasCardOwnerFeatures: v.boolean(),
     onboardingName: v.union(v.string(), v.null()),
+    isDemo: v.boolean(),
+    demoResetInProgress: v.boolean(),
   }),
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx);
@@ -197,6 +205,8 @@ export const currentAccessInternal = internalQuery({
         profileId: null,
         hasCardOwnerFeatures: false,
         onboardingName: null,
+        isDemo: false,
+        demoResetInProgress: false,
       };
     const account = await customerForAuthUser(ctx, userId);
     const active = isActiveCustomer(account);
@@ -229,6 +239,8 @@ export const currentAccessInternal = internalQuery({
       profileId,
       hasCardOwnerFeatures,
       onboardingName: account?.onboardingName ?? null,
+      isDemo: account?.isDemo === true,
+      demoResetInProgress: account?.demoResetInProgress === true,
     };
   },
 });

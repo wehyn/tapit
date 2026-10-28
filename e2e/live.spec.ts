@@ -256,7 +256,9 @@ test.describe("live Google OAuth journeys", () => {
       const customer = accountRow(page, liveEnv.customerEmail);
       page.on("dialog", (dialog) => dialog.accept());
       await customer.getByText("More actions").click();
-      await customer.getByRole("button", { name: "Promote to administrator" }).click();
+      await customer.getByRole("button", { name: "Promote to Demo" }).click();
+      await expect(customer).toContainText("Demo");
+      await customer.getByRole("button", { name: "Promote to Administrator" }).click();
       await expect(customer).toContainText("admin");
       await expect(customer).toContainText("Account");
       await customer.getByRole("button", { name: "Demote to customer" }).click();

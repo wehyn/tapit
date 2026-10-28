@@ -59,6 +59,7 @@ export type ActiveCustomerRow = CustomerRowBase & {
   cardCount: number;
   hasDeletionRequest: boolean;
   cardOwnerAccessOverride: boolean;
+  isDemo: boolean;
   ownsProfile: boolean;
   legacyInvitationActive: boolean;
   invitationStatus?: "pending" | "accepted" | "revoked";

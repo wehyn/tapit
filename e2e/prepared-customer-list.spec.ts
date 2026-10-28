@@ -92,7 +92,9 @@ test("admin manages prepared and active customers in one list", async ({ page })
   await expect(mara).toContainText("customer");
   await mara.getByText("More actions").click();
   page.on("dialog", (dialog) => dialog.accept());
-  await mara.getByRole("button", { name: "Promote to administrator" }).click();
+  await mara.getByRole("button", { name: "Promote to Demo" }).click();
+  await expect(mara).toContainText("Demo");
+  await mara.getByRole("button", { name: "Promote to Administrator" }).click();
   await expect(mara).toContainText("admin");
   await mara.getByRole("button", { name: "Demote to customer" }).click();
   await expect(mara).toContainText("customer");
