@@ -175,6 +175,7 @@ describe("profile media hardening", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
+    await claimCardOwnerFeatures(t, ids.ownerProfileId);
     const existing = await asset(t, ids.ownerProfileId, ids.ownerId);
     const slides = await Promise.all(
       Array.from({ length: 6 }, () => asset(t, ids.ownerProfileId, ids.ownerId)),
