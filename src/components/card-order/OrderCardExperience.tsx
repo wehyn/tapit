@@ -1223,12 +1223,15 @@ function DemoReferralPreviewReporter({ code, currentTime, onPreview }: ReferralP
 }
 
 function LiveReferralPreviewReporter({ code, currentTime, onPreview }: ReferralPreviewProps) {
-  const preview = useQuery(api.cardOrderSettings.previewReferral, { code, currentTime });
+  const preview = useQuery(api.cardOrderSettings.previewOrderCodes, {
+    referralCode: code,
+    currentTime,
+  });
   useEffect(() => {
     if (preview === undefined) return;
     onPreview(
       referralPreviewKey(code, currentTime),
-      preview.valid
+      preview.referralValid
         ? { kind: "valid", discountCentavos: preview.discountCentavos }
         : { kind: "invalid" },
     );

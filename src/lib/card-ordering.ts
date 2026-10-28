@@ -110,6 +110,29 @@ export function calculateReferralDiscountCentavos(cardPriceCentavos: number): nu
   return percentageCentavos(cardPriceCentavos, REFERRAL_PERCENT);
 }
 
+export function calculatePromoAdjustedPriceCentavos(
+  basePriceCentavos: number,
+  fixedPriceCentavos?: number,
+  percentOff?: number,
+): number {
+  if (fixedPriceCentavos !== undefined && percentOff !== undefined)
+    throw new RangeError("An offer cannot have both fixedPriceCentavos and percentOff.");
+  if (fixedPriceCentavos !== undefined) {
+    if (
+      !isValidReferralFixedPriceCentavos(fixedPriceCentavos) ||
+      fixedPriceCentavos > basePriceCentavos
+    )
+      throw new RangeError(
+        "fixedPriceCentavos must be a valid price no greater than the base price.",
+      );
+    return fixedPriceCentavos;
+  }
+  const percent = percentOff ?? REFERRAL_PERCENT;
+  if (!Number.isSafeInteger(percent) || percent < 1 || percent > 99)
+    throw new RangeError("percentOff must be a whole number from 1 to 99.");
+  return basePriceCentavos - percentageCentavos(basePriceCentavos, percent);
+}
+
 export function isValidReferralFixedPriceCentavos(value: unknown): value is number {
   return (
     typeof value === "number" &&

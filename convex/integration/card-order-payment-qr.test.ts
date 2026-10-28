@@ -139,7 +139,7 @@ describe("card order payment QR", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09123456789",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 59_900,
+      expectedCardAmountCentavos: 79_900,
     });
 
     const originalUrl = await t.run((ctx) => ctx.storage.getUrl(originalStorageId));

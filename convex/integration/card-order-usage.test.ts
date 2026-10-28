@@ -185,7 +185,7 @@ describe("card order referral usage", () => {
       code: " founding-ahron ",
       currentTime,
     });
-    expect(preview).toEqual({ valid: true, discountCentavos: 5_990 });
+    expect(preview).toEqual({ valid: true, discountCentavos: 7_990 });
 
     const orderId = await placeCreatedOrder(customer, {
       paymentMethodId: ids.paymentMethodId,
@@ -195,7 +195,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toEqual([
       {
@@ -208,7 +208,7 @@ describe("card order referral usage", () => {
     ]);
     await t.run(async (ctx) => {
       const order = await ctx.db.get(orderId);
-      expect(order?.discountCentavos).toBe(5_990);
+      expect(order?.discountCentavos).toBe(7_990);
       expect(order?.referralCodeId).toBe(ids.codeId);
     });
   });
@@ -227,7 +227,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
 
     await admin.mutation(api.cardOrders.cancelOrder, { orderId });
@@ -349,56 +349,48 @@ describe("card order referral usage", () => {
     });
   });
 
-  it("uses the mapped offer price in preview even when it is unset", async () => {
+  it("applies a legacy no-selector offer before a standalone referral", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
-    const [admin, customer] = [
-      t.withIdentity(identity(ids.adminUserId)),
-      t.withIdentity(identity(ids.customerUserId)),
-    ];
-    const offerId = await t.run(async (ctx) => {
-      const offerId = await ctx.db.insert("cardOrderOffers", {
-        code: "LAUNCH",
+    const customer = t.withIdentity(identity(ids.customerUserId));
+    const offerId = await t.run((ctx) =>
+      ctx.db.insert("cardOrderOffers", {
+        code: "LEGACY-PROMO",
         usageCount: 0,
         createdAt: 1,
         updatedAt: 1,
-      });
-      await ctx.db.patch(ids.codeId, {
-        code: "LAUNCH",
-        offerId,
-        fixedPriceCentavos: 29_900,
-      });
-      await ctx.db.insert("settings", {
-        key: "cardOrderOfferUsageBackfillStarted",
-        value: "completed:no-founding",
-        updatedAt: 1,
-        updatedByUserId: ids.adminUserId,
-      });
-      return offerId;
+      }),
+    );
+    const preview = await customer.query(api.cardOrderSettings.previewOrderCodes, {
+      promoCode: "LEGACY-PROMO",
+      referralCode: "FOUNDING-AHRON",
+      currentTime: Date.UTC(2099, 0, 1),
     });
-    const currentTime = Date.UTC(2099, 0, 1);
-    const preview = await customer.query(api.cardOrderSettings.previewReferral, {
-      code: "LAUNCH",
-      currentTime,
+    expect(preview).toEqual({
+      promoValid: true,
+      referralValid: true,
+      promoAdjustedPriceCentavos: 71_910,
+      discountCentavos: 7_191,
     });
-    expect(preview).toEqual({ valid: true, discountCentavos: 5_990 });
-    const orderId = await placeCreatedOrder(customer, {
+    const outcome = await customer.mutation(api.cardOrders.placeOrder, {
       paymentMethodId: ids.paymentMethodId,
-      referralCode: "LAUNCH",
+      promoCode: "LEGACY-PROMO",
+      referralCode: "FOUNDING-AHRON",
       designSource: { kind: "url", url: "https://example.test/front.png" },
       backDesignSource: { kind: "url", url: "https://example.test/back.png" },
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 64_719,
     });
-    await expect(t.run((ctx) => ctx.db.get(orderId))).resolves.toMatchObject({
-      offerId,
-      discountCentavos: preview.discountCentavos,
+    if (outcome.kind !== "created") throw new Error("Expected created order.");
+    await expect(t.run((ctx) => ctx.db.get(outcome.orderId))).resolves.toMatchObject({
+      cardPriceCentavos: 71_910,
+      discountCentavos: 7_191,
+      offerSnapshot: { code: "LEGACY-PROMO", percentOff: 10 },
+      referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
     });
-    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toContainEqual(
-      expect.objectContaining({ code: "LAUNCH", offerId }),
-    );
+    await expect(t.run((ctx) => ctx.db.get(offerId))).resolves.toMatchObject({ usageCount: 1 });
   });
 
   it("blocks FOUNDING while verification is pending and clears its cap", async () => {
@@ -548,17 +540,10 @@ describe("card order referral usage", () => {
     });
     await expect(
       customer.query(api.cardOrderSettings.previewReferral, previewArgs),
-    ).resolves.toEqual({
-      valid: true,
-      discountCentavos: 30_000,
-    });
-    const placed = await customer.mutation(api.cardOrders.placeOrder, orderArgs);
-    expect(placed.kind).toBe("created");
-    if (placed.kind === "created")
-      await expect(t.run((ctx) => ctx.db.get(placed.orderId))).resolves.toMatchObject({
-        referralCodeId: offerId.customAliasId,
-        offerId: offerId.offerId,
-      });
+    ).resolves.toEqual({ valid: false, discountCentavos: 0 });
+    await expect(customer.mutation(api.cardOrders.placeOrder, orderArgs)).rejects.toThrow(
+      "Referral code is unavailable for this order.",
+    );
   });
 
   it("marks a capped code unavailable to a fresh customer and keeps canceled use counted", async () => {
@@ -583,7 +568,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
     expect(
       await nextCustomer.query(api.cardOrderSettings.previewReferral, {
@@ -601,7 +586,7 @@ describe("card order referral usage", () => {
         deliveryName: "Test Customer",
         deliveryPhone: "09170000000",
         deliveryAddress: "1 Test Street",
-        expectedCardAmountCentavos: 53_910,
+        expectedCardAmountCentavos: 71_910,
       }),
     ).rejects.toThrow("Referral code is unavailable for this order.");
     await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
@@ -714,7 +699,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
     const snapshot = await t.run((ctx) => ctx.db.get(orderId));
     await saveLimit(1);
@@ -732,7 +717,7 @@ describe("card order referral usage", () => {
         deliveryName: "Next Customer",
         deliveryPhone: "09171111111",
         deliveryAddress: "2 Test Street",
-        expectedCardAmountCentavos: 53_910,
+        expectedCardAmountCentavos: 71_910,
       }),
     ).rejects.toThrow("Referral code is unavailable for this order.");
     await saveLimit(2);
@@ -772,7 +757,7 @@ describe("card order referral usage", () => {
       deliveryName: "Test Customer",
       deliveryPhone: "09170000000",
       deliveryAddress: "1 Test Street",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     };
     const results = await Promise.allSettled([
       first.mutation(api.cardOrders.placeOrder, args),
@@ -1080,7 +1065,7 @@ describe("card order referral usage", () => {
     });
   });
 
-  it("keeps the FOUNDING cap blocked until backfill, then enforces 25 across aliases", async () => {
+  it("enforces a migrated FOUNDING promo cap", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const admin = t.withIdentity(identity(ids.adminUserId));
@@ -1181,28 +1166,28 @@ describe("card order referral usage", () => {
         }),
       ),
     );
-    const args = (referralCode: string) => ({
+    const args = () => ({
       paymentMethodId: ids.paymentMethodId,
-      referralCode,
+      promoCode: "FOUNDING",
       designSource: { kind: "url" as const, url: "https://example.test/front.png" },
       backDesignSource: { kind: "url" as const, url: "https://example.test/back.png" },
       deliveryName: "Test",
       deliveryPhone: "09170000000",
       deliveryAddress: "Test",
-      expectedCardAmountCentavos: 53_910,
+      expectedCardAmountCentavos: 71_910,
     });
     for (let index = 0; index < 19; index++) {
       await t
         .withIdentity(identity(newCustomers[index]!.userId))
-        .mutation(api.cardOrders.placeOrder, args(index % 2 ? "FOUNDING" : "FOUNDING-AHRON"));
+        .mutation(api.cardOrders.placeOrder, args());
     }
     const finalAttempts = await Promise.allSettled([
       t
         .withIdentity(identity(newCustomers[19]!.userId))
-        .mutation(api.cardOrders.placeOrder, args("FOUNDING")),
+        .mutation(api.cardOrders.placeOrder, args()),
       t
         .withIdentity(identity(newCustomers[20]!.userId))
-        .mutation(api.cardOrders.placeOrder, args("FOUNDING-AHRON")),
+        .mutation(api.cardOrders.placeOrder, args()),
     ]);
     expect(finalAttempts.filter((result) => result.status === "fulfilled")).toHaveLength(1);
     expect(finalAttempts.filter((result) => result.status === "rejected")).toHaveLength(1);
@@ -1214,16 +1199,16 @@ describe("card order referral usage", () => {
     await expect(
       t
         .withIdentity(identity(newCustomers[21]!.userId))
-        .query(api.cardOrderSettings.previewReferral, {
-          code: "FOUNDING",
+        .query(api.cardOrderSettings.previewOrderCodes, {
+          promoCode: "FOUNDING",
           currentTime: Date.UTC(2099, 0, 1),
         }),
-    ).resolves.toEqual({ valid: false, discountCentavos: 0 });
+    ).resolves.toMatchObject({ promoValid: false });
     await expect(
       t
         .withIdentity(identity(newCustomers[21]!.userId))
-        .mutation(api.cardOrders.placeOrder, args("FOUNDING-AHRON")),
-    ).rejects.toThrow("Referral code is unavailable");
+        .mutation(api.cardOrders.placeOrder, args()),
+    ).rejects.toThrow("Promo code is unavailable");
     expect(
       await t.run(async (ctx) =>
         (await ctx.db.query("cardOrders").collect())
@@ -1280,7 +1265,21 @@ describe("card order referral usage", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      return { foundingOffer, launchOffer, zeroAliasOffer, foundingId, launchId };
+      const standaloneReferralId = await ctx.db.insert("cardOrderReferralCodes", {
+        code: "AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return {
+        foundingOffer,
+        launchOffer,
+        zeroAliasOffer,
+        foundingId,
+        launchId,
+        standaloneReferralId,
+      };
     });
     await expect(admin.query(api.cardOrderSettings.adminCardOrderOffers, {})).resolves.toEqual(
       expect.arrayContaining([{ _id: aliases.zeroAliasOffer, code: "ORPHAN", usageCount: 0 }]),
@@ -1325,61 +1324,50 @@ describe("card order referral usage", () => {
         }),
       ),
     );
-    const place = (userId: Id<"users">, referralCode: string) =>
+    const place = (
+      userId: Id<"users">,
+      promoCode: string,
+      referralCode?: string,
+      amount = 71_910,
+    ) =>
       t.withIdentity(identity(userId)).mutation(api.cardOrders.placeOrder, {
         paymentMethodId: ids.paymentMethodId,
-        referralCode,
+        promoCode,
+        ...(referralCode ? { referralCode } : {}),
         designSource: { kind: "url" as const, url: "https://example.test/front.png" },
         backDesignSource: { kind: "url" as const, url: "https://example.test/back.png" },
         deliveryName: "Test",
         deliveryPhone: "09170000000",
         deliveryAddress: "Test",
-        expectedCardAmountCentavos: 53_910,
+        expectedCardAmountCentavos: amount,
       });
     const offerOnly = await place(customers[0]!, "FOUNDING");
-    const ahron = await place(customers[1]!, "FOUNDING-AHRON");
+    const ahron = await place(customers[1]!, "FOUNDING", "AHRON", 64_719);
     await place(customers[2]!, "LAUNCH");
     expect(offerOnly.kind).toBe("created");
     expect(ahron.kind).toBe("created");
     if (offerOnly.kind !== "created" || ahron.kind !== "created")
       throw new Error("Expected orders");
-    const offerOnlyOrder = await t.run((ctx) => ctx.db.get(offerOnly.orderId));
-    expect(offerOnlyOrder).toMatchObject({
+    await expect(t.run((ctx) => ctx.db.get(offerOnly.orderId))).resolves.toMatchObject({
       commissionStatus: "none",
       commissionCentavos: 0,
       offerId: aliases.foundingOffer,
     });
-    expect(offerOnlyOrder).not.toHaveProperty("referralSnapshot");
-    await expect(t.run((ctx) => ctx.db.get(ahron.orderId))).resolves.toMatchObject({
-      commissionStatus: "pending",
-      commissionCentavos: 5_990,
-      offerId: aliases.foundingOffer,
-      referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
-    });
     await expect(t.run((ctx) => ctx.db.get(aliases.foundingOffer))).resolves.toMatchObject({
       usageCount: 2,
+    });
+    await expect(t.run((ctx) => ctx.db.get(ahron.orderId))).resolves.toMatchObject({
+      commissionStatus: "pending",
+      commissionCentavos: 7_191,
+      offerId: aliases.foundingOffer,
+      referralSnapshot: { code: "AHRON", referrerLabel: "Ahron" },
+    });
+    await expect(t.run((ctx) => ctx.db.get(aliases.standaloneReferralId))).resolves.toMatchObject({
+      usageCount: 1,
     });
     await expect(t.run((ctx) => ctx.db.get(aliases.launchOffer))).resolves.toMatchObject({
       usageCount: 1,
       usageLimit: 1,
-    });
-    await expect(
-      t.withIdentity(identity(customers[0]!)).query(api.cardOrderSettings.previewReferral, {
-        code: "FOUNDING-AHRON",
-        currentTime: Date.UTC(2099, 0, 1),
-      }),
-    ).resolves.toMatchObject({ valid: false });
-    if (offerOnly.kind === "created" && ahron.kind === "created") {
-      await admin.mutation(api.cardOrders.cancelOrder, { orderId: offerOnly.orderId });
-      await admin.mutation(api.cardOrders.quoteShipping, {
-        orderId: ahron.orderId,
-        shippingQuoteCentavos: 0,
-      });
-      await admin.mutation(api.cardOrders.markPaymentReceived, { orderId: ahron.orderId });
-      await admin.mutation(api.cardOrders.refundOrder, { orderId: ahron.orderId });
-    }
-    await expect(t.run((ctx) => ctx.db.get(aliases.foundingOffer))).resolves.toMatchObject({
-      usageCount: 2,
     });
   });
 

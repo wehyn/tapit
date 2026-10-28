@@ -551,6 +551,7 @@ export default defineSchema({
     code: v.string(),
     expiresOn: v.optional(v.string()),
     fixedPriceCentavos: v.optional(v.number()),
+    percentOff: v.optional(v.number()),
     usageCount: v.number(),
     usageLimit: v.optional(v.number()),
     createdAt: v.number(),
@@ -596,7 +597,11 @@ export default defineSchema({
     referralCodeId: v.optional(v.id("cardOrderReferralCodes")),
     offerId: v.optional(v.id("cardOrderOffers")),
     offerSnapshot: v.optional(
-      v.object({ code: v.string(), fixedPriceCentavos: v.optional(v.number()) }),
+      v.object({
+        code: v.string(),
+        fixedPriceCentavos: v.optional(v.number()),
+        percentOff: v.optional(v.number()),
+      }),
     ),
     offerUsageCounted: v.optional(v.boolean()),
     usageCounted: v.optional(v.boolean()),

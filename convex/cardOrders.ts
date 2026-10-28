@@ -3,12 +3,14 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdministrator, sameScope } from "./admin";
-import { activeOrderAccount, launchEndDate } from "./cardOrderSettings";
+import { activeOrderAccount } from "./cardOrderSettings";
 import { attachCardOrderDesignUpload } from "./cardOrderDesigns";
 import {
   calculateCommissionCentavos,
   calculateReferralDiscountForPriceCentavos,
-  getCardPriceCentavos,
+  calculatePromoAdjustedPriceCentavos,
+  CARD_REGULAR_PRICE_CENTAVOS,
+  isCardOrderOfferExpired,
 } from "../src/lib/card-ordering";
 import schema from "./schema";
 
@@ -104,6 +106,7 @@ const cardPrice = v.object({ cardPriceCentavos: v.number(), discountCentavos: v.
 export const placeOrder = mutation({
   args: {
     paymentMethodId: v.id("cardOrderPaymentMethods"),
+    promoCode: v.optional(v.string()),
     referralCode: v.optional(v.string()),
     designSource,
     backDesignSource: designSource,
@@ -124,8 +127,7 @@ export const placeOrder = mutation({
       throw new Error("Expected card amount must be non-negative integer centavos.");
     const customer = await activeOrderAccount(ctx);
     const now = Date.now();
-    const [date, activePayment, selectedPayment, prior] = await Promise.all([
-      launchEndDate(ctx, customer),
+    const [activePayment, selectedPayment, prior] = await Promise.all([
       ctx.db
         .query("cardOrderPaymentMethods")
         .withIndex("by_scope_and_active", (q) => q.eq("scope", customer.scope).eq("active", true))
@@ -138,8 +140,7 @@ export const placeOrder = mutation({
         )
         .first(),
     ]);
-    if (date === null || activePayment === null)
-      throw new Error("Card ordering is not configured.");
+    if (activePayment === null) throw new Error("An active payment method is required.");
     if (
       selectedPayment === null ||
       !selectedPayment.active ||
@@ -188,75 +189,56 @@ export const placeOrder = mutation({
       validateDesignSource(args.designSource),
       validateDesignSource(args.backDesignSource),
     ]);
+    const promoCode = args.promoCode?.trim().toUpperCase();
     const normalizedCode = args.referralCode?.trim().toUpperCase();
-    const referral = normalizedCode
-      ? await ctx.db
-          .query("cardOrderReferralCodes")
-          .withIndex("by_scope_and_code", (q) =>
-            q.eq("scope", customer.scope).eq("code", normalizedCode),
-          )
-          .first()
-      : null;
-    const foundingAlias = referral?.code === "FOUNDING" || referral?.code === "FOUNDING-AHRON";
-    const offer =
-      referral?.offerId !== undefined
-        ? await ctx.db.get(referral.offerId)
-        : foundingAlias
-          ? await ctx.db
-              .query("cardOrderOffers")
-              .withIndex("by_scope_and_code", (q) =>
-                q.eq("scope", customer.scope).eq("code", "FOUNDING"),
-              )
-              .first()
-          : null;
-    const offerAvailable =
-      referral?.offerId === undefined || (offer !== null && sameScope(customer, offer));
-    const offerBackfill =
-      offer === null && !foundingAlias
-        ? null
-        : await ctx.db
-            .query("settings")
-            .withIndex("by_scope_and_key", (q) =>
-              q.eq("scope", customer.scope).eq("key", "cardOrderOfferUsageBackfillStarted"),
+    const [offer, referral] = await Promise.all([
+      promoCode
+        ? ctx.db
+            .query("cardOrderOffers")
+            .withIndex("by_scope_and_code", (q) =>
+              q.eq("scope", customer.scope).eq("code", promoCode),
             )
-            .first();
+            .first()
+        : null,
+      normalizedCode
+        ? ctx.db
+            .query("cardOrderReferralCodes")
+            .withIndex("by_scope_and_code", (q) =>
+              q.eq("scope", customer.scope).eq("code", normalizedCode),
+            )
+            .first()
+        : null,
+    ]);
+    if (
+      promoCode &&
+      (offer === null ||
+        !sameScope(customer, offer) ||
+        isCardOrderOfferExpired(offer.expiresOn, now) ||
+        (offer.usageLimit !== undefined && offer.usageCount >= offer.usageLimit))
+    )
+      throw new Error("Promo code is unavailable for this order.");
     if (
       normalizedCode &&
-      (referral === null ||
-        !offerAvailable ||
-        !referral.active ||
-        ((foundingAlias || offer?.code === "FOUNDING") &&
-          offerBackfill?.value !== FOUNDING_USAGE_VERIFIED) ||
+      (referral?.active !== true ||
+        referral.offerId !== undefined ||
+        (referral.referrerCode === undefined && referral.referrerLabel === undefined) ||
         prior !== null ||
-        (offer === null
-          ? referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit
-          : offerBackfill?.value.startsWith("completed:") === true &&
-            (offer.code !== "FOUNDING" || offerBackfill.value === FOUNDING_USAGE_VERIFIED) &&
-            offer.usageLimit !== undefined &&
-            offer.usageCount >= offer.usageLimit))
+        (referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit))
     )
       throw new Error("Referral code is unavailable for this order.");
-    const cardPriceCentavos = getCardPriceCentavos(date, now);
-    const discountCentavos =
-      referral === null
-        ? 0
-        : calculateReferralDiscountForPriceCentavos(
-            cardPriceCentavos,
-            offer === null ? referral.fixedPriceCentavos : offer.fixedPriceCentavos,
+    const cardPriceCentavos =
+      offer === null
+        ? CARD_REGULAR_PRICE_CENTAVOS
+        : calculatePromoAdjustedPriceCentavos(
+            CARD_REGULAR_PRICE_CENTAVOS,
+            offer.fixedPriceCentavos,
+            offer.percentOff,
           );
-    // Checked before the first write: a changed amount creates nothing, so the
-    // customer must review the authoritative price and submit again.
+    const discountCentavos =
+      referral === null ? 0 : calculateReferralDiscountForPriceCentavos(cardPriceCentavos);
     if (cardPriceCentavos - discountCentavos !== args.expectedCardAmountCentavos)
-      return {
-        kind: "price_changed" as const,
-        price: { cardPriceCentavos, discountCentavos },
-      };
-    const hasReferrer =
-      referral !== null &&
-      referral.code !== "FOUNDING" &&
-      (referral.code === "FOUNDING-AHRON" ||
-        referral.referrerCode !== undefined ||
-        referral.referrerLabel !== undefined);
+      return { kind: "price_changed" as const, price: { cardPriceCentavos, discountCentavos } };
+    const hasReferrer = referral !== null;
     const commissionCentavos = hasReferrer ? calculateCommissionCentavos(cardPriceCentavos) : 0;
     const orderId = await ctx.db.insert("cardOrders", {
       scope: customer.scope,
@@ -285,7 +267,12 @@ export const placeOrder = mutation({
       offerSnapshot:
         offer === null
           ? undefined
-          : { code: offer.code, fixedPriceCentavos: offer.fixedPriceCentavos },
+          : {
+              code: offer.code,
+              fixedPriceCentavos: offer.fixedPriceCentavos,
+              percentOff:
+                offer.percentOff ?? (offer.fixedPriceCentavos === undefined ? 10 : undefined),
+            },
       referralSnapshot:
         referral === null || !hasReferrer
           ? undefined
@@ -306,7 +293,7 @@ export const placeOrder = mutation({
       updatedAt: now,
     });
     if (offer !== null) await ctx.db.patch(offer._id, { usageCount: offer.usageCount + 1 });
-    else if (referral !== null)
+    if (referral !== null)
       await ctx.db.patch(referral._id, { usageCount: (referral.usageCount ?? 0) + 1 });
     if (designSourceValue.kind === "upload")
       await attachCardOrderDesignUpload(ctx, designSourceValue.uploadId, customer, orderId);
