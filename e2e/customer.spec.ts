@@ -2372,7 +2372,7 @@ async function openSlideshowEditor(page: Page) {
   await page.getByRole("tab", { name: "Slideshow" }).click();
 }
 
-test("slideshow preview shows queued and unsaved slides without losing editor state", async ({
+test("@dev-controls slideshow preview shows queued and unsaved slides without losing editor state", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -2455,7 +2455,7 @@ test("a single published slideshow image opens in full view", async ({ page }) =
   ).toBeVisible();
 });
 
-test("small, tall, and wide published slideshow images fit the full image dialog", async ({
+test("@dev-controls small, tall, and wide published slideshow images fit the full image dialog", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
@@ -2567,7 +2567,7 @@ test("small, tall, and wide published slideshow images fit the full image dialog
   }
 });
 
-test("slideshow upload queue waits for the active upload and preserves selection order", async ({
+test("@dev-controls slideshow upload queue waits for the active upload and preserves selection order", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
@@ -2597,7 +2597,7 @@ test("slideshow upload queue waits for the active upload and preserves selection
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
-test("slideshow upload queue pauses on failure and retries before later selections", async ({
+test("@dev-controls slideshow upload queue pauses on failure and retries before later selections", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
@@ -2647,7 +2647,9 @@ test("slideshow upload queue pauses on failure and retries before later selectio
   await expect(page.getByRole("button", { name: "Save draft", exact: true })).toBeEnabled();
 });
 
-test("slideshow upload errors are announced on the labelled slideshow panel", async ({ page }) => {
+test("@dev-controls slideshow upload errors are announced on the labelled slideshow panel", async ({
+  page,
+}) => {
   await openSlideshowEditor(page);
   await setDemoMediaUploadControl(page, { fail: true });
   await page
@@ -2681,7 +2683,9 @@ test("slideshow upload errors are announced on the labelled slideshow panel", as
   await expect(mediaPanel).toHaveAttribute("aria-labelledby", mediaTabId);
 });
 
-test("slideshow upload queue resumes after removing a failed item", async ({ page }) => {
+test("@dev-controls slideshow upload queue resumes after removing a failed item", async ({
+  page,
+}) => {
   await openSlideshowEditor(page);
   await page.getByLabel("Autoplay slideshow while visible").uncheck();
   await setDemoMediaUploadControl(page, { delayMs: 1200, fail: true });
@@ -2803,7 +2807,7 @@ test("slideshow image ordering works by buttons and pointer with accessible mobi
     .screenshot({ path: "test-results/tapit-slideshow-order-mobile.png" });
 });
 
-test("slideshow upload queue counts failed and queued items toward the five image limit", async ({
+test("@dev-controls slideshow upload queue counts failed and queued items toward the five image limit", async ({
   page,
 }) => {
   await openSlideshowEditor(page);
@@ -3312,7 +3316,7 @@ test("background descriptions default to the filename and remain required for sa
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();
 });
 
-test("pending media uploads keep profile actions guarded", async ({ page }) => {
+test("@dev-controls pending media uploads keep profile actions guarded", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
   await setDemoMediaUploadControl(page, { delayMs: 5000 });
@@ -3334,7 +3338,7 @@ test("pending media uploads keep profile actions guarded", async ({ page }) => {
   await page.screenshot({ path: "test-results/profile-media-upload-pending.png", fullPage: true });
 });
 
-test("failed media uploads can be retried without losing the local hero preview", async ({
+test("@dev-controls failed media uploads can be retried without losing the local hero preview", async ({
   page,
 }) => {
   await resetDemoHarness(page);
