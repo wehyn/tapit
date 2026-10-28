@@ -3,7 +3,7 @@
 **Issue:** [#139](https://github.com/wehyn/tapit/issues/139)  
 **Related design:** [Profile Slideshow Upload Queue and Order Controls](2026-10-13-profile-slideshow-upload-queue-and-order-controls-design.md)  
 **Date:** 2026-10-28  
-**Status:** Draft for review
+**Status:** Approved
 
 ## Goal
 

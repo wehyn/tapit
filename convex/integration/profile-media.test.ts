@@ -171,7 +171,7 @@ const mediaWithBackground = (assetId: Id<"profileMediaAssets">) => ({
 });
 
 describe("profile media hardening", () => {
-  it("rejects over-limit saves and publishes without changing profile or asset references", async () => {
+  it("preserves over-limit media on rejection and cleans up only after explicit trimming", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
@@ -179,6 +179,17 @@ describe("profile media hardening", () => {
     const slides = await Promise.all(
       Array.from({ length: 6 }, () => asset(t, ids.ownerProfileId, ids.ownerId)),
     );
+    const mediaAssets = [existing, ...slides];
+    const assetRecordsBefore = await Promise.all(
+      mediaAssets.map(({ assetId }) => t.run((ctx) => ctx.db.get(assetId))),
+    );
+    const expectMediaAssetsPreserved = async () => {
+      for (const [index, item] of mediaAssets.entries()) {
+        expect(await t.run((ctx) => ctx.db.get(item.assetId))).toEqual(assetRecordsBefore[index]);
+        expect(await t.run((ctx) => ctx.storage.getUrl(item.storageId))).not.toBeNull();
+        expect(await t.run((ctx) => ctx.storage.getUrl(item.previewStorageId))).not.toBeNull();
+      }
+    };
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(existing.assetId)),
@@ -198,16 +209,22 @@ describe("profile media hardening", () => {
       owner.mutation(api.profiles.saveDraft, {
         profileId: ids.ownerProfileId,
         draft: content("owner", overLimit),
-        expectedDraftRevision: beforeSave!.draftRevision,
+        expectedDraftRevision: beforeSave!.draftRevision ?? 0,
         expectedMediaRevision: beforeSave!.mediaRevision ?? 0,
       }),
     ).rejects.toThrow("at most 5 images");
     expect(await t.run((ctx) => ctx.db.get(ids.ownerProfileId))).toEqual(beforeSave);
+    await expectMediaAssetsPreserved();
 
     await t.run(async (ctx) => {
       const profile = await ctx.db.get(ids.ownerProfileId);
-      if (profile === null) throw new Error("Profile was not seeded");
-      await ctx.db.patch(ids.ownerProfileId, { draft: { ...profile.draft, media: overLimit } });
+      if (profile === null || profile.published === null || profile.published === undefined) {
+        throw new Error("Published profile was not seeded");
+      }
+      await ctx.db.patch(ids.ownerProfileId, {
+        draft: { ...profile.draft, media: overLimit },
+        published: { ...profile.published, media: overLimit },
+      });
     });
     const beforePublish = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));
     await expect(
@@ -217,9 +234,36 @@ describe("profile media hardening", () => {
       }),
     ).rejects.toThrow("at most 5 images");
     expect(await t.run((ctx) => ctx.db.get(ids.ownerProfileId))).toEqual(beforePublish);
-    for (const item of slides) {
-      expect(await t.run((ctx) => ctx.storage.getUrl(item.storageId))).not.toBeNull();
+    await expectMediaAssetsPreserved();
+
+    const trimmed = { ...overLimit, slideshow: overLimit.slideshow.slice(0, 5) };
+    await owner.mutation(api.profiles.saveDraft, {
+      profileId: ids.ownerProfileId,
+      draft: content("owner", trimmed),
+      expectedDraftRevision: await draftRevision(t, ids.ownerProfileId),
+      expectedMediaRevision: beforePublish!.mediaRevision ?? 0,
+    });
+    const trimmedProfile = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));
+    expect(trimmedProfile?.draft.media?.slideshow).toEqual(trimmed.slideshow);
+    expect(trimmedProfile?.published?.media?.slideshow).toEqual(overLimit.slideshow);
+    expect(await t.run((ctx) => ctx.db.get(slides[5]!.assetId))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(slides[5]!.storageId))).not.toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(slides[5]!.previewStorageId))).not.toBeNull();
+
+    await owner.mutation(api.profiles.publish, {
+      profileId: ids.ownerProfileId,
+      expectedMediaRevision: trimmedProfile!.mediaRevision ?? 0,
+    });
+    const republishedProfile = await t.run((ctx) => ctx.db.get(ids.ownerProfileId));
+    expect(republishedProfile?.draft.media?.slideshow).toEqual(trimmed.slideshow);
+    expect(republishedProfile?.published?.media?.slideshow).toEqual(trimmed.slideshow);
+    expect(await t.run((ctx) => ctx.db.get(slides[5]!.assetId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(slides[5]!.storageId))).toBeNull();
+    expect(await t.run((ctx) => ctx.storage.getUrl(slides[5]!.previewStorageId))).toBeNull();
+    for (const item of slides.slice(0, 5)) {
       expect(await t.run((ctx) => ctx.db.get(item.assetId))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.storage.getUrl(item.storageId))).not.toBeNull();
+      expect(await t.run((ctx) => ctx.storage.getUrl(item.previewStorageId))).not.toBeNull();
     }
   });
 

@@ -84,9 +84,11 @@ describe("Phase 2 profile media parity", () => {
       previewUrl: `https://cdn.test/published-slide-${index}-preview.webp`,
     }));
     const media = { ...publishedMedia, slideshow: slides };
-    const projected = projectPublicProfile(profile({
-      published: { ...content, media, publishedAt: "2026-09-24T00:00:00.000Z" },
-    }));
+    const projected = projectPublicProfile(
+      profile({
+        published: { ...content, media, publishedAt: "2026-09-24T00:00:00.000Z" },
+      }),
+    );
     const demoProfile = createDefaultDemoState().profiles[0];
     if (demoProfile === undefined) throw new Error("Expected a demo profile.");
     const demoProjected = projectDemoPublicProfile(demoProfile, {
@@ -94,10 +96,12 @@ describe("Phase 2 profile media parity", () => {
       media,
       publishedAt: "2026-09-24T00:00:00.000Z",
     });
-    expect(projected?.media?.slideshow).toHaveLength(7);
-    expect(demoProjected?.media?.slideshow.map(({ alt }) => alt)).toEqual(
-      slides.map(({ altText }) => altText),
-    );
+    const expectedSlides = slides.map(({ previewUrl, altText }) => ({
+      src: previewUrl,
+      alt: altText,
+    }));
+    expect(projected?.media?.slideshow).toEqual(expectedSlides);
+    expect(demoProjected?.media?.slideshow).toEqual(expectedSlides);
   });
 
   it("projects only published media and ignores draft-only media", () => {

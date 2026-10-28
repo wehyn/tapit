@@ -148,6 +148,7 @@ export function ProfileMediaEditor({
   const uploadDescription = (target: "background" | "slideshow") =>
     uploadError(target) ? `${baseId}-${target}-upload-error` : undefined;
   const slideshowCount = value.slideshow.length + slideshowQueue.length;
+  const slideshowImagesToRemove = slideshowCount - MAX_PROFILE_SLIDESHOW_IMAGES;
   const slideshowLimitDescription = `${baseId}-slideshow-limit`;
   const slideshowQueueError = slideshowQueue.find((image) => image.status === "failed")?.error;
   const slideshowUploadDescription = [
@@ -815,7 +816,7 @@ export function ProfileMediaEditor({
           </p>
           <p id={slideshowLimitDescription}>
             {slideshowCount > MAX_PROFILE_SLIDESHOW_IMAGES
-              ? `Remove ${slideshowCount - MAX_PROFILE_SLIDESHOW_IMAGES} images before saving.`
+              ? `Remove ${slideshowImagesToRemove} ${slideshowImagesToRemove === 1 ? "image" : "images"} before saving.`
               : slideshowCount >= MAX_PROFILE_SLIDESHOW_IMAGES
                 ? `Maximum of ${MAX_PROFILE_SLIDESHOW_IMAGES} images. Remove an image to add another.`
                 : `You can add up to ${MAX_PROFILE_SLIDESHOW_IMAGES} slideshow images.`}

@@ -2856,20 +2856,21 @@ test("legacy over-limit slideshow stays intact until explicitly trimmed and publ
       `Legacy slide ${index}`,
     );
   }
-  await expect(page.getByText(/remove one|remove 1|at most 5|maximum of 5/i)).toBeVisible();
+  await expect(page.getByText("Remove 1 image before saving.", { exact: true })).toBeVisible();
   await page.getByLabel("Slideshow image 1 description").fill("Unsaved edit before rejected save");
   const beforeSave = await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
     return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
   });
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByRole("alert").filter({ hasText: /slideshow|image|limit/i })).toBeVisible();
-  const afterRejectedSave = await page.evaluate(() => {
+  const saveDraft = page.getByRole("button", { name: "Save draft", exact: true });
+  await expect(saveDraft).toBeDisabled();
+  const afterBlockedSave = await page.evaluate(() => {
     const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
     return state.profiles.find((profile: { id: string }) => profile.id === "profile-mara")?.draft;
   });
-  expect(afterRejectedSave).toEqual(beforeSave);
+  expect(afterBlockedSave).toEqual(beforeSave);
 
+  await page.getByLabel("Slideshow image 1 description").fill("Legacy slide 1");
   await page.getByRole("button", { name: "Remove slideshow image 6" }).click();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Visitors still see the last published version.")).toBeVisible();

@@ -98,8 +98,9 @@ describe("profile media contract", () => {
       assetId: `slide-${index}`,
       altText: `Slide ${index}`,
     }));
-    expect(normalizeProfileMedia({ heroHeight: 320, autoplay: true, slideshow: slides })?.slideshow)
-      .toEqual(slides);
+    expect(
+      normalizeProfileMedia({ heroHeight: 320, autoplay: true, slideshow: slides })?.slideshow,
+    ).toEqual(slides);
   });
 
   it("normalizes bounded values and filters malformed optional media", () => {

@@ -185,6 +185,18 @@ describe("ProfileMediaEditor", () => {
     expect(screen.getByRole("button", { name: "Add slideshow image" })).toBeDisabled();
   });
 
+  it("uses singular removal guidance for one over-limit image", () => {
+    const overLimitMedia = {
+      ...media,
+      slideshow: Array.from({ length: MAX_PROFILE_SLIDESHOW_IMAGES + 1 }, (_, index) =>
+        image(`slide-${index}`),
+      ),
+    };
+    render(<ProfileMediaEditor media={overLimitMedia} onChange={vi.fn()} onUpload={vi.fn()} />);
+
+    expect(screen.getByText("Remove 1 image before saving.")).toBeInTheDocument();
+  });
+
   it("accepts only the remaining slideshow upload slots", async () => {
     const user = userEvent.setup();
     const onUpload = vi.fn().mockResolvedValue(image("uploaded"));
