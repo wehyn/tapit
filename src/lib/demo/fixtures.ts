@@ -70,6 +70,7 @@ export type DemoCardOrderReferralCode = {
   code: string;
   referrerLabel: string;
   fixedPriceCentavos?: number;
+  usageLimit?: number;
   active: boolean;
   createdAt: number;
   updatedAt: number;

@@ -24,6 +24,7 @@ type Code = {
   code: string;
   referrerLabel: string;
   fixedPriceCentavos?: number;
+  usageLimit?: number;
   active: boolean;
   usageCount: number;
 };
@@ -69,6 +70,7 @@ function CodesWorkspace({
     code: string;
     referrerLabel: string;
     fixedPriceCentavos?: number;
+    usageLimit?: number;
     active: boolean;
   }) => Promise<void>;
   onSetActive: (id: string, active: boolean) => Promise<void>;
@@ -77,6 +79,7 @@ function CodesWorkspace({
   const [code, setCode] = useState("");
   const [label, setLabel] = useState("");
   const [price, setPrice] = useState("");
+  const [usageLimit, setUsageLimit] = useState("");
   const [active, setActive] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -87,6 +90,7 @@ function CodesWorkspace({
     setCode("");
     setLabel("");
     setPrice("");
+    setUsageLimit("");
     setActive(true);
   }
   function cancelEdit() {
@@ -141,6 +145,14 @@ function CodesWorkspace({
       });
       return;
     }
+    const parsedUsageLimit = usageLimit === "" ? undefined : Number(usageLimit);
+    if (
+      parsedUsageLimit !== undefined &&
+      (!Number.isSafeInteger(parsedUsageLimit) || parsedUsageLimit < 1)
+    ) {
+      setMessage({ tone: "error", text: "Usage limit must be a positive whole number." });
+      return;
+    }
     const saved = await run(
       () =>
         onSave({
@@ -148,6 +160,7 @@ function CodesWorkspace({
           code: normalized,
           referrerLabel: label.trim(),
           fixedPriceCentavos: centavos,
+          usageLimit: parsedUsageLimit,
           active,
         }),
       editId ? "Referral code updated." : "Referral code created.",
@@ -157,14 +170,8 @@ function CodesWorkspace({
 
   return (
     <div className="flex min-w-0 flex-col gap-6 pt-2">
-      <AdminPageHeader
-        title="Codes"
-        description="Manage referral codes and review their order usage."
-      />
-      <Card
-        title="Referral codes"
-        description="Codes are unique across active and inactive records. Fixed prices must be no more than ₱599."
-      >
+      <AdminPageHeader title="Codes" description="Manage codes and review their order usage." />
+      <Card>
         <form className="mt-4 grid max-w-3xl gap-4 sm:grid-cols-2" onSubmit={submit}>
           <Field
             autoCapitalize="characters"
@@ -196,6 +203,16 @@ function CodesWorkspace({
             step="0.01"
             type="number"
             value={price}
+          />
+          <Field
+            disabled={busy}
+            id="referral-usage-limit"
+            label="Usage limit (orders, optional)"
+            min={1}
+            onChange={(event) => setUsageLimit(event.target.value)}
+            step={1}
+            type="number"
+            value={usageLimit}
           />
           <label className="flex items-center gap-2 text-sm font-medium text-tapit-ink">
             <input
@@ -235,7 +252,10 @@ function CodesWorkspace({
                     {item.fixedPriceCentavos === undefined
                       ? "10% off"
                       : money(item.fixedPriceCentavos)}{" "}
-                    · {item.usageCount} uses
+                    ·{" "}
+                    {item.usageLimit === undefined
+                      ? `${item.usageCount} uses · unlimited`
+                      : `${item.usageCount} of ${item.usageLimit} uses · ${Math.max(0, item.usageLimit - item.usageCount)} remaining`}
                   </span>
                 </button>
                 <Button
@@ -250,6 +270,7 @@ function CodesWorkspace({
                         ? ""
                         : String(item.fixedPriceCentavos / 100),
                     );
+                    setUsageLimit(item.usageLimit === undefined ? "" : String(item.usageLimit));
                     setActive(item.active);
                   }}
                   type="button"
@@ -363,11 +384,12 @@ function DemoCodesManager() {
     setHasMore(false);
   }
   const codes: Code[] = settings.referralCodes.map(
-    ({ id, code, referrerLabel, fixedPriceCentavos, active, usageCount }) => ({
+    ({ id, code, referrerLabel, fixedPriceCentavos, usageLimit, active, usageCount }) => ({
       id,
       code,
       referrerLabel,
       fixedPriceCentavos,
+      usageLimit,
       active,
       usageCount,
     }),
@@ -439,6 +461,7 @@ function LiveCodesManager() {
           code: input.code,
           referrerLabel: input.referrerLabel,
           fixedPriceCentavos: input.fixedPriceCentavos,
+          usageLimit: input.usageLimit,
           active: input.active,
         });
         setSelectedId(id);

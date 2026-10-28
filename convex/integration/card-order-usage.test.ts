@@ -63,6 +63,12 @@ async function seed(t: ReturnType<typeof convexTest>) {
       updatedAt: 1,
       updatedByUserId: adminUserId,
     });
+    await ctx.db.insert("settings", {
+      key: "cardOrderReferralUsageBackfillStarted",
+      value: "completed",
+      updatedAt: 1,
+      updatedByUserId: adminUserId,
+    });
     const paymentMethodId = await ctx.db.insert("cardOrderPaymentMethods", {
       provider: "Bank transfer",
       label: "Test bank",
@@ -207,6 +213,281 @@ describe("card order referral usage", () => {
     ]);
   });
 
+  it("saves, clears, and returns a safe usage limit without changing the existing count", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.codeId, { usageCount: 5 });
+    });
+    for (const usageLimit of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      await expect(
+        admin.mutation(api.cardOrderSettings.saveReferralCode, {
+          id: ids.codeId,
+          code: "FOUNDING-AHRON",
+          referrerLabel: "Ahron",
+          active: true,
+          usageLimit,
+        }),
+      ).rejects.toThrow("Usage limit must be a positive safe integer.");
+    }
+    await admin.mutation(api.cardOrderSettings.saveReferralCode, {
+      id: ids.codeId,
+      code: "FOUNDING-AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+      usageLimit: 25,
+    });
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 5, usageLimit: 25 },
+    ]);
+    await admin.mutation(api.cardOrderSettings.saveReferralCode, {
+      id: ids.codeId,
+      code: "FOUNDING-AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+    });
+    const cleared = await admin.query(api.cardOrderSettings.adminReferralCodes, {});
+    expect(cleared[0]).toMatchObject({ usageCount: 5 });
+    expect(cleared[0]).not.toHaveProperty("usageLimit");
+  });
+
+  it("marks a capped code unavailable to a fresh customer and keeps canceled use counted", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const customer = t.withIdentity(identity(ids.customerUserId));
+    const nextCustomer = t.withIdentity(identity(ids.unrelatedUserId));
+    await admin.mutation(api.cardOrderSettings.saveReferralCode, {
+      id: ids.codeId,
+      code: "FOUNDING-AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+      usageLimit: 1,
+    });
+    const orderId = await placeCreatedOrder(customer, {
+      paymentMethodId: ids.paymentMethodId,
+      referralCode: "FOUNDING-AHRON",
+      designSource: { kind: "url", url: "https://example.test/front.png" },
+      backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+      deliveryName: "Test Customer",
+      deliveryPhone: "09170000000",
+      deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
+    });
+    expect(
+      await nextCustomer.query(api.cardOrderSettings.previewReferral, {
+        code: "FOUNDING-AHRON",
+        currentTime: Date.UTC(2099, 0, 1),
+      }),
+    ).toEqual({ valid: false, discountCentavos: 0 });
+    await admin.mutation(api.cardOrders.cancelOrder, { orderId });
+    await expect(
+      nextCustomer.mutation(api.cardOrders.placeOrder, {
+        paymentMethodId: ids.paymentMethodId,
+        referralCode: "FOUNDING-AHRON",
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+        deliveryName: "Test Customer",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 1, usageLimit: 1 },
+    ]);
+  });
+
+  it("blocks caps until the global backfill counts historical orders", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const customer = t.withIdentity(identity(ids.unrelatedUserId));
+    const historicalOrderId = await t.run(async (ctx) => {
+      await ctx.db.patch(
+        (await ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first())!._id,
+        { value: "started" },
+      );
+      return await ctx.db.insert("cardOrders", {
+        customerId: ids.customerId,
+        quantity: 1,
+        designSource: { kind: "url", url: "https://example.test/historical.png" },
+        deliveryName: "Historical Customer",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "Historical address",
+        cardPriceCentavos: 59_900,
+        discountCentavos: 5_990,
+        paymentMethodId: ids.paymentMethodId,
+        paymentSnapshot: {
+          provider: "Bank transfer",
+          label: "Test bank",
+          accountDetails: "Test account",
+          instructions: "Transfer.",
+        },
+        referralCodeId: ids.codeId,
+        referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+        paymentStatus: "unpaid",
+        fulfillmentStatus: "awaiting_payment",
+        commissionStatus: "pending",
+        commissionCentavos: 5_990,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    });
+    const saveLimit = () =>
+      admin.mutation(api.cardOrderSettings.saveReferralCode, {
+        id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageLimit: 1,
+      });
+    await expect(saveLimit()).rejects.toThrow("Referral usage backfill must complete");
+
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 1 },
+    ]);
+    await expect(
+      t.run(async (ctx) =>
+        ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first(),
+      ),
+    ).resolves.toMatchObject({ value: "completed" });
+    await saveLimit();
+    expect(
+      await customer.query(api.cardOrderSettings.previewReferral, {
+        code: "FOUNDING-AHRON",
+        currentTime: Date.UTC(2099, 0, 1),
+      }),
+    ).toEqual({ valid: false, discountCentavos: 0 });
+    await expect(
+      customer.mutation(api.cardOrders.placeOrder, {
+        paymentMethodId: ids.paymentMethodId,
+        referralCode: "FOUNDING-AHRON",
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+        deliveryName: "Test Customer",
+        deliveryPhone: "09170000000",
+        deliveryAddress: "1 Test Street",
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    await expect(t.run((ctx) => ctx.db.get(historicalOrderId))).resolves.toMatchObject({
+      usageCounted: true,
+      referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+    });
+  });
+
+  it("applies limit changes to the existing count without changing order snapshots", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const customer = t.withIdentity(identity(ids.customerUserId));
+    const nextCustomer = t.withIdentity(identity(ids.unrelatedUserId));
+    const saveLimit = (usageLimit?: number) =>
+      admin.mutation(api.cardOrderSettings.saveReferralCode, {
+        id: ids.codeId,
+        code: "FOUNDING-AHRON",
+        referrerLabel: "Ahron",
+        active: true,
+        usageLimit,
+      });
+    await saveLimit(2);
+    const orderId = await placeCreatedOrder(customer, {
+      paymentMethodId: ids.paymentMethodId,
+      referralCode: "FOUNDING-AHRON",
+      designSource: { kind: "url", url: "https://example.test/front.png" },
+      backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+      deliveryName: "Test Customer",
+      deliveryPhone: "09170000000",
+      deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
+    });
+    const snapshot = await t.run((ctx) => ctx.db.get(orderId));
+    await saveLimit(1);
+    const previewArgs = { code: "FOUNDING-AHRON", currentTime: Date.UTC(2099, 0, 1) };
+    expect(await nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs)).toEqual({
+      valid: false,
+      discountCentavos: 0,
+    });
+    await expect(
+      nextCustomer.mutation(api.cardOrders.placeOrder, {
+        paymentMethodId: ids.paymentMethodId,
+        referralCode: "FOUNDING-AHRON",
+        designSource: { kind: "url", url: "https://example.test/front.png" },
+        backDesignSource: { kind: "url", url: "https://example.test/back.png" },
+        deliveryName: "Next Customer",
+        deliveryPhone: "09171111111",
+        deliveryAddress: "2 Test Street",
+        expectedCardAmountCentavos: 53_910,
+      }),
+    ).rejects.toThrow("Referral code is unavailable for this order.");
+    await saveLimit(2);
+    await expect(
+      nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs),
+    ).resolves.toMatchObject({
+      valid: true,
+    });
+    await saveLimit(undefined);
+    await expect(
+      nextCustomer.query(api.cardOrderSettings.previewReferral, previewArgs),
+    ).resolves.toMatchObject({
+      valid: true,
+    });
+    await expect(t.run((ctx) => ctx.db.get(orderId))).resolves.toEqual(snapshot);
+  });
+
+  it("allows only one of two customers to claim the remaining use", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const first = t.withIdentity(identity(ids.customerUserId));
+    const second = t.withIdentity(identity(ids.unrelatedUserId));
+    await admin.mutation(api.cardOrderSettings.saveReferralCode, {
+      id: ids.codeId,
+      code: "FOUNDING-AHRON",
+      referrerLabel: "Ahron",
+      active: true,
+      usageLimit: 1,
+    });
+    const args = {
+      paymentMethodId: ids.paymentMethodId,
+      referralCode: "FOUNDING-AHRON",
+      designSource: { kind: "url" as const, url: "https://example.test/front.png" },
+      backDesignSource: { kind: "url" as const, url: "https://example.test/back.png" },
+      deliveryName: "Test Customer",
+      deliveryPhone: "09170000000",
+      deliveryAddress: "1 Test Street",
+      expectedCardAmountCentavos: 53_910,
+    };
+    const results = await Promise.allSettled([
+      first.mutation(api.cardOrders.placeOrder, args),
+      second.mutation(api.cardOrders.placeOrder, args),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 1, usageLimit: 1 },
+    ]);
+  });
+
   it("denies an unrelated customer access to the referral usage view", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -229,6 +510,13 @@ describe("card order referral usage", () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
     await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.delete(marker._id);
       for (let index = 0; index < 205; index++) {
         await ctx.db.insert("cardOrders", {
           customerId: ids.customerId,
@@ -286,6 +574,158 @@ describe("card order referral usage", () => {
       return orders.filter((order) => order.usageCounted === true);
     });
     expect(countedOrders).toHaveLength(205);
+  });
+
+  it("restarts a stalled backfill from the beginning without double counting", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.codeId, { usageCount: 100 });
+      for (let index = 0; index < 101; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/stalled.png" },
+          deliveryName: "Historical Customer",
+          deliveryPhone: "09170000000",
+          deliveryAddress: "Historical address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Test account",
+            instructions: "Transfer.",
+          },
+          referralCodeId: ids.codeId,
+          referralSnapshot: { code: "FOUNDING-AHRON", referrerLabel: "Ahron" },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index + 1,
+          updatedAt: index + 1,
+          ...(index < 100 ? { usageCounted: true } : {}),
+        });
+      }
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.patch(marker._id, { value: "running", updatedAt: 1 });
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    await expect(admin.query(api.cardOrderSettings.adminReferralCodes, {})).resolves.toMatchObject([
+      { usageCount: 101 },
+    ]);
+    await expect(
+      t.run(async (ctx) => {
+        const orders = await ctx.db
+          .query("cardOrders")
+          .withIndex("by_scope_and_referralCodeId_and_createdAt", (q) =>
+            q.eq("scope", undefined).eq("referralCodeId", ids.codeId),
+          )
+          .take(101);
+        const marker = await ctx.db
+          .query("settings")
+          .withIndex("by_scope_and_key", (q) =>
+            q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+          )
+          .first();
+        return { counted: orders.filter((order) => order.usageCounted === true).length, marker };
+      }),
+    ).resolves.toMatchObject({ counted: 101, marker: { value: "completed" } });
+  });
+
+  it("caps the exact existing FOUNDING-AHRON code after counting its history", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    await t.run(async (ctx) => {
+      const codeId = await ctx.db.insert("cardOrderReferralCodes", {
+        code: "FOUNDING",
+        referrerLabel: "Founding",
+        active: true,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      for (let index = 0; index < 6; index++) {
+        await ctx.db.insert("cardOrders", {
+          customerId: ids.customerId,
+          quantity: 1,
+          designSource: { kind: "url", url: "https://example.test/founding.png" },
+          deliveryName: "Historical Customer",
+          deliveryPhone: "09170000000",
+          deliveryAddress: "Historical address",
+          cardPriceCentavos: 59_900,
+          discountCentavos: 5_990,
+          paymentMethodId: ids.paymentMethodId,
+          paymentSnapshot: {
+            provider: "Bank transfer",
+            label: "Test bank",
+            accountDetails: "Test account",
+            instructions: "Transfer.",
+          },
+          referralCodeId: index === 5 ? codeId : ids.codeId,
+          referralSnapshot: {
+            code: index === 5 ? "FOUNDING" : "FOUNDING-AHRON",
+            referrerLabel: index === 5 ? "Founding" : "Ahron",
+          },
+          paymentStatus: "unpaid",
+          fulfillmentStatus: "awaiting_payment",
+          commissionStatus: "pending",
+          commissionCentavos: 5_990,
+          createdAt: index + 1,
+          updatedAt: index + 1,
+        });
+      }
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "cardOrderReferralUsageBackfillStarted"),
+        )
+        .first();
+      if (marker !== null) await ctx.db.patch(marker._id, { value: "started" });
+      return codeId;
+    });
+
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    vi.useFakeTimers();
+    try {
+      await admin.mutation(api.cardOrderSettings.startReferralUsageBackfill, {});
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const codes = await admin.query(api.cardOrderSettings.adminReferralCodes, {});
+    expect(codes.find((code) => code.code === "FOUNDING-AHRON")).toMatchObject({
+      usageCount: 5,
+      usageLimit: 25,
+    });
+    const foundingOnly = codes.find((code) => code.code === "FOUNDING");
+    expect(foundingOnly?.usageCount).toBe(1);
+    expect(foundingOnly?.usageLimit).toBeUndefined();
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.codeId, { usageLimit: undefined });
+    });
+    await t.mutation(internal.cardOrderReferralUsage.backfillUsageCounts, { cursor: null });
+    const clearedCode = (await admin.query(api.cardOrderSettings.adminReferralCodes, {})).find(
+      (code) => code.code === "FOUNDING-AHRON",
+    );
+    expect(clearedCode?.usageLimit).toBeUndefined();
   });
 
   it("paginates referral history with only the approved customer and status fields", async () => {

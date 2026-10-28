@@ -199,6 +199,8 @@ function isCardOrderReferralCode(value: unknown): value is DemoCardOrderReferral
     typeof value.referrerLabel === "string" &&
     (value.fixedPriceCentavos === undefined ||
       isValidReferralFixedPriceCentavos(value.fixedPriceCentavos)) &&
+    (value.usageLimit === undefined ||
+      (Number.isSafeInteger(value.usageLimit) && (value.usageLimit as number) > 0)) &&
     typeof value.active === "boolean" &&
     isFiniteNumber(value.createdAt) &&
     isFiniteNumber(value.updatedAt)
