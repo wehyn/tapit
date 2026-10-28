@@ -1,6 +1,6 @@
 # Issue #173: Resettable Demo Accounts for Production Testing
 
-**Status:** Draft for review
+**Status:** Approved for implementation on 2026-10-28
 **Date:** 2026-10-28
 **Issue:** [#173 — Add resettable Demo accounts for production testing](https://github.com/wehyn/tapit/issues/173)
 
