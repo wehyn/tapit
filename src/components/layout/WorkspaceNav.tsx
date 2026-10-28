@@ -58,9 +58,9 @@ const saveStatusCopy: Record<DraftStatus, { label: string; tone: "ok" | "warn" |
 };
 
 function findVisibleNavigationTourTarget(href: string): HTMLAnchorElement | undefined {
-  return Array.from(document.querySelectorAll<HTMLAnchorElement>("[data-tour-href]")).find(
-    (link) => link.dataset.tourHref === href && link.getClientRects().length > 0,
-  );
+  return Array.from(document.querySelectorAll<HTMLAnchorElement>("[data-tour-href]"))
+    .reverse()
+    .find((link) => link.dataset.tourHref === href && link.getClientRects().length > 0);
 }
 
 export function WorkspaceChrome({
