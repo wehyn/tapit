@@ -31,6 +31,35 @@ import { hashSetupToken } from "@/lib/auth/setup-token";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
+function OwnerAccessConfirmDialog({
+  email,
+  enabled,
+  onCancel,
+  onConfirm,
+  open,
+}: {
+  email: string;
+  enabled: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  open: boolean;
+}) {
+  return (
+    <ConfirmDialog
+      confirmLabel={enabled ? "Grant access" : "Revoke access"}
+      description={
+        enabled
+          ? `Grant ${email} access to owner analytics and card-owner tools. This admin override is recorded in the audit log and does not record a card claim.`
+          : `Remove the admin override for ${email}. Access from a successfully claimed card remains. This change is recorded in the audit log.`
+      }
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      open={open}
+      title={enabled ? "Grant owner access?" : "Revoke owner access?"}
+    />
+  );
+}
+
 function DemoCustomersManager() {
   const state = useDemoState();
   const approvingDeletionCustomerIds = useRef(new Set<string>());
@@ -41,6 +70,10 @@ function DemoCustomersManager() {
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [setupLink, setSetupLink] = useState("");
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
+  const [ownerAccessConfirmation, setOwnerAccessConfirmation] = useState<{
+    customer: DemoCustomer;
+    enabled: boolean;
+  } | null>(null);
   const [approvalCustomer, setApprovalCustomer] = useState<DemoCustomer | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
@@ -220,11 +253,7 @@ function DemoCustomersManager() {
       return;
     }
     const before = customer.cardOwnerAccessOverride === true;
-    if (
-      before === enabled ||
-      !window.confirm(`${enabled ? "Grant" : "Revoke"} owner access for ${customer.email}?`)
-    )
-      return;
+    if (before === enabled) return;
     try {
       updateDemoState((current) => {
         const target = current.customers.find((candidate) => candidate.id === customer.id);
@@ -525,10 +554,10 @@ function DemoCustomersManager() {
                           </Tile>
                           <Button
                             onClick={() =>
-                              setOwnerAccessOverride(
-                                selectedCustomer,
-                                selectedCustomer.cardOwnerAccessOverride !== true,
-                              )
+                              setOwnerAccessConfirmation({
+                                customer: selectedCustomer,
+                                enabled: selectedCustomer.cardOwnerAccessOverride !== true,
+                              })
                             }
                             type="button"
                             variant="secondary"
@@ -560,6 +589,18 @@ function DemoCustomersManager() {
             : null}
         </div>
       </div>
+      <OwnerAccessConfirmDialog
+        email={ownerAccessConfirmation?.customer.email ?? ""}
+        enabled={ownerAccessConfirmation?.enabled ?? false}
+        onCancel={() => setOwnerAccessConfirmation(null)}
+        onConfirm={() => {
+          const confirmation = ownerAccessConfirmation;
+          setOwnerAccessConfirmation(null);
+          if (confirmation !== null)
+            setOwnerAccessOverride(confirmation.customer, confirmation.enabled);
+        }}
+        open={ownerAccessConfirmation !== null}
+      />
       <ConfirmDialog
         confirmLabel="Approve deletion"
         description={
@@ -588,6 +629,11 @@ function LiveCustomersManager() {
   const [copiedSetupLink, setCopiedSetupLink] = useState(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
+  const [ownerAccessConfirmation, setOwnerAccessConfirmation] = useState<{
+    customerId: Id<"customers">;
+    email: string;
+    enabled: boolean;
+  } | null>(null);
   const {
     results: customers,
     status: customersStatus,
@@ -950,12 +996,11 @@ function LiveCustomersManager() {
                             <Button
                               onClick={() => {
                                 const enabled = customer.cardOwnerAccessOverride !== true;
-                                if (
-                                  window.confirm(
-                                    `${enabled ? "Grant" : "Revoke"} owner access for ${customer.email}?`,
-                                  )
-                                )
-                                  void changeOwnerAccess(customer._id, enabled);
+                                setOwnerAccessConfirmation({
+                                  customerId: customer._id,
+                                  email: customer.email,
+                                  enabled,
+                                });
                               }}
                               type="button"
                               variant="quiet"
@@ -1088,6 +1133,18 @@ function LiveCustomersManager() {
           </Card>
         </div>
       </div>
+      <OwnerAccessConfirmDialog
+        email={ownerAccessConfirmation?.email ?? ""}
+        enabled={ownerAccessConfirmation?.enabled ?? false}
+        onCancel={() => setOwnerAccessConfirmation(null)}
+        onConfirm={() => {
+          const confirmation = ownerAccessConfirmation;
+          setOwnerAccessConfirmation(null);
+          if (confirmation !== null)
+            void changeOwnerAccess(confirmation.customerId, confirmation.enabled);
+        }}
+        open={ownerAccessConfirmation !== null}
+      />
     </div>
   );
 }
