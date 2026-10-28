@@ -119,6 +119,8 @@ function isDemoCustomer(value: unknown): value is DemoCustomer {
     (value.profileId === undefined || typeof value.profileId === "string") &&
     (value.setupToken === undefined || typeof value.setupToken === "string") &&
     (value.passwordHash === undefined || typeof value.passwordHash === "string") &&
+    (value.cardOwnerAccessOverride === undefined ||
+      typeof value.cardOwnerAccessOverride === "boolean") &&
     (value.claimedCardIds === undefined ||
       (Array.isArray(value.claimedCardIds) &&
         value.claimedCardIds.every((id) => typeof id === "string")))
@@ -723,9 +725,9 @@ export function resolveDemoSessionAccess(
       kind: "active",
       account: customer,
       profile,
-      hasCardOwnerFeatures: current.cards.some(
-        (card) => card.profileId === profile.id && card.claimedAt !== undefined,
-      ),
+      hasCardOwnerFeatures:
+        account.cardOwnerAccessOverride === true ||
+        current.cards.some((card) => card.profileId === profile.id && card.claimedAt !== undefined),
     };
   }
   if (account.role === "admin") {
