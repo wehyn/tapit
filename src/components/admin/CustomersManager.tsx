@@ -204,6 +204,81 @@ function DemoCustomersManager() {
     }
   }
 
+  function setOwnerAccessOverride(customer: DemoCustomer, enabled: boolean) {
+    const profile = getDemoProfiles(state).find((candidate) => candidate.id === customer.profileId);
+    if (
+      customer.status !== "active" ||
+      customer.role !== "customer" ||
+      customer.deletionStatus !== "active"
+    )
+      return;
+    if (enabled && (profile === undefined || profile.ownerId !== customer.id)) {
+      setMessage({
+        tone: "error",
+        text: "An owned customer profile is required to grant owner access.",
+      });
+      return;
+    }
+    const before = customer.cardOwnerAccessOverride === true;
+    if (
+      before === enabled ||
+      !window.confirm(`${enabled ? "Grant" : "Revoke"} owner access for ${customer.email}?`)
+    )
+      return;
+    try {
+      updateDemoState((current) => {
+        const target = current.customers.find((candidate) => candidate.id === customer.id);
+        if (
+          target === undefined ||
+          target.status !== "active" ||
+          target.role !== "customer" ||
+          target.deletionStatus !== "active" ||
+          (target.cardOwnerAccessOverride === true) === enabled
+        )
+          return current;
+        if (enabled) {
+          const ownedProfile = getDemoProfiles(current).find(
+            (candidate) => candidate.id === target.profileId,
+          );
+          if (ownedProfile === undefined || ownedProfile.ownerId !== target.id) return current;
+        }
+        const occurredAt = new Date().toISOString();
+        return {
+          ...current,
+          customers: current.customers.map((candidate) =>
+            candidate.id === target.id
+              ? { ...candidate, cardOwnerAccessOverride: enabled ? true : undefined }
+              : candidate,
+          ),
+          audits: [
+            {
+              id: `audit-${Date.now()}`,
+              actor: "admin@tapit.local",
+              action: "customer.card_owner_access_override_changed",
+              target: target.email,
+              occurredAt,
+              before: String(target.cardOwnerAccessOverride === true),
+              after: String(enabled),
+            },
+            ...current.audits,
+          ],
+        };
+      });
+      setMessage({
+        tone: "success",
+        text: `Owner access ${enabled ? "granted" : "revoked"} for ${customer.email}.`,
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text:
+          error instanceof Error
+            ? error.message
+            : "Owner access could not be updated. Check browser storage and try again.",
+      });
+    }
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-8 pt-2">
       <AdminPageHeader
@@ -434,6 +509,36 @@ function DemoCustomersManager() {
                         <span className="grow text-sm text-tapit-muted">Account</span>
                         <span className="text-sm text-tapit-ink">{selectedCustomer.status}</span>
                       </Tile>
+                      {selectedCustomer.status === "active" &&
+                      selectedCustomer.role === "customer" &&
+                      selectedCustomer.deletionStatus === "active" ? (
+                        <>
+                          <Tile className="min-h-12">
+                            <span className="grow text-sm text-tapit-muted">
+                              Owner access override
+                            </span>
+                            <span className="text-sm text-tapit-ink">
+                              {selectedCustomer.cardOwnerAccessOverride === true
+                                ? "Granted"
+                                : "Not granted"}
+                            </span>
+                          </Tile>
+                          <Button
+                            onClick={() =>
+                              setOwnerAccessOverride(
+                                selectedCustomer,
+                                selectedCustomer.cardOwnerAccessOverride !== true,
+                              )
+                            }
+                            type="button"
+                            variant="secondary"
+                          >
+                            {selectedCustomer.cardOwnerAccessOverride === true
+                              ? "Revoke owner access"
+                              : "Grant owner access"}
+                          </Button>
+                        </>
+                      ) : null}
                       <Tile className="min-h-12">
                         <span className="grow text-sm text-tapit-muted">Setup</span>
                         <span className="text-sm text-tapit-ink">
@@ -511,6 +616,7 @@ function LiveCustomersManager() {
   const revokeInvitation = useMutation(api.invitations.revoke);
   const replaceInvitation = useMutation(api.invitations.replace);
   const setRole = useMutation(api.customers.setRole);
+  const setOwnerAccess = useMutation(api.customers.setCardOwnerAccessOverride);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
@@ -647,6 +753,18 @@ function LiveCustomersManager() {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "The customer role could not be updated.",
+      });
+    }
+  }
+  async function changeOwnerAccess(customerId: Id<"customers">, enabled: boolean) {
+    setMessage(null);
+    try {
+      await setOwnerAccess({ customerId, enabled });
+      setMessage({ tone: "success", text: `Owner access ${enabled ? "granted" : "revoked"}.` });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "Owner access could not be updated.",
       });
     }
   }
@@ -818,6 +936,35 @@ function LiveCustomersManager() {
                           >
                             Promote to administrator
                           </Button>
+                        ) : null}
+                        {customer.status === "active" &&
+                        customer.deletionStatus === "active" &&
+                        customer.role === "customer" ? (
+                          <>
+                            <span className="self-center text-sm text-tapit-muted">
+                              Owner access override:{" "}
+                              {customer.cardOwnerAccessOverride === true
+                                ? "Granted"
+                                : "Not granted"}
+                            </span>
+                            <Button
+                              onClick={() => {
+                                const enabled = customer.cardOwnerAccessOverride !== true;
+                                if (
+                                  window.confirm(
+                                    `${enabled ? "Grant" : "Revoke"} owner access for ${customer.email}?`,
+                                  )
+                                )
+                                  void changeOwnerAccess(customer._id, enabled);
+                              }}
+                              type="button"
+                              variant="quiet"
+                            >
+                              {customer.cardOwnerAccessOverride === true
+                                ? "Revoke owner access"
+                                : "Grant owner access"}
+                            </Button>
+                          </>
                         ) : null}
                         {customer.status === "active" && customer.role === "admin" ? (
                           <Button
