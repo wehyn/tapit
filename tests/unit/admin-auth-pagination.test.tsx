@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const convexHooks = vi.hoisted(() => ({
@@ -51,62 +51,6 @@ describe("paginated administrator account lists", () => {
   it("grants the owner access override with the selected customer ID", () => {
     const updateOverride = vi.fn();
     mockOwnerOverride(updateOverride);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: false }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() });
-
-    render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
-    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
-  });
-
-  it("revokes the owner access override with the selected customer ID", () => {
-    const updateOverride = vi.fn();
-    mockOwnerOverride(updateOverride);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: true }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() });
-
-    render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Revoke owner access" }));
-    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: false });
-  });
-
-  it("does not call the owner access mutation when confirmation is cancelled", () => {
-    const updateOverride = vi.fn();
-    mockOwnerOverride(updateOverride);
-    vi.spyOn(window, "confirm").mockReturnValue(false);
-    convexHooks.usePaginatedQuery
-      .mockReturnValueOnce({
-        results: [{ ...customer, cardOwnerAccessOverride: false }],
-        status: "Exhausted",
-        loadMore: vi.fn(),
-      })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
-      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() });
-
-    render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
-
-    expect(updateOverride).not.toHaveBeenCalled();
-  });
-
-  it("shows an error when the owner access mutation is rejected", async () => {
-    const updateOverride = vi.fn().mockRejectedValue(new Error("Override failed"));
-    mockOwnerOverride(updateOverride);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     convexHooks.usePaginatedQuery
       .mockReturnValueOnce({
         results: [{ ...customer, cardOwnerAccessOverride: false }],
@@ -119,6 +63,79 @@ describe("paginated administrator account lists", () => {
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    const dialog = screen.getByRole("dialog", { name: "Grant owner access?" });
+    expect(dialog).toHaveTextContent("first@example.test");
+    expect(dialog).toHaveTextContent("does not record a card claim");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Grant access" }));
+    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
+  });
+
+  it("revokes the owner access override with the selected customer ID", () => {
+    const updateOverride = vi.fn();
+    mockOwnerOverride(updateOverride);
+    convexHooks.usePaginatedQuery
+      .mockReturnValueOnce({
+        results: [{ ...customer, cardOwnerAccessOverride: true }],
+        status: "Exhausted",
+        loadMore: vi.fn(),
+      })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Revoke owner access" }));
+    const dialog = screen.getByRole("dialog", { name: "Revoke owner access?" });
+    expect(dialog).toHaveTextContent("first@example.test");
+    expect(dialog).toHaveTextContent("successfully claimed card remains");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Revoke access" }));
+    expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: false });
+  });
+
+  it("does not call the owner access mutation when confirmation is cancelled", () => {
+    const updateOverride = vi.fn();
+    mockOwnerOverride(updateOverride);
+    convexHooks.usePaginatedQuery
+      .mockReturnValueOnce({
+        results: [{ ...customer, cardOwnerAccessOverride: false }],
+        status: "Exhausted",
+        loadMore: vi.fn(),
+      })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+
+    expect(updateOverride).not.toHaveBeenCalled();
+  });
+
+  it("shows an error when the owner access mutation is rejected", async () => {
+    const updateOverride = vi.fn().mockRejectedValue(new Error("Override failed"));
+    mockOwnerOverride(updateOverride);
+    convexHooks.usePaginatedQuery
+      .mockReturnValueOnce({
+        results: [{ ...customer, cardOwnerAccessOverride: false }],
+        status: "Exhausted",
+        loadMore: vi.fn(),
+      })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValueOnce({ results: [], status: "Exhausted", loadMore: vi.fn() })
+      .mockReturnValue({ results: [], status: "Exhausted", loadMore: vi.fn() });
+
+    render(<CustomersManager />);
+    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Grant access",
+      }),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Override failed");
     expect(updateOverride).toHaveBeenCalledWith({ customerId: "customers:1", enabled: true });
@@ -140,10 +157,14 @@ describe("paginated administrator account lists", () => {
         throw new DOMException("Storage is blocked", "QuotaExceededError");
       return originalSetItem.call(this, key, value);
     });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
 
     render(<CustomersManager />);
     fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
+        name: "Grant access",
+      }),
+    );
 
     expect(screen.getByRole("alert")).toHaveTextContent("Could not save Tapit data locally");
     const after = getDemoState();

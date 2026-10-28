@@ -608,7 +608,6 @@ test("a new customer setup flow receives its own empty profile", async ({ page }
 test("administrator grants and revokes card-owner access for a cardless customer", async ({
   page,
 }) => {
-  page.on("dialog", (dialog) => dialog.accept());
   const email = "override-owner@example.test";
   await signInAsAdmin(page);
   await page.getByLabel("Customer email").fill(email);
@@ -637,6 +636,20 @@ test("administrator grants and revokes card-owner access for a cardless customer
   await expect(row).toBeVisible();
   await row.getByRole("button").click();
   await page.getByRole("button", { name: "Grant owner access" }).click();
+  const grantDialog = page.getByRole("dialog", { name: "Grant owner access?" });
+  await expect(grantDialog).toBeVisible();
+  await expect(grantDialog).toContainText(email);
+  await expect(grantDialog).toContainText("does not record a card claim");
+  await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+  await page.screenshot({
+    path: "test-results/admin-owner-access-confirm-dialog.png",
+    fullPage: true,
+  });
+  await grantDialog.getByRole("button", { name: "Cancel" }).click();
+  await expect(grantDialog).toBeHidden();
+  await page.getByRole("button", { name: "Grant owner access" }).click();
+  await expect(grantDialog).toBeVisible();
+  await grantDialog.getByRole("button", { name: "Grant access" }).click();
   await expect(page.getByText(`Owner access granted for ${email}.`)).toBeVisible();
   await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
   await page.screenshot({ path: "test-results/admin-owner-access-override.png", fullPage: true });
@@ -662,6 +675,10 @@ test("administrator grants and revokes card-owner access for a cardless customer
   const selectedRow = page.locator("article").filter({ hasText: email }).first();
   await selectedRow.getByRole("button").click();
   await page.getByRole("button", { name: "Revoke owner access" }).click();
+  const revokeDialog = page.getByRole("dialog", { name: "Revoke owner access?" });
+  await expect(revokeDialog).toBeVisible();
+  await expect(revokeDialog).toContainText("successfully claimed card remains");
+  await revokeDialog.getByRole("button", { name: "Revoke access" }).click();
   await expect(page.getByText(`Owner access revoked for ${email}.`)).toBeVisible();
   await page.goto("/admin/audit-log");
   const transitions = page
