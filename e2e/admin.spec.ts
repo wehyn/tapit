@@ -619,7 +619,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(page.getByRole("status").filter({ hasText: "Card link copied." })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(new URL("/c/mara-card-7f2q", page.url()).toString());
+    .toBe(new URL("/c/mara-card-7f2q?claim=1", page.url()).toString());
   await activeCard.locator("summary").click();
 
   await page.getByLabel("Pre-encoded card URL").fill("/c/malformed/path");
