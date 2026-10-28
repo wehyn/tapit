@@ -30,7 +30,21 @@ export type DemoCustomer = {
   passwordHash?: string;
   claimedCardIds?: string[];
   cardOwnerAccessOverride?: boolean;
+  isDemo?: boolean;
+  demoResetInProgress?: boolean;
+  demoOnboardingPending?: boolean;
 };
+
+export type DemoSetupInvitation = {
+  id: string;
+  customerId: string;
+  tokenHash: string;
+  expiresAt: number;
+  invalidatedAt?: number;
+  usedAt?: number;
+};
+
+export type DemoSetupState = "waiting" | "draft" | "active";
 
 export type AnalyticsBucket = {
   profileId?: string;
@@ -156,6 +170,8 @@ export type DemoCardOrderReferralCodeUsage = {
 
 export type DemoState = {
   customers: DemoCustomer[];
+  setupInvitations: DemoSetupInvitation[];
+  nextSetupTokenId: number;
   profiles: DemoProfile[];
   profile: DemoProfile;
   themes: Record<string, ProfileTheme>;
@@ -295,6 +311,8 @@ export function createDefaultDemoState(): DemoState {
         passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
       },
     ],
+    setupInvitations: [],
+    nextSetupTokenId: 1,
     profiles: [primaryProfile, claimProfile, adminProfile],
     profile: primaryProfile,
     themes: { [primaryProfile.id]: primaryProfile.theme, [adminProfile.id]: adminProfile.theme },

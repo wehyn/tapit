@@ -35,7 +35,7 @@ test.describe("live Google OAuth journeys", () => {
     try {
       await page.goto("/login");
       await signInWithGoogle(page, /\/admin\/customers$/);
-      await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
     } finally {
       await context.close();
     }
@@ -246,7 +246,8 @@ test.describe("live Google OAuth journeys", () => {
     const page = await context.newPage();
     try {
       await page.goto("/admin/customers");
-      await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+      await page.getByText("Invite an account by email").click();
       await expect(
         page.getByRole("button", { name: "Create and invite", exact: true }),
       ).toBeVisible();
@@ -254,10 +255,14 @@ test.describe("live Google OAuth journeys", () => {
 
       const customer = accountRow(page, liveEnv.customerEmail);
       page.on("dialog", (dialog) => dialog.accept());
-      await customer.getByRole("button", { name: "Promote to administrator" }).click();
-      await expect(customer).toContainText("admin · active · active");
+      await customer.getByText("More actions").click();
+      await customer.getByRole("button", { name: "Promote to Demo" }).click();
+      await expect(customer).toContainText("Demo");
+      await customer.getByRole("button", { name: "Promote to Administrator" }).click();
+      await expect(customer).toContainText("admin");
+      await expect(customer).toContainText("Account");
       await customer.getByRole("button", { name: "Demote to customer" }).click();
-      await expect(customer).toContainText("customer · active · active");
+      await expect(customer).toContainText("customer");
 
       await page.goto("/admin/profiles");
       await expect(page.getByRole("heading", { name: "Profile management" })).toBeVisible();
@@ -281,6 +286,7 @@ test.describe("live Google OAuth journeys", () => {
       const invited = accountRow(page, liveEnv.invitedEmail);
       await expect(invited.getByText("Invitation: accepted")).toBeVisible();
       page.on("dialog", (dialog) => dialog.accept());
+      await invited.getByText("More actions").click();
       await invited.getByRole("button", { name: "Revoke invitation" }).click();
 
       const revokedContext = await browser.newContext({ baseURL: liveEnv.baseURL });

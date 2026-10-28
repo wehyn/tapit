@@ -15,7 +15,9 @@ async function withTargetAccountEmail(ctx: QueryCtx, row: Doc<"auditLogs">) {
   const targetAccount = row.accountId ? await ctx.db.get(row.accountId) : null;
   return {
     ...row,
-    ...(targetAccount !== null && targetAccount.scope === row.scope
+    ...(targetAccount !== null &&
+    targetAccount.scope === row.scope &&
+    targetAccount.email !== undefined
       ? { targetAccountEmail: targetAccount.email }
       : {}),
   };

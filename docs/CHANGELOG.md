@@ -5,9 +5,17 @@
 - Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.
 - Admins can set or clear a manual Manila expiry date for each offer. `LAUNCH` pricing now belongs to its offer, while ordering remains available at ₱799 after it expires; Settings no longer has the global launch cutoff.
 
+## 2026-10-28 — Resettable Demo accounts
+
+- Administrators promote customers to Demo before promoting them to Administrator. Demo customers can reset their Tapit data and linked cards, then onboard again with the same sign-in identity; ordinary customer deletion is unchanged.
+
 ## 2026-10-28 — Admin owner-access override
 
 - Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.
+
+## 2026-10-28 — Restore first-time customer navigation tour
+
+- Customers who have not completed the tour in this browser get a short guide to Profile, Links, Customize, Card, Analytics when available, and Account. It adapts to desktop and mobile navigation and waits for the first-visit publish dialog to close.
 
 ## 2026-10-28 — Card-order offers, usage limits, and admin copy
 

@@ -83,6 +83,7 @@ test("administrator sidebar groups operations and governance and offers the cust
   page,
 }) => {
   await signInAsAdmin(page);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
 
   const sidebar = page.getByTestId("workspace-sidebar");
   await expect
@@ -159,6 +160,13 @@ test("administrator sidebar groups operations and governance and offers the cust
   await page.goto("/admin/customers");
   await expect(page.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await page
+    .getByTestId("workspace-sidebar")
+    .getByRole("group", { name: "Workspace", exact: true })
+    .getByRole("link", { name: "Customer", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
 });
 
 test("administrator records and governance pages remain usable at phone and desktop widths", async ({
@@ -243,14 +251,10 @@ test("administrator records and governance details stay readable on phones", asy
   await page.goto("/admin/customers");
   const mara = page.locator("article").filter({ hasText: "mara@example.test" }).first();
   await expect(mara).toBeVisible();
-  await expect(mara.getByRole("button")).toContainText("Mara Velasquez");
-  await expect(mara.getByText("active", { exact: true })).toBeVisible();
+  await expect(mara).toContainText("Mara Velasquez");
+  await expect(mara).toContainText("active");
   await expect(mara.getByText("published", { exact: true })).toBeVisible();
   await expect(mara.getByRole("link", { name: "View profile" })).toBeVisible();
-  const maraSelector = mara.getByRole("button");
-  await maraSelector.click();
-  await expect(maraSelector).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByRole("heading", { name: "Selected customer" })).toBeVisible();
 
   await page.goto("/admin/profiles");
   const maraProfile = page.getByRole("button", { name: "Select Mara Velasquez profile" });
@@ -302,8 +306,8 @@ test("administrator operations keep text statuses and primary controls readable 
 
     await page.goto("/admin/customers");
     const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
-    await expect(customer.getByText("active", { exact: true })).toBeVisible();
-    await expect(customer.getByText("published", { exact: true })).toBeVisible();
+    await expect(customer).toContainText("active");
+    await expect(customer).toContainText("published");
     await expect(page.getByLabel("Search customers")).toBeVisible();
 
     await page.goto("/admin/profiles");
@@ -369,6 +373,7 @@ test("administrator can inspect only the selected profile analytics and traffic 
   page,
 }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("analytics-seed@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(
@@ -532,7 +537,7 @@ test("administrator switches between the customer and admin workspaces", async (
     .getByRole("link", { name: "Admin", exact: true })
     .click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
-  await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 });
 
 test("administrator publishes only after editing their own draft", async ({ page }) => {
@@ -577,6 +582,7 @@ test("administrator can create and inspect a customer invitation", async ({ page
   await signInAsAdmin(page);
   await expect(page.getByRole("link", { name: "Customers" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("new-person@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(
@@ -591,6 +597,7 @@ test("administrator can create and inspect a customer invitation", async ({ page
 
 test("a new customer setup flow receives its own empty profile", async ({ page }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("separate-owner@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   const setupLink = page.getByRole("link", { name: /\/setup\/demo-/ });
@@ -605,11 +612,67 @@ test("a new customer setup flow receives its own empty profile", async ({ page }
   await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
 });
 
+test("administrator promotes a customer through Demo before Administrator", async ({
+  page,
+}, testInfo) => {
+  await signInAsAdmin(page);
+  await page.getByLabel("Search customers").fill("mara@example.test");
+  const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+  await page.once("dialog", (dialog) => dialog.accept());
+  await customer.getByRole("button", { name: "Promote to Demo" }).click();
+  await expect(customer.getByText("Demo", { exact: true })).toBeVisible();
+  await expect(customer.getByRole("button", { name: "Promote to Administrator" })).toBeVisible();
+  await expect(customer.getByRole("button", { name: "Promote to Demo" })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("customer-promoted-to-demo.png") });
+
+  await page.once("dialog", (dialog) => dialog.accept());
+  await customer.getByRole("button", { name: "Promote to Administrator" }).click();
+  await expect(page.getByText("Demo account promoted to administrator.")).toBeVisible();
+  await expect(customer.getByText("Demo", { exact: true })).toHaveCount(0);
+  await expect(customer.getByRole("button", { name: "Promote to Administrator" })).toHaveCount(0);
+  const promoted = await page.evaluate(() => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const account = state.customers.find(
+      (candidate: { email: string }) => candidate.email === "mara@example.test",
+    );
+    return {
+      id: account?.id,
+      role: account?.role,
+      isDemo: account?.isDemo,
+      profileId: account?.profileId,
+      profileCount: state.profiles.filter(
+        (profile: { id: string }) => profile.id === account?.profileId,
+      ).length,
+      linkedCards: state.cards.filter(
+        (card: { profileId?: string }) => card.profileId === account?.profileId,
+      ).length,
+    };
+  });
+  expect(promoted).toMatchObject({
+    id: "customer-mara",
+    role: "admin",
+    profileId: "profile-mara",
+    profileCount: 1,
+  });
+  expect(promoted.isDemo).toBeUndefined();
+  expect(promoted.linkedCards).toBeGreaterThan(0);
+
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByLabel("Email").fill("mara@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+  await page.goto("/app/account");
+  await expect(page.getByRole("button", { name: "Reset account" })).toHaveCount(0);
+});
+
 test("administrator grants and revokes card-owner access for a cardless customer", async ({
   page,
 }) => {
   const email = "override-owner@example.test";
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill(email);
   await page.getByRole("button", { name: "Create and invite" }).click();
   const setupLink = page.getByRole("link", { name: /\/setup\/demo-/ });
@@ -634,8 +697,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   await page.getByLabel("Search customers").fill(email);
   const row = page.locator("article").filter({ hasText: email }).first();
   await expect(row).toBeVisible();
-  await row.getByRole("button").click();
-  await page.getByRole("button", { name: "Grant owner access" }).click();
+  await row.getByRole("button", { name: "Grant owner access" }).click();
   const grantDialog = page.getByRole("dialog", { name: "Grant owner access?" });
   await expect(grantDialog).toBeVisible();
   await expect(grantDialog).toContainText(email);
@@ -647,7 +709,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   });
   await grantDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(grantDialog).toBeHidden();
-  await page.getByRole("button", { name: "Grant owner access" }).click();
+  await row.getByRole("button", { name: "Grant owner access" }).click();
   await expect(grantDialog).toBeVisible();
   await grantDialog.getByRole("button", { name: "Grant access" }).click();
   await expect(page.getByText(`Owner access granted for ${email}.`)).toBeVisible();
@@ -673,8 +735,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   await signInAsAdmin(page);
   await page.getByLabel("Search customers").fill(email);
   const selectedRow = page.locator("article").filter({ hasText: email }).first();
-  await selectedRow.getByRole("button").click();
-  await page.getByRole("button", { name: "Revoke owner access" }).click();
+  await selectedRow.getByRole("button", { name: "Revoke owner access" }).click();
   const revokeDialog = page.getByRole("dialog", { name: "Revoke owner access?" });
   await expect(revokeDialog).toBeVisible();
   await expect(revokeDialog).toContainText("successfully claimed card remains");
@@ -942,13 +1003,14 @@ test("administrator approves a customer deletion request", async ({ page }) => {
       "Deletion approved. The account is closed and its profile and cards remain unavailable.",
     ),
   ).toBeVisible();
-  await expect(customer.getByText("deleted", { exact: true })).toBeVisible();
+  await expect(customer).toContainText("deleted");
   await page.goto("/admin/audit-log");
   await expect(page.getByText("Account deletion approved")).toBeVisible();
 });
 
 test("administrator can expand audit entries to read account changes", async ({ page }) => {
   await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("audit-test@example.test");
   await page.getByRole("button", { name: "Create and invite" }).click();
   await expect(

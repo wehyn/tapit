@@ -138,6 +138,18 @@ export function OnboardingForm() {
     );
   }
 
+  if (access.demoResetInProgress) {
+    return (
+      <main className="grid min-h-dvh place-items-center bg-tapit-paper px-4">
+        <div className="w-full max-w-md">
+          <Notice>
+            Resetting your Demo account. Onboarding will be available when cleanup finishes.
+          </Notice>
+        </div>
+      </main>
+    );
+  }
+
   if (access.accountStatus !== "pending" && slug === undefined) {
     return (
       <main className="grid min-h-dvh place-items-center bg-tapit-paper px-4">

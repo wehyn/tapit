@@ -11,6 +11,40 @@ import {
   signInAsCustomer,
 } from "./support/demo-harness";
 
+const navigationTourSteps = [
+  { label: "Profile", description: "Edit your profile details and what people see." },
+  { label: "Links", description: "Manage the links shown on your profile." },
+  { label: "Customize", description: "Choose the look and layout of your profile." },
+  { label: "Card", description: "Design a card to share your profile or find order details." },
+  { label: "Analytics", description: "See how people view your profile and use its links." },
+  { label: "Account", description: "Manage your account and profile settings." },
+];
+
+async function startFirstVisitNavigationTour(page: Page, width: number) {
+  await page.setViewportSize({ width, height: 844 });
+  await resetDemoHarness(page);
+  await signInAsCustomer(page, { showNavigationTour: true });
+}
+
+async function expectTourSpotlight(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  await expect(target).toHaveAttribute("aria-describedby", /.+/);
+  const targetBounds = await target.boundingBox();
+  const spotlightBounds = await page.getByTestId("navigation-tour-spotlight").boundingBox();
+  expect(targetBounds).not.toBeNull();
+  expect(spotlightBounds).not.toBeNull();
+  if (targetBounds && spotlightBounds) {
+    expect(spotlightBounds.x).toBeLessThan(targetBounds.x);
+    expect(spotlightBounds.y).toBeLessThan(targetBounds.y);
+    expect(spotlightBounds.x + spotlightBounds.width).toBeGreaterThan(
+      targetBounds.x + targetBounds.width,
+    );
+    expect(spotlightBounds.y + spotlightBounds.height).toBeGreaterThan(
+      targetBounds.y + targetBounds.height,
+    );
+  }
+}
+
 async function readSavedDemoBackground(page: Page): Promise<Record<string, unknown> | undefined> {
   return page.evaluate(() => {
     const raw = window.localStorage.getItem("tapit:demo-state:v1");
@@ -205,6 +239,103 @@ test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer"
   await expect(page).toHaveURL(/\/app\/card$/);
   await expect(sheet).toHaveCount(0);
 });
+
+test("first-time customer navigation tour covers desktop destinations", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 1440);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const sidebar = page.getByTestId("workspace-sidebar");
+  const navigation = sidebar.getByRole("navigation", { name: "Customer navigation" });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const target =
+      step.label === "Account"
+        ? sidebar.getByRole("group", { name: "Account options" }).getByRole("link", {
+            name: "Account",
+            exact: true,
+          })
+        : navigation.getByRole("link", { name: step.label, exact: true });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(
+    sidebar.getByRole("button", { name: "Account menu for mara@example.test" }),
+  ).toBeFocused();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.localStorage.getItem("tapit:customer-navigation-tour:profile-mara"),
+      ),
+    )
+    .toBe("done");
+  await page.reload();
+  await expect(page.locator('[data-navigation-tour-ready="true"]')).toBeAttached();
+  await expect(coach).toHaveCount(0);
+});
+
+test("mobile first-time tour follows the tab bar and More sheet", async ({ page }) => {
+  await startFirstVisitNavigationTour(page, 390);
+
+  const coach = page.getByTestId("navigation-tour-coach-mark");
+  const tabBar = page.getByRole("navigation", { name: "Mobile navigation" });
+  const more = tabBar.getByRole("button", { name: "More", exact: true });
+
+  await expect(coach).toBeVisible();
+  for (const [index, step] of navigationTourSteps.entries()) {
+    const isMoreStep = ["Customize", "Card", "Account"].includes(step.label);
+    const target = isMoreStep
+      ? page.getByRole("dialog", { name: "More" }).getByRole("link", {
+          name: step.label,
+          exact: true,
+        })
+      : tabBar.getByRole("link", {
+          name: step.label === "Analytics" ? "Stats" : step.label,
+          exact: true,
+        });
+    await expect(coach.getByRole("heading", { name: step.label, exact: true })).toBeVisible();
+    await expect(coach).toContainText(step.description);
+    await expect(coach).toContainText(`Step ${index + 1} of ${navigationTourSteps.length}`);
+    await expectTourSpotlight(page, target);
+    await expect(target).toBeInViewport();
+    await expect(more).toHaveAttribute("aria-expanded", isMoreStep ? "true" : "false");
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+  }
+
+  await expect(coach).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "More" })).toHaveCount(0);
+  await expect(more).toHaveAttribute("aria-expanded", "false");
+  await expect(more).toBeFocused();
+});
+
+for (const closeMethod of ["Escape", "Close"] as const) {
+  test(`closing More with ${closeMethod} ends the mobile tour`, async ({ page }) => {
+    await startFirstVisitNavigationTour(page, 390);
+
+    const coach = page.getByTestId("navigation-tour-coach-mark");
+    const more = page.getByRole("navigation", { name: "Mobile navigation" }).getByRole("button", {
+      name: "More",
+      exact: true,
+    });
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    await coach.getByRole("button", { name: "Next", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "More" });
+    await expect(dialog).toBeVisible();
+
+    if (closeMethod === "Escape") await page.keyboard.press("Escape");
+    else await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+    await expect(dialog).toHaveCount(0);
+    await expect(coach).toHaveCount(0);
+    await expect(more).toHaveAttribute("aria-expanded", "false");
+    await expect(more).toBeFocused();
+  });
+}
 
 test("mobile More opens as a dialog, and Escape or Close returns focus to More", async ({
   page,
@@ -3454,6 +3585,147 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   await expect(
     page.getByRole("heading", { name: "This profile is currently unavailable" }),
   ).toBeVisible();
+});
+
+test("Demo customer resets linked data and onboards again with the same identity", async ({
+  page,
+}, testInfo) => {
+  const email = "resettable-customer@example.test";
+  const password = "resettable-password";
+  await resetDemoHarness(page);
+  await page.goto("/login");
+  await page.getByRole("button", { name: "New to Tapit? Create your profile" }).click();
+  await page.getByLabel("Display name").fill("Resettable Customer");
+  await page.getByLabel("Profile link").fill("resettable-customer");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password").fill(password);
+  await page.getByRole("button", { name: "Create your profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  const publishGuidance = page.getByRole("dialog", { name: "Before you publish" });
+  if (await publishGuidance.isVisible()) {
+    await publishGuidance.getByRole("button", { name: "Maybe later" }).click();
+  }
+  await page.getByLabel("Bio or role").fill("This profile data should be removed.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+
+  const originalAccount = await page.evaluate((customerEmail) => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const account = state.customers.find(
+      (candidate: { email: string }) => candidate.email === customerEmail,
+    );
+    const profile = state.profiles.find(
+      (candidate: { id: string }) => candidate.id === account.profileId,
+    );
+    state.cards.push({
+      id: "card-resettable-linked",
+      token: "resettable-linked-card",
+      cardUrl: "/c/resettable-linked-card",
+      status: "active",
+      profileId: profile.id,
+      claimedAt: Date.now(),
+    });
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+    return { id: account.id, profileId: profile.id };
+  }, email);
+
+  await page.getByRole("button", { name: /^Account menu for / }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+  await page.getByLabel("Search customers").fill(email);
+  const customer = page.locator("article").filter({ hasText: email }).first();
+  await page.once("dialog", (dialog) => dialog.accept());
+  await customer.getByRole("button", { name: "Promote to Demo" }).click();
+  await expect(customer.getByText("Demo", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/app/account");
+  await page.getByRole("button", { name: "Reset account" }).click();
+  const resetDialog = page.getByRole("dialog", { name: "Reset Demo account?" });
+  await expect(resetDialog).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("demo-reset-confirmation.png") });
+  await resetDialog.getByRole("button", { name: "Reset account" }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+  await page.screenshot({ path: testInfo.outputPath("demo-reset-onboarding.png") });
+
+  const cleared = await page.evaluate(
+    ({ customerEmail, oldProfileId }) => {
+      const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+      const account = state.customers.find(
+        (candidate: { email: string }) => candidate.email === customerEmail,
+      );
+      return {
+        id: account?.id,
+        email: account?.email,
+        passwordHash: account?.passwordHash,
+        isDemo: account?.isDemo,
+        pending: account?.demoOnboardingPending,
+        oldProfileCount: state.profiles.filter(
+          (profile: { id: string }) => profile.id === oldProfileId,
+        ).length,
+        linkedCards: state.cards.filter(
+          (card: { profileId?: string; id?: string }) =>
+            card.profileId === oldProfileId || card.id === "card-resettable-linked",
+        ).length,
+        bio: state.profiles.find((profile: { id: string }) => profile.id === oldProfileId)?.draft
+          .bio,
+      };
+    },
+    { customerEmail: email, oldProfileId: originalAccount.profileId },
+  );
+  expect(cleared).toMatchObject({
+    id: originalAccount.id,
+    email,
+    isDemo: true,
+    pending: true,
+    oldProfileCount: 0,
+    linkedCards: 0,
+  });
+  expect(cleared.passwordHash).toBeTruthy();
+  expect(cleared.bio).toBeUndefined();
+
+  await page.getByLabel("Display name").fill("Resettable Customer Again");
+  await page.getByLabel("Profile address").fill("resettable-customer-again");
+  await page.getByRole("button", { name: "Complete onboarding" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Resettable Customer Again");
+  await expect(page.getByLabel("Bio or role")).toHaveValue("");
+  const republishGuidance = page.getByRole("dialog", { name: "Before you publish" });
+  if (await republishGuidance.isVisible()) {
+    await republishGuidance.getByRole("button", { name: "Maybe later" }).click();
+  }
+  const completed = await page.evaluate((customerEmail) => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const account = state.customers.find(
+      (candidate: { email: string }) => candidate.email === customerEmail,
+    );
+    return {
+      id: account?.id,
+      email: account?.email,
+      isDemo: account?.isDemo,
+      profileId: account?.profileId,
+    };
+  }, email);
+  expect(completed).toMatchObject({ id: originalAccount.id, email, isDemo: true });
+  expect(completed.profileId).not.toBe(originalAccount.profileId);
+
+  await page.getByRole("button", { name: /^Account menu for / }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Resettable Customer Again");
 });
 
 test("a stale sign-in tab routes an account deletion request to recovery", async ({

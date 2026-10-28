@@ -87,6 +87,9 @@ test("customer workspace has no automated accessibility violations", async ({ pa
     page.getByRole("main").getByRole("heading", { name: "Your profile", exact: true }),
   ).toBeVisible();
   await expectNoA11yViolations(page);
+  const navigationTour = page.getByTestId("navigation-tour-coach-mark");
+  await navigationTour.getByRole("button", { name: "Skip tour", exact: true }).click();
+  await expect(navigationTour).toHaveCount(0);
 
   await page.goto("/app/links");
   await expect(page.getByRole("button", { name: "Add link" })).toBeVisible();
@@ -151,13 +154,14 @@ test("administrator workspace has no automated accessibility violations", async 
   await page.getByLabel("Password").fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
-  await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
   await expectNoA11yViolations(page);
 
   for (const width of [1280, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/admin/customers");
-    await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+    await expect(page.getByLabel("Search customers")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       width,
     );
@@ -189,5 +193,5 @@ test("customer and administrator workspace index routes keep their redirect targ
 
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/customers$/);
-  await expect(page.getByRole("heading", { name: "Customer accounts" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
 });

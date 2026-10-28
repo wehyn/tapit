@@ -129,7 +129,7 @@ export const complete = mutation({
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: userId,
-      actorLabel: customer.email,
+      actorLabel: customer.email ?? "Customer",
       action: "card.claimed",
       cardId: card._id,
       profileId: profile._id,
