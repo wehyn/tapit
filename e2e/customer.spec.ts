@@ -3456,6 +3456,141 @@ test("customer analytics and account controls stay scoped to the customer", asyn
   ).toBeVisible();
 });
 
+test("Demo customer resets linked data and onboards again with the same identity", async ({
+  page,
+}) => {
+  const email = "resettable-customer@example.test";
+  const password = "resettable-password";
+  await resetDemoHarness(page);
+  await page.goto("/login");
+  await page.getByRole("button", { name: "New to Tapit? Create your profile" }).click();
+  await page.getByLabel("Display name").fill("Resettable Customer");
+  await page.getByLabel("Profile link").fill("resettable-customer");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByLabel("Confirm password").fill(password);
+  await page.getByRole("button", { name: "Create your profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  const publishGuidance = page.getByRole("dialog", { name: "Before you publish" });
+  if (await publishGuidance.isVisible()) {
+    await publishGuidance.getByRole("button", { name: "Maybe later" }).click();
+  }
+  await page.getByLabel("Bio or role").fill("This profile data should be removed.");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByText("Draft saved")).toBeVisible();
+
+  const originalAccount = await page.evaluate((customerEmail) => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const account = state.customers.find(
+      (candidate: { email: string }) => candidate.email === customerEmail,
+    );
+    const profile = state.profiles.find(
+      (candidate: { id: string }) => candidate.id === account.profileId,
+    );
+    state.cards.push({
+      id: "card-resettable-linked",
+      token: "resettable-linked-card",
+      cardUrl: "/c/resettable-linked-card",
+      status: "active",
+      profileId: profile.id,
+      claimedAt: Date.now(),
+    });
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+    return { id: account.id, profileId: profile.id };
+  }, email);
+
+  await page.getByRole("button", { name: /^Account menu for / }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/admin\/customers$/);
+  await page.getByLabel("Search customers").fill(email);
+  const customer = page.locator("article").filter({ hasText: email }).first();
+  await page.once("dialog", (dialog) => dialog.accept());
+  await customer.getByRole("button", { name: "Promote to Demo" }).click();
+  await expect(customer.getByText("Demo", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/app/account");
+  await page.getByRole("button", { name: "Reset account" }).click();
+  const resetDialog = page.getByRole("dialog", { name: "Reset Demo account?" });
+  await expect(resetDialog).toBeVisible();
+  await resetDialog.getByRole("button", { name: "Reset account" }).click();
+  await expect(page).toHaveURL(/\/onboarding$/);
+
+  const cleared = await page.evaluate(
+    ({ customerEmail, oldProfileId }) => {
+      const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+      const account = state.customers.find(
+        (candidate: { email: string }) => candidate.email === customerEmail,
+      );
+      return {
+        id: account?.id,
+        email: account?.email,
+        passwordHash: account?.passwordHash,
+        isDemo: account?.isDemo,
+        pending: account?.demoOnboardingPending,
+        oldProfileCount: state.profiles.filter(
+          (profile: { id: string }) => profile.id === oldProfileId,
+        ).length,
+        linkedCards: state.cards.filter(
+          (card: { profileId?: string; id?: string }) =>
+            card.profileId === oldProfileId || card.id === "card-resettable-linked",
+        ).length,
+        bio: state.profiles.find((profile: { id: string }) => profile.id === oldProfileId)?.draft
+          .bio,
+      };
+    },
+    { customerEmail: email, oldProfileId: originalAccount.profileId },
+  );
+  expect(cleared).toMatchObject({
+    id: originalAccount.id,
+    email,
+    isDemo: true,
+    pending: true,
+    oldProfileCount: 0,
+    linkedCards: 0,
+  });
+  expect(cleared.passwordHash).toBeTruthy();
+  expect(cleared.bio).toBeUndefined();
+
+  await page.getByLabel("Display name").fill("Resettable Customer Again");
+  await page.getByLabel("Profile address").fill("resettable-customer-again");
+  await page.getByRole("button", { name: "Complete onboarding" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Resettable Customer Again");
+  await expect(page.getByLabel("Bio or role")).toHaveValue("");
+  const completed = await page.evaluate((customerEmail) => {
+    const state = JSON.parse(window.localStorage.getItem("tapit:demo-state:v1") ?? "{}");
+    const account = state.customers.find(
+      (candidate: { email: string }) => candidate.email === customerEmail,
+    );
+    return {
+      id: account?.id,
+      email: account?.email,
+      isDemo: account?.isDemo,
+      profileId: account?.profileId,
+    };
+  }, email);
+  expect(completed).toMatchObject({ id: originalAccount.id, email, isDemo: true });
+  expect(completed.profileId).not.toBe(originalAccount.profileId);
+
+  await page.getByRole("button", { name: /^Account menu for / }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password", { exact: true }).fill(password);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByLabel("Name")).toHaveValue("Resettable Customer Again");
+});
+
 test("a stale sign-in tab routes an account deletion request to recovery", async ({
   page,
   context,

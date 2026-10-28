@@ -12,6 +12,8 @@ Tapit addresses two connected problems: professionals need to share multiple con
 
 The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, owner-access exceptions, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
 
+Administrators can designate an active customer as Demo before promoting that account to Administrator. Demo remains a customer classification with ordinary customer permissions. A Demo customer can reset Tapit-owned account data and linked cards, then sign in with the same identity and complete onboarding again; ordinary customer deletion remains a separate flow.
+
 ## Goals
 
 - Make in-person sharing of a professional identity and contact links fast through NFC and QR.
@@ -145,6 +147,20 @@ An administrator can view and edit customer profile content, publish or unpublis
 5. Tapit retains a minimal administrative audit record.
 6. Personal and profile data are permanently deleted after a retention period that is TBD.
 
+### 11. Administrator designates or promotes a Demo customer
+
+1. An administrator promotes an active customer to Demo in `/admin/customers`.
+2. The account remains a customer with its existing profile and sign-in identity.
+3. The administrator may later promote that Demo customer to Administrator. This replaces the Demo classification and preserves the account data and sign-in identity.
+4. A customer cannot be promoted directly to Administrator, and administrators cannot be marked Demo.
+
+### 12. Demo customer resets their account
+
+1. A Demo customer chooses **Reset account** in Account and confirms removal of their Tapit data and linked cards.
+2. Tapit removes the account's profile/onboarding data, links, customization, media, analytics, card orders and uploads, claim state, and linked or claimed cards while preserving shared or unrelated records.
+3. Tapit retains the account's sign-in identity and Demo classification, then routes the account to customer onboarding.
+4. The customer completes onboarding under the same identity. Ordinary customers keep the existing **Delete Account** request flow.
+
 ## Functional requirements
 
 - **FR-001:** The system shall support one customer account with one customer profile.
@@ -209,6 +225,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-060:** Before applying a slug change, the administrator control shall warn that the old direct URL will stop resolving and may later be assigned to another profile.
 - **FR-061:** After an administrator changes a slug, the former slug shall be available for reuse. If assigned to another profile, the URL shall resolve directly to that profile and shall not redirect to the original profile.
 - **FR-062:** Administrators shall be able to grant or revoke an audited owner-feature access override for an active customer. This exception shall not create or modify a card claim; claiming a card shall continue to require its token and one-time code.
+- **FR-063:** Administrators shall promote an active customer to Demo before promoting that account to Administrator. Demo remains a customer classification; administrator promotion clears it and preserves the account data and sign-in identity.
+- **FR-064:** A signed-in Demo customer shall be able to confirm an account reset that removes account-owned Tapit data and linked or claimed cards while preserving the sign-in identity, Demo classification, shared files, and unrelated account data, then complete customer onboarding again under that identity. Ordinary customer deletion behavior shall remain unchanged.
 
 ## User experience
 
@@ -464,13 +482,16 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 | Suspend another profile | No | Yes |
 | View audit log | No | Yes |
 | Request account deletion | Yes | Yes for operational handling |
+| Reset Demo account | Demo customers only | No |
 | Execute or approve deletion | No | Yes |
-| Manage administrator roles | No | No granular roles in MVP |
+| Promote customer to Demo / Demo to Administrator | No | Yes, in sequence |
 
 ### Authentication lifecycle
 
 - Customer onboarding has two supported paths: customer self-service signup from the public login page, and administrator-created or administrator-invited customer setup through the existing one-time setup link.
 - The first administrator remains operator-provisioned. The public signup path never exposes an administrator role or creates an administrator account.
+- Customer promotion to Administrator requires the account to be designated Demo first. Demo does not grant additional customer permissions; administrator promotion clears Demo while preserving customer data and sign-in identity.
+- Demo customers may reset their account from Account. Reset removes their account-owned profile, media, links, customization, analytics, orders/uploads, claims, and linked or claimed cards; it preserves their sign-in identity and Demo classification and returns them to onboarding. Shared files still referenced elsewhere and unrelated account data remain intact.
 - Self-service customers authenticate with Password sign-up, then receive one active customer record and one private draft profile through an authenticated server-side provisioning mutation.
 - Invited customers use the setup link to set their password and then sign in normally.
 - Customers do not need an account to visit a public profile.
@@ -607,6 +628,10 @@ The MVP is complete in scope when it provides:
 - **AC-045:** Given an administrator selects a profile in the Profiles registry, when its popup opens, then **Edit profile** is active, and selecting **Details & slug** exposes the overview, draft and published details, timestamps, and slug editor without changing the profile owner or card assignments.
 - **AC-046:** Given an administrator changes a profile from an old slug to a new one, when the old slug is later assigned to another profile, then the old URL resolves to the newly assigned profile without redirecting to the original profile.
 - **AC-047:** Given an administrator uses the profile popup, when they navigate between **Edit profile** and **Details & slug**, then both tabs work with keyboard input and fit the supported viewport without horizontal page scrolling.
+- **AC-048:** Given an administrator promotes an ordinary customer, when the customer is first promoted to Demo, then the account remains a customer with its existing data and identity; only a Demo customer can then be promoted to Administrator, which clears Demo and preserves the existing data and identity.
+- **AC-049:** Given a signed-in Demo customer confirms **Reset account**, when reset completes, then Tapit removes the account-owned data, claim state, and linked or claimed cards, preserves the sign-in identity and Demo classification, and returns the customer to onboarding under the same identity.
+- **AC-050:** Given an ordinary customer requests deletion, when they use Account, then the existing deletion request and administrator approval flow remains available; Demo reset is unavailable to them.
+- **AC-051:** Given a Demo reset removes account data, when shared files or unrelated records remain referenced, then those records and files remain available to their other owners.
 
 ## Open questions and decisions
 
