@@ -519,7 +519,7 @@ function DemoCustomersManager() {
                             }
                           }}
                           type="button"
-                          variant="quiet"
+                          variant="tonal"
                         >
                           Promote to Demo
                         </Button>
@@ -549,7 +549,7 @@ function DemoCustomersManager() {
                             }
                           }}
                           type="button"
-                          variant="quiet"
+                          variant="tonal"
                         >
                           Promote to Administrator
                         </Button>
