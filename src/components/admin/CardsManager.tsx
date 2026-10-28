@@ -226,15 +226,7 @@ function CardRow({
   );
 }
 
-function CardDetail({
-  children,
-  status,
-  token,
-}: {
-  children: ReactNode;
-  status: string;
-  token: string;
-}) {
+function CopyCardLinkButton({ ariaLabel, token }: { ariaLabel?: string; token: string }) {
   const [copyMessage, setCopyMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -242,7 +234,7 @@ function CardDetail({
   } | null>(null);
 
   async function copyCardLink() {
-    const url = cardUrlFromToken(token);
+    const url = `${cardUrlFromToken(token)}?claim=1`;
     try {
       await navigator.clipboard.writeText(url);
       setCopyMessage({ tone: "success", text: "Card link copied." });
@@ -256,23 +248,42 @@ function CardDetail({
   }
 
   return (
+    <div className="flex flex-col gap-2">
+      <Button
+        aria-label={ariaLabel}
+        onClick={() => void copyCardLink()}
+        type="button"
+        variant="secondary"
+      >
+        <Icon name="copy" size={16} />
+        Copy link
+      </Button>
+      {copyMessage ? (
+        <Notice tone={copyMessage.tone}>
+          {copyMessage.text}
+          {copyMessage.url ? <span className="break-all">{copyMessage.url}</span> : null}
+        </Notice>
+      ) : null}
+    </div>
+  );
+}
+
+function CardDetail({
+  children,
+  status,
+  token,
+}: {
+  children: ReactNode;
+  status: string;
+  token: string;
+}) {
+  return (
     <Card title={`Card ${token}`}>
       <div className="flex">
         <StatusChip status={status} />
       </div>
       <div className="flex flex-col gap-2">{children}</div>
-      <div className="flex flex-col gap-2">
-        <Button onClick={() => void copyCardLink()} type="button" variant="secondary">
-          <Icon name="copy" size={16} />
-          Copy link
-        </Button>
-        {copyMessage ? (
-          <Notice tone={copyMessage.tone}>
-            {copyMessage.text}
-            {copyMessage.url ? <span className="break-all">{copyMessage.url}</span> : null}
-          </Notice>
-        ) : null}
-      </div>
+      <CopyCardLinkButton token={token} />
     </Card>
   );
 }
@@ -627,6 +638,10 @@ function DemoCardsManager() {
                     token={card.token}
                   >
                     <div className="flex flex-wrap gap-2">
+                      <CopyCardLinkButton
+                        ariaLabel={`Copy claim link for ${card.token}`}
+                        token={card.token}
+                      />
                       {card.status === "registered" ? (
                         <Button
                           onClick={() =>
@@ -1104,6 +1119,10 @@ function LiveCardsManager() {
                     token={card.token}
                   >
                     <div className="flex flex-wrap gap-2">
+                      <CopyCardLinkButton
+                        ariaLabel={`Copy claim link for ${card.token}`}
+                        token={card.token}
+                      />
                       {card.status === "registered" ? (
                         <>
                           <select

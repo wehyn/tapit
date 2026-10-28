@@ -89,7 +89,7 @@ describe("live card URL mutations", () => {
 
       await waitFor(() =>
         expect(writeText).toHaveBeenCalledWith(
-          new URL(`/c/${token}`, window.location.origin).toString(),
+          new URL(`/c/${token}?claim=1`, window.location.origin).toString(),
         ),
       );
       expect(await screen.findByRole("status")).toHaveTextContent("Card link copied.");
@@ -100,7 +100,7 @@ describe("live card URL mutations", () => {
     "shows a manual-copy URL when clipboard access is %s",
     async (condition) => {
       const token = "existing-card";
-      const url = new URL(`/c/${token}`, window.location.origin).toString();
+      const url = new URL(`/c/${token}?claim=1`, window.location.origin).toString();
       const writeText = vi.fn().mockRejectedValue(new Error("blocked"));
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -190,7 +190,7 @@ describe("local-demo card links", () => {
 
     await waitFor(() =>
       expect(writeText).toHaveBeenCalledWith(
-        new URL("/c/mara-card-7f2q", window.location.origin).toString(),
+        new URL("/c/mara-card-7f2q?claim=1", window.location.origin).toString(),
       ),
     );
   });
