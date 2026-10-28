@@ -109,11 +109,15 @@ async function seed(t: ReturnType<typeof convexTest>) {
   });
 }
 
-async function claimCardOwnerFeatures(t: ReturnType<typeof convexTest>, profileId: Id<"profiles">) {
+async function claimCardOwnerFeatures(
+  t: ReturnType<typeof convexTest>,
+  profileId: Id<"profiles">,
+  token = "claimed-owner",
+) {
   await t.run((ctx) =>
     ctx.db.insert("cards", {
-      cardUrl: "https://cards.test/claimed-owner",
-      token: "claimed-owner",
+      cardUrl: `https://cards.test/${token}`,
+      token,
       profileId,
       status: "active",
       claimCodeClaimedAt: 1,
@@ -701,7 +705,7 @@ describe("profile media hardening", () => {
     const ids = await seed(t);
     const owner = t.withIdentity(identity(ids.ownerUserId));
     const item = await asset(t, ids.ownerProfileId, ids.ownerId);
-    await claimCardOwnerFeatures(t, ids.ownerProfileId);
+    await claimCardOwnerFeatures(t, ids.ownerProfileId, "owner");
     await owner.mutation(api.profiles.saveDraft, {
       profileId: ids.ownerProfileId,
       draft: content("owner", media(item.assetId)),

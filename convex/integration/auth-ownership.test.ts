@@ -963,6 +963,7 @@ describe("Convex authentication and ownership", () => {
         token: "owner-card",
         profileId: data.ownerProfileId,
         status: "active",
+        claimCodeClaimedAt: 1,
         createdAt: 1,
         updatedAt: 1,
         assignedAt: 1,

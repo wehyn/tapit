@@ -78,6 +78,20 @@ async function seed(t: ReturnType<typeof convexTest>) {
   });
 }
 
+async function claimCardOwnerFeatures(t: ReturnType<typeof convexTest>, profileId: Id<"profiles">) {
+  await t.run((ctx) =>
+    ctx.db.insert("cards", {
+      cardUrl: "https://cards.test/claimed-owner",
+      token: "claimed-owner",
+      profileId,
+      status: "active",
+      claimCodeClaimedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    }),
+  );
+}
+
 describe("content hardening", () => {
   it("reports only availability for valid, duplicate, reserved, and malformed slugs", async () => {
     const t = convexTest(schema, modules);
@@ -163,6 +177,7 @@ describe("content hardening", () => {
     const t = convexTest(schema, modules);
     const data = await seed(t);
     const owner = t.withIdentity(identity(data.ownerUserId));
+    await claimCardOwnerFeatures(t, data.profileId);
     const draft = {
       ...validDraft(),
       theme: "night" as const,
@@ -339,6 +354,7 @@ describe("content hardening", () => {
       await ctx.db.delete(data.profileId);
       return profileId;
     });
+    await claimCardOwnerFeatures(t, legacyProfileId);
 
     await expect(owner.query(api.profiles.mine, {})).resolves.toMatchObject({
       draft: { customization: legacyCustomization },

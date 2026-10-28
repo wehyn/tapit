@@ -339,7 +339,19 @@ describe("card claiming contracts", () => {
         slug: "cardless-published",
         status: "published",
         draft: { name: "Cardless", slug: "cardless-published", links: [] },
-        published: { name: "Cardless", slug: "cardless-published", links: [], publishedAt: 1 },
+        published: {
+          name: "Cardless",
+          slug: "cardless-published",
+          links: [
+            {
+              id: "site",
+              label: "Site",
+              destination: "https://example.com",
+              enabled: true,
+            },
+          ],
+          publishedAt: 1,
+        },
         createdAt: 1,
         updatedAt: 1,
         publishedAt: 1,

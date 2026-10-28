@@ -96,15 +96,6 @@ async function seed(t: ReturnType<typeof convexTest>) {
       publishedAt: 1,
     });
     await ctx.db.patch(ownerCustomerId, { profileId: ownerProfileId });
-    await ctx.db.insert("cards", {
-      cardUrl: "https://cards.example/owner",
-      token: "owner-card",
-      profileId: ownerProfileId,
-      status: "active",
-      claimCodeClaimedAt: 1,
-      createdAt: 1,
-      updatedAt: 1,
-    });
     await ctx.db.patch(otherCustomerId, { profileId: otherProfileId });
     return {
       adminUserId,
@@ -442,6 +433,12 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const owner = t.withIdentity(identity(data.ownerUserId));
     const other = t.withIdentity(identity(data.otherUserId));
     const admin = t.withIdentity(identity(data.adminUserId));
+    const cardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit.test/c/analytics-card",
+      token: "analytics-card",
+    });
+    await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeClaimedAt: 1 }));
 
     await t.run(async (ctx) => {
       await ctx.db.insert("analytics", {

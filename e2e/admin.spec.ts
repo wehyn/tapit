@@ -646,7 +646,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(newCard.getByText(/Mara Velasquez \(new-card-abc\)/)).toBeVisible();
   await expect(
     page.getByText(
-      "Card new-card-abc is claimable and assigned to Mara Velasquez. It must be activated with a claim code.",
+      "Card new-card-abc is active for Mara Velasquez. Generate and share a claim code so the owner can unlock card-owner features.",
     ),
   ).toBeVisible();
   await expect(newCard.getByRole("button", { name: "Generate claim code" })).toBeVisible();

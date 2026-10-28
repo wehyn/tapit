@@ -221,7 +221,7 @@ test("owner shortcut is hidden when signed out and links Mara to profile editor"
   const editProfile = page.getByRole("link", { name: "Edit profile", exact: true });
   await expect(editProfile).toBeVisible();
   await expect(editProfile).toHaveAttribute("href", "/app/profile");
-  const ownerActions = page.getByRole("navigation", { name: "Profile owner actions" });
+  const ownerActions = page.getByRole("navigation", { name: "Profile actions" });
   await expect(ownerActions).toHaveCSS("position", "absolute");
   const [ownerBox, heroBox] = await Promise.all([
     ownerActions.boundingBox(),
