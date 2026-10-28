@@ -195,7 +195,13 @@ export const placeOrder = mutation({
           )
           .first()
       : null;
-    if (normalizedCode && (referral === null || !referral.active || prior !== null))
+    if (
+      normalizedCode &&
+      (referral === null ||
+        !referral.active ||
+        prior !== null ||
+        (referral.usageLimit !== undefined && (referral.usageCount ?? 0) >= referral.usageLimit))
+    )
       throw new Error("Referral code is unavailable for this order.");
     const cardPriceCentavos = getCardPriceCentavos(date, now);
     const discountCentavos =

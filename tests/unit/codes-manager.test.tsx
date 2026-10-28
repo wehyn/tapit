@@ -50,6 +50,14 @@ beforeEach(() => {
             active: true,
             usageCount: 0,
           },
+          {
+            _id: "codes:founding",
+            code: "FOUNDING-AHRON",
+            referrerLabel: "Ahron",
+            active: true,
+            usageCount: 5,
+            usageLimit: 25,
+          },
         ]
       : undefined,
   );
@@ -61,6 +69,52 @@ beforeEach(() => {
 });
 
 describe("referral code editor", () => {
+  it("shows the requested copy and limited usage", () => {
+    render(<CodesManager />);
+
+    expect(screen.getByText("Manage codes and review their order usage.")).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Referral codes" })).toBeNull();
+    expect(
+      screen.queryByText(
+        "Codes are unique across active and inactive records. Fixed prices must be no more than ₱599.",
+      ),
+    ).toBeNull();
+    expect(screen.getByRole("button", { name: /FOUNDING-AHRON/ })).toHaveTextContent(
+      "5 of 25 uses · 20 remaining",
+    );
+  });
+
+  it("loads and saves a positive whole-number usage limit", async () => {
+    const user = userEvent.setup();
+    render(<CodesManager />);
+
+    await user.click(screen.getAllByRole("button", { name: "Edit" })[2]!);
+    const limit = screen.getByLabelText("Usage limit (orders, optional)");
+    expect(limit).toHaveValue(25);
+    await user.clear(limit);
+    await user.type(limit, "30");
+    await user.click(screen.getByRole("button", { name: "Save code" }));
+
+    expect(saveReferralCode).toHaveBeenCalledWith(expect.objectContaining({ usageLimit: 30 }));
+  });
+
+  it("rejects decimal and zero usage limits before saving", async () => {
+    const user = userEvent.setup();
+    render(<CodesManager />);
+
+    await user.click(screen.getAllByRole("button", { name: "Edit" })[2]!);
+    const limit = screen.getByLabelText("Usage limit (orders, optional)");
+    await user.clear(limit);
+    await user.type(limit, "1.5");
+    await user.click(screen.getByRole("button", { name: "Save code" }));
+    expect(saveReferralCode).not.toHaveBeenCalled();
+
+    await user.clear(limit);
+    await user.type(limit, "0");
+    await user.click(screen.getByRole("button", { name: "Save code" }));
+    expect(saveReferralCode).not.toHaveBeenCalled();
+  });
+
   it("blocks starting or changing another draft while a save is pending", async () => {
     const user = userEvent.setup();
     let resolveSave!: (id: string) => void;
@@ -77,8 +131,9 @@ describe("referral code editor", () => {
     expect(screen.getByLabelText("Referral code")).toBeDisabled();
     expect(screen.getByLabelText("Referrer label")).toBeDisabled();
     expect(screen.getByLabelText("Fixed card price (₱, optional)")).toBeDisabled();
+    expect(screen.getByLabelText("Usage limit (orders, optional)")).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Active" })).toBeDisabled();
-    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Edit" })).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: "Edit" })[1]!).toBeDisabled();
 
     await user.click(screen.getAllByRole("button", { name: "Edit" })[1]!);

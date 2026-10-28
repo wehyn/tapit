@@ -308,9 +308,9 @@ export async function saveDemoCardOrderReferralCode(input: {
   code: string;
   referrerLabel: string;
   fixedPriceCentavos?: number;
+  usageLimit?: number;
   active: boolean;
 }): Promise<string> {
-  const adminId = activeAccount(currentState("admin"), "admin").id;
   const code = requiredText(input.code, "Referral code", 40).toUpperCase();
   if (!/^[A-Z0-9_-]+$/.test(code)) {
     throw new Error("Referral code may contain letters, numbers, hyphens, and underscores only.");
@@ -322,6 +322,13 @@ export async function saveDemoCardOrderReferralCode(input: {
   ) {
     throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
   }
+  if (
+    input.usageLimit !== undefined &&
+    (!Number.isSafeInteger(input.usageLimit) || input.usageLimit <= 0)
+  ) {
+    throw new Error("Usage limit must be a positive whole number.");
+  }
+  const adminId = activeAccount(currentState("admin"), "admin").id;
   const id = input.id ?? crypto.randomUUID();
   await updateDemoCardOrderAdminState(adminId, (state) => {
     const existing = state.cardOrderReferralCodes.find((referral) => referral.id === id);
@@ -337,6 +344,7 @@ export async function saveDemoCardOrderReferralCode(input: {
       code,
       referrerLabel,
       fixedPriceCentavos: input.fixedPriceCentavos,
+      usageLimit: input.usageLimit,
       active: input.active,
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
@@ -398,6 +406,9 @@ export function previewDemoCardOrderReferral(code: string, currentTime: number) 
     state.cardOrderLaunchEndDate !== null &&
     Number.isFinite(currentTime) &&
     referral?.active === true &&
+    (referral.usageLimit === undefined ||
+      state.cardOrders.filter((order) => order.referralCodeId === referral.id).length <
+        referral.usageLimit) &&
     !state.cardOrders.some((order) => order.customerId === customer.id);
   return {
     valid,
@@ -464,7 +475,11 @@ export async function placeDemoCardOrder(
       : undefined;
     if (
       normalizedCode &&
-      (!referral?.active || current.cardOrders.some((order) => order.customerId === owner.id))
+      (!referral?.active ||
+        (referral.usageLimit !== undefined &&
+          current.cardOrders.filter((order) => order.referralCodeId === referral.id).length >=
+            referral.usageLimit) ||
+        current.cardOrders.some((order) => order.customerId === owner.id))
     ) {
       throw new Error("Referral code is unavailable for this order.");
     }

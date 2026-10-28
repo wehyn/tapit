@@ -19,6 +19,7 @@ import {
 
 const LAUNCH_END_KEY = "cardOrderLaunchEndDate";
 const REFERRAL_USAGE_BACKFILL_KEY = "cardOrderReferralUsageBackfillStarted";
+const REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS = 5 * 60 * 1000;
 const paymentFields = v.object({
   provider: v.string(),
   label: v.string(),
@@ -118,6 +119,7 @@ export const adminReferralCodes = query({
       fixedPriceCentavos: v.optional(v.number()),
       active: v.boolean(),
       usageCount: v.number(),
+      usageLimit: v.optional(v.number()),
     }),
   ),
   handler: async (ctx) => {
@@ -126,14 +128,17 @@ export const adminReferralCodes = query({
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_active", (q) => q.eq("scope", account.scope))
       .take(500);
-    return codes.map(({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount }) => ({
-      _id,
-      code,
-      referrerLabel,
-      fixedPriceCentavos,
-      active,
-      usageCount: usageCount ?? 0,
-    }));
+    return codes.map(
+      ({ _id, code, referrerLabel, fixedPriceCentavos, active, usageCount, usageLimit }) => ({
+        _id,
+        code,
+        referrerLabel,
+        fixedPriceCentavos,
+        active,
+        usageCount: usageCount ?? 0,
+        usageLimit,
+      }),
+    );
   },
 });
 
@@ -148,15 +153,31 @@ export const startReferralUsageBackfill = mutation({
         q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
       )
       .first();
-    if (existing !== null) return null;
-    await ctx.db.insert("settings", {
-      scope: account.scope,
-      key: REFERRAL_USAGE_BACKFILL_KEY,
-      value: "started",
-      updatedAt: Date.now(),
-      updatedByUserId: userId,
-    });
+    const now = Date.now();
+    if (existing?.value === "completed") return null;
+    // Five minutes without a page heartbeat is treated as a stalled backfill.
+    if (
+      existing?.value === "running" &&
+      now - existing.updatedAt <= REFERRAL_USAGE_BACKFILL_STALE_AFTER_MS
+    )
+      return null;
+    if (existing === null) {
+      await ctx.db.insert("settings", {
+        scope: account.scope,
+        key: REFERRAL_USAGE_BACKFILL_KEY,
+        value: "running",
+        updatedAt: now,
+        updatedByUserId: userId,
+      });
+    } else {
+      await ctx.db.patch(existing._id, {
+        value: "running",
+        updatedAt: now,
+        updatedByUserId: userId,
+      });
+    }
     await ctx.scheduler.runAfter(0, internal.cardOrderReferralUsage.backfillUsageCounts, {
+      ...(account.scope === undefined ? {} : { scope: account.scope }),
       cursor: null,
     });
     return null;
@@ -281,6 +302,7 @@ export const previewReferral = query({
       date !== null &&
       Number.isFinite(args.currentTime) &&
       referral?.active === true &&
+      (referral.usageLimit === undefined || (referral.usageCount ?? 0) < referral.usageLimit) &&
       prior === null;
     return {
       valid,
@@ -410,10 +432,21 @@ export const saveReferralCode = mutation({
     referrerLabel: v.string(),
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
+    usageLimit: v.optional(v.number()),
   },
   returns: v.id("cardOrderReferralCodes"),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
+    if (args.usageLimit !== undefined) {
+      const backfill = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", account.scope).eq("key", REFERRAL_USAGE_BACKFILL_KEY),
+        )
+        .first();
+      if (backfill?.value !== "completed")
+        throw new Error("Referral usage backfill must complete before setting a usage limit.");
+    }
     const existing = args.id === undefined ? null : await ctx.db.get(args.id);
     if (args.id !== undefined && (existing === null || !sameScope(account, existing)))
       throw new Error("Referral code unavailable.");
@@ -426,6 +459,11 @@ export const saveReferralCode = mutation({
       !isValidReferralFixedPriceCentavos(args.fixedPriceCentavos)
     )
       throw new Error("Fixed price must be a positive whole-centavo amount no greater than ₱599.");
+    if (
+      args.usageLimit !== undefined &&
+      (!Number.isSafeInteger(args.usageLimit) || args.usageLimit <= 0)
+    )
+      throw new Error("Usage limit must be a positive safe integer.");
     const collision = await ctx.db
       .query("cardOrderReferralCodes")
       .withIndex("by_scope_and_code", (q) => q.eq("scope", account.scope).eq("code", code))
@@ -441,6 +479,7 @@ export const saveReferralCode = mutation({
             referrerLabel,
             fixedPriceCentavos: args.fixedPriceCentavos,
             active: args.active,
+            usageLimit: args.usageLimit,
             createdAt: now,
             updatedAt: now,
             updatedByUserId: userId,
@@ -452,6 +491,7 @@ export const saveReferralCode = mutation({
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
         active: args.active,
+        usageLimit: args.usageLimit,
         updatedAt: now,
         updatedByUserId: userId,
       });
@@ -469,6 +509,7 @@ export const saveReferralCode = mutation({
         referrerLabel,
         fixedPriceCentavos: args.fixedPriceCentavos,
         active: args.active,
+        usageLimit: args.usageLimit,
       }),
     });
     return id;

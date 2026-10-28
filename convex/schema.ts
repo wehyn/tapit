@@ -533,6 +533,7 @@ export default defineSchema({
     fixedPriceCentavos: v.optional(v.number()),
     active: v.boolean(),
     usageCount: v.optional(v.number()),
+    usageLimit: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
     updatedByUserId: v.optional(v.id("users")),
