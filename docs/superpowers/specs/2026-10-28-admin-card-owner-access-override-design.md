@@ -1,6 +1,6 @@
 # Admin-Granted Card-Owner Access Override
 
-**Status:** Design approved; written spec awaiting user review
+**Status:** Approved
 **Date:** 2026-10-28
 
 ## Goal

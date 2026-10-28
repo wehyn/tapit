@@ -1,5 +1,9 @@
 # Change log
 
+## 2026-10-28 — Admin owner-access override
+
+- Administrators can grant or revoke owner-feature access for an active customer from Customers. Each state change is audited and does not create a card claim or change card records; normal card claims still require the card token and one-time code.
+
 ## 2026-10-28 — Card-order code usage limits and admin copy
 
 - Admins can configure optional order-use caps for combined discount and referral codes. The Codes page shows uses consumed and remaining, and its copy now describes codes more generally.
