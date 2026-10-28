@@ -83,6 +83,7 @@ test("administrator sidebar groups operations and governance and offers the cust
   page,
 }) => {
   await signInAsAdmin(page);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
 
   const sidebar = page.getByTestId("workspace-sidebar");
   await expect
@@ -159,6 +160,13 @@ test("administrator sidebar groups operations and governance and offers the cust
   await page.goto("/admin/customers");
   await expect(page.getByRole("navigation", { name: "Admin navigation" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
+  await page
+    .getByTestId("workspace-sidebar")
+    .getByRole("group", { name: "Workspace", exact: true })
+    .getByRole("link", { name: "Customer", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect(page.getByTestId("navigation-tour-coach-mark")).toHaveCount(0);
 });
 
 test("administrator records and governance pages remain usable at phone and desktop widths", async ({

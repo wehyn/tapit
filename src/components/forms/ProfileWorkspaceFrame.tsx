@@ -98,6 +98,7 @@ export function ProfileWorkspaceFrame({
 }: ProfileWorkspaceFrameProps) {
   const [mobileView, setMobileView] = useState<"edit" | "preview">("edit");
   const [requirementsDialogOpen, setRequirementsDialogOpen] = useState(false);
+  const [resolvedRequirementKey, setResolvedRequirementKey] = useState<string | undefined>();
   const editorRef = useRef<HTMLElement>(null);
   const focusEditorOnDialogCloseRef = useRef(false);
   const isBusy = saveLoading || publishLoading;
@@ -107,15 +108,16 @@ export function ProfileWorkspaceFrame({
   const bottomPadding = shouldShowActions && mobileView === "edit" ? "pb-16 xl:pb-8" : "pb-8";
   const closeRequirementsDialog = useCallback(() => {
     setRequirementsDialogOpen(false);
-  }, []);
+    setResolvedRequirementKey(firstVisitRequirementKey);
+  }, [firstVisitRequirementKey]);
   const handleRequirementAction = useCallback(
     (requirement: PublishRequirement) => {
       focusEditorOnDialogCloseRef.current = requirement.kind !== "customization";
       onRequirementAction?.(requirement);
-      setRequirementsDialogOpen(false);
+      closeRequirementsDialog();
       setMobileView("edit");
     },
-    [onRequirementAction],
+    [closeRequirementsDialog, onRequirementAction],
   );
 
   useEffect(() => {
@@ -126,9 +128,19 @@ export function ProfileWorkspaceFrame({
   }, [requirementsDialogOpen]);
 
   useEffect(() => {
-    if (firstVisitRequirementKey === undefined || publishRequirements.length === 0) return;
+    if (firstVisitRequirementKey === undefined || publishRequirements.length === 0) {
+      const readyFrame = window.requestAnimationFrame(() => {
+        setResolvedRequirementKey(firstVisitRequirementKey);
+      });
+      return () => window.cancelAnimationFrame(readyFrame);
+    }
     const storageKey = `tapit:publish-requirements:${firstVisitRequirementKey}`;
-    if (hasSeenPublishRequirements(storageKey)) return;
+    if (hasSeenPublishRequirements(storageKey)) {
+      const readyFrame = window.requestAnimationFrame(() => {
+        setResolvedRequirementKey(firstVisitRequirementKey);
+      });
+      return () => window.cancelAnimationFrame(readyFrame);
+    }
     const openFrame = window.requestAnimationFrame(() => {
       rememberPublishRequirements(storageKey);
       setRequirementsDialogOpen(true);
@@ -147,6 +159,13 @@ export function ProfileWorkspaceFrame({
   return (
     <div
       className={`mx-auto grid w-full min-w-0 max-w-[1480px] gap-4 pt-4 lg:gap-8 lg:pt-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:gap-x-6 ${bottomPadding}`}
+      data-navigation-tour-ready={
+        firstVisitRequirementKey === undefined ||
+        publishRequirements.length === 0 ||
+        resolvedRequirementKey === firstVisitRequirementKey
+          ? "true"
+          : undefined
+      }
     >
       <div className="col-span-full flex flex-wrap items-end justify-between gap-4">
         <div className="flex min-w-0 flex-col gap-2">
