@@ -2,7 +2,7 @@
 
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 
 import {
@@ -51,6 +51,7 @@ type Confirmation =
 type LiveReassignment = {
   cardId: Id<"cards">;
   token: string;
+  cardUrl: string;
   sourceProfileId: Id<"profiles">;
   sourceProfileLabel: string;
   sourceStatus: "active" | "claimable";
@@ -726,6 +727,11 @@ function DemoCardsManager() {
       return;
     }
     setConfirmation(null);
+    setReassignmentProfileIds((current) => {
+      const next = { ...current };
+      delete next[pending.card.id];
+      return next;
+    });
     setClaimCode(null);
     setMessage({
       tone: "success",
@@ -1272,7 +1278,7 @@ function DemoCardsManager() {
                             type="button"
                             variant="secondary"
                           >
-                            Reassign
+                            Reassign card
                           </Button>
                         </>
                       ) : null}
@@ -1569,14 +1575,14 @@ function DemoCardsManager() {
               : confirmation?.type === "replace"
                 ? "Replace card"
                 : confirmation?.type === "reassign"
-                  ? "Confirm reassignment"
+                  ? "Reassign card"
                   : confirmation?.type === "attach"
                     ? "Attach card"
                     : "Deactivate card"
         }
         description={
           confirmation?.type === "reassign"
-            ? `Reassign ${confirmation.card.token} from ${confirmation.sourceProfileLabel} to ${confirmation.destinationProfileLabel}? The same card URL and token will be retained, and prior claim state will be cleared. The new owner needs a fresh claim code.`
+            ? `Reassign ${confirmation.card.token} from ${confirmation.sourceProfileLabel} to ${confirmation.destinationProfileLabel}? The same card URL and token will be retained at ${confirmation.card.cardUrl}, and prior claim state will be cleared. The new owner needs a fresh claim code.`
             : confirmation?.type === "archive"
               ? `The URL for ${confirmation.card.token} will stay inactive and its token will remain reserved. Continue?`
               : confirmation?.type === "reactivate"
@@ -1584,7 +1590,7 @@ function DemoCardsManager() {
                 : confirmation?.type === "replace"
                   ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
                   : confirmation?.type === "attach"
-                    ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "The card URL will stay unavailable until its owner claims a fresh one-time code, then it can serve the published profile." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
+                    ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "Its card URL will serve the published profile now; the owner must complete a claim code to unlock card-owner features." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
                     : confirmation?.type === "deactivate"
                       ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
                       : ""
@@ -1607,7 +1613,7 @@ function DemoCardsManager() {
               : confirmation?.type === "replace"
                 ? "Replace this card?"
                 : confirmation?.type === "reassign"
-                  ? "Confirm card reassignment"
+                  ? "Reassign this card?"
                   : confirmation?.type === "attach"
                     ? "Confirm card attachment"
                     : "Deactivate this card?"
@@ -1670,6 +1676,7 @@ function LiveCardsManager() {
   const [reassignmentProfileIds, setReassignmentProfileIds] = useState<
     Record<string, Id<"profiles">>
   >({});
+  const reassignmentPending = useRef(false);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [claimCodes, setClaimCodes] = useState<Record<string, { code: string }>>({});
@@ -2046,6 +2053,7 @@ function LiveCardsManager() {
                               setReassignment({
                                 cardId: card._id,
                                 token: card.token,
+                                cardUrl: card.cardUrl,
                                 sourceProfileId: source._id,
                                 sourceProfileLabel: source.draft.name || source.slug,
                                 sourceStatus: card.status,
@@ -2056,7 +2064,7 @@ function LiveCardsManager() {
                             type="button"
                             variant="secondary"
                           >
-                            Reassign
+                            Reassign card
                           </Button>
                         </>
                       ) : null}
@@ -2203,16 +2211,18 @@ function LiveCardsManager() {
         </div>
       </div>
       <ConfirmDialog
-        confirmLabel="Confirm reassignment"
+        confirmLabel="Reassign card"
+        confirmDisabled={pending}
         description={
           reassignment
-            ? `Reassign ${reassignment.token} from ${reassignment.sourceProfileLabel} to ${reassignment.destinationProfileLabel}? The same card URL and token will be retained, and prior claim state will be cleared. The new owner needs a fresh claim code.`
+            ? `Reassign ${reassignment.token} from ${reassignment.sourceProfileLabel} to ${reassignment.destinationProfileLabel}? The same card URL and token will be retained at ${reassignment.cardUrl}, and prior claim state will be cleared. The new owner needs a fresh claim code.`
             : ""
         }
         onCancel={() => setReassignment(null)}
         onConfirm={() => {
-          if (reassignment === null) return;
+          if (reassignment === null || reassignmentPending.current) return;
           const pendingReassignment = reassignment;
+          reassignmentPending.current = true;
           void run(
             () =>
               reassign({
@@ -2222,12 +2232,28 @@ function LiveCardsManager() {
                 profileId: pendingReassignment.destinationProfileId,
               }),
             `Card ${pendingReassignment.token} was reassigned. The new owner needs a fresh claim code.`,
-          ).then((succeeded) => {
-            if (succeeded) setReassignment(null);
-          });
+          )
+            .then((succeeded) => {
+              if (succeeded) {
+                setReassignment(null);
+                setReassignmentProfileIds((current) => {
+                  const next = { ...current };
+                  delete next[pendingReassignment.cardId];
+                  return next;
+                });
+                setClaimCodes((current) => {
+                  const next = { ...current };
+                  delete next[pendingReassignment.cardId];
+                  return next;
+                });
+              }
+            })
+            .finally(() => {
+              reassignmentPending.current = false;
+            });
         }}
         open={reassignment !== null}
-        title="Confirm card reassignment"
+        title="Reassign this card?"
       />
       <ConfirmDialog
         confirmLabel="Confirm attachment"

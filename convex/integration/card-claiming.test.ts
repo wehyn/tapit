@@ -177,6 +177,8 @@ describe("card claiming contracts", () => {
       before: expect.stringContaining(ids.oldProfileId),
       after: expect.stringContaining(ids.destinationProfileId),
     });
+    expect(reassigned?.before).toContain('"profileName":"Old"');
+    expect(reassigned?.after).toContain('"profileName":"Destination"');
     expect(JSON.stringify(reassigned)).not.toMatch(/code|hash/i);
     await expect(
       oldOwner.mutation(api.cardClaims.verifyCode, { token: "reassign-card", code: oldCode }),

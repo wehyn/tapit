@@ -323,10 +323,16 @@ export const reassign = mutation({
       occurredAt: now,
       before: JSON.stringify({
         profileId: oldProfile._id,
+        profileName: oldProfile.draft.name || oldProfile.slug,
         accountId: oldOwner._id,
         status: card.status,
       }),
-      after: JSON.stringify({ profileId: profile._id, accountId: owner._id, status: card.status }),
+      after: JSON.stringify({
+        profileId: profile._id,
+        profileName: profile.draft.name || profile.slug,
+        accountId: owner._id,
+        status: card.status,
+      }),
     });
     return null;
   },

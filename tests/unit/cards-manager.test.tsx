@@ -232,14 +232,19 @@ describe("live card URL mutations", () => {
 
       render(<CardsManager />);
       fireEvent.click(screen.getByText("/c/source-card"));
-      fireEvent.click(screen.getByRole("button", { name: "Reassign" }));
+      mutationHandlers.other.mockResolvedValueOnce({ code: "OLD-CLAIM-CODE", expiresAt: 123 });
+      fireEvent.click(screen.getByRole("button", { name: "Generate claim code" }));
+      expect(await screen.findByText("OLD-CLAIM-CODE")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
       const confirmation = screen.getByRole("dialog");
       expect(confirmation).toHaveTextContent("Source Owner");
       expect(confirmation).toHaveTextContent("Destination Owner");
       expect(confirmation).toHaveTextContent("same card URL and token will be retained");
+      expect(confirmation).toHaveTextContent("https://tapit.test/c/source-card");
       expect(confirmation).toHaveTextContent("prior claim state will be cleared");
       expect(confirmation).toHaveTextContent("new owner needs a fresh claim code");
-      fireEvent.click(screen.getByRole("button", { name: "Confirm reassignment" }));
+      expect(confirmation).toHaveAccessibleName("Reassign this card?");
+      fireEvent.click(within(confirmation).getByRole("button", { name: "Reassign card" }));
 
       await waitFor(() =>
         expect(mutationHandlers.reassign).toHaveBeenCalledWith({
@@ -252,12 +257,19 @@ describe("live card URL mutations", () => {
       expect(await screen.findByRole("status")).toHaveTextContent(
         "was reassigned. The new owner needs a fresh claim code.",
       );
+      expect(screen.queryByText("OLD-CLAIM-CODE")).not.toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     },
   );
 
-  it("keeps the live reassignment confirmation open and reports mutation errors", async () => {
-    mutationHandlers.reassign.mockRejectedValueOnce(new Error("Assignment changed."));
+  it("keeps failed reassignment confirmation open and submits only once while pending", async () => {
+    let rejectReassignment!: (reason?: unknown) => void;
+    mutationHandlers.reassign.mockImplementationOnce(
+      () =>
+        new Promise<null>((_resolve, reject) => {
+          rejectReassignment = reject;
+        }),
+    );
     configureCardQueries([
       {
         _id: "cards:source-card",
@@ -317,14 +329,19 @@ describe("live card URL mutations", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/source-card"));
-    fireEvent.click(screen.getByRole("button", { name: "Reassign" }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm reassignment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
+    const confirmation = screen.getByRole("dialog");
+    const confirm = within(confirmation).getByRole("button", { name: "Reassign card" });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(confirm).toBeDisabled());
+    fireEvent.click(confirm);
+    expect(mutationHandlers.reassign).toHaveBeenCalledTimes(1);
+    rejectReassignment(new Error("Assignment changed."));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Assignment changed.");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Source");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Destination");
+    expect(confirmation).toHaveTextContent("Source");
+    expect(confirmation).toHaveTextContent("Destination");
     expect(screen.getByLabelText("Reassign source-card")).toHaveValue("profiles:destination");
-    expect(mutationHandlers.reassign).toHaveBeenCalledTimes(1);
   });
 
   it.each(["registered", "inactive", "replaced"] as const)(
@@ -344,7 +361,7 @@ describe("live card URL mutations", () => {
       ]);
       render(<CardsManager />);
       fireEvent.click(screen.getByText("/c/ineligible-card"));
-      expect(screen.queryByRole("button", { name: "Reassign" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Reassign card" })).not.toBeInTheDocument();
       expect(mutationHandlers.reassign).not.toHaveBeenCalled();
     },
   );
@@ -1240,10 +1257,15 @@ describe("admin card QR controls", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign" })[0]!);
+    fireEvent.change(screen.getByLabelText("Reassign mara-card-7f2q"), {
+      target: { value: "profile-claimable" },
+    });
+    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
     expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
     expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
-    fireEvent.click(screen.getByRole("button", { name: "Confirm reassignment" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
 
     expect(await screen.findByRole("status")).toHaveTextContent("fresh claim code");
     const state = getDemoState();
@@ -1274,6 +1296,9 @@ describe("admin card QR controls", () => {
     expect(state.audits[0]?.before).toContain("Mara Velasquez");
     expect(state.audits[0]?.after).toContain("Claimed profile");
     expect(state.audits[0]?.after).not.toContain("MARA2Q8K");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
   });
 
   it("allows reassignment of a claimable card and preserves its status", async () => {
@@ -1283,10 +1308,12 @@ describe("admin card QR controls", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/claimable-card-demo"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
     expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
     expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
-    fireEvent.click(screen.getByRole("button", { name: "Confirm reassignment" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
 
     await screen.findByRole("status");
     expect(getDemoState().cards.find((card) => card.id === "card-claimable-demo")).toMatchObject({
@@ -1302,14 +1329,16 @@ describe("admin card QR controls", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
     updateDemoState((current) => ({
       ...current,
       cards: current.cards.map((card) =>
         card.id === "card-mara-active" ? { ...card, profileId: "profile-admin-demo" } : card,
       ),
     }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm reassignment" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The card or profile assignment changed. Review the current assignment and try again.",
