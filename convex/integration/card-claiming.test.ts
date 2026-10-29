@@ -12,7 +12,267 @@ const identity = (userId: string) => ({
   tokenIdentifier: `https://tapit.test|${userId}`,
 });
 
+async function reassignmentFixture(t: ReturnType<typeof convexTest>) {
+  return await t.run(async (ctx) => {
+    const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
+    const oldUserId = await ctx.db.insert("users", { email: "old@example.com" });
+    const destinationUserId = await ctx.db.insert("users", { email: "destination@example.com" });
+    const otherUserId = await ctx.db.insert("users", { email: "other@example.com" });
+    await ctx.db.insert("customers", {
+      userId: adminUserId,
+      email: "admin@example.com",
+      role: "admin",
+      status: "active",
+      deletionStatus: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const oldOwnerId = await ctx.db.insert("customers", {
+      userId: oldUserId,
+      email: "old@example.com",
+      role: "customer",
+      status: "active",
+      deletionStatus: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const destinationOwnerId = await ctx.db.insert("customers", {
+      userId: destinationUserId,
+      email: "destination@example.com",
+      role: "customer",
+      status: "active",
+      deletionStatus: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    await ctx.db.insert("customers", {
+      userId: otherUserId,
+      email: "other@example.com",
+      role: "customer",
+      status: "active",
+      deletionStatus: "active",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    const published = (name: string, slug: string) => ({
+      name,
+      slug,
+      links: [{ id: "site", label: "Site", destination: "https://example.com", enabled: true }],
+    });
+    const oldProfileId = await ctx.db.insert("profiles", {
+      ownerId: oldOwnerId,
+      slug: "old",
+      status: "published",
+      draft: published("Old", "old"),
+      published: { ...published("Old", "old"), publishedAt: 1 },
+      createdAt: 1,
+      updatedAt: 1,
+      publishedAt: 1,
+    });
+    const destinationProfileId = await ctx.db.insert("profiles", {
+      ownerId: destinationOwnerId,
+      slug: "destination",
+      status: "published",
+      draft: published("Destination", "destination"),
+      published: { ...published("Destination", "destination"), publishedAt: 1 },
+      createdAt: 1,
+      updatedAt: 1,
+      publishedAt: 1,
+    });
+    await ctx.db.patch(oldOwnerId, { profileId: oldProfileId });
+    await ctx.db.patch(destinationOwnerId, { profileId: destinationProfileId });
+    const cardId = await ctx.db.insert("cards", {
+      cardUrl: "https://tapit.test/c/reassign-card",
+      token: "reassign-card",
+      profileId: oldProfileId,
+      status: "active",
+      createdAt: 1,
+      updatedAt: 1,
+      assignedAt: 1,
+    });
+    const extraCardId = await ctx.db.insert("cards", {
+      cardUrl: "https://tapit.test/c/destination-card",
+      token: "destination-card",
+      profileId: destinationProfileId,
+      status: "claimable",
+      createdAt: 1,
+      updatedAt: 1,
+    });
+    return {
+      adminUserId,
+      oldUserId,
+      destinationUserId,
+      otherUserId,
+      oldOwnerId,
+      destinationOwnerId,
+      oldProfileId,
+      destinationProfileId,
+      cardId,
+      extraCardId,
+    };
+  });
+}
+
 describe("card claiming contracts", () => {
+  it("reassigns a claimed active card in place and requires a fresh destination claim", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const ids = await reassignmentFixture(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const oldOwner = t.withIdentity(identity(ids.oldUserId));
+    const destination = t.withIdentity(identity(ids.destinationUserId));
+    const { code: oldCode } = await admin.mutation(api.cards.generateClaimCode, {
+      cardId: ids.cardId,
+    });
+    const oldVerification = await oldOwner.mutation(api.cardClaims.verifyCode, {
+      token: "reassign-card",
+      code: oldCode,
+    });
+    if (!oldVerification.ok) throw new Error("Expected the original claim code to verify.");
+    await oldOwner.mutation(api.cardClaims.complete, { challenge: oldVerification.challenge });
+    await expect(oldOwner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+
+    await admin.mutation(api.cards.reassign, {
+      cardId: ids.cardId,
+      expectedProfileId: ids.oldProfileId,
+      expectedStatus: "active",
+      profileId: ids.destinationProfileId,
+    });
+    await expect(oldOwner.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: false,
+    });
+    await expect(destination.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: false,
+    });
+    const card = await t.run((ctx) => ctx.db.get(ids.cardId));
+    expect(card).toMatchObject({
+      _id: ids.cardId,
+      token: "reassign-card",
+      cardUrl: "https://tapit.test/c/reassign-card",
+      profileId: ids.destinationProfileId,
+      status: "active",
+      claimCodeInvalidatedAt: expect.any(Number),
+    });
+    expect(card).not.toHaveProperty("claimCodeHash");
+    expect(card).not.toHaveProperty("claimCodeGeneratedAt");
+    expect(card).not.toHaveProperty("claimCodeExpiresAt");
+    expect(card).not.toHaveProperty("claimCodeClaimedAt");
+    await expect(t.run((ctx) => ctx.db.get(ids.extraCardId))).resolves.toMatchObject({
+      status: "claimable",
+    });
+    const audit = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_cardId", (q) => q.eq("cardId", ids.cardId))
+        .collect(),
+    );
+    const reassigned = audit.find((entry) => entry.action === "card.reassigned");
+    expect(reassigned).toMatchObject({
+      actorUserId: ids.adminUserId,
+      cardId: ids.cardId,
+      profileId: ids.destinationProfileId,
+      accountId: ids.destinationOwnerId,
+      before: expect.stringContaining(ids.oldProfileId),
+      after: expect.stringContaining(ids.destinationProfileId),
+    });
+    expect(JSON.stringify(reassigned)).not.toMatch(/code|hash/i);
+    await expect(
+      oldOwner.mutation(api.cardClaims.verifyCode, { token: "reassign-card", code: oldCode }),
+    ).resolves.toEqual({ ok: false });
+    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
+    const verification = await destination.mutation(api.cardClaims.verifyCode, {
+      token: "reassign-card",
+      code,
+    });
+    if (!verification.ok) throw new Error("Expected the destination claim code to verify.");
+    await destination.mutation(api.cardClaims.complete, { challenge: verification.challenge });
+    await expect(destination.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+  });
+
+  it("invalidates pending claim challenges when reassigning a claimable card", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const ids = await reassignmentFixture(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const oldOwner = t.withIdentity(identity(ids.oldUserId));
+    const destination = t.withIdentity(identity(ids.destinationUserId));
+    await t.run((ctx) => ctx.db.patch(ids.cardId, { status: "claimable" }));
+    const { code: oldCode } = await admin.mutation(api.cards.generateClaimCode, {
+      cardId: ids.cardId,
+    });
+    const oldVerification = await oldOwner.mutation(api.cardClaims.verifyCode, {
+      token: "reassign-card",
+      code: oldCode,
+    });
+    if (!oldVerification.ok) throw new Error("Expected the original claim code to verify.");
+    await admin.mutation(api.cards.reassign, {
+      cardId: ids.cardId,
+      expectedProfileId: ids.oldProfileId,
+      expectedStatus: "claimable",
+      profileId: ids.destinationProfileId,
+    });
+    await expect(
+      oldOwner.mutation(api.cardClaims.verifyCode, { token: "reassign-card", code: oldCode }),
+    ).resolves.toEqual({ ok: false });
+    await expect(
+      oldOwner.mutation(api.cardClaims.complete, { challenge: oldVerification.challenge }),
+    ).rejects.toThrow();
+    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
+    const verification = await destination.mutation(api.cardClaims.verifyCode, {
+      token: "reassign-card",
+      code,
+    });
+    if (!verification.ok) throw new Error("Expected the destination claim code to verify.");
+    await destination.mutation(api.cardClaims.complete, { challenge: verification.challenge });
+    await expect(destination.query(api.admin.currentAccess, {})).resolves.toMatchObject({
+      hasCardOwnerFeatures: true,
+    });
+  });
+
+  it("rejects unauthorized, ineligible, and stale card reassignments without changing state", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const ids = await reassignmentFixture(t);
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const other = t.withIdentity(identity(ids.otherUserId));
+    const args = {
+      cardId: ids.cardId,
+      expectedProfileId: ids.oldProfileId,
+      expectedStatus: "active" as const,
+      profileId: ids.destinationProfileId,
+    };
+    await expect(other.mutation(api.cards.reassign, args)).rejects.toThrow(
+      "Administrator permission required.",
+    );
+    await expect(
+      admin.mutation(api.cards.reassign, { ...args, expectedProfileId: ids.destinationProfileId }),
+    ).rejects.toThrow();
+    await expect(
+      admin.mutation(api.cards.reassign, { ...args, expectedStatus: "claimable" }),
+    ).rejects.toThrow();
+    await t.run((ctx) => ctx.db.patch(ids.cardId, { status: "inactive" }));
+    const before = await t.run((ctx) => ctx.db.get(ids.cardId));
+    await expect(admin.mutation(api.cards.reassign, args)).rejects.toThrow();
+    await expect(t.run((ctx) => ctx.db.get(ids.cardId))).resolves.toEqual(before);
+    await t.run((ctx) => ctx.db.patch(ids.cardId, { status: "replaced" }));
+    const replacedBefore = await t.run((ctx) => ctx.db.get(ids.cardId));
+    await expect(
+      admin.mutation(api.cards.reassign, { ...args, expectedStatus: "active" }),
+    ).rejects.toThrow();
+    await expect(t.run((ctx) => ctx.db.get(ids.cardId))).resolves.toEqual(replacedBefore);
+    const audits = await t.run((ctx) =>
+      ctx.db
+        .query("auditLogs")
+        .withIndex("by_cardId", (q) => q.eq("cardId", ids.cardId))
+        .collect(),
+    );
+    expect(audits.some((entry) => entry.action === "card.reassigned")).toBe(false);
+  });
+
   it("generates secure, available card tokens for administrators only", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);
