@@ -37,7 +37,26 @@ import { api } from "../../../convex/_generated/api";
 type Confirmation =
   | { type: "deactivate" | "replace" | "archive" | "reactivate"; card: DemoCard }
   | { type: "attach"; card: DemoCard; profileId: string }
+  | {
+      type: "reassign";
+      card: DemoCard;
+      sourceProfileId: string;
+      sourceProfileLabel: string;
+      sourceStatus: "active" | "claimable";
+      destinationProfileId: string;
+      destinationProfileLabel: string;
+    }
   | null;
+
+type LiveReassignment = {
+  cardId: Id<"cards">;
+  token: string;
+  sourceProfileId: Id<"profiles">;
+  sourceProfileLabel: string;
+  sourceStatus: "active" | "claimable";
+  destinationProfileId: Id<"profiles">;
+  destinationProfileLabel: string;
+};
 
 type CardGroup = "unclaimed" | "claimed" | "inactive";
 type CardFilter = "all" | CardGroup | "archived";
@@ -349,6 +368,7 @@ function DemoCardsManager() {
   const [selectedProfileId, setSelectedProfileId] = useState(profiles[0]?.id ?? "");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [confirmation, setConfirmation] = useState<Confirmation>(null);
+  const [reassignmentProfileIds, setReassignmentProfileIds] = useState<Record<string, string>>({});
   const [replacementReview, setReplacementReview] = useState(false);
   const [claimCode, setClaimCode] = useState<{
     cardId: string;
@@ -624,6 +644,92 @@ function DemoCardsManager() {
         assignedStatus === "active"
           ? `Card ${card.token} is active for ${assignmentName}. Generate and share a claim code so the owner can claim the card and its URL can show the published profile.`
           : `Card ${card.token} is claimable and assigned to ${assignmentName}. It must be activated with a claim code.`,
+    });
+  }
+
+  function reassignCard(pending: Extract<Confirmation, { type: "reassign" }>) {
+    let error: string | null = null;
+    updateDemoState((current) => {
+      const card = current.cards.find((candidate) => candidate.id === pending.card.id);
+      const source = getDemoProfileById(current, pending.sourceProfileId);
+      const destination = getDemoProfileById(current, pending.destinationProfileId);
+      const sourceOwner = current.customers.find((customer) => customer.id === source?.ownerId);
+      const owner = current.customers.find((customer) => customer.id === destination?.ownerId);
+      if (
+        card === undefined ||
+        card.profileId !== pending.sourceProfileId ||
+        card.status !== pending.sourceStatus ||
+        (card.status !== "active" && card.status !== "claimable") ||
+        source === undefined ||
+        sourceOwner === undefined ||
+        destination === undefined ||
+        destination.id === source.id ||
+        destination.status === "suspended" ||
+        !isActiveAccount(owner?.status, owner?.deletionStatus)
+      ) {
+        error =
+          "The card or profile assignment changed. Review the current assignment and try again.";
+        return current;
+      }
+      const sourceLabel = source.draft.name || source.draft.slug;
+      const destinationLabel = destination.draft.name || destination.draft.slug;
+      const occurredAt = new Date().toISOString();
+      const invalidatedAt = Date.now();
+      return {
+        ...current,
+        cards: current.cards.map((candidate) =>
+          candidate.id === card.id
+            ? {
+                ...candidate,
+                profileId: destination.id,
+                claimCode: undefined,
+                claimCodeExpiresAt: undefined,
+                claimCodeInvalidatedAt: invalidatedAt,
+                claimChallenge: undefined,
+                claimChallengeExpiresAt: undefined,
+                claimedAt: undefined,
+              }
+            : candidate,
+        ),
+        customers: current.customers.map((customer) =>
+          customer.id === sourceOwner?.id
+            ? {
+                ...customer,
+                claimedCardIds: (customer.claimedCardIds ?? []).filter((id) => id !== card.id),
+              }
+            : customer,
+        ),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: "admin@tapit.local",
+            action: "card.reassigned",
+            target: `${card.token} → ${destinationLabel}`,
+            occurredAt,
+            before: JSON.stringify({
+              profileId: source.id,
+              profileName: sourceLabel,
+              status: card.status,
+            }),
+            after: JSON.stringify({
+              profileId: destination.id,
+              profileName: destinationLabel,
+              status: card.status,
+            }),
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (error) {
+      setMessage({ tone: "error", text: error });
+      return;
+    }
+    setConfirmation(null);
+    setClaimCode(null);
+    setMessage({
+      tone: "success",
+      text: `Card ${pending.card.token} keeps the same URL and token. Its prior claim state was cleared; the new owner needs a fresh claim code.`,
     });
   }
 
@@ -966,6 +1072,7 @@ function DemoCardsManager() {
     else if (confirmation.type === "attach") assignCard(confirmation.card, confirmation.profileId);
     else if (confirmation.type === "archive") archiveCard(confirmation.card);
     else if (confirmation.type === "reactivate") reactivateCard(confirmation.card);
+    else if (confirmation.type === "reassign") reassignCard(confirmation);
   }
 
   function reviewReplacement() {
@@ -1106,6 +1213,68 @@ function DemoCardsManager() {
                         <Button onClick={() => restoreCard(card)} type="button" variant="secondary">
                           Restore
                         </Button>
+                      ) : null}
+                      {card.profileId !== undefined &&
+                      (card.status === "active" || card.status === "claimable") ? (
+                        <>
+                          <select
+                            aria-label={`Reassign ${card.token}`}
+                            className="min-h-11 rounded-control bg-tapit-soft-surface px-4 text-sm text-tapit-ink"
+                            onChange={(event) =>
+                              setReassignmentProfileIds((current) => ({
+                                ...current,
+                                [card.id]: event.target.value,
+                              }))
+                            }
+                            value={
+                              reassignmentProfileIds[card.id] ??
+                              profiles.find((candidate) => candidate.id !== card.profileId)?.id ??
+                              ""
+                            }
+                          >
+                            {profiles
+                              .filter((candidate) => candidate.id !== card.profileId)
+                              .map((candidate) => (
+                                <option key={candidate.id} value={candidate.id}>
+                                  {candidate.draft.name || candidate.draft.slug} ·{" "}
+                                  {candidate.draft.slug}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            disabled={
+                              !profiles.some((candidate) => candidate.id !== card.profileId)
+                            }
+                            onClick={() => {
+                              const destinationId =
+                                reassignmentProfileIds[card.id] ??
+                                profiles.find((candidate) => candidate.id !== card.profileId)?.id;
+                              const source = getDemoProfileById(state, card.profileId);
+                              const destination = getDemoProfileById(state, destinationId);
+                              if (
+                                !source ||
+                                !destination ||
+                                (card.status !== "active" && card.status !== "claimable")
+                              )
+                                return;
+                              setMessage(null);
+                              setConfirmation({
+                                type: "reassign",
+                                card,
+                                sourceProfileId: source.id,
+                                sourceProfileLabel: source.draft.name || source.draft.slug,
+                                sourceStatus: card.status,
+                                destinationProfileId: destination.id,
+                                destinationProfileLabel:
+                                  destination.draft.name || destination.draft.slug,
+                              });
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Reassign
+                          </Button>
+                        </>
                       ) : null}
                       {filter !== "archived" &&
                       (card.status === "inactive" || card.status === "replaced") ? (
@@ -1399,22 +1568,26 @@ function DemoCardsManager() {
               ? "Reactivate card"
               : confirmation?.type === "replace"
                 ? "Replace card"
-                : confirmation?.type === "attach"
-                  ? "Attach card"
-                  : "Deactivate card"
+                : confirmation?.type === "reassign"
+                  ? "Confirm reassignment"
+                  : confirmation?.type === "attach"
+                    ? "Attach card"
+                    : "Deactivate card"
         }
         description={
-          confirmation?.type === "archive"
-            ? `The URL for ${confirmation.card.token} will stay inactive and its token will remain reserved. Continue?`
-            : confirmation?.type === "reactivate"
-              ? `The card URL will stay unavailable until its owner claims a fresh one-time code. Continue?`
-              : confirmation?.type === "replace"
-                ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
-                : confirmation?.type === "attach"
-                  ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "The card URL will stay unavailable until its owner claims a fresh one-time code, then it can serve the published profile." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
-                  : confirmation?.type === "deactivate"
-                    ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
-                    : ""
+          confirmation?.type === "reassign"
+            ? `Reassign ${confirmation.card.token} from ${confirmation.sourceProfileLabel} to ${confirmation.destinationProfileLabel}? The same card URL and token will be retained, and prior claim state will be cleared. The new owner needs a fresh claim code.`
+            : confirmation?.type === "archive"
+              ? `The URL for ${confirmation.card.token} will stay inactive and its token will remain reserved. Continue?`
+              : confirmation?.type === "reactivate"
+                ? `The card URL will stay unavailable until its owner claims a fresh one-time code. Continue?`
+                : confirmation?.type === "replace"
+                  ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
+                  : confirmation?.type === "attach"
+                    ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "The card URL will stay unavailable until its owner claims a fresh one-time code, then it can serve the published profile." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
+                    : confirmation?.type === "deactivate"
+                      ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
+                      : ""
         }
         onCancel={cancelConfirmation}
         onConfirm={confirmAction}
@@ -1423,6 +1596,7 @@ function DemoCardsManager() {
           confirmation?.type === "reactivate" ||
           confirmation?.type === "deactivate" ||
           confirmation?.type === "attach" ||
+          confirmation?.type === "reassign" ||
           (confirmation?.type === "replace" && replacementReview)
         }
         title={
@@ -1432,9 +1606,11 @@ function DemoCardsManager() {
               ? "Reactivate this card?"
               : confirmation?.type === "replace"
                 ? "Replace this card?"
-                : confirmation?.type === "attach"
-                  ? "Confirm card attachment"
-                  : "Deactivate this card?"
+                : confirmation?.type === "reassign"
+                  ? "Confirm card reassignment"
+                  : confirmation?.type === "attach"
+                    ? "Confirm card attachment"
+                    : "Deactivate this card?"
         }
       />
     </div>
@@ -1460,6 +1636,7 @@ function LiveCardsManager() {
   const register = useMutation(api.cards.register);
   const generateCardToken = useMutation(api.cards.generateCardToken);
   const attach = useMutation(api.cards.attach);
+  const reassign = useMutation(api.cards.reassign);
   const generateClaimCode = useMutation(api.cards.generateClaimCode);
   const invalidateClaimCode = useMutation(api.cards.invalidateClaimCode);
   const deactivate = useMutation(api.cards.deactivate);
@@ -1489,6 +1666,10 @@ function LiveCardsManager() {
     cardId: Id<"cards">;
     token: string;
   } | null>(null);
+  const [reassignment, setReassignment] = useState<LiveReassignment | null>(null);
+  const [reassignmentProfileIds, setReassignmentProfileIds] = useState<
+    Record<string, Id<"profiles">>
+  >({});
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [claimCodes, setClaimCodes] = useState<Record<string, { code: string }>>({});
@@ -1538,17 +1719,19 @@ function LiveCardsManager() {
         <Notice>Loading card registry…</Notice>
       </div>
     );
-  async function run(operation: () => Promise<unknown>, success: string) {
+  async function run(operation: () => Promise<unknown>, success: string): Promise<boolean> {
     setPending(true);
     setMessage(null);
     try {
       await operation();
       setMessage({ tone: "success", text: success });
+      return true;
     } catch (error) {
       setMessage({
         tone: "error",
         text: error instanceof Error ? error.message : "Card operation failed.",
       });
+      return false;
     } finally {
       setPending(false);
     }
@@ -1812,6 +1995,71 @@ function LiveCardsManager() {
                           </Button>
                         </>
                       ) : null}
+                      {card.profileId !== undefined &&
+                      (card.status === "active" || card.status === "claimable") ? (
+                        <>
+                          <select
+                            aria-label={`Reassign ${card.token}`}
+                            className="min-h-11 rounded-control bg-tapit-soft-surface px-4 text-sm text-tapit-ink"
+                            onChange={(event) =>
+                              setReassignmentProfileIds((current) => ({
+                                ...current,
+                                [card._id]: event.target.value as Id<"profiles">,
+                              }))
+                            }
+                            value={
+                              reassignmentProfileIds[card._id] ??
+                              profiles.find((candidate) => candidate._id !== card.profileId)?._id ??
+                              ""
+                            }
+                          >
+                            {profiles
+                              .filter((candidate) => candidate._id !== card.profileId)
+                              .map((candidate) => (
+                                <option key={candidate._id} value={candidate._id}>
+                                  {candidate.draft.name || candidate.draft.slug} · {candidate.slug}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            disabled={
+                              pending ||
+                              !profiles.some((candidate) => candidate._id !== card.profileId)
+                            }
+                            onClick={() => {
+                              const destinationId =
+                                reassignmentProfileIds[card._id] ??
+                                profiles.find((candidate) => candidate._id !== card.profileId)?._id;
+                              const source = profiles.find(
+                                (candidate) => candidate._id === card.profileId,
+                              );
+                              const destination = profiles.find(
+                                (candidate) => candidate._id === destinationId,
+                              );
+                              if (
+                                !source ||
+                                !destination ||
+                                (card.status !== "active" && card.status !== "claimable")
+                              )
+                                return;
+                              setMessage(null);
+                              setReassignment({
+                                cardId: card._id,
+                                token: card.token,
+                                sourceProfileId: source._id,
+                                sourceProfileLabel: source.draft.name || source.slug,
+                                sourceStatus: card.status,
+                                destinationProfileId: destination._id,
+                                destinationProfileLabel: destination.draft.name || destination.slug,
+                              });
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Reassign
+                          </Button>
+                        </>
+                      ) : null}
                       {card.claimCodeClaimedAt === undefined &&
                       (card.status === "registered" ||
                         card.status === "claimable" ||
@@ -1954,6 +2202,33 @@ function LiveCardsManager() {
           ) : null}
         </div>
       </div>
+      <ConfirmDialog
+        confirmLabel="Confirm reassignment"
+        description={
+          reassignment
+            ? `Reassign ${reassignment.token} from ${reassignment.sourceProfileLabel} to ${reassignment.destinationProfileLabel}? The same card URL and token will be retained, and prior claim state will be cleared. The new owner needs a fresh claim code.`
+            : ""
+        }
+        onCancel={() => setReassignment(null)}
+        onConfirm={() => {
+          if (reassignment === null) return;
+          const pendingReassignment = reassignment;
+          void run(
+            () =>
+              reassign({
+                cardId: pendingReassignment.cardId,
+                expectedProfileId: pendingReassignment.sourceProfileId,
+                expectedStatus: pendingReassignment.sourceStatus,
+                profileId: pendingReassignment.destinationProfileId,
+              }),
+            `Card ${pendingReassignment.token} was reassigned. The new owner needs a fresh claim code.`,
+          ).then((succeeded) => {
+            if (succeeded) setReassignment(null);
+          });
+        }}
+        open={reassignment !== null}
+        title="Confirm card reassignment"
+      />
       <ConfirmDialog
         confirmLabel="Confirm attachment"
         description={
