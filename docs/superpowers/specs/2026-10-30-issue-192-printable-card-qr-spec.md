@@ -3,7 +3,7 @@
 **Issue:** [#192](https://github.com/wehyn/tapit/issues/192)
 **Related issue:** [#193](https://github.com/wehyn/tapit/issues/193) — Route permanent card URLs by card status
 **Date:** 2026-10-30
-**Status:** Draft for review
+**Status:** Approved in conversation
 
 ## Goal
 
@@ -11,7 +11,7 @@ Let administrators preview and download a print-ready QR code for every register
 
 ## Existing behavior
 
-- `/admin/cards` already renders QR controls for active cards.
+- Local demo `/admin/cards` currently renders QR controls only for active cards; Convex live mode has no card QR control.
 - The current QR control adds `source=qr` to its URL and is hidden for non-active cards.
 - Card records contain a `cardUrl`; issue #193 defines the permanent URL and state-routing contract.
 - The project already has client-side QR generation that can produce SVG and PNG output.
@@ -46,7 +46,8 @@ Let administrators preview and download a print-ready QR code for every register
 ### Analytics
 
 - Exact URL parity means the QR cannot append `source=qr` to distinguish QR scans from NFC taps.
-- This feature does not add a separate QR attribution mechanism. Analytics may classify both entry paths the same way under the existing URL-based behavior; changing that attribution is outside this issue.
+- With `source=qr` omitted, the current public resolver treats a missing source as `nfc`; QR scans will therefore be counted as NFC by current analytics.
+- This feature does not add a separate QR attribution mechanism. Changing that attribution is outside this issue.
 
 ## Data, access, and mode parity
 
