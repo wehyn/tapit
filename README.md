@@ -89,7 +89,7 @@ To open the dev server from another device, use the machine's LAN or Tailscale U
 | `npm run convex:dev`                                    | Convex dev workflow once `CONVEX_DEPLOYMENT` and auth values are configured.            |
 | `npm run lint` / `npm run typecheck` / `npm run format` | Individual checks; `format` rewrites files with Prettier.                               |
 
-CI (`.github/workflows/ci.yml`) runs `npm run verify` and then `npm run test:e2e`.
+CI (`.github/workflows/ci.yml`) runs verification and a production build in parallel, then runs the demo E2E suite against that build in four Playwright shards. The merged JSON report remains available as the `playwright-e2e-results` artifact.
 
 ## Runtime modes
 
