@@ -36,7 +36,7 @@ Remove the customer-only role restrictions from claim verification and completio
 
 In scope: Convex verification and completion, equivalent local-demo claim paths, regression tests for administrator and demo claims, and tests that preserve existing ownership and one-time-code protections.
 
-Out of scope: customer card-management screens, additional unassigned-card claims, role-model changes, new card states, and changes to issue #195/#196 behavior.
+Out of scope: customer card-management screens, additional unassigned-card claims, prepared-account invitation acceptance, correction requests, role-model changes, new card states, and changes to issue #195/#196 behavior.
 
 ## Acceptance criteria
 
