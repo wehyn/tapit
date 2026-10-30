@@ -8,6 +8,7 @@ import { cardStatusValidator, publicProfileValidator, validateProfileContent } f
 import { projectPublicProfile, resolvePublishedRedirectDestination } from "./profileProjection";
 import { components } from "./components";
 import schema from "./schema";
+import { cardTokenFromUrl } from "../src/lib/card-url";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
@@ -21,25 +22,6 @@ const resolveResultValidator = v.union(
     claimCodeExpiresAt: v.optional(v.number()),
   }),
 );
-
-function tokenFromCardUrl(cardUrl: string): string | null {
-  try {
-    const parsed = new URL(cardUrl);
-    if (
-      !/^https?:$/.test(parsed.protocol) ||
-      !parsed.hostname ||
-      parsed.username ||
-      parsed.password
-    )
-      return null;
-    if (parsed.search || parsed.hash) return null;
-    const match = parsed.pathname.match(/^\/c\/([A-Za-z0-9_-]{1,160})$/);
-    const token = match?.[1];
-    return token !== undefined && /^[A-Za-z0-9_-]+$/.test(token) ? token : null;
-  } catch {
-    return null;
-  }
-}
 
 export const resolve = query({
   args: { token: v.string() },
@@ -366,7 +348,7 @@ export const register = mutation({
   returns: v.id("cards"),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
-    if (tokenFromCardUrl(args.cardUrl) !== args.token)
+    if (cardTokenFromUrl(args.cardUrl) !== args.token)
       throw new Error("Card URL must use the /c/<token> format and match its token.");
     const duplicateUrl = await ctx.db
       .query("cards")
@@ -506,7 +488,7 @@ export const replace = mutation({
       oldCard.profileId === undefined
     )
       throw new Error("Only an active assigned card can be replaced.");
-    if (tokenFromCardUrl(args.newCardUrl) !== args.newToken)
+    if (cardTokenFromUrl(args.newCardUrl) !== args.newToken)
       throw new Error("Card URL must use the /c/<token> format and match its token.");
     const profile = await ctx.db.get(oldCard.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);

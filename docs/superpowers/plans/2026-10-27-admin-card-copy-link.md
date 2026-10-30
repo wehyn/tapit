@@ -1,5 +1,7 @@
 # Admin Card Copy Link Implementation Plan
 
+> Historical plan for issue #163. Its current-origin URL strategy was superseded by the canonical permanent URL contract approved for #192/#193. Follow [the updated design](../specs/2026-10-27-admin-card-copy-link-design.md) for current behavior.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `subagent-driven-development` (recommended) or inline task-by-task execution. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let admins copy the selected card's `/c/<token>` URL using the current app origin, with accessible success and failure feedback in all card states and both runtime modes.

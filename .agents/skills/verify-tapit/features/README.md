@@ -25,5 +25,5 @@ This is the maintained map for priority journeys in Tapit's local demo. Read thi
 - [Customer profile and publication](./customer-profile.md) covers private drafts and the user-controlled publish step.
 - [Customer links](./customer-links.md) covers guided link entry, saved drafts, ordering, and published links.
 - [Administrator profile operations](./admin-profiles.md) covers editing, publishing, and checking the public result.
-- [Administrator card registry](./admin-cards.md) covers registration, assignment, replacement, deactivation, and audit visibility.
+- [Administrator card registry](./admin-cards.md) covers registration, assignment, replacement, deactivation, audit visibility, and permanent card QR downloads.
 - [Administrator customer access](./admin-customers.md) covers granting and revoking owner-feature access for a cardless customer and checking the audit and customer-visible access state.

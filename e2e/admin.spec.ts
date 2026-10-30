@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 import sharp from "sharp";
 
@@ -267,8 +268,8 @@ test("administrator records and governance details stay readable on phones", asy
   await page.goto("/admin/cards");
   const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
   await expect(card).toBeVisible();
-  await expect(card.locator("summary")).toContainText("Mara Velasquez");
-  await expect(card.locator("summary")).toContainText("active");
+  await expect(card.locator("summary").first()).toContainText("Mara Velasquez");
+  await expect(card.locator("summary").first()).toContainText("active");
 });
 
 test("administrator analytics, audit, and settings keep their scoped feedback clear", async ({
@@ -324,7 +325,7 @@ test("administrator operations keep text statuses and primary controls readable 
 
     await page.goto("/admin/cards");
     const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
-    await expect(card.locator("summary")).toContainText("active");
+    await expect(card.locator("summary").first()).toContainText("active");
     await expect(page.getByLabel("Search cards")).toBeVisible();
 
     await page.goto("/admin/analytics");
@@ -773,17 +774,19 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
 
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const activeCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
-  await activeCard.locator("summary").click();
+  await activeCard.locator("summary").first().click();
   await page.getByRole("button", { name: "Copy link", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Card link copied." })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(new URL("/c/mara-card-7f2q?claim=1", page.url()).toString());
-  await activeCard.locator("summary").click();
+    .toBe("https://tapit-eosin.vercel.app/c/mara-card-7f2q");
+  await activeCard.locator("summary").first().click();
 
   await page.getByLabel("Pre-encoded card URL").fill("/c/malformed/path");
   await page.getByRole("button", { name: "Register card" }).click();
-  await expect(page.getByText("Enter a card URL with a /c/<unique-token> path.")).toBeVisible();
+  await expect(
+    page.getByText("Enter a canonical card URL with a /c/<unique-token> path."),
+  ).toBeVisible();
 
   await page.getByLabel("Pre-encoded card URL").fill("/c/mara-card-7f2q");
   await page.getByRole("button", { name: "Register card" }).click();
@@ -801,7 +804,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
     .getByRole("button", { name: "Attach card" })
     .click();
   await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeHidden();
-  await newCard.locator("summary").click();
+  await newCard.locator("summary").first().click();
   await expect(newCard.getByText(/Mara Velasquez \(new-card-abc\)/)).toBeVisible();
   await expect(
     page.getByText(
@@ -811,7 +814,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(newCard.getByRole("button", { name: "Generate claim code" })).toBeVisible();
 
   const originalCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
-  await originalCard.locator("summary").click();
+  await originalCard.locator("summary").first().click();
   await originalCard.getByRole("button", { name: "Replace card" }).click();
   await page.getByLabel("New pre-encoded card URL").fill("/c/replacement-card-xyz");
   await page.getByRole("button", { name: "Review replacement" }).click();
@@ -830,6 +833,41 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.goto("/admin/audit-log");
   await expect(page.getByText("Card replaced")).toBeVisible();
   await expect(page.getByText("Card registered")).toBeVisible();
+});
+
+test("administrator previews and downloads a permanent card QR without storing an image", async ({
+  page,
+}, testInfo) => {
+  const cardUrl = "https://tapit-eosin.vercel.app/c/e2e-card-qr?claim=1";
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Cards", exact: true }).click();
+  await page.getByLabel("Pre-encoded card URL").fill(cardUrl);
+  await page.getByRole("button", { name: "Register card" }).click();
+  await page
+    .getByRole("dialog", { name: "Confirm card attachment" })
+    .getByRole("button", { name: "Cancel" })
+    .click();
+
+  const row = page.locator("article").filter({ hasText: "e2e-card-qr" }).first();
+  await row.locator("summary").first().click();
+  const stateBeforeQr = await page.evaluate(() => JSON.stringify(localStorage));
+  await row.getByText("QR fallback", { exact: true }).click();
+  await expect(row.getByText(`Encodes ${cardUrl}`, { exact: true })).toBeVisible();
+  await expect(row.getByRole("img", { name: "QR code for e2e-card-qr" })).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await row.getByRole("button", { name: "Download SVG" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("e2e-card-qr.svg");
+  const filePath = testInfo.outputPath(download.suggestedFilename());
+  await download.saveAs(filePath);
+  await testInfo.attach("card-qr-svg", { path: filePath, contentType: "image/svg+xml" });
+  const svg = await readFile(filePath, "utf8");
+  expect(svg).toContain("<svg");
+  expect(svg).toContain('width="512" height="512"');
+  expect(svg).toContain('<path fill="#ffffff"');
+  expect(svg).toContain('<path stroke="#000000"');
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(stateBeforeQr);
 });
 
 test("administrator moderation hides a profile and can restore it", async ({ page }) => {

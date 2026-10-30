@@ -68,8 +68,14 @@ describe("public contact and QR features", () => {
   });
 
   it("generates SVG QR output for a card URL", async () => {
-    const svg = await generateQrSvg("https://tapit.example/c/mara-card-7f2q");
+    const url = "https://tapit.example/c/mara-card-7f2q?claim=1";
+    const svg = await generateQrSvg(url);
+
     expect(svg).toContain("<svg");
-    expect(svg).toContain("viewBox");
+    expect(svg).toContain('width="512" height="512"');
+    expect(svg).toMatch(/viewBox="0 0 (\d+) \1"/);
+    expect(svg).toContain('<path fill="#ffffff" d="M0 0h');
+    expect(svg).toMatch(/<path stroke="#000000" d="M4 /);
+    expect(await generateQrSvg(url)).toBe(svg);
   });
 });

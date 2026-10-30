@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import { releaseProfileImageMapping } from "./profileImages";
 import { deleteProfileMedia } from "./profileMedia";
 import { inspectProfileStorage } from "./profileStorageReferences";
+import { CANONICAL_CARD_ORIGIN } from "../src/lib/card-url";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -275,14 +276,14 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
   };
   const activeCardId = await card(
     MARA_TOKEN,
-    `https://tapit.test/c/${MARA_TOKEN}`,
+    `${CANONICAL_CARD_ORIGIN}/c/${MARA_TOKEN}`,
     "active",
     maraId,
     { assignedAt: now, claimCodeClaimedAt: now },
   );
   const claimableCardId = await card(
     CLAIMABLE_TOKEN,
-    `https://tapit.test/c/${CLAIMABLE_TOKEN}`,
+    `${CANONICAL_CARD_ORIGIN}/c/${CLAIMABLE_TOKEN}`,
     "claimable",
     claimProfileId,
     {
@@ -295,7 +296,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
   );
   const inactiveCardId = await card(
     INACTIVE_TOKEN,
-    `https://tapit.test/c/${INACTIVE_TOKEN}`,
+    `${CANONICAL_CARD_ORIGIN}/c/${INACTIVE_TOKEN}`,
     "inactive",
     maraId,
     { deactivatedAt: now },

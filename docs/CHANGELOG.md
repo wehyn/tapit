@@ -1,5 +1,9 @@
 # Change log
 
+## 2026-10-30 — Printable card QR codes
+
+- Administrators can preview and download a print-ready SVG QR for every registered card. Each QR uses the card's saved permanent URL and is generated on demand without storing an image.
+
 ## 2026-10-28 — Expiring promo offers and separate referral codes
 
 - Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.

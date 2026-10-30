@@ -54,13 +54,13 @@ describe("card claiming contracts", () => {
     if (firstToken === undefined) throw new Error("Expected a generated card token.");
 
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: `https://tapit.test/c/${firstToken}`,
+      cardUrl: `https://tapit-eosin.vercel.app/c/${firstToken}`,
       token: firstToken,
     });
     expect(cardId).toBeDefined();
     await expect(
       admin.mutation(api.cards.register, {
-        cardUrl: `https://tapit.test/c/${firstToken}`,
+        cardUrl: `https://tapit-eosin.vercel.app/c/${firstToken}`,
         token: firstToken,
       }),
     ).rejects.toThrow("already registered");
@@ -307,7 +307,7 @@ describe("card claiming contracts", () => {
       return profileId;
     });
     const immediateCardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/card-2",
+      cardUrl: "https://tapit-eosin.vercel.app/c/card-2",
       token: "card-2",
     });
     await expect(
@@ -361,7 +361,7 @@ describe("card claiming contracts", () => {
     });
     const cardlessOwner = t.withIdentity(identity(cardlessUserId));
     const claimablePublishedCardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/cardless-published",
+      cardUrl: "https://tapit-eosin.vercel.app/c/cardless-published",
       token: "cardless-published",
     });
     await expect(
@@ -406,7 +406,7 @@ describe("card claiming contracts", () => {
       tokenHash: "invited-setup-token",
     });
     const invitedCardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/card-invited",
+      cardUrl: "https://tapit-eosin.vercel.app/c/card-invited",
       token: "card-invited",
     });
     await expect(
@@ -483,7 +483,7 @@ describe("card claiming contracts", () => {
     const admin = t.withIdentity(identity(ids.adminUserId));
     const owner = t.withIdentity(identity(ids.ownerUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/restore-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/restore-card",
       token: "restore-card",
     });
     await admin.mutation(api.cards.attach, { cardId, profileId: ids.profileId });

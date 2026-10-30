@@ -293,6 +293,11 @@ describe("hosted-demo scope boundaries", () => {
         const card = await ctx.db.get(first.claimableCardId);
         expect(card?.claimCodeHash).toBeDefined();
         expect(card).not.toHaveProperty("claimCode");
+        expect(card?.cardUrl).toBe("https://tapit-eosin.vercel.app/c/claimable-card-demo");
+        const activeCard = await ctx.db.get(first.activeCardId);
+        const inactiveCard = await ctx.db.get(first.inactiveCardId);
+        expect(activeCard?.cardUrl).toBe("https://tapit-eosin.vercel.app/c/mara-card-7f2q");
+        expect(inactiveCard?.cardUrl).toBe("https://tapit-eosin.vercel.app/c/mara-card-retired");
         const profile = await ctx.db.get(first.maraProfileId);
         expect(profile?.draft.customization).toBeUndefined();
         expect(profile?.published?.customization).toBeUndefined();
