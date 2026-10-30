@@ -160,6 +160,7 @@ function isDemoCard(value: unknown): value is DemoState["cards"][number] {
   return (
     (value.profileId === undefined || typeof value.profileId === "string") &&
     (value.replacedByCardId === undefined || typeof value.replacedByCardId === "string") &&
+    (value.archivedAt === undefined || isFiniteNumber(value.archivedAt)) &&
     (value.createdAt === undefined || isFiniteNumber(value.createdAt)) &&
     (value.claimedAt === undefined || isFiniteNumber(value.claimedAt)) &&
     (value.claimCode === undefined || typeof value.claimCode === "string") &&
@@ -2020,14 +2021,15 @@ export function completeDemoCardClaim(cardToken: string, challenge: string, emai
     const owner = profile
       ? current.customers.find((candidate) => candidate.id === profile.ownerId)
       : undefined;
-    const otherLiveCard = profile
-      ? current.cards.some(
-          (candidate) =>
-            candidate.id !== card?.id &&
-            candidate.profileId === profile.id &&
-            (candidate.status === "active" || candidate.status === "claimable"),
-        )
-      : false;
+    const otherLiveCard =
+      card?.profileId === undefined && profile
+        ? current.cards.some(
+            (candidate) =>
+              candidate.id !== card?.id &&
+              candidate.profileId === profile.id &&
+              (candidate.status === "active" || candidate.status === "claimable"),
+          )
+        : false;
     if (
       !card ||
       (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||

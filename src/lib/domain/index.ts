@@ -116,6 +116,7 @@ export interface CardRecord {
   status: CardStatus;
   profileId?: string;
   replacedByCardId?: string;
+  archivedAt?: number;
 }
 
 export interface DeletionAuditPayload {

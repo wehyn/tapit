@@ -8,6 +8,7 @@ An administrator copies a card URL, registers an unassigned card, generates and 
 - `card-copy-link` copies the selected card's saved permanent URL and confirms the clipboard action.
 - `card-assign` is completed by the buyer from their own authenticated card setup flow.
 - `card-replace` replaces an existing card and retires its former URL.
+- `card-archive-restore-reactivate` archives inactive or replaced cards, restores their prior state, and reactivates eligible cards with a separate fresh claim code.
 - `card-audit` records registration and replacement in the audit log.
 - `card-qr` previews and downloads an on-demand QR generated from the card's saved URL.
 
@@ -30,10 +31,14 @@ Preconditions:
 - **Replace and check both paths.** The test replaces the existing card with `/c/replacement-card-xyz`. It then opens `/c/mara-card-7f2q` and requires `This card is inactive`, followed by `/c/replacement-card-xyz` and the `Mara Velasquez` profile heading.
 - **Check the audit record.** The test opens `/admin/audit-log` and requires `Card replaced` and `Card registered` entries.
 - **Preview and download a QR.** Run `npm run test:e2e:demo -- --grep "administrator previews and downloads a permanent card QR without storing an image" --workers=1 --trace=on`. The journey registers an absolute permanent URL without attaching it, opens its QR controls, downloads the SVG artifact, and checks that browser-local card state is unchanged.
-- **Proof.** Retain the configured JSON result, trace, and `permanent-card-qr.png` screenshot, which capture the user actions and resulting UI state.
+- **Archive, restore, and reactivate.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator archives, restores, and reactivates cards independently" issue-187-card-lifecycle-final-2026-10-30`. The journey confirms inactive and replaced rows can be archived and restored without freeing their tokens, reactivates cards into active or claimable state, preserves siblings, rejects stale claim codes, and claims with a separately generated fresh code.
+- **Reject stale lifecycle confirmations.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator rejects stale card lifecycle confirmations" issue-187-stale-card-actions-check2-2026-10-30`. Two admin tabs change the same card while Remove or Reactivate confirmation is open; the stale action must report an error and leave the newer state intact.
+- **Reject invalid published snapshots.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator cannot reactivate cards without valid published content" issue-187-invalid-published-userflow-2026-10-30`. The journey checks both an invalid content snapshot and a missing published snapshot; each failed attempt preserves the inactive card.
+- **Proof.** Retain the configured JSON result and trace, which contain the user actions and resulting route assertions.
 
 ## Gotchas
 
 - Card operations here affect only the isolated local demo browser context. Never run this journey against hosted demo or a deployment containing shared records.
 - An inactive former card must not resolve to the profile. Do not collapse the old and replacement URL checks into one.
+- Archiving only hides a card from the normal registry; its `/c/<token>` path remains inactive, and the token stays reserved.
 - This browser journey does not verify writing an NFC tag or reading a physical card.

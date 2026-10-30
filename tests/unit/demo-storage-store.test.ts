@@ -98,6 +98,32 @@ describe("demo storage store", () => {
     ).toBe("https://cards.example.test/c/claimable-card-demo?source=existing");
   });
 
+  it("loads archived card timestamps and legacy cards without the optional field", async () => {
+    const state = createDefaultDemoState();
+    state.cards[0]!.archivedAt = 1_798_000_000_000;
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+    expect(getDemoState().cards[0]?.archivedAt).toBe(1_798_000_000_000);
+
+    vi.resetModules();
+    const legacyState = createDefaultDemoState();
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(legacyState));
+    const legacyStore = await import("../../src/lib/demo/store");
+    expect(legacyStore.getDemoState().cards[0]?.archivedAt).toBeUndefined();
+  });
+
+  it("rejects an invalid archived card timestamp without overwriting saved data", async () => {
+    const state = createDefaultDemoState();
+    const encoded = JSON.parse(serializeDemoState(state)) as { cards: unknown[] };
+    (encoded.cards[0] as Record<string, unknown>).archivedAt = Number.NaN;
+    const invalidRaw = JSON.stringify(encoded);
+    localStorage.setItem(STORAGE_KEY, invalidRaw);
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cards[0]?.archivedAt).toBeUndefined();
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(invalidRaw);
+  });
+
   it("normalizes only the exact FOUNDING aliases and preserves other legacy code limits", async () => {
     const state = createDefaultDemoState();
     state.cardOrderReferralCodes = [

@@ -233,7 +233,7 @@ Card states:
 - Inactive: card shows inactive-card page.
 - Replaced: historical state for a card superseded by a new card.
 
-The implementation must prevent invalid transitions such as customer reassignment, arbitrary card claiming, reactivation of retired cards, and publication without a name and at least one valid link.
+The implementation must prevent invalid transitions such as customer reassignment, arbitrary card claiming, reassignment of inactive or replaced cards, and publication without a name and at least one valid link. Administrators may use the dedicated reactivation transition for visible inactive or replaced cards; it preserves token and profile assignment, follows the current profile state, and invalidates prior claim state so a separately generated fresh code is required.
 
 ## Data and authentication setup
 
@@ -586,7 +586,7 @@ Prove deterministic behavior without a browser:
 - active card URL continuity across an administrator slug change;
 - allowed/blocked link schemes;
 - link ordering and enabled/disabled projection;
-- card state transitions and prohibition of reactivation/reassignment;
+- card state transitions, dedicated administrator reactivation, and prohibition of inactive/replaced-card reassignment;
 - replacement relationship and old-card deactivation;
 - vCard field projection;
 - QR input/output contract;

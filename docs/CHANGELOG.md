@@ -9,6 +9,10 @@
 - Buyers can attach registered unassigned cards to their own profiles with a non-expiring package code, explicit profile confirmation, and skip/resume setup.
 - NFC and QR retain the full permanent card URL. Mistaken assignments pause on a neutral page for administrator review; #196 follows with lost-card return instructions.
 
+## 2026-10-30 — Archive and reactivate cards
+
+- Administrators can remove inactive or replaced cards from the main registry and restore them later without releasing their URLs or history. Visible inactive or replaced cards can be reactivated; issuing a fresh claim code remains a separate step. Profiles can have multiple active or claimable cards without changing sibling card state.
+
 ## 2026-10-28 — Expiring promo offers and separate referral codes
 
 - Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.

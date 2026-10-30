@@ -881,6 +881,454 @@ test("administrator previews and downloads a permanent card QR without storing a
   expect(await page.evaluate(() => JSON.stringify(localStorage))).toBe(stateBeforeQr);
 });
 
+test("administrator archives, restores, and reactivates cards independently", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Customers", exact: true }).click();
+  await page.getByText("Invite an account by email").click();
+  await page.getByLabel("Customer email").fill("issue-187-seed@example.test");
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  await expect(
+    page.getByText("Customer account created for issue-187-seed@example.test."),
+  ).toBeVisible();
+  await page.goto("/admin/cards");
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(raw) as {
+      cards: Array<Record<string, unknown>>;
+      profiles: Array<Record<string, unknown>>;
+    };
+    const inactive = state.cards.find((card) => card.token === "mara-card-retired");
+    if (!inactive) throw new Error("Inactive fixture card is missing.");
+    inactive.claimCode = "STALE187";
+    inactive.claimCodeExpiresAt = Date.now() + 60_000;
+    inactive.claimedAt = 1;
+    state.cards.push(
+      {
+        id: "card-issue-187-replaced",
+        token: "issue-187-replaced",
+        cardUrl: "https://tapit-eosin.vercel.app/c/issue-187-replaced",
+        status: "replaced",
+        profileId: "profile-claimable",
+        claimCode: "STAGE235",
+        claimCodeExpiresAt: Date.now() + 60_000,
+        claimedAt: 1,
+      },
+      {
+        id: "card-issue-187-active-sibling",
+        token: "issue-187-active-sibling",
+        cardUrl: "https://tapit-eosin.vercel.app/c/issue-187-active-sibling",
+        status: "active",
+        profileId: "profile-claimable",
+        claimedAt: 1,
+      },
+      {
+        id: "card-issue-187-claimable-sibling",
+        token: "issue-187-claimable-sibling",
+        cardUrl: "https://tapit-eosin.vercel.app/c/issue-187-claimable-sibling",
+        status: "claimable",
+        profileId: "profile-claimable",
+        claimCode: "SIBLING195",
+        claimCodeExpiresAt: Date.now() + 60_000,
+      },
+    );
+    const draftProfile = state.profiles.find((profile) => profile.id === "profile-claimable");
+    if (!draftProfile) throw new Error("Claimable profile fixture is missing.");
+    draftProfile.status = "draft";
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+
+  const retired = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  const replaced = page.locator("article").filter({ hasText: "issue-187-replaced" }).first();
+  const allFilter = page
+    .getByRole("group", { name: "Filter cards" })
+    .getByRole("button", { name: /^All / });
+  const initialCount = Number((await allFilter.innerText()).match(/\d+/)?.[0]);
+  expect(initialCount).toBeGreaterThan(0);
+  await retired.locator("summary").first().click();
+  await replaced.locator("summary").first().click();
+  await expect(retired.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+  await expect(
+    retired.getByRole("button", { name: "Copy card URL for mara-card-retired", exact: true }),
+  ).toBeVisible();
+  await expect(replaced.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+  const removeDialog = page.getByRole("dialog", { name: "Remove this card?" });
+  await retired.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(removeDialog).toContainText("will stay inactive");
+  await expect(removeDialog).toContainText("token will remain reserved");
+  await removeDialog.getByRole("button", { name: "Remove card", exact: true }).click();
+  await expect(retired).toHaveCount(0);
+  await expect(allFilter).toContainText(String(initialCount - 1));
+  await page.getByRole("button", { name: /Archived/ }).click();
+  await expect(page.locator("article").filter({ hasText: "mara-card-retired" })).toBeVisible();
+  await page.getByLabel("Pre-encoded card URL").fill("/c/mara-card-retired");
+  await page.getByRole("button", { name: "Register card" }).click();
+  await expect(page.getByText("That card URL is already registered.")).toBeVisible();
+  const archivedRetired = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await archivedRetired.locator("summary").first().click();
+  await archivedRetired.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(page.getByText("Card mara-card-retired restored as inactive.")).toBeVisible();
+  await page.getByRole("button", { name: /All/ }).click();
+
+  await replaced.locator("summary").first().click();
+  await replaced.getByRole("button", { name: "Remove", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Remove this card?" })
+    .getByRole("button", { name: "Remove card", exact: true })
+    .click();
+  await page.getByRole("button", { name: /Archived/ }).click();
+  const archivedReplacement = page
+    .locator("article")
+    .filter({ hasText: "issue-187-replaced" })
+    .first();
+  await archivedReplacement.locator("summary").first().click();
+  await archivedReplacement.getByRole("button", { name: "Restore", exact: true }).click();
+  await page.getByRole("button", { name: /All/ }).click();
+  await expect(page.locator("article").filter({ hasText: "issue-187-replaced" })).toContainText(
+    "replaced",
+  );
+  await page.goto("/c/mara-card-retired");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+  await page.goto("/c/issue-187-replaced");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const publishedTarget = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await publishedTarget.locator("summary").first().click();
+  await expect(publishedTarget).toContainText("inactive");
+  await publishedTarget.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Reactivate this card?" })
+    .getByRole("button", { name: "Reactivate card", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Card mara-card-retired reactivated. Generate a fresh claim code for the profile owner.",
+    ),
+  ).toBeVisible();
+  await expect(publishedTarget).toContainText("active");
+  await expect(
+    publishedTarget.getByRole("button", { name: "Generate code", exact: true }),
+  ).toBeVisible();
+  await page.goto("/c/mara-card-retired");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const reactivatedPublished = page
+    .locator("article")
+    .filter({ hasText: "mara-card-retired" })
+    .first();
+  await reactivatedPublished.locator("summary").first().click();
+  await reactivatedPublished.getByRole("button", { name: "Generate code", exact: true }).click();
+  const publishedFreshCode = (
+    await reactivatedPublished.getByLabel("Claim code for mara-card-retired").innerText()
+  ).trim();
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsCustomer(page);
+  await page.goto("/c/mara-card-retired");
+  await expect(page.getByRole("heading", { name: "Set up your Tapit card" })).toBeVisible();
+  await page.getByLabel("Card code").fill("STALE187");
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText("That code is invalid or unavailable.")).toBeVisible();
+  await page.getByLabel("Card code").fill(publishedFreshCode);
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: /^Account menu for mara@example\.test$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/c/mara-card-retired");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await signInAsAdmin(page);
+
+  await page.goto("/admin/cards");
+  await page.getByLabel("Pre-encoded card URL").fill("/c/mara-card-retired");
+  await page.getByRole("button", { name: "Register card" }).click();
+  await expect(page.getByText("That card URL is already registered.")).toBeVisible();
+  const target = page.locator("article").filter({ hasText: "issue-187-replaced" }).first();
+  await target.locator("summary").first().click();
+  await target.getByRole("button", { name: "Reactivate", exact: true }).click();
+  const reactivateDialog = page.getByRole("dialog", { name: "Reactivate this card?" });
+  await expect(reactivateDialog).toBeVisible();
+  await reactivateDialog.getByRole("button", { name: "Reactivate card", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Card issue-187-replaced reactivated. Generate a fresh claim code for the profile owner.",
+    ),
+  ).toBeVisible();
+  await expect(target).toContainText("claimable");
+  await expect(target.getByRole("button", { name: "Generate code", exact: true })).toBeVisible();
+  await expect(target.getByRole("button", { name: "Reactivate", exact: true })).toHaveCount(0);
+  await expect(target.getByLabel("Claim code for issue-187-replaced")).toHaveCount(0);
+  await page.goto("/c/issue-187-replaced");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const activeSibling = page
+    .locator("article")
+    .filter({ hasText: "issue-187-active-sibling" })
+    .first();
+  const claimableSibling = page
+    .locator("article")
+    .filter({ hasText: "issue-187-claimable-sibling" })
+    .first();
+  await activeSibling.locator("summary").first().click();
+  await claimableSibling.locator("summary").first().click();
+  await expect(activeSibling).toContainText("active");
+  await expect(claimableSibling).toContainText("claimable");
+  await expect(
+    claimableSibling.getByRole("button", { name: "Generate code", exact: true }),
+  ).toBeVisible();
+  const targetRow = page.locator("article").filter({ hasText: "issue-187-replaced" }).first();
+  await targetRow.locator("summary").first().click();
+  await targetRow.getByRole("button", { name: "Generate code", exact: true }).click();
+  const freshCode = (
+    await targetRow.getByLabel("Claim code for issue-187-replaced").innerText()
+  ).trim();
+  expect(freshCode).not.toBe("STAGE235");
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(raw) as { cards: Array<Record<string, unknown>> };
+    const siblings = state.cards.filter(
+      (card) =>
+        card.id === "card-issue-187-active-sibling" ||
+        card.id === "card-issue-187-claimable-sibling",
+    );
+    if (siblings.length !== 2) throw new Error("Sibling card fixtures are missing.");
+    for (const card of siblings) {
+      if (card.claimedAt !== (card.id === "card-issue-187-active-sibling" ? 1 : undefined)) {
+        throw new Error(`Sibling claim state changed: ${String(card.id)}`);
+      }
+      const expectedToken =
+        card.id === "card-issue-187-active-sibling"
+          ? "issue-187-active-sibling"
+          : "issue-187-claimable-sibling";
+      if (
+        card.token !== expectedToken ||
+        card.cardUrl !== `https://tapit-eosin.vercel.app/c/${expectedToken}`
+      ) {
+        throw new Error(`Sibling token or URL changed: ${String(card.id)}`);
+      }
+      if (
+        card.id === "card-issue-187-claimable-sibling" &&
+        (card.claimCode !== "SIBLING195" || card.claimCodeInvalidatedAt !== undefined)
+      ) {
+        throw new Error("Claimable sibling claim state changed.");
+      }
+    }
+  });
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/c/issue-187-replaced");
+  await expect(page.getByRole("heading", { name: "Set up your Tapit card" })).toBeVisible();
+  await page.getByLabel("Card code").fill("STAGE235");
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText(/invalid or unavailable/i)).toBeVisible();
+  await page.getByLabel("Card code").fill(freshCode);
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem("tapit:demo-state:v1");
+        if (!raw) return false;
+        const state = JSON.parse(raw) as {
+          cards: Array<{ id: string; token: string; claimedAt?: number }>;
+          customers: Array<{ email: string; claimedCardIds?: string[] }>;
+        };
+        const card = state.cards.find((candidate) => candidate.token === "issue-187-replaced");
+        const owner = state.customers.find((candidate) => candidate.email === "owner@example.test");
+        return (
+          card?.claimedAt !== undefined &&
+          owner?.claimedCardIds?.includes("card-issue-187-replaced") === true
+        );
+      }),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: /^Account menu for owner@example\.test$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/c/issue-187-replaced");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+  await signInAsAdmin(page);
+  await page.goto("/admin/audit-log");
+  for (const label of ["Card archived", "Card restored", "Card reactivated"]) {
+    await expect(page.getByText(label, { exact: true }).first()).toBeVisible();
+  }
+  await expect(page.getByText("Card claim code generated", { exact: true }).first()).toBeVisible();
+});
+
+test("administrator rejects stale card lifecycle confirmations", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.goto("/admin/cards");
+  const card = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await card.locator("summary").first().click();
+  await card.getByRole("button", { name: "Remove", exact: true }).click();
+
+  const otherTab = await page.context().newPage();
+  await otherTab.goto("/admin/cards");
+  const otherCard = otherTab.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await otherCard.locator("summary").first().click();
+  await otherCard.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await otherTab
+    .getByRole("dialog", { name: "Reactivate this card?" })
+    .getByRole("button", { name: "Reactivate card", exact: true })
+    .click();
+  await expect(
+    otherTab.getByText(
+      "Card mara-card-retired reactivated. Generate a fresh claim code for the profile owner.",
+    ),
+  ).toBeVisible();
+
+  await page
+    .getByRole("dialog", { name: "Remove this card?" })
+    .getByRole("button", { name: "Remove card", exact: true })
+    .click();
+  await expect(page.getByText("This card is no longer available to archive.")).toBeVisible();
+  await page.goto("/c/mara-card-retired");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await otherTab.goto("/admin/cards");
+  const activeCard = otherTab.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await activeCard.locator("summary").first().click();
+  await activeCard.getByRole("button", { name: "Deactivate", exact: true }).click();
+  await otherTab
+    .getByRole("dialog", { name: "Deactivate this card?" })
+    .getByRole("button", { name: "Deactivate card", exact: true })
+    .click();
+  await expect(otherTab.getByText("Card mara-card-retired is inactive.")).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const inactiveCard = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await inactiveCard.locator("summary").first().click();
+  await inactiveCard.getByRole("button", { name: "Reactivate", exact: true }).click();
+
+  await otherTab.goto("/admin/cards");
+  const otherInactiveCard = otherTab
+    .locator("article")
+    .filter({ hasText: "mara-card-retired" })
+    .first();
+  await otherInactiveCard.locator("summary").first().click();
+  await otherInactiveCard.getByRole("button", { name: "Remove", exact: true }).click();
+  await otherTab
+    .getByRole("dialog", { name: "Remove this card?" })
+    .getByRole("button", { name: "Remove card", exact: true })
+    .click();
+  await expect(otherTab.getByText(/Card mara-card-retired archived\./)).toBeVisible();
+
+  await page
+    .getByRole("dialog", { name: "Reactivate this card?" })
+    .getByRole("button", { name: "Reactivate card", exact: true })
+    .click();
+  await expect(page.getByText("This card is no longer eligible for reactivation.")).toBeVisible();
+  await expect(
+    otherTab.getByRole("group", { name: "Filter cards" }).getByRole("button", { name: /Archived/ }),
+  ).toContainText("1");
+  await otherTab.getByRole("button", { name: /Archived/ }).click();
+  const archivedCard = otherTab.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await archivedCard.locator("summary").first().click();
+  await archivedCard.getByRole("button", { name: "Restore", exact: true }).click();
+  await expect(otherTab.getByText("Card mara-card-retired restored as inactive.")).toBeVisible();
+  await otherTab.close();
+});
+
+test("administrator cannot reactivate cards without valid published content", async ({ page }) => {
+  await signInAsAdmin(page);
+  await page.getByText("Invite an account by email").click();
+  await page.getByLabel("Customer email").fill("issue-187-invalid-snapshot@example.test");
+  await page.getByRole("button", { name: "Create and invite" }).click();
+  await expect(
+    page.getByText("Customer account created for issue-187-invalid-snapshot@example.test."),
+  ).toBeVisible();
+  await page.goto("/admin/cards");
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(raw) as {
+      cards: Array<{ token: string; profileId?: string }>;
+      profiles: Array<{
+        id: string;
+        status: string;
+        published: Record<string, unknown> | null;
+      }>;
+    };
+    const card = state.cards.find((candidate) => candidate.token === "mara-card-retired");
+    const profile = state.profiles.find((candidate) => candidate.id === card?.profileId);
+    if (!profile?.published) throw new Error("Published profile fixture is missing.");
+    profile.status = "published";
+    profile.published.name = "";
+    profile.published.links = [];
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+
+  const row = page.locator("article").filter({ hasText: "mara-card-retired" }).first();
+  await row.locator("summary").first().click();
+  await row.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Reactivate this card?" })
+    .getByRole("button", { name: "Reactivate card", exact: true })
+    .click();
+  await expect(
+    page.getByText("The assigned profile has no valid published snapshot."),
+  ).toBeVisible();
+  await expect(row).toContainText("inactive");
+
+  await page.evaluate(() => {
+    const raw = window.localStorage.getItem("tapit:demo-state:v1");
+    if (!raw) throw new Error("Demo state was not initialized.");
+    const state = JSON.parse(raw) as {
+      cards: Array<{ token: string; profileId?: string }>;
+      profiles: Array<{
+        id: string;
+        published: Record<string, unknown> | null;
+      }>;
+    };
+    const card = state.cards.find((candidate) => candidate.token === "mara-card-retired");
+    const profile = state.profiles.find((candidate) => candidate.id === card?.profileId);
+    if (!profile) throw new Error("Published profile fixture is missing.");
+    profile.published = null;
+    window.localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
+  });
+  await page.reload();
+
+  const rowWithoutSnapshot = page
+    .locator("article")
+    .filter({ hasText: "mara-card-retired" })
+    .first();
+  await rowWithoutSnapshot.locator("summary").first().click();
+  await rowWithoutSnapshot.getByRole("button", { name: "Reactivate", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Reactivate this card?" })
+    .getByRole("button", { name: "Reactivate card", exact: true })
+    .click();
+  await expect(
+    page.getByText("The assigned profile has no valid published snapshot."),
+  ).toBeVisible();
+  await expect(rowWithoutSnapshot).toContainText("inactive");
+});
+
 test("administrator moderation hides a profile and can restore it", async ({ page }) => {
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Profiles" }).click();

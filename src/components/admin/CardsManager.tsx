@@ -5,7 +5,12 @@ import { isLocalDemoMode } from "@/lib/demo/mode";
 import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 
-import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
+import {
+  canTransitionCard,
+  isActiveAccount,
+  transitionCard,
+  validatePublication,
+} from "@/lib/domain";
 import { cardTokenFromUrl, cardUrlFromToken, normalizeCardUrl } from "@/lib/card-url";
 import type { DemoCard } from "@/lib/demo/fixtures";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -30,18 +35,19 @@ import { Tile } from "@/components/ui/Tile";
 import { api } from "../../../convex/_generated/api";
 
 type Confirmation =
-  | { type: "deactivate" | "replace"; card: DemoCard }
+  | { type: "deactivate" | "replace" | "archive" | "reactivate"; card: DemoCard }
   | { type: "attach"; card: DemoCard; profileId: string }
   | null;
 
 type CardGroup = "unclaimed" | "claimed" | "inactive";
-type CardFilter = "all" | CardGroup;
+type CardFilter = "all" | CardGroup | "archived";
 
 const cardFilterOptions: readonly { value: CardFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "unclaimed", label: "Unclaimed" },
   { value: "claimed", label: "Claimed" },
   { value: "inactive", label: "Inactive" },
+  { value: "archived", label: "Archived" },
 ];
 
 const cardRowColumns = "grid-cols-[minmax(0,1.6fr)_112px_minmax(0,1fr)_16px]";
@@ -50,6 +56,7 @@ type CardGroupSource = {
   status: string;
   claimedAt?: number;
   claimCodeClaimedAt?: number;
+  archivedAt?: number;
 };
 
 function cardGroup(card: CardGroupSource): CardGroup {
@@ -60,12 +67,19 @@ function cardGroup(card: CardGroupSource): CardGroup {
 
 function countCards(cards: CardGroupSource[]): Record<CardFilter, number> {
   const counts: Record<CardFilter, number> = {
-    all: cards.length,
+    all: 0,
     unclaimed: 0,
     claimed: 0,
     inactive: 0,
+    archived: 0,
   };
-  for (const card of cards) counts[cardGroup(card)] += 1;
+  for (const card of cards) {
+    if (card.archivedAt !== undefined) counts.archived += 1;
+    else {
+      counts.all += 1;
+      counts[cardGroup(card)] += 1;
+    }
+  }
   return counts;
 }
 
@@ -88,6 +102,12 @@ function demoClaimCode(token: string, generation: number): string {
     serial = Math.floor(serial / alphabet.length);
   }
   return `DEMA${suffix}`;
+}
+
+function cardMatchesFilter(card: CardGroupSource, filter: CardFilter): boolean {
+  return filter === "archived"
+    ? card.archivedAt !== undefined
+    : card.archivedAt === undefined && (filter === "all" || cardGroup(card) === filter);
 }
 
 function randomDemoCardToken(existingTokens: Set<string>): string {
@@ -344,7 +364,7 @@ function DemoCardsManager() {
       .map((card, index) => ({ card, createdAt: card.createdAt ?? index }))
       .filter(
         ({ card }) =>
-          (filter === "all" || cardGroup(card) === filter) &&
+          cardMatchesFilter(card, filter) &&
           (!normalized ||
             `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
       )
@@ -602,7 +622,7 @@ function DemoCardsManager() {
       tone: "success",
       text:
         assignedStatus === "active"
-          ? `Card ${card.token} is active for ${assignmentName}. Generate and share a claim code so the owner can unlock card-owner features.`
+          ? `Card ${card.token} is active for ${assignmentName}. Generate and share a claim code so the owner can claim the card and its URL can show the published profile.`
           : `Card ${card.token} is claimable and assigned to ${assignmentName}. It must be activated with a claim code.`,
     });
   }
@@ -766,11 +786,186 @@ function DemoCardsManager() {
     });
   }
 
+  function archiveCard(card: DemoCard) {
+    try {
+      updateDemoState((current) => {
+        const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+        if (
+          !currentCard ||
+          currentCard.archivedAt !== undefined ||
+          (currentCard.status !== "inactive" && currentCard.status !== "replaced")
+        )
+          throw new Error("This card is no longer available to archive.");
+        if (
+          currentCard.correctionRequestedAt !== undefined ||
+          current.cardCorrectionRequests?.some(
+            (request) => request.token === currentCard.token && request.status === "pending",
+          )
+        )
+          throw new Error("Resolve the pending assignment correction before archiving this card.");
+        const now = Date.now();
+        return {
+          ...current,
+          cards: current.cards.map((candidate) =>
+            candidate.id === card.id ? { ...candidate, archivedAt: now } : candidate,
+          ),
+          audits: [
+            {
+              id: `audit-${now}`,
+              actor: "admin@tapit.local",
+              action: "card.archived",
+              target: card.token,
+              occurredAt: new Date(now).toISOString(),
+              before: currentCard.status,
+              after: "archived",
+            },
+            ...current.audits,
+          ],
+        };
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The card could not be archived.",
+      });
+      setConfirmation(null);
+      return;
+    }
+    setConfirmation(null);
+    setMessage({
+      tone: "success",
+      text: `Card ${card.token} archived. Its URL remains inactive and its token stays reserved.`,
+    });
+  }
+
+  function restoreCard(card: DemoCard) {
+    try {
+      updateDemoState((current) => {
+        const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+        if (!currentCard || currentCard.archivedAt === undefined)
+          throw new Error("This card is no longer archived.");
+        const now = Date.now();
+        return {
+          ...current,
+          cards: current.cards.map((candidate) => {
+            if (candidate.id !== card.id) return candidate;
+            const restored = { ...candidate };
+            delete restored.archivedAt;
+            return restored;
+          }),
+          audits: [
+            {
+              id: `audit-${now}`,
+              actor: "admin@tapit.local",
+              action: "card.restored",
+              target: card.token,
+              occurredAt: new Date(now).toISOString(),
+              before: "archived",
+              after: currentCard.status,
+            },
+            ...current.audits,
+          ],
+        };
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The card could not be restored.",
+      });
+      return;
+    }
+    setMessage({ tone: "success", text: `Card ${card.token} restored as ${card.status}.` });
+  }
+
+  function reactivateCard(card: DemoCard) {
+    const now = Date.now();
+    try {
+      updateDemoState((current) => {
+        const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+        if (
+          !currentCard ||
+          currentCard.archivedAt !== undefined ||
+          (currentCard.status !== "inactive" && currentCard.status !== "replaced")
+        )
+          throw new Error("This card is no longer eligible for reactivation.");
+        if (
+          currentCard.correctionRequestedAt !== undefined ||
+          current.cardCorrectionRequests?.some(
+            (request) => request.token === currentCard.token && request.status === "pending",
+          )
+        )
+          throw new Error(
+            "Resolve the pending assignment correction before reactivating this card.",
+          );
+        const profile = getDemoProfileById(current, currentCard.profileId);
+        const owner = current.customers.find((customer) => customer.id === profile?.ownerId);
+        if (!profile || !isActiveAccount(owner?.status, owner?.deletionStatus))
+          throw new Error(
+            "The assigned profile must have an active owner to reactivate this card.",
+          );
+        if (
+          profile.status === "published" &&
+          (!profile.published || validatePublication(profile.published, null).length > 0)
+        )
+          throw new Error("The assigned profile has no valid published snapshot.");
+        const status = profile.status === "published" ? "active" : "claimable";
+        return {
+          ...current,
+          cards: current.cards.map((candidate) =>
+            candidate.id === card.id
+              ? {
+                  ...candidate,
+                  status,
+                  claimCode: undefined,
+                  claimCodeExpiresAt: undefined,
+                  claimCodeInvalidatedAt: now,
+                  claimChallenge: undefined,
+                  claimChallengeExpiresAt: undefined,
+                  claimedAt: undefined,
+                }
+              : candidate,
+          ),
+          customers: current.customers.map((customer) => ({
+            ...customer,
+            claimedCardIds: customer.claimedCardIds?.filter((id) => id !== card.id),
+          })),
+          audits: [
+            {
+              id: `audit-${now}`,
+              actor: "admin@tapit.local",
+              action: "card.reactivated",
+              target: card.token,
+              occurredAt: new Date(now).toISOString(),
+              before: currentCard.status,
+              after: status,
+            },
+            ...current.audits,
+          ],
+        };
+      });
+    } catch (error) {
+      setMessage({
+        tone: "error",
+        text: error instanceof Error ? error.message : "The card could not be reactivated.",
+      });
+      setConfirmation(null);
+      return;
+    }
+    setClaimCode((current) => (current?.cardId === card.id ? null : current));
+    setConfirmation(null);
+    setMessage({
+      tone: "success",
+      text: `Card ${card.token} reactivated. Generate a fresh claim code for the profile owner.`,
+    });
+  }
+
   function confirmAction() {
     if (confirmation === null) return;
     if (confirmation.type === "deactivate") deactivateCard(confirmation.card);
     else if (confirmation.type === "replace") replaceCard(confirmation.card);
     else if (confirmation.type === "attach") assignCard(confirmation.card, confirmation.profileId);
+    else if (confirmation.type === "archive") archiveCard(confirmation.card);
+    else if (confirmation.type === "reactivate") reactivateCard(confirmation.card);
   }
 
   function reviewReplacement() {
@@ -873,10 +1068,7 @@ function DemoCardsManager() {
       ) : null}
 
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
-        <Card
-          description="Search registered URLs, tokens, and state. Inactive and replaced cards cannot be reactivated or reassigned."
-          title="Card registry"
-        >
+        <Card description="Search registered URLs, tokens, and state." title="Card registry">
           <CardRegistryToolbar
             counts={counts}
             filter={filter}
@@ -910,6 +1102,31 @@ function DemoCardsManager() {
                         token={card.token}
                         cardUrl={card.cardUrl}
                       />
+                      {filter === "archived" ? (
+                        <Button onClick={() => restoreCard(card)} type="button" variant="secondary">
+                          Restore
+                        </Button>
+                      ) : null}
+                      {filter !== "archived" &&
+                      (card.status === "inactive" || card.status === "replaced") ? (
+                        <>
+                          <Button
+                            disabled={correctionPending}
+                            onClick={() => setConfirmation({ type: "archive", card })}
+                            type="button"
+                            variant="secondary"
+                          >
+                            Remove
+                          </Button>
+                          <Button
+                            disabled={correctionPending}
+                            onClick={() => setConfirmation({ type: "reactivate", card })}
+                            type="button"
+                          >
+                            Reactivate
+                          </Button>
+                        </>
+                      ) : null}
                       {card.status === "registered" ? (
                         <>
                           <SelectField
@@ -1176,34 +1393,48 @@ function DemoCardsManager() {
       <ConfirmDialog
         confirmDisabled={confirmationCorrectionPending}
         confirmLabel={
-          confirmation?.type === "replace"
-            ? "Replace card"
-            : confirmation?.type === "attach"
-              ? "Attach card"
-              : "Deactivate card"
+          confirmation?.type === "archive"
+            ? "Remove card"
+            : confirmation?.type === "reactivate"
+              ? "Reactivate card"
+              : confirmation?.type === "replace"
+                ? "Replace card"
+                : confirmation?.type === "attach"
+                  ? "Attach card"
+                  : "Deactivate card"
         }
         description={
-          confirmation?.type === "replace"
-            ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
-            : confirmation?.type === "attach"
-              ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "Its card URL will serve the published profile now; the owner must complete a claim code to unlock card-owner features." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
-              : confirmation?.type === "deactivate"
-                ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
-                : ""
+          confirmation?.type === "archive"
+            ? `The URL for ${confirmation.card.token} will stay inactive and its token will remain reserved. Continue?`
+            : confirmation?.type === "reactivate"
+              ? `The card URL will stay unavailable until its owner claims a fresh one-time code. Continue?`
+              : confirmation?.type === "replace"
+                ? `The old ${confirmation.card.token} path will become replaced and ${replacementUrl.trim()} will become the active card path. The former profile content will no longer be served from the old URL. Continue?`
+                : confirmation?.type === "attach"
+                  ? `Attach ${confirmation.card.token} to ${getDemoProfileById(state, confirmation.profileId)?.draft.name || getDemoProfileById(state, confirmation.profileId)?.draft.slug || "the selected profile"}? ${getDemoProfileById(state, confirmation.profileId)?.status === "published" ? "The card URL will stay unavailable until its owner claims a fresh one-time code, then it can serve the published profile." : "The card will be claimable and must be activated with a claim code before it can serve profile content."}`
+                  : confirmation?.type === "deactivate"
+                    ? `Deactivating ${confirmation.card.token} immediately removes its former profile content from the public path. Continue?`
+                    : ""
         }
         onCancel={cancelConfirmation}
         onConfirm={confirmAction}
         open={
+          confirmation?.type === "archive" ||
+          confirmation?.type === "reactivate" ||
           confirmation?.type === "deactivate" ||
           confirmation?.type === "attach" ||
           (confirmation?.type === "replace" && replacementReview)
         }
         title={
-          confirmation?.type === "replace"
-            ? "Replace this card?"
-            : confirmation?.type === "attach"
-              ? "Confirm card attachment"
-              : "Deactivate this card?"
+          confirmation?.type === "archive"
+            ? "Remove this card?"
+            : confirmation?.type === "reactivate"
+              ? "Reactivate this card?"
+              : confirmation?.type === "replace"
+                ? "Replace this card?"
+                : confirmation?.type === "attach"
+                  ? "Confirm card attachment"
+                  : "Deactivate this card?"
         }
       />
     </div>
@@ -1235,6 +1466,9 @@ function LiveCardsManager() {
   const replace = useMutation(api.cards.replace);
   const correctionRequests = useQuery(api.cardCorrectionRequests.adminList);
   const correctAssignment = useMutation(api.cardCorrectionRequests.correctAssignment);
+  const archive = useMutation(api.cards.archive);
+  const restore = useMutation(api.cards.restore);
+  const reactivate = useMutation(api.cards.reactivate);
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
   const [query, setQuery] = useState("");
@@ -1250,6 +1484,11 @@ function LiveCardsManager() {
     profileStatus: string;
     cardStatus: string;
   } | null>(null);
+  const [cardAction, setCardAction] = useState<{
+    type: "archive" | "reactivate";
+    cardId: Id<"cards">;
+    token: string;
+  } | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [claimCodes, setClaimCodes] = useState<Record<string, { code: string }>>({});
@@ -1263,7 +1502,7 @@ function LiveCardsManager() {
     const normalized = query.trim().toLowerCase();
     return orderedCards.filter(
       (card) =>
-        (filter === "all" || cardGroup(card) === filter) &&
+        cardMatchesFilter(card, filter) &&
         (!normalized ||
           `${card.cardUrl} ${card.token} ${card.status}`.toLowerCase().includes(normalized)),
     );
@@ -1272,8 +1511,6 @@ function LiveCardsManager() {
   const assignableProfiles = profiles;
   const availableCustomers = customerPages.results;
   const selectedProfileId = profileId || assignableProfiles[0]?._id;
-  const selectedProfileCard =
-    selectedProfileId === undefined ? undefined : liveCardForProfile(selectedProfileId);
   const detailProfile = profiles.find((candidate) => candidate._id === detailCard?.profileId);
   const detailOwner = availableCustomers.find(
     (customer) => customer._id === detailProfile?.ownerId,
@@ -1409,7 +1646,7 @@ function LiveCardsManager() {
       ) : null}
 
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
-        <Card description="Inactive and replaced cards cannot be reused." title="Card registry">
+        <Card description="Search registered URLs, tokens, and state." title="Card registry">
           <CardRegistryToolbar
             counts={counts}
             filter={filter}
@@ -1450,6 +1687,7 @@ function LiveCardsManager() {
               {visibleCards.map((card) => {
                 const profile = profiles.find((candidate) => candidate._id === card.profileId);
                 const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
+                const correctionPending = card.correctionRequestedAt !== undefined;
                 return (
                   <CardRow
                     key={card._id}
@@ -1466,6 +1704,53 @@ function LiveCardsManager() {
                         token={card.token}
                         cardUrl={card.cardUrl}
                       />
+                      {filter === "archived" ? (
+                        <Button
+                          disabled={pending}
+                          onClick={() =>
+                            void run(
+                              () => restore({ cardId: card._id }),
+                              `Card ${card.token} restored.`,
+                            )
+                          }
+                          type="button"
+                          variant="secondary"
+                        >
+                          Restore
+                        </Button>
+                      ) : null}
+                      {filter !== "archived" &&
+                      (card.status === "inactive" || card.status === "replaced") ? (
+                        <>
+                          <Button
+                            disabled={pending || correctionPending}
+                            onClick={() =>
+                              setCardAction({
+                                type: "archive",
+                                cardId: card._id,
+                                token: card.token,
+                              })
+                            }
+                            type="button"
+                            variant="secondary"
+                          >
+                            Remove
+                          </Button>
+                          <Button
+                            disabled={pending || correctionPending}
+                            onClick={() =>
+                              setCardAction({
+                                type: "reactivate",
+                                cardId: card._id,
+                                token: card.token,
+                              })
+                            }
+                            type="button"
+                          >
+                            Reactivate
+                          </Button>
+                        </>
+                      ) : null}
                       {card.status === "registered" ? (
                         <>
                           <select
@@ -1492,16 +1777,8 @@ function LiveCardsManager() {
                               })(),
                             )}
                           </select>
-                          {selectedProfileCard ? (
-                            <p className="basis-full text-sm text-tapit-danger">
-                              This profile already has {selectedProfileCard.status} card{" "}
-                              {selectedProfileCard.token}. Use Replace on that card instead.
-                            </p>
-                          ) : null}
                           <Button
-                            disabled={
-                              pending || !selectedProfileId || selectedProfileCard !== undefined
-                            }
+                            disabled={pending || !selectedProfileId}
                             onClick={() =>
                               selectedProfileId &&
                               setAttachment({
@@ -1681,7 +1958,7 @@ function LiveCardsManager() {
         confirmLabel="Confirm attachment"
         description={
           attachment
-            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? ${attachment.profileStatus === "published" ? "Its card URL can serve the published profile now; the owner must complete a claim code to unlock card-owner features." : "The card must be activated with a claim code before it can serve profile content."} Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
+            ? `Attach ${attachment.token} to ${attachment.customer} / ${attachment.profile}? ${attachment.profileStatus === "published" ? "The card URL will stay unavailable until its owner claims a fresh one-time code, then it can serve the published profile." : "The card must be activated with a claim code before it can serve profile content."} Profile status: ${attachment.profileStatus}. Current card status: ${attachment.cardStatus}. The assignment will be recorded in the audit log.`
             : ""
         }
         onCancel={() => setAttachment(null)}
@@ -1692,11 +1969,44 @@ function LiveCardsManager() {
           void run(
             () =>
               attach({ cardId: pendingAttachment.cardId, profileId: pendingAttachment.profileId }),
-            `Card ${pendingAttachment.token} is attached to ${pendingAttachment.profile}. Generate and share a claim code so the owner can unlock card-owner features.`,
+            `Card ${pendingAttachment.token} is attached to ${pendingAttachment.profile}. Generate and share a claim code so the owner can claim the card and ${pendingAttachment.profileStatus === "published" ? "its URL can show the published profile." : "continue profile setup."}`,
           );
         }}
         open={attachment !== null}
         title="Confirm card attachment"
+      />
+      <ConfirmDialog
+        confirmLabel={cardAction?.type === "archive" ? "Remove card" : "Reactivate card"}
+        description={
+          cardAction?.type === "archive"
+            ? `The URL for ${cardAction.token} will stay inactive and its token will remain reserved. Continue?`
+            : cardAction
+              ? `The card URL will stay unavailable until its owner claims a fresh one-time code. Continue?`
+              : ""
+        }
+        onCancel={() => setCardAction(null)}
+        onConfirm={() => {
+          if (!cardAction) return;
+          const action = cardAction;
+          setCardAction(null);
+          void run(
+            () =>
+              action.type === "archive"
+                ? archive({ cardId: action.cardId })
+                : reactivate({ cardId: action.cardId }),
+            action.type === "archive"
+              ? `Card ${action.token} archived.`
+              : `Card ${action.token} reactivated. Generate a fresh claim code for the profile owner.`,
+          );
+          if (action.type === "reactivate")
+            setClaimCodes((current) => {
+              const next = { ...current };
+              delete next[action.cardId];
+              return next;
+            });
+        }}
+        open={cardAction !== null}
+        title={cardAction?.type === "archive" ? "Remove this card?" : "Reactivate this card?"}
       />
     </div>
   );
