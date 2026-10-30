@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useConvexAuth } from "@convex-dev/auth/react";
 import { useMutation, useQuery } from "convex/react";
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Brand } from "@/components/layout/Brand";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,15 @@ import { sanitizeReturnPath } from "@/lib/auth/return-path";
 import { normalizeClaimCode } from "@/lib/auth/claim-code";
 import { api } from "../../../convex/_generated/api";
 
+const subscribeToNothing = () => () => {};
+
+function browserCardReturnHref(cardToken: string, fallback?: string) {
+  const path = `/c/${encodeURIComponent(cardToken)}`;
+  return window.location.pathname === path
+    ? `${window.location.pathname}${window.location.search}`
+    : fallback;
+}
+
 export function CardSetupFlow({
   cardToken,
   returnHref,
@@ -33,11 +42,24 @@ export function CardSetupFlow({
   correction?: boolean;
   codeFree?: boolean;
 }) {
+  const browserReturnHref = useSyncExternalStore(
+    subscribeToNothing,
+    () => browserCardReturnHref(cardToken, returnHref),
+    () => returnHref,
+  );
   if (codeFree) return <CodeFreeCardContinuation />;
   return isLocalDemoMode() ? (
-    <DemoCardSetupFlow cardToken={cardToken} returnHref={returnHref} correction={correction} />
+    <DemoCardSetupFlow
+      cardToken={cardToken}
+      returnHref={browserReturnHref}
+      correction={correction}
+    />
   ) : (
-    <LiveCardSetupFlow cardToken={cardToken} returnHref={returnHref} correction={correction} />
+    <LiveCardSetupFlow
+      cardToken={cardToken}
+      returnHref={browserReturnHref}
+      correction={correction}
+    />
   );
 }
 

@@ -860,7 +860,7 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
 });
 
 test("demo unassigned card keeps its code and query through skip and rescan", async ({ page }) => {
-  const cardPath = "/c/unassigned-card-demo?source=qr&claim=1";
+  const cardPath = "/c/unassigned-card-demo?source=qr&claim=1&a=%20&b=1&a=2";
   await page.goto(cardPath);
   await expect(page.getByRole("heading", { name: "Sign in to set up your card" })).toBeVisible();
   await expect(page.getByText("Buyer Setup")).toHaveCount(0);
@@ -927,6 +927,8 @@ test("a code-proven correction pauses the URL until an administrator corrects it
   await page.getByLabel("Email").fill("buyer@example.test");
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: "Maybe later", exact: true }).click();
   await page.goto("/c/claimable-card-demo?source=qr&claim=1");
   await expect(page.getByText("Buyer Setup")).toBeVisible();
   await page.getByLabel("Card code").fill("MARA2Q8K");

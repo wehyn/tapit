@@ -53,4 +53,61 @@ describe("card routing", () => {
       }),
     ).rejects.toThrow();
   });
+
+  it("keeps active unclaimed drafts private and hides invalidated codes", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "owner@example.com" });
+      const ownerId = await ctx.db.insert("customers", {
+        userId,
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId,
+        slug: "private-owner",
+        status: "draft",
+        draft: {
+          name: "Private Owner",
+          slug: "private-owner",
+          links: [],
+        },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(ownerId, { profileId });
+      const cardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit-eosin.vercel.app/c/private-card?claim=1",
+        token: "private-card",
+        profileId,
+        status: "active",
+        claimCodeHash: "unused-code-hash",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return { cardId, ownerId };
+    });
+
+    const resolution = await t.query(api.cards.resolve, { token: "private-card" });
+    expect(resolution).toEqual({ status: "claim" });
+    expect(JSON.stringify(resolution)).not.toContain("Private Owner");
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.ownerId, { status: "deleted" });
+    });
+    await expect(t.query(api.cards.resolve, { token: "private-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.ownerId, { status: "active" });
+      await ctx.db.patch(ids.cardId, { claimCodeInvalidatedAt: 2 });
+    });
+    await expect(t.query(api.cards.resolve, { token: "private-card" })).resolves.toEqual({
+      status: "unavailable",
+    });
+  });
 });

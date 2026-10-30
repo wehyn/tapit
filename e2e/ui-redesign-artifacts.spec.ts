@@ -34,7 +34,7 @@ const publicRoutes: readonly RouteCapture[] = [
   { name: "terms", path: "/terms", heading: "Tapit terms of use" },
   { name: "not-found", path: "/no-such-page-for-capture", heading: "Profile not found" },
   { name: "public-profile", path: "/mara-velasquez", heading: "Mara Velasquez" },
-  { name: "card-claim", path: "/c/claimable-card-demo", heading: "This card is ready to set up" },
+  { name: "card-claim", path: "/c/claimable-card-demo", heading: "Sign in to set up your card" },
   { name: "build-card", path: "/build-card", heading: "Bring your card to life" },
 ];
 

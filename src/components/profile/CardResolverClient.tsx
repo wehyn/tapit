@@ -73,7 +73,13 @@ function DemoCardResolver({
     (card.status === "claimable" || card.status === "active") &&
     card.claimedAt === undefined &&
     card.claimCodeInvalidatedAt === undefined
-  )
+  ) {
+    if (card.status === "active") {
+      const profile = getDemoProfileById(state, card.profileId);
+      const owner = profile && state.customers.find((customer) => customer.id === profile.ownerId);
+      if (!profile || !isActiveAccount(owner?.status, owner?.deletionStatus))
+        return <UnavailableProfilePage supportUrl={state.supportUrl} />;
+    }
     return (
       <CardSetupFlow
         cardToken={cardToken}
@@ -81,6 +87,7 @@ function DemoCardResolver({
         correction={card.profileId !== undefined}
       />
     );
+  }
   if (card.status === "claimable") return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   if (card.status === "active" && card.claimedAt === undefined)
     return <UnavailableProfilePage supportUrl={state.supportUrl} />;

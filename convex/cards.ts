@@ -40,6 +40,7 @@ export const resolve = query({
       return { status: "inactive" as const };
     if (card.status === "registered") return { status: "setup" as const };
     if (card.status === "claimable") {
+      if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
       if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
       const userId = await getAuthUserId(ctx);
       const customer = userId === null ? null : await customerForAuthUser(ctx, userId);
@@ -61,10 +62,11 @@ export const resolve = query({
       return { status: "unavailable" as const };
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
-    if (profile === null || !isActiveCustomer(owner) || projection === null)
-      return { status: "unavailable" as const };
+    if (profile === null || !isActiveCustomer(owner)) return { status: "unavailable" as const };
+    if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
     if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
+    const projection = await projectPublicProfile(ctx, profile);
+    if (projection === null) return { status: "unavailable" as const };
     const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
     return {
       status: "active" as const,

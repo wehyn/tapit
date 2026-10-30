@@ -345,6 +345,9 @@ describe("card claiming contracts", () => {
     await expect(
       owner.mutation(api.cardClaims.complete, { challenge: staleChallenge }),
     ).rejects.toThrow();
+    await expect(t.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
     const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
     const verification = await owner.mutation(api.cardClaims.verifyCode, {
       token: "card-1",
