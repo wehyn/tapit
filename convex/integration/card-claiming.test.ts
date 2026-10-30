@@ -306,6 +306,13 @@ describe("card claiming contracts", () => {
       profileId: ids.profileId,
     });
     expect(attached.status).toBe("claimable");
+    const secondDraftCardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit-eosin.vercel.app/c/card-draft-sibling",
+      token: "card-draft-sibling",
+    });
+    await expect(
+      admin.mutation(api.cards.attach, { cardId: secondDraftCardId, profileId: ids.profileId }),
+    ).resolves.toEqual({ status: "claimable" });
     expect(await t.query(api.cards.resolve, { token: "card-1" })).toEqual({
       status: "claim",
     });
@@ -414,10 +421,28 @@ describe("card claiming contracts", () => {
     await expect(
       admin.mutation(api.cards.attach, { cardId: immediateCardId, profileId: publishedProfileId }),
     ).resolves.toEqual({ status: "active" });
+    const secondPublishedCardId = await admin.mutation(api.cards.register, {
+      cardUrl: "https://tapit-eosin.vercel.app/c/card-published-sibling",
+      token: "card-published-sibling",
+    });
+    await expect(
+      admin.mutation(api.cards.assign, {
+        cardId: secondPublishedCardId,
+        profileId: publishedProfileId,
+      }),
+    ).resolves.toEqual({ status: "active" });
+    await expect(
+      t.run(async (ctx) =>
+        Promise.all([ctx.db.get(immediateCardId), ctx.db.get(secondPublishedCardId)]),
+      ),
+    ).resolves.toMatchObject([{ status: "active" }, { status: "active" }]);
+    await expect(
+      t.run(async (ctx) => Promise.all([ctx.db.get(ids.cardId), ctx.db.get(secondDraftCardId)])),
+    ).resolves.toMatchObject([{ status: "active" }, { status: "claimable" }]);
     await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toEqual({
       status: "claim",
     });
-    // A published profile becomes public as soon as a newly attached card is assigned.
+    // A published profile remains gated until the card's fresh claim code is used.
 
     const cardlessUserId = await t.run((ctx) =>
       ctx.db.insert("users", { email: "cardless@example.com" }),

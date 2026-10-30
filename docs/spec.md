@@ -122,7 +122,7 @@ Administrators provision customer accounts and physical card records, generate a
 5. Tapit records assignment, deactivation, and replacement events in the audit log.
 6. The new card resolves to the profile’s current public URL.
 
-Deactivated cards are not reactivated or reassigned. A new card is assigned instead.
+Administrators may reactivate a visible inactive or replaced card assigned to an eligible profile. Reactivation preserves its token and profile assignment, sets it to active for a published profile or claimable otherwise, invalidates prior claim state, and requires a separately generated fresh one-time claim code. Inactive and replaced cards remain ineligible for reassignment.
 
 ### 8. Administrator manages a profile
 
@@ -204,7 +204,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-025:** Administrators shall be able to assign cards to profiles and generate a package code for a registered unassigned card or an eligible attached but unclaimed card.
 - **FR-026:** Administrators shall be able to deactivate cards and issue replacements.
 - **FR-027:** Deactivated or replaced cards shall not reveal the former profile.
-- **FR-028:** Deactivated cards shall not be reactivated or reassigned; a new card shall be used instead.
+- **FR-028:** Administrators shall be able to reactivate visible inactive or replaced cards assigned to an eligible profile. Reactivation shall preserve the token and profile assignment, set the card to active for a published profile or claimable otherwise, invalidate prior claim state, and require a separate fresh one-time claim code; inactive or replaced cards shall not be reassigned.
 - **FR-029:** The system shall support standard NFC Forum NDEF URI records encoded with the exact stored card URL.
 - **FR-030:** Administrators shall be able to generate a QR code for any registered card URL, including unassigned cards.
 - **FR-031:** Administrators shall be able to preview and download card QR codes as PNG and SVG files.
@@ -253,6 +253,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or data for unavailable cards.
 - **FR-075:** NFC and QR shall preserve and use the full stored URL, including query strings. Query values never authorize ownership; package codes never appear in URLs or QR.
 - **FR-076:** Lost-card status, administrator lost-card actions, configured return instructions, and the dedicated lost-card page are issue #196 follow-up scope after this work.
+- **FR-077:** Administrators shall archive inactive or replaced cards without deleting their record, token, assignment, claim history, or audit history; restoring shall clear only the archive timestamp.
+- **FR-078:** A profile may have multiple active or claimable cards, and changing one card shall not change the status, URL, or claim history of its siblings.
 
 ## User experience
 
@@ -704,6 +706,9 @@ The MVP is complete in scope when it provides:
 - **AC-062:** Given NFC and QR are generated for a card URL with a query string, when each is inspected, then both use the exact stored URL and contain no package code.
 - **AC-063:** Given a card or profile is missing, unavailable, unpublished, or suspended, when its permanent URL is opened, then Tapit exposes no private draft, foreign, or former-owner data.
 - **AC-064:** Given a correction request targets a profile that already has a live card, when an administrator reviews it, then the request remains pending, the conflicting card is unchanged, and the admin interface explains the conflict.
+- **AC-065:** Given an administrator archives an inactive or replaced card, when they open Archived and restore it, then the token and history remain reserved, the prior status returns, and the URL remains inactive.
+- **AC-066:** Given an administrator reactivates a visible inactive or replaced card, when reactivation succeeds, then its status follows the current profile state, old claim state is invalidated, and a separate fresh one-time code can be generated and claimed.
+- **AC-067:** Given multiple active or claimable cards are assigned to one profile, when an administrator reactivates one card, then every sibling card keeps its own status, URL behavior, and claim state.
 
 ## Open questions and decisions
 

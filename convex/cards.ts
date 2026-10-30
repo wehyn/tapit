@@ -93,6 +93,7 @@ export const adminList = query({
       updatedAt: v.number(),
       assignedAt: v.optional(v.number()),
       deactivatedAt: v.optional(v.number()),
+      archivedAt: v.optional(v.number()),
       claimCodeGeneratedAt: v.optional(v.number()),
       claimCodeInvalidatedAt: v.optional(v.number()),
       claimCodeClaimedAt: v.optional(v.number()),
@@ -222,22 +223,6 @@ export const attach = mutation({
       owner.deletionStatus !== "active"
     )
       throw new Error("The profile owner account is not available.");
-    const [activeCards, claimableCards] = await Promise.all([
-      ctx.db
-        .query("cards")
-        .withIndex("by_profileId_and_status", (q) =>
-          q.eq("profileId", profile._id).eq("status", "active"),
-        )
-        .take(1),
-      ctx.db
-        .query("cards")
-        .withIndex("by_profileId_and_status", (q) =>
-          q.eq("profileId", profile._id).eq("status", "claimable"),
-        )
-        .take(1),
-    ]);
-    if (activeCards.length > 0 || claimableCards.length > 0)
-      throw new Error("That profile already has an attached card.");
     if (profile.status === "published") {
       if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
       if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
@@ -421,22 +406,6 @@ export const assign = mutation({
       throw new Error(
         "A card can only become active for a published profile with valid published content.",
       );
-    const [activeCards, claimableCards] = await Promise.all([
-      ctx.db
-        .query("cards")
-        .withIndex("by_profileId_and_status", (query) =>
-          query.eq("profileId", profile._id).eq("status", "active"),
-        )
-        .take(1),
-      ctx.db
-        .query("cards")
-        .withIndex("by_profileId_and_status", (query) =>
-          query.eq("profileId", profile._id).eq("status", "claimable"),
-        )
-        .take(1),
-    ]);
-    if (activeCards.length > 0 || claimableCards.length > 0)
-      throw new Error("That profile already has an attached card.");
     const owner = await ctx.db.get(profile.ownerId);
     if (
       owner === null ||
@@ -465,6 +434,115 @@ export const assign = mutation({
       after: "active",
     });
     return { status: "active" as const };
+  },
+});
+
+export const archive = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
+    if (card.archivedAt !== undefined || (card.status !== "inactive" && card.status !== "replaced"))
+      throw new Error("Only a visible inactive or replaced card can be archived.");
+    if (card.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before archiving this card.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, { archivedAt: now, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.archived",
+      cardId: card._id,
+      profileId: card.profileId,
+      occurredAt: now,
+      before: card.status,
+      after: "archived",
+    });
+    return null;
+  },
+});
+
+export const restore = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
+    if (card.archivedAt === undefined) throw new Error("Only an archived card can be restored.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, { archivedAt: undefined, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.restored",
+      cardId: card._id,
+      profileId: card.profileId,
+      occurredAt: now,
+      before: "archived",
+      after: card.status,
+    });
+    return null;
+  },
+});
+
+export const reactivate = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (
+      card === null ||
+      !sameScope(account, card) ||
+      card.archivedAt !== undefined ||
+      (card.status !== "inactive" && card.status !== "replaced")
+    )
+      throw new Error("Only a visible inactive or replaced card can be reactivated.");
+    if (card.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before reactivating this card.");
+    if (card.profileId === undefined) throw new Error("The card profile is not available.");
+    const profile = await ctx.db.get(card.profileId);
+    const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
+    if (
+      profile === null ||
+      owner === null ||
+      !sameScope(account, profile) ||
+      !sameScope(account, owner) ||
+      !sameScope(owner, profile) ||
+      !isActiveCustomer(owner)
+    )
+      throw new Error("The profile owner account is not active.");
+    if (
+      profile.status === "published" &&
+      (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+    )
+      throw new Error("A valid published profile is required.");
+    const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
+    const now = Date.now();
+    await ctx.db.patch(card._id, {
+      status,
+      claimCodeInvalidatedAt: now,
+      claimCodeClaimedAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.reactivated",
+      cardId: card._id,
+      profileId: profile._id,
+      accountId: profile.ownerId,
+      occurredAt: now,
+      before: card.status,
+      after: status,
+    });
+    return { status };
   },
 });
 

@@ -363,6 +363,7 @@ export default defineSchema({
     assignmentReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    archivedAt: v.optional(v.number()),
     assignedAt: v.optional(v.number()),
     deactivatedAt: v.optional(v.number()),
     claimCodeHash: v.optional(v.string()),
