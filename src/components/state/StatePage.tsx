@@ -36,7 +36,9 @@ export function StatePage({
             >
               {title}
             </h1>
-            <p className="mt-3 text-left text-sm leading-6 text-tapit-muted">{message}</p>
+            <p className="mt-3 whitespace-pre-line text-left text-sm leading-6 text-tapit-muted">
+              {message}
+            </p>
           </div>
         </div>
         {actionHref && actionLabel ? (
@@ -60,6 +62,23 @@ export function InactiveCardPage({ supportUrl }: { supportUrl?: string }) {
       actionLabel={supportUrl ? "Contact support" : undefined}
       message="This card no longer points to a public profile. Use the support link if you need help."
       title="This card is inactive"
+    />
+  );
+}
+export function LostCardPage({
+  instructions,
+  supportUrl,
+}: {
+  instructions?: string;
+  supportUrl?: string;
+}) {
+  const content = instructions?.trim();
+  return (
+    <StatePage
+      actionHref={!content ? supportUrl : undefined}
+      actionLabel={!content && supportUrl ? "Contact support" : undefined}
+      message={`If you found this card, please contact and return it using the instructions below.${content ? `\n\n${content}` : supportUrl ? "" : " Please return it to its issuing organization."}`}
+      title="Lost card"
     />
   );
 }

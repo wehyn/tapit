@@ -19,8 +19,9 @@ import { projectDemoPublicProfile } from "@/lib/demo/projection";
 import { isActiveAccount, validateRedirectDestination } from "@/lib/domain";
 import { getVisitorSessionKey } from "@/lib/analytics/visitor-session";
 import { matchesOwnedProfileQuery } from "@/lib/profile-ownership";
+import { DEFAULT_SUPPORT_URL } from "@/lib/support";
 
-import { UnavailableProfilePage } from "@/components/state/StatePage";
+import { LostCardPage, UnavailableProfilePage } from "@/components/state/StatePage";
 
 import { PublicProfile } from "./PublicProfile";
 import { ProfileRedirectingPage } from "./ProfileRedirectingPage";
@@ -49,6 +50,10 @@ function DemoCardResolver({
     return <CardResolverLoading />;
   }
   if (card === undefined) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
+  if (card.status === "lost")
+    return (
+      <LostCardPage instructions={state.lostCardReturnInstructions} supportUrl={state.supportUrl} />
+    );
   if (
     state.cardCorrectionRequests?.some(
       (request) => request.token === cardToken && request.status === "pending",
@@ -175,7 +180,7 @@ function LiveCardResolver({
   const result = useQuery(api.cards.resolve, { token: cardToken });
   const ownedProfile = useQuery_experimental({
     query: api.profiles.mine,
-    args: isAuthenticated && !authLoading ? {} : "skip",
+    args: result?.status === "active" && isAuthenticated && !authLoading ? {} : "skip",
   });
   const recordView = useMutation(api.analytics.recordView);
   const recordLinkClick = useMutation(api.analytics.recordLinkClick);
@@ -212,6 +217,13 @@ function LiveCardResolver({
   if (result === undefined) return <CardResolverLoading />;
   if (result.status === "missing" || result.status === "inactive")
     return <UnavailableProfilePage />;
+  if (result.status === "lost")
+    return (
+      <LostCardPage
+        instructions={result.instructions}
+        supportUrl={result.supportUrl ?? DEFAULT_SUPPORT_URL}
+      />
+    );
   if (result.status === "ownerSetup") return <CardSetupFlow cardToken={cardToken} codeFree />;
   if (result.status === "setup")
     return <CardSetupFlow cardToken={cardToken} returnHref={returnHref} />;

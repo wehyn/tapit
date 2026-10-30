@@ -10,11 +10,17 @@ import { projectPublicProfile, resolvePublishedRedirectDestination } from "./pro
 import { components } from "./components";
 import schema from "./schema";
 import { cardTokenFromUrl } from "../src/lib/card-url";
+import { DEFAULT_SUPPORT_URL } from "../src/lib/support";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
   v.object({ status: v.literal("inactive") }),
   v.object({ status: v.literal("unavailable") }),
+  v.object({
+    status: v.literal("lost"),
+    instructions: v.string(),
+    supportUrl: v.optional(v.string()),
+  }),
   v.object({ status: v.literal("setup") }),
   v.object({ status: v.literal("ownerSetup") }),
   v.object({ status: v.literal("claim") }),
@@ -36,6 +42,30 @@ export const resolve = query({
       .unique();
     if (card === null) return { status: "missing" as const };
     if (card.correctionRequestedAt !== undefined) return { status: "unavailable" as const };
+    if (card.status === "lost") {
+      const instructionRows = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (query) =>
+          query.eq("scope", card.scope).eq("key", "lostCardReturnInstructions"),
+        )
+        .take(1);
+      const instructions = instructionRows[0]?.value ?? "";
+      const supportRows = instructions.trim()
+        ? []
+        : await ctx.db
+            .query("settings")
+            .withIndex("by_scope_and_key", (query) =>
+              query.eq("scope", card.scope).eq("key", "supportUrl"),
+            )
+            .take(1);
+      return {
+        status: "lost" as const,
+        instructions,
+        ...(instructions.trim()
+          ? {}
+          : { supportUrl: supportRows[0]?.value ?? DEFAULT_SUPPORT_URL }),
+      };
+    }
     if (card.status === "inactive" || card.status === "replaced")
       return { status: "inactive" as const };
     if (card.status === "registered") return { status: "setup" as const };
@@ -578,7 +608,9 @@ export const restore = mutation({
 
 export const reactivate = mutation({
   args: { cardId: v.id("cards") },
-  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
+  returns: v.object({
+    status: v.union(v.literal("registered"), v.literal("claimable"), v.literal("active")),
+  }),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
@@ -586,11 +618,34 @@ export const reactivate = mutation({
       card === null ||
       !sameScope(account, card) ||
       card.archivedAt !== undefined ||
-      (card.status !== "inactive" && card.status !== "replaced")
+      (card.status !== "inactive" && card.status !== "replaced" && card.status !== "lost")
     )
-      throw new Error("Only a visible inactive or replaced card can be reactivated.");
+      throw new Error("Only a visible inactive, replaced, or lost card can be reactivated.");
     if (card.correctionRequestedAt !== undefined)
       throw new Error("Resolve the pending assignment correction before reactivating this card.");
+    const now = Date.now();
+    if (card.status === "lost" && card.profileId === undefined) {
+      await ctx.db.patch(card._id, {
+        status: "registered",
+        claimCodeHash: undefined,
+        claimCodeGeneratedAt: undefined,
+        claimCodeExpiresAt: undefined,
+        claimCodeClaimedAt: undefined,
+        claimCodeInvalidatedAt: now,
+        updatedAt: now,
+      });
+      await ctx.db.insert("auditLogs", {
+        scope: account.scope,
+        actorUserId: userId,
+        actorLabel: "Administrator",
+        action: "card.reactivated",
+        cardId: card._id,
+        occurredAt: now,
+        before: card.status,
+        after: "registered",
+      });
+      return { status: "registered" as const };
+    }
     if (card.profileId === undefined) throw new Error("The card profile is not available.");
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
@@ -609,7 +664,6 @@ export const reactivate = mutation({
     )
       throw new Error("A valid published profile is required.");
     const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
-    const now = Date.now();
     await ctx.db.patch(card._id, {
       status,
       claimCodeInvalidatedAt: now,
@@ -704,30 +758,60 @@ export const replace = mutation({
       profileId: oldCard.profileId,
       status: "active",
       assignmentReason: "replacement",
-      ...(oldCard.claimCodeClaimedAt === undefined
-        ? {}
-        : { claimCodeClaimedAt: oldCard.claimCodeClaimedAt }),
       createdAt: now,
       updatedAt: now,
       assignedAt: now,
-    });
-    await ctx.db.patch(oldCard._id, {
-      status: "replaced",
-      replacedByCardId: newCardId,
-      updatedAt: now,
-      deactivatedAt: now,
     });
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
-      action: "card.replaced",
-      cardId: oldCard._id,
+      action: "card.replacement_added",
+      cardId: newCardId,
       profileId: oldCard.profileId,
       occurredAt: now,
-      before: "active",
-      after: `replaced by ${newCardId}`,
+      before: "no replacement card",
+      after: JSON.stringify({
+        status: "active",
+        profileId: oldCard.profileId,
+        replaces: oldCard._id,
+      }),
     });
     return newCardId;
+  },
+});
+
+export const markLost = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
+    if (card.status === "lost") throw new Error("This card is already marked lost.");
+    if (card.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before marking this card lost.");
+    const openCorrection = await ctx.db
+      .query("cardCorrectionRequests")
+      .withIndex("by_cardId_and_status", (query) =>
+        query.eq("cardId", card._id).eq("status", "open"),
+      )
+      .first();
+    if (openCorrection !== null)
+      throw new Error("Resolve the pending assignment correction before marking this card lost.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, { status: "lost", updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.marked_lost",
+      cardId: card._id,
+      profileId: card.profileId,
+      occurredAt: now,
+      before: card.status,
+      after: "lost",
+    });
+    return null;
   },
 });

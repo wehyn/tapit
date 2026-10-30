@@ -98,7 +98,7 @@ describe("card archive, restore, and reactivation", () => {
       "Only a visible inactive or replaced card can be archived.",
     );
     await expect(admin.mutation(api.cards.reactivate, { cardId: inactiveCardId })).rejects.toThrow(
-      "Only a visible inactive or replaced card can be reactivated.",
+      "Only a visible inactive, replaced, or lost card can be reactivated.",
     );
     await expect(
       admin.mutation(api.cards.register, {
@@ -470,10 +470,10 @@ describe("card archive, restore, and reactivation", () => {
 
     await expect(
       admin.mutation(api.cards.reactivate, { cardId: ids.crossScopeCardId }),
-    ).rejects.toThrow("Only a visible inactive or replaced card can be reactivated.");
+    ).rejects.toThrow("Only a visible inactive, replaced, or lost card can be reactivated.");
     await expect(
       demoAdmin.mutation(api.cards.reactivate, { cardId: ids.replacedCardId }),
-    ).rejects.toThrow("Only a visible inactive or replaced card can be reactivated.");
+    ).rejects.toThrow("Only a visible inactive, replaced, or lost card can be reactivated.");
     await expect(
       admin.mutation(api.cards.reactivate, { cardId: ids.crossScopeProfileCardId }),
     ).rejects.toThrow("The profile owner account is not active.");

@@ -8,6 +8,7 @@ import { releaseProfileImageMapping } from "./profileImages";
 import { deleteProfileMedia } from "./profileMedia";
 import { inspectProfileStorage } from "./profileStorageReferences";
 import { CANONICAL_CARD_ORIGIN } from "../src/lib/card-url";
+import { DEFAULT_SUPPORT_URL } from "../src/lib/support";
 
 const DEMO_SCOPE = "demo" as const;
 const MARA_SLUG = "mara-velasquez";
@@ -421,7 +422,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     .unique();
   if (setting)
     await ctx.db.patch(setting._id, {
-      value: "mailto:support@example.test",
+      value: DEFAULT_SUPPORT_URL,
       updatedAt: now,
       updatedByUserId: operatorUserId,
     });
@@ -429,7 +430,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     await ctx.db.insert("settings", {
       scope: DEMO_SCOPE,
       key: "supportUrl",
-      value: "mailto:support@example.test",
+      value: DEFAULT_SUPPORT_URL,
       updatedAt: now,
       updatedByUserId: operatorUserId,
     });

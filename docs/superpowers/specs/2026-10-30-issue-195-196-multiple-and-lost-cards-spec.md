@@ -38,14 +38,14 @@ Allow a profile to use multiple independently managed NFC cards. Keep an existin
 - If a lost card has no profile assignment, recovery returns it to `registered` and invalidates its prior package code. The administrator must assign it and issue a fresh code before the recipient can claim it.
 - Record the administrator and event time in the card audit entry, along with the card and its before/after status.
 - Add a dedicated, scoped **Lost-card return instructions** setting under Admin Settings. The administrator supplies plain text for this purpose; tell them this text is public to anyone who scans a lost card. Do not infer it from an owner's profile, reuse customer details, or render it as HTML.
-- A lost card's existing URL returns a dedicated page with the message, “If you found this card, please contact and return it using the instructions below.” If return instructions are empty, use the explicitly configured site-wide support destination as a contact link; if neither is configured, show a neutral fallback asking the finder to return the card to its issuing organization.
+- A lost card's existing URL returns a dedicated page with the message, “If you found this card, please contact and return it using the instructions below.” If return instructions are empty, use the site-wide support destination as a contact link. Its default is `mailto:officialntap.it@gmail.com`; an administrator-configured support destination overrides that default. If no support destination is available, show a neutral fallback asking the finder to return the card to its issuing organization.
 - The resolver returns return instructions and, only as a fallback, the configured support destination for a lost card. It does not load or return profile data. For every other status, neither setting is included in the public response.
 - Marking a card lost does not change its URL or QR code. QR continues to encode the same permanent URL and therefore reaches the lost-card page through the resolver.
 
 ## Data, scope, and safety
 
 - Extend the shared card status type, Convex card validator/schema, and local-demo persisted-state validation with `lost`. No existing card rows require a migration; the new setting is optional.
-- Store return instructions in the existing scoped settings table, with matching browser-local state in local demo. Only the lost-card resolver response exposes the configured value or fallback support destination.
+- Store return instructions in the existing scoped settings table, with matching browser-local state in local demo. The default site-wide support destination is `mailto:officialntap.it@gmail.com`. Only the lost-card resolver response exposes return instructions or its fallback support destination.
 - Render return details as plain text. Keep the safe fallback independent of profile and account data.
 - Do not add a separate `found` status. Assigned cards use the existing reactivation and fresh-claim flow; unassigned cards return to `registered` with the old code invalidated.
 - Local demo and Convex must have the same assignment, claim, replacement, lost-card, return-page, and audit behavior.
@@ -56,7 +56,7 @@ Allow a profile to use multiple independently managed NFC cards. Keep an existin
 2. For a replacement, the administrator chooses **Add replacement**, creates a new card for the same profile, and generates a fresh code for that card. The confirmation states that the previous card remains usable until separately deactivated or marked lost.
 3. A card owner claims each physical card with its own code. Opening a claimed active card URL still resolves to the profile's current published content.
 4. If a card is lost, the administrator marks that card lost. Its existing URL displays the dedicated return page; sibling cards continue resolving under their own states.
-5. The administrator can update the shared return instructions in Settings. If the setting is empty, the lost page uses the configured generic support destination, or the neutral fallback if neither setting is configured.
+5. The administrator can update the shared return instructions in Settings. If the setting is empty, the lost page uses the configured generic support destination (defaulting to `mailto:officialntap.it@gmail.com`), or the neutral fallback if no support destination is available.
 
 ## Implementation touchpoints
 
@@ -74,7 +74,7 @@ Allow a profile to use multiple independently managed NFC cards. Keep an existin
 4. An administrator can deactivate or mark lost one card without disabling other cards for the same profile.
 5. An administrator can mark a specific card lost in `/admin/cards`; the audit log identifies who did it and when.
 6. Opening a lost card's permanent URL shows the return page, not the owner's profile, setup flow, or private account data.
-7. The return page uses the fixed found-card message and shows configured return instructions, then the configured generic support destination if return instructions are empty, or the safe fallback if both are unset.
+7. The return page uses the fixed found-card message and shows configured return instructions, then the site-wide support destination if return instructions are empty. The default support destination is `mailto:officialntap.it@gmail.com`; if no support destination is available, show the safe fallback.
 8. Updating return instructions is scoped to the current environment and uses the existing admin authorization and audit patterns.
 9. The lost card keeps its token and URL. Other active cards assigned to its profile continue to resolve normally.
 10. Local demo and Convex behavior match for all criteria above.

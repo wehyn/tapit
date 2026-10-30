@@ -96,6 +96,7 @@ function createRaceDemoState() {
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
+  vi.spyOn(window, "confirm").mockReturnValue(true);
   mutationHandlers.register.mockReset().mockResolvedValue("cards:new-card");
   mutationHandlers.replace.mockReset().mockResolvedValue("cards:replacement-card");
   mutationHandlers.reassign.mockReset().mockResolvedValue(null);
@@ -491,7 +492,7 @@ describe("live card URL mutations", () => {
     fireEvent.change(screen.getByLabelText("Replacement URL for existing-card"), {
       target: { value: " /c/replacement-88 " },
     });
-    fireEvent.click(screen.getByRole("button", { name: /^Replace$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
 
     await waitFor(() =>
       expect(mutationHandlers.replace).toHaveBeenCalledWith({
@@ -520,7 +521,7 @@ describe("live card URL mutations", () => {
     fireEvent.change(screen.getByLabelText("Replacement URL for existing-card"), {
       target: { value: cardUrl },
     });
-    fireEvent.click(screen.getByRole("button", { name: /^Replace$/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
     await waitFor(() =>
       expect(mutationHandlers.replace).toHaveBeenCalledWith({
         oldCardId: "cards:existing-card",
@@ -650,7 +651,7 @@ describe("local-demo card links", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Search cards" }), {
       target: { value: "active-unclaimed-card-demo" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Replace card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
     fireEvent.change(screen.getByLabelText("New pre-encoded card URL"), {
       target: { value: "/c/replacement-id-collision" },
     });
@@ -716,7 +717,7 @@ describe("local-demo card links", () => {
     });
   });
 
-  it("replaces the latest card snapshot and copies its current assignment and claim metadata", () => {
+  it("adds a separate card without changing the latest snapshot or copying claim metadata", () => {
     vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
     vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
     localStorage.clear();
@@ -726,7 +727,7 @@ describe("local-demo card links", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Search cards" }), {
       target: { value: "active-unclaimed-card-demo" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Replace card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
     fireEvent.change(screen.getByLabelText("New pre-encoded card URL"), {
       target: { value: "/c/replacement-latest" },
     });
@@ -744,11 +745,7 @@ describe("local-demo card links", () => {
 
     const saved = JSON.parse(localStorage.getItem("tapit:demo-state:v1") ?? "{}");
     expect(
-      saved.cards.find((card: { token: string }) => card.token === "active-unclaimed-card-demo")
-        .status,
-    ).toBe("replaced");
-    expect(
-      saved.cards.find((card: { token: string }) => card.token === "replacement-latest"),
+      saved.cards.find((card: { token: string }) => card.token === "active-unclaimed-card-demo"),
     ).toMatchObject({
       status: "active",
       profileId: "profile-admin-demo",
@@ -756,6 +753,16 @@ describe("local-demo card links", () => {
       claimCodeGeneration: 9,
       claimCodeExpiresAt: 12345,
     });
+    expect(
+      saved.cards.find((card: { token: string }) => card.token === "replacement-latest"),
+    ).toMatchObject({
+      status: "active",
+      profileId: "profile-admin-demo",
+    });
+    expect(
+      saved.cards.find((card: { token: string }) => card.token === "replacement-latest"),
+    ).not.toHaveProperty("claimCode");
+    expect(saved.audits[0].action).toBe("card.replacement_added");
   });
 
   it("blocks a replacement when a pending correction appears in storage without a rerender", () => {
@@ -768,7 +775,7 @@ describe("local-demo card links", () => {
     fireEvent.change(screen.getByRole("searchbox", { name: "Search cards" }), {
       target: { value: "active-unclaimed-card-demo" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Replace card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
     fireEvent.change(screen.getByLabelText("New pre-encoded card URL"), {
       target: { value: "/c/replacement-race" },
     });
@@ -982,7 +989,7 @@ describe("local-demo card links", () => {
     state.cards.find((card) => card.token === "active-unclaimed-card-demo")!.status = "inactive";
     localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
     render(<CardsManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Replace card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
     fireEvent.change(screen.getByLabelText("New pre-encoded card URL"), {
       target: { value: "/c/replacement-card" },
     });
@@ -1024,7 +1031,7 @@ describe("local-demo card links", () => {
     state.cards.find((card) => card.token === "active-unclaimed-card-demo")!.status = "inactive";
     localStorage.setItem("tapit:demo-state:v1", JSON.stringify(state));
     render(<CardsManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Replace card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add replacement" }));
 
     const updated = JSON.parse(localStorage.getItem("tapit:demo-state:v1") ?? "{}");
     updated.cardCorrectionRequests = [
@@ -1096,7 +1103,7 @@ describe("local-demo card links", () => {
     ).toBe(true);
     expect(
       screen
-        .getAllByRole("button", { name: "Replace card" })
+        .getAllByRole("button", { name: "Add replacement" })
         .some((button) => button.hasAttribute("disabled")),
     ).toBe(true);
   });

@@ -233,13 +233,23 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     });
     await expect(t.run((ctx) => ctx.db.get(replacementId))).resolves.toMatchObject({
       cardUrl: "https://tapit-eosin.vercel.app/c/replacement-card?source=replace&x=1%2F2",
+      status: "active",
+      profileId: data.ownerProfileId,
     });
-    await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toEqual({
-      status: "inactive",
+    await expect(t.run((ctx) => ctx.db.get(replacementId))).resolves.not.toHaveProperty(
+      "claimCodeClaimedAt",
+    );
+    await expect(t.run((ctx) => ctx.db.get(cardId))).resolves.toMatchObject({
+      status: "active",
+      profileId: data.ownerProfileId,
+      claimCodeClaimedAt: 2,
     });
-    await expect(t.query(api.cards.resolve, { token: "replacement-card" })).resolves.toMatchObject({
+    await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner" },
+    });
+    await expect(t.query(api.cards.resolve, { token: "replacement-card" })).resolves.toEqual({
+      status: "claim",
     });
     const secondReplacementId = await admin.mutation(api.cards.replace, {
       oldCardId: replacementId,
@@ -536,7 +546,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     });
 
     await expect(owner.query(api.settings.support, {})).resolves.toBe(
-      "mailto:support@example.test",
+      "mailto:officialntap.it@gmail.com",
     );
     await expect(
       owner.mutation(api.settings.setSupport, { value: "https://support.example.test" }),

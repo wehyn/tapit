@@ -1,13 +1,14 @@
 # Administrator card registry
 
-An administrator copies a card URL, registers an unassigned card, generates and invalidates its claim code, replaces an active card, and checks that the old URL is inactive while the replacement resolves to the profile.
+An administrator copies a card URL, registers an unassigned card, manages claim codes, adds an independent replacement card, and manages lost-card return instructions. Each card keeps its own URL, status, and claim state.
 
 ## Sub-features
 
 - `card-register` validates and registers a new pre-encoded card URL.
 - `card-copy-link` copies the selected card's saved permanent URL and confirms the clipboard action.
 - `card-assign` is completed by the buyer from their own authenticated card setup flow.
-- `card-replace` replaces an existing card and retires its former URL.
+- `card-replace` adds an independently claimable card for the same profile while leaving the existing card active.
+- `card-lost-return` marks one card lost, shows public return instructions without profile data, and recovers it with a fresh claim.
 - `card-archive-restore-reactivate` archives inactive or replaced cards, restores their prior state, and reactivates eligible cards with a separate fresh claim code.
 - `card-audit` records registration and replacement in the audit log.
 - `card-qr` previews and downloads an on-demand QR generated from the card's saved URL.
@@ -27,10 +28,12 @@ Preconditions:
 - Use the fictional local admin account `admin@tapit.local` with password `tapit-demo`.
 - The deterministic fixture contains Mara's active card at `/c/mara-card-7f2q`.
 
-- **Register an unassigned card and manage its code.** Run `npm run test:e2e:demo -- --grep "administrator registers unassigned cards, manages claim codes, replaces, deactivates, and audits cards" --workers=1 --trace=on`. The journey is in `e2e/admin.spec.ts`; it opens `Cards`, enters `/c/new-card-abc` in `Pre-encoded card URL`, registers it unassigned, generates and invalidates its claim code, then generates a replacement code.
+- **Register cards, add a replacement, and mark a card lost.** Run `npm run test:e2e:demo -- --grep "administrator registers cards, adds replacements, marks cards lost, and audits card actions" --workers=1 --trace=on`. The journey in `e2e/admin.spec.ts` registers an unassigned card, manages its claim code, adds a separate replacement, verifies the old card still resolves to Mara's profile while the new card enters setup, then marks the old card lost and checks its public return page.
 - **Copy a card URL.** Before registration, the same journey selects Mara's active card, clicks `Copy card URL for mara-card-7f2q`, checks the visible confirmation, and verifies the clipboard contains `https://tapit-eosin.vercel.app/c/mara-card-7f2q` exactly.
-- **Replace and check both paths.** The test replaces the existing card with `/c/replacement-card-xyz`. It then opens `/c/mara-card-7f2q` and requires `This card is inactive`, followed by `/c/replacement-card-xyz` and the `Mara Velasquez` profile heading.
-- **Check the audit record.** The test opens `/admin/audit-log` and requires `Card replaced` and `Card registered` entries.
+- **Add a replacement and check both paths.** The test adds `/c/replacement-card-xyz`. It then opens `/c/mara-card-7f2q` and requires the `Mara Velasquez` profile heading, followed by `/c/replacement-card-xyz` and the `Set up your Tapit card` heading.
+- **Check lost-card handling.** In `Cards`, mark Mara's card lost and open its unchanged `/c/mara-card-7f2q` URL. The page must show the finder message and support link, with no Mara profile heading. The test captures `lost-card-return.png` in the run artifacts.
+- **Check the audit record.** The test opens `/admin/audit-log` and requires `Replacement card added`, `Card marked lost`, and `Card registered` entries.
+- **Check configured instructions and recovery.** In `Cards`, save plain-text return instructions under Admin Settings, mark another card lost, and confirm the public page shows those instructions without owner data. Recover an assigned card and generate a new claim code before claiming it again. For an unassigned card, recovery returns it to `registered` and requires assignment plus a new code.
 - **Preview and download a QR.** Run `npm run test:e2e:demo -- --grep "administrator previews and downloads a permanent card QR without storing an image" --workers=1 --trace=on`. The journey registers an absolute permanent URL without attaching it, opens its QR controls, downloads the SVG artifact, and checks that browser-local card state is unchanged.
 - **Archive, restore, and reactivate.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator archives, restores, and reactivates cards independently" issue-187-card-lifecycle-final-2026-10-30`. The journey confirms inactive and replaced rows can be archived and restored without freeing their tokens, reactivates cards into active or claimable state, preserves siblings, rejects stale claim codes, and claims with a separately generated fresh code.
 - **Reject stale lifecycle confirmations.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator rejects stale card lifecycle confirmations" issue-187-stale-card-actions-check2-2026-10-30`. Two admin tabs change the same card while Remove or Reactivate confirmation is open; the stale action must report an error and leave the newer state intact.
@@ -43,7 +46,7 @@ Preconditions:
 ## Gotchas
 
 - Card operations here affect only the isolated local demo browser context. Never run this journey against hosted demo or a deployment containing shared records.
-- An inactive former card must not resolve to the profile. Do not collapse the old and replacement URL checks into one.
+- An added replacement does not retire the existing card. Check both URLs: the old URL still resolves according to its own state, and the new URL requires its own claim.
 - Archiving only hides a card from the normal registry; its `/c/<token>` path remains inactive, and the token stays reserved.
 - Reassignment eligibility excludes inactive and replaced cards. Reassignment keeps the original URL, invalidates prior claim state, and requires a fresh destination claim.
 - This browser journey does not verify writing an NFC tag or reading a physical card.
