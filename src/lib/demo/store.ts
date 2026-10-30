@@ -26,6 +26,7 @@ import {
   UnsupportedDemoStorageVersionError,
 } from "./storage-codec";
 import { hashSetupToken } from "../auth/setup-token";
+import { DEFAULT_SUPPORT_URL } from "../support";
 
 const STORAGE_KEY = "tapit:demo-state:v1";
 const SESSION_KEY = "tapit:demo-session:v1";
@@ -154,7 +155,9 @@ function isDemoCard(value: unknown): value is DemoState["cards"][number] {
     !isRecord(value) ||
     typeof value.id !== "string" ||
     typeof value.cardUrl !== "string" ||
-    !["registered", "claimable", "active", "inactive", "replaced"].includes(String(value.status))
+    !["registered", "claimable", "active", "inactive", "replaced", "lost"].includes(
+      String(value.status),
+    )
   )
     return false;
   return (
@@ -370,6 +373,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
     (decoded.profile.draft !== undefined && !isRecord(decoded.profile.draft)) ||
     !Array.isArray(decoded.cards) ||
     !Array.isArray(decoded.customers) ||
+    (decoded.lostCardReturnInstructions !== undefined &&
+      typeof decoded.lostCardReturnInstructions !== "string") ||
     !decoded.cards.every(isDemoCard) ||
     !decoded.customers.every(isDemoCustomer) ||
     (decoded.setupInvitations !== undefined &&
@@ -400,6 +405,8 @@ function normalizeStoredState(raw: string): StateStorageRead {
   };
   const persistedState = { ...parsed };
   Reflect.deleteProperty(persistedState, "cardOrderLaunchEndDate");
+  if (persistedState.supportUrl === "mailto:support@example.test")
+    persistedState.supportUrl = DEFAULT_SUPPORT_URL;
   const fallback = createDefaultDemoState();
   const profiles =
     Array.isArray(parsed.profiles) && parsed.profiles.length > 0

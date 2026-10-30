@@ -22,7 +22,7 @@ import {
 
 export type Role = "customer" | "admin";
 export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
-export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "replaced";
+export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "replaced" | "lost";
 export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
 export type DeletionStatus = "active" | "requested" | "deleted";
 export type ProfileTheme = "paper" | "moss" | "night" | "custom";
@@ -547,11 +547,12 @@ export function canManageCard(actor: Actor): boolean {
 }
 
 const CARD_TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
-  registered: ["claimable", "active"],
-  claimable: ["active"],
-  active: ["inactive", "replaced"],
-  inactive: [],
-  replaced: [],
+  registered: ["claimable", "active", "lost"],
+  claimable: ["active", "lost"],
+  active: ["inactive", "replaced", "lost"],
+  inactive: ["lost"],
+  replaced: ["lost"],
+  lost: [],
 };
 
 export function canTransitionCard(from: CardStatus, to: CardStatus): boolean {

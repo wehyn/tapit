@@ -328,6 +328,7 @@ function DemoSettingsManager() {
   const cardOrderSettings = getDemoCardOrderAdminSettings();
   const [paymentMethods, setPaymentMethods] = useState(cardOrderSettings.paymentMethods);
   const [supportUrl, setSupportUrl] = useState(state.supportUrl);
+  const [lostInstructions, setLostInstructions] = useState(state.lostCardReturnInstructions ?? "");
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
 
   useEffect(() => {
@@ -386,6 +387,32 @@ function DemoSettingsManager() {
     setMessage({ tone: "success", text: "Support destination saved." });
   }
 
+  function saveLostInstructions(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (lostInstructions.length > 4000) {
+      setMessage({ tone: "error", text: "Return instructions must be 4,000 characters or fewer." });
+      return;
+    }
+    const value = lostInstructions.trim();
+    updateDemoState((current) => ({
+      ...current,
+      lostCardReturnInstructions: value,
+      audits: [
+        {
+          id: `audit-${Date.now()}`,
+          actor: "admin@tapit.local",
+          action: "settings.lost_card_return_instructions_updated",
+          target: "lostCardReturnInstructions",
+          occurredAt: new Date().toISOString(),
+          before: current.lostCardReturnInstructions ?? "",
+          after: value,
+        },
+        ...current.audits,
+      ],
+    }));
+    setMessage({ tone: "success", text: "Lost-card return instructions saved." });
+  }
+
   return (
     <div className="flex min-w-0 flex-col gap-8 pt-2">
       <CardOrderSettings
@@ -395,6 +422,21 @@ function DemoSettingsManager() {
         settings={{ ...cardOrderSettings, paymentMethods }}
       />
       <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card
+          description="This plain text is public to anyone who scans a lost card."
+          title="Lost-card return instructions"
+        >
+          <form className="mt-6 grid max-w-xl gap-4" onSubmit={saveLostInstructions}>
+            <TextareaField
+              id="lost-card-instructions"
+              label="Return instructions"
+              maxLength={4000}
+              onChange={(event) => setLostInstructions(event.target.value)}
+              value={lostInstructions}
+            />
+            <Button type="submit">Save instructions</Button>
+          </form>
+        </Card>
         <Card
           description="Use a generic support destination for inactive cards, unavailable profiles, and account help. Keep customer-specific data out of this setting."
           title="Support contact"
@@ -457,14 +499,18 @@ function DemoSettingsManager() {
 function LiveSettingsManager() {
   const authToken = useAuthToken();
   const configured = useQuery(api.settings.support);
+  const configuredLostInstructions = useQuery(api.settings.returnInstructions);
   const cardOrderSettings = useQuery(api.cardOrderSettings.adminSettings);
   const saveSupport = useMutation(api.settings.setSupport);
+  const saveLostInstructions = useMutation(api.settings.setReturnInstructions);
   const savePaymentMethod = useMutation(api.cardOrderSettings.savePaymentMethod);
   const deactivatePaymentMethod = useMutation(api.cardOrderSettings.deactivatePaymentMethod);
   const setPaymentMethodQr = useMutation(api.cardOrderPaymentQr.setPaymentMethodQr);
   const [supportUrl, setSupportUrl] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const value = supportUrl ?? configured ?? "";
+  const [lostInstructions, setLostInstructions] = useState<string | null>(null);
+  const lostValue = lostInstructions ?? configuredLostInstructions ?? "";
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -481,7 +527,19 @@ function LiveSettingsManager() {
     }
   }
 
-  if (configured === undefined)
+  async function saveLost(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage(null);
+    try {
+      const result = await saveLostInstructions({ value: lostValue });
+      setLostInstructions(result.value);
+      setMessage({ tone: "success", text: "Lost-card return instructions saved." });
+    } catch (error) {
+      setMessage({ tone: "error", text: getErrorMessage(error, "Settings could not be saved.") });
+    }
+  }
+
+  if (configured === undefined || configuredLostInstructions === undefined)
     return (
       <div className="flex min-w-0 flex-col gap-8 pt-2">
         <AdminPageHeader
@@ -559,6 +617,21 @@ function LiveSettingsManager() {
         </>
       )}
       <div className="grid items-start gap-4 lg:grid-cols-2">
+        <Card
+          description="This plain text is public to anyone who scans a lost card."
+          title="Lost-card return instructions"
+        >
+          <form className="mt-6 grid max-w-xl gap-4" onSubmit={saveLost}>
+            <TextareaField
+              id="lost-card-instructions"
+              label="Return instructions"
+              maxLength={4000}
+              onChange={(event) => setLostInstructions(event.target.value)}
+              value={lostValue}
+            />
+            <Button type="submit">Save instructions</Button>
+          </form>
+        </Card>
         <Card
           description="This destination is used for generic support states and account help."
           title="Support contact"

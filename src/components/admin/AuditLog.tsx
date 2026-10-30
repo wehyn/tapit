@@ -51,6 +51,8 @@ const readableActions: Record<string, string> = {
   "card.restored": "Card restored",
   "card.reactivated": "Card reactivated",
   "card.reassigned": "Card reassigned to profile",
+  "card.replacement_added": "Replacement card added",
+  "card.marked_lost": "Card marked lost",
   "customer.created": "Customer account created",
   "customer.card_owner_access_override_changed": "Customer owner access override changed",
   "customer.onboarding_completed": "Customer onboarding completed",
@@ -73,6 +75,7 @@ const readableActions: Record<string, string> = {
   "profile.unpublished": "Profile unpublished",
   "profile.updated": "Profile updated",
   "settings.support_updated": "Support contact updated",
+  "settings.lost_card_return_instructions_updated": "Lost-card return instructions updated",
 };
 
 const changeFieldLabels: Record<string, string> = {

@@ -1,5 +1,11 @@
 # Change log
 
+## 2026-10-30 — Multiple cards and lost-card return flow
+
+- A profile can use multiple independently managed cards. **Add replacement** creates a separate card with its own code and claim while leaving the existing card usable until an administrator separately deactivates or marks it lost.
+- Administrators can mark an individual card lost. Its permanent URL shows “If you found this card, please contact and return it using the instructions below.” with global plain-text return instructions, without exposing profile or owner data. Lost status changes public resolution only; owner features remain available under the existing completed-claim or access-override rules. Empty instructions use the site-wide support destination, defaulting to `mailto:officialntap.it@gmail.com`, or a neutral issuing-organization fallback if no destination is available.
+- Assigned lost cards recover through reactivation and a fresh claim; unassigned lost cards return to registered with their old package code invalidated. Archived cards must be restored first. Marking lost is blocked during an open correction request, and the #190 guard against customers claiming a second unassigned card remains in place.
+
 ## 2026-10-30 — Printable card QR codes
 
 - Administrators can preview and download a print-ready SVG QR for every registered card. Each QR uses the card's saved permanent URL and is generated on demand without storing an image.

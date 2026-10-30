@@ -765,9 +765,9 @@ test("administrator grants and revokes card-owner access for a cardless customer
   ).toBeVisible();
 });
 
-test("administrator registers unassigned cards, manages claim codes, replaces, deactivates, and audits cards", async ({
+test("administrator registers cards, adds replacements, marks cards lost, and audits card actions", async ({
   page,
-}) => {
+}, testInfo) => {
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Card registry" })).toBeVisible();
@@ -818,25 +818,51 @@ test("administrator registers unassigned cards, manages claim codes, replaces, d
 
   const originalCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
   await originalCard.locator("summary").first().click();
-  await originalCard.getByRole("button", { name: "Replace card" }).click();
+  await originalCard.getByRole("button", { name: "Add replacement" }).click();
   await page.getByLabel("New pre-encoded card URL").fill("/c/replacement-card-xyz");
   await page.getByRole("button", { name: "Review replacement" }).click();
-  await expect(page.getByRole("dialog", { name: "Replace this card?" })).toBeVisible();
-  const replacementDialog = page.getByRole("dialog", { name: "Replace this card?" });
+  await expect(page.getByRole("dialog", { name: "Add replacement?" })).toBeVisible();
+  const replacementDialog = page.getByRole("dialog", { name: "Add replacement?" });
   await expect(replacementDialog).toContainText("mara-card-7f2q");
   await expect(replacementDialog).toContainText("/c/replacement-card-xyz");
-  await page.getByRole("dialog").getByRole("button", { name: "Replace card" }).click();
-  await expect(page.getByText("Card mara-card-7f2q was replaced.")).toBeVisible();
+  await page.getByRole("dialog").getByRole("button", { name: "Add replacement" }).click();
+  await expect(
+    page.getByText(
+      "Replacement replacement-card-xyz was added. mara-card-7f2q remains active until separately deactivated or marked lost.",
+    ),
+  ).toBeVisible();
 
   await page.goto("/c/mara-card-7f2q");
-  await expect(
-    page.getByRole("heading", { name: "This profile is currently unavailable" }),
-  ).toBeVisible();
-  await page.goto("/c/replacement-card-xyz");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await page.goto("/c/replacement-card-xyz");
+  await expect(page.getByRole("heading", { name: "Set up your Tapit card" })).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const lostCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await lostCard.locator("summary").first().click();
+  await lostCard.getByRole("button", { name: "Mark lost" }).click();
+  const lostDialog = page.getByRole("dialog", { name: "Mark this card lost?" });
+  await expect(lostDialog).toContainText("mara-card-7f2q");
+  await lostDialog.getByRole("button", { name: "Mark lost" }).click();
+  await expect(
+    page.getByText("Card mara-card-7f2q is lost. Its URL now shows return instructions."),
+  ).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Lost card" })).toBeVisible();
+  await expect(
+    page.getByText(
+      "If you found this card, please contact and return it using the instructions below.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "Contact support" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("lost-card-return.png"), fullPage: true });
 
   await page.goto("/admin/audit-log");
-  await expect(page.getByText("Card replaced")).toBeVisible();
+  await expect(page.getByText("Replacement card added")).toBeVisible();
+  await expect(page.getByText("Card marked lost")).toBeVisible();
   await expect(page.getByText("Card registered")).toBeVisible();
 });
 

@@ -21,7 +21,8 @@ Administrators can designate an active customer as Demo before promoting that ac
 - Support a clear, professional, accessible mobile profile experience.
 - Let customers publish a small set of useful identity fields and ordered links.
 - Give administrators controlled ownership of physical card records and assignments.
-- Provide safe deactivation and replacement workflows that never expose a former profile through an inactive card.
+- Let each profile use multiple independently managed cards, with safe deactivation and replacement workflows that never expose a former profile.
+- Provide a private-data-free return page and global instructions for lost cards.
 - Provide privacy-preserving aggregate profile-view and link-click analytics.
 - Provide a downloadable vCard containing only selected public contact fields.
 - Establish a small, reliable MVP that can be validated with real professionals and recipients.
@@ -42,7 +43,6 @@ The following are explicitly outside the MVP:
 - Bulk card import, advanced attribution, demographics, cross-platform reporting, or visitor-level analytics.
 - Automated moderation and public profile-reporting workflows.
 - Customer billing, subscriptions, paid plans, and in-app payments.
-- Lost-card return instructions and the dedicated lost-card page; issue #196 follows this work and adds them.
 
 Potential future scope includes custom domains, richer content, team management, card inventory/fulfillment, customer billing, additional social integrations, and advanced analytics.
 
@@ -102,10 +102,9 @@ Administrators provision customer accounts and physical card records, generate a
 
 1. The visitor taps the NFC card or scans its QR code.
 2. The complete permanent card URL resolves according to the card’s current state.
-3. Tapit records an aggregate profile view without storing visitor identity.
-4. Tapit displays the published profile on the visitor’s mobile browser.
-5. The visitor may select a link, save a vCard, or return to the profile.
-6. Selecting an external destination records an aggregate link click and opens the destination in a new tab where supported.
+3. If the card is active and claimed, Tapit records an aggregate profile view without storing visitor identity and displays the current published profile. Other card states show their appropriate setup, unavailable, or lost-card return page.
+4. The visitor may select a link, save a vCard, return to the profile, or follow the lost-card return instructions.
+5. Selecting an external destination records an aggregate link click and opens the destination in a new tab where supported.
 
 ### 6. Visitor opens a direct profile URL
 
@@ -115,14 +114,13 @@ Administrators provision customer accounts and physical card records, generate a
 
 ### 7. Administrator replaces a card
 
-1. An administrator selects an assigned card.
-2. The administrator deactivates the old card immediately.
-3. The old card URL begins showing a neutral unavailable-card page without revealing the former profile.
-4. The administrator registers a new pre-encoded card URL and assigns it to the same profile.
-5. Tapit records assignment, deactivation, and replacement events in the audit log.
-6. The new card resolves to the profile’s current public URL.
+1. An administrator selects an assigned card and chooses **Add replacement**.
+2. Tapit registers a separate card record for the same profile; the existing card keeps its status, token, URL, and claim history.
+3. The replacement starts with independent, unclaimed history and requires its own one-time code and claim.
+4. Tapit records the new card assignment and replacement event in the audit log.
+5. Both cards resolve independently according to their own states. The administrator may separately deactivate or mark the older card lost.
 
-Administrators may reactivate a visible inactive or replaced card assigned to an eligible profile. Reactivation preserves its token and profile assignment, sets it to active for a published profile or claimable otherwise, invalidates prior claim state, and requires a separately generated fresh one-time claim code. Inactive and replaced cards remain ineligible for reassignment.
+Administrators may assign or reassign a card to a profile that already has active or claimable cards. Customer attachment keeps the #190 guard: a recipient cannot claim a second unassigned card when their profile already has a live card. Administrators may reactivate a visible inactive or replaced card assigned to an eligible profile. Reactivation preserves that card's token and profile assignment, sets it to active for a published profile or claimable otherwise, invalidates its prior claim state, and requires a separately generated fresh one-time claim code. Inactive and replaced cards remain ineligible for reassignment.
 
 ### 8. Administrator corrects a card assignment
 
@@ -173,7 +171,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 2. The buyer opens the permanent NFC or QR URL. Its query string is an entry hint only and does not prove ownership.
 3. The buyer signs in with Google or completes new-customer profile onboarding.
 4. Tapit shows the customer’s own profile details and slug. The customer enters the package code, reviews the profile, and explicitly confirms attachment.
-5. Successful confirmation attaches the card to the authenticated customer’s server-owned profile and consumes the package code. A profile with another live card cannot receive a second card.
+5. Successful confirmation attaches the card to the authenticated customer’s server-owned profile and consumes the package code. A customer cannot receive a second attachment when their profile already has a live card.
 6. Skipping leaves the card unassigned and the package code available. The customer stays in the existing cardless limited-access state and can resume by opening the same URL later.
 
 ### 14. Customer requests correction of a mistaken assignment
@@ -183,6 +181,13 @@ An administrator can view and edit customer profile content, publish or unpublis
 3. An administrator reviews the request and may correct the assignment to the requester’s own profile.
 4. Correction preserves the physical card, token, complete URL, and unused package code. The customer scans again and confirms the corrected profile.
 5. If the requester’s profile already has a live card, the request remains pending and the admin interface explains the conflict.
+
+### 15. Administrator marks or recovers a lost card
+
+1. An administrator marks an individual card lost. The action is unavailable while that card has an open correction request; resolving the request leaves its neutral correction page in place until a separate status change.
+2. The selected card keeps its token, permanent URL, assignment, and claim history. If archived, it remains archived. Its URL shows a dedicated finder page with the message “If you found this card, please contact and return it using the instructions below.”, global plain-text return instructions, and no profile or owner data. Other cards assigned to the profile continue to resolve independently.
+3. Return instructions are managed in Admin Settings and are public to anyone who scans a lost card. If they are empty, the page links to the configured site-wide support destination, whose default is `mailto:officialntap.it@gmail.com`; if no support destination is available, it shows a neutral instruction to return the card to its issuing organization.
+4. An administrator can recover an assigned lost card through **Reactivate**, which invalidates its old claim and requires a fresh code and claim. An unassigned lost card returns to `registered` with its old package code invalidated; the administrator must assign it and issue a fresh code. An archived lost card must be restored before recovery.
 
 ## Functional requirements
 
@@ -210,8 +215,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-022:** The system shall store each physical card’s unique pre-encoded URL on the canonical `https://tapit-eosin.vercel.app` origin, in full including its query string, and preserve that value for NFC and QR. Relative `/c/<token>` inputs shall normalize to this origin; absolute URLs on other origins shall be rejected.
 - **FR-023:** A claimed active card URL shall resolve to the assigned profile’s current published content, including after a slug change; the URL shall not prove ownership.
 - **FR-024:** Administrators shall enter a relative `/c/<token>` path or a full URL on the canonical origin; the system shall reject duplicate tokens and preserve the validated URL and query.
-- **FR-025:** Administrators shall be able to assign cards to profiles and generate a package code for a registered unassigned card or an eligible attached but unclaimed card.
-- **FR-026:** Administrators shall be able to deactivate cards and issue replacements.
+- **FR-025:** Administrators shall be able to assign cards to profiles that already have active or claimable cards, and generate a package code for a registered unassigned card or an eligible attached but unclaimed card.
+- **FR-026:** Administrators shall be able to deactivate cards and add replacements as independent card records. Adding a replacement shall leave the existing card's status, token, URL, and claim history unchanged; the replacement shall require its own code and claim.
 - **FR-027:** Deactivated or replaced cards shall not reveal the former profile.
 - **FR-028:** Administrators shall be able to reactivate visible inactive or replaced cards assigned to an eligible profile. Reactivation shall preserve the token and profile assignment, set the card to active for a published profile or claimable otherwise, invalidate prior claim state, and require a separate fresh one-time claim code; inactive or replaced cards shall not be reassigned.
 - **FR-029:** The system shall support standard NFC Forum NDEF URI records encoded with the exact stored card URL.
@@ -230,7 +235,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-042:** Administrators shall view analytics and operational status for all profiles and cards.
 - **FR-043:** Administrators shall be able to view all profile details, change profile slugs, edit and publish profile content, unpublish, suspend, or restore profiles for support and policy enforcement.
 - **FR-044:** Administrators shall be able to view customer, profile, and card status.
-- **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, profile changes including slug changes, suspension, and deletion handling.
+- **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, lost status and recovery, profile changes including slug changes, suspension, and deletion handling.
 - **FR-046:** Audit entries shall include the administrator, action, affected account/card/profile, timestamp, and relevant before-and-after status.
 - **FR-047:** Customers shall be able to view their account email, request account deletion, and access support. Live and hosted-demo authentication is managed by Google.
 - **FR-048:** Customers shall not have a Cards screen or arbitrary card assignment controls. Buyers may attach a code-proven card to their own profile through the public setup flow.
@@ -258,13 +263,16 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-070:** A customer may request correction of a mistaken assignment only after proving the package code through a current challenge; requesting correction shall not consume the code.
 - **FR-071:** A correction-pending card shall resolve to a neutral unavailable page without profile data until an administrator resolves it.
 - **FR-072:** Administrator correction shall assign only to the requester’s server-owned profile and preserve the card record, token, full URL, and unused code. A second live card is blocked and remains an admin-visible conflict.
-- **FR-073:** The resolver shall route a registered unassigned card to setup, an eligible unclaimed card to claim, a claimed active card to its current published profile, and inactive, replaced, correction-pending, or missing cards to a neutral unavailable page.
-- **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or data for unavailable cards.
+- **FR-073:** The resolver shall route a registered unassigned card to setup, an eligible unclaimed card to claim, a claimed active card to its current published profile, inactive, replaced, correction-pending, or missing cards to a neutral unavailable page, and a lost card to its dedicated return page.
+- **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or data for unavailable or lost cards; lost-card responses may include only the finder message, global return instructions, and the support fallback when needed.
 - **FR-075:** NFC and QR shall preserve and use the full stored URL, including query strings. Query values never authorize ownership; package codes never appear in URLs or QR.
-- **FR-076:** Lost-card status, administrator lost-card actions, configured return instructions, and the dedicated lost-card page are issue #196 follow-up scope after this work.
-- **FR-077:** Administrators shall archive inactive or replaced cards without deleting their record, token, assignment, claim history, or audit history; restoring shall clear only the archive timestamp.
-- **FR-078:** A profile may have multiple active or claimable cards, and changing one card shall not change the status, URL, or claim history of its siblings.
+- **FR-076:** Administrators shall be able to mark an individual card lost unless it is already lost or has an open correction request. The action shall preserve its record, token, URL, assignment, and claim history; preserve any archive state; audit the administrator, event time, and before/after status; and change only that card's public resolution. A lost card's resolver response shall include its return instructions and, only when those instructions are empty, its support fallback. It shall not load or return profile data, and no return settings shall be included in other resolver responses. Lost status shall not revoke owner features still available through a completed claim or separate access override.
+- **FR-077:** Administrators shall archive inactive or replaced cards without deleting their record, token, assignment, claim history, or audit history. Restoring an archived lost card shall clear the archive timestamp while preserving its lost status; it remains unavailable for recovery until restored.
+- **FR-078:** A profile may have multiple active or claimable cards. Assignment, reassignment, claim completion, reactivation, deactivation, replacement creation, and lost status shall affect only the selected card; sibling tokens, URLs, statuses, and claim state shall remain unchanged. The #190 guard remains: a customer cannot claim a second unassigned card when their profile already has a live card. This guard does not restrict administrator assignment or reassignment.
 - **FR-079:** Administrators shall be able to correct an active or claimable card's profile assignment without replacing the card. Before confirmation, the administrator shall see the old and destination profiles and the unchanged card token/URL, and be told that the destination owner must make a fresh claim. Reassignment shall invalidate prior claim codes and challenges and remove card-derived owner access from the former owner. The destination shall be able to claim the card with a fresh one-time code even if that profile already has another active or claimable card. Other cards and separate owner-access grants shall remain unchanged. Inactive or replaced cards shall remain ineligible. The audit entry shall identify the administrator and old and new profile assignments.
+- **FR-080:** Administrators shall be able to manage one scoped, global lost-card return-instructions setting in Admin Settings. It shall be plain text and public to anyone scanning a lost card. If empty, the finder page shall use the site-wide support destination, defaulting to `mailto:officialntap.it@gmail.com`; if no support destination is available, it shall show a neutral direction to return the card to its issuing organization. A configured support destination overrides the default.
+- **FR-081:** Recovering an assigned lost card shall use the existing reactivation flow, invalidate its previous claim state and pending challenges, and require a fresh code and claim. An unassigned lost card shall return to `registered` and have its old package code invalidated; it must be assigned and issued a fresh code before it can be claimed. An archived lost card must be restored before recovery.
+- **FR-082:** Marking a card lost shall be blocked while it has an open correction request. Resolving that request shall leave the card's neutral correction page in place until an administrator separately changes its status.
 
 ## User experience
 
@@ -279,6 +287,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 | Active, code used, profile published | Active | Current published projection |
 | Inactive or replaced | Inactive, shown as unavailable | None |
 | Correction request pending | Unavailable | None |
+| Lost, including archived lost cards | Dedicated finder return page | None; only global return instructions or the support fallback are returned |
 | Token not found | Missing, shown as unavailable | None |
 
 The resolver result, not a query such as claim=1, determines the page. NFC and QR retain the same full stored URL. Neither the URL nor its query proves ownership; package codes are entered only in the setup flow. Unpublished, suspended, foreign, or otherwise unavailable profile data is never returned by a public resolver.
@@ -296,10 +305,10 @@ Administrator navigation:
 
 - Customers: customer invitation creation/revocation, account status, and customer search. Invitation links are shared manually.
 - Profiles: profile status, content management, publication, suspension, and support actions.
-- Cards: full card URL registration, duplicate-token validation, initially unassigned cards, package-code generation/invalidation, assignment, correction review, replacement, QR generation, and QR downloads.
+- Cards: full card URL registration, duplicate-token validation, initially unassigned cards, package-code generation/invalidation, multi-card assignment, correction review, independent replacement, lost-card recovery, QR generation, and QR downloads.
 - Analytics: profile and link analytics across customers.
 - Audit log: searchable administrative history.
-- Settings: administrator and platform settings, including the configurable generic support/contact destination.
+- Settings: administrator and platform settings, including global lost-card return instructions and the configurable generic support/contact destination.
 
 ### Public profile screen
 
@@ -339,10 +348,15 @@ The administrator card workflow should provide:
 - Registration in an unassigned state by default.
 - Assignment controls and package-code generation/invalidation for eligible cards.
 - Pending correction requests with requester profile, current assignment, and correction action.
-- Status: registered, claimable, active, inactive, replaced, correction-pending, or otherwise unavailable. Lost-card state follows in #196.
+- Status: registered, claimable, active, inactive, replaced, lost, correction-pending, or otherwise unavailable. Archived cards retain their underlying status in the Archived view.
+- **Add replacement** creates a separate unclaimed card for the same profile and confirms that the old card remains active until separately deactivated or marked lost.
+- **Mark lost** applies to one card, is blocked while a correction request is open, and confirms that its permanent URL will show public return instructions.
+- Assigned lost cards can be recovered by reactivation and a fresh claim; unassigned lost cards return to registered with their former package code invalidated. Archived cards must be restored first.
 - Reassignment of eligible active or claimable cards, with confirmation of the old and destination profiles, unchanged token/URL, and fresh-claim requirement.
 - QR preview and PNG/SVG download.
 - Relevant audit history.
+
+Admin Settings shall provide a scoped global plain-text lost-card return-instructions field, with a warning that finders can read it. Empty instructions use the configured generic support destination, defaulting to `mailto:officialntap.it@gmail.com`, then a neutral issuing-organization fallback if no destination is available.
 
 ### Loading states
 
@@ -366,9 +380,10 @@ The administrator card workflow should provide:
 - A signed-out buyer opening an eligible card URL can continue with Google and return to the same path and query string.
 - Card setup shows only the signed-in customer’s own profile and never returns a foreign draft.
 - Skipping setup leaves the card unattached and explains that rescanning the same URL resumes setup.
-- Inactive, replaced, correction-pending, and missing cards show a neutral unavailable page without former or private profile data.
+- Inactive, replaced, correction-pending, and missing cards show a neutral unavailable page without former or private profile data. Lost cards show the dedicated finder page without loading profile or owner data.
 - An unavailable profile should show the fixed branded “This profile is currently unavailable” page.
 - An inactive/replaced card should show the fixed branded “This card is inactive” page and must not show the former profile.
+- Marking a lost card with an open correction request must be rejected; resolving the correction leaves its neutral page until a separate status change.
 - Temporary service failures should show a friendly error page with the configured generic support/contact destination where appropriate.
 - Failed avatar uploads should preserve the existing image and explain accepted JPG, PNG, and WebP formats and the 20 MiB source limit. Profile gallery and background uploads retain a separate 5 MiB source limit.
 - Failed publish or card actions must leave the last known valid state intact and explain how to retry.
@@ -440,6 +455,7 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 - Token derived from and unique within the card URL.
 - Optional assigned profile identifier; new cards are unassigned by default.
 - Card status, package-code hash and lifecycle timestamps, and correction-pending state.
+- Lost-card status and event metadata; lost-card return instructions are stored in the existing scoped settings, not on a profile or card.
 - Assignment timestamp.
 - Deactivation/replacement timestamp and reason where provided.
 - Replacement relationship to prior or new card where applicable.
@@ -598,7 +614,7 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 - Temporary failures should produce a clear, friendly error page rather than a blank screen or raw stack trace.
 - Card lookup and profile rendering should not depend on a visitor-side native application.
 - Analytics recording should not block or materially delay the public profile response.
-- Publish, deactivation, and replacement operations should be consistent: after a successful response, subsequent public requests must reflect the new state.
+- Publish, deactivation, replacement, lost-status, and recovery operations should be consistent: after a successful response, subsequent public requests must reflect the new state.
 - Monitoring, alerting, backups, recovery objectives, and the production Vercel/Convex plan are TBD and must be selected to support the availability target.
 
 ## MVP definition
@@ -623,8 +639,9 @@ The MVP is complete in scope when it provides:
 - Visitor profile access from NFC, QR, or direct URL without an account or app.
 - vCard download with the approved field set.
 - Privacy-preserving lifetime, 7-day, 30-day, and 90-day analytics.
-- Administrator card deactivation and new-card replacement workflow.
-- Neutral unavailable-card and unavailable-profile pages that do not expose former, draft, or unpublished profile data.
+- Independent administrator management of multiple cards per profile, including Add replacement, deactivation, reassignment, and recovery.
+- Neutral unavailable-card and unavailable-profile pages plus a lost-card finder page that does not expose former, draft, private, or owner data.
+- Scoped global lost-card return instructions and support fallback.
 - Profile suspension and administrative audit log.
 - Customer account deletion request and administrator execution/approval workflow.
 - Responsive desktop/mobile dashboards and mobile-first public pages.
@@ -662,8 +679,8 @@ The MVP is complete in scope when it provides:
 - **AC-016:** Given an administrator enters a card URL already registered, when they submit it, then Tapit rejects the registration and identifies the duplicate condition.
 - **AC-017:** Given an active card is claimed for a published profile, when its NFC URL is opened, then Tapit displays that profile’s current published content.
 - **AC-018:** Given an administrator generates a QR code for a registered card, when they preview or download it, then both PNG and SVG encode the exact stored URL, including its query string.
-- **AC-019:** Given a card is inactive, replaced, correction-pending, or missing, when a visitor opens its URL, then a neutral unavailable-card page appears without former or private profile data.
-- **AC-020:** Given an old card is replaced, when the new card is assigned, then the old card remains inactive and the new card resolves to the assigned profile.
+- **AC-019:** Given a card is inactive, replaced, correction-pending, or missing, when a visitor opens its URL, then a neutral unavailable-card page appears without former or private profile data; a lost card opens its dedicated finder page without profile data.
+- **AC-020:** Given an administrator chooses **Add replacement**, when the new card is assigned to the same profile, then the old card keeps its status, token, URL, and claim history, and the new card requires an independent code and claim.
 - **AC-021:** Given a customer uses the workspace, when they look for card management, then no Cards screen or arbitrary reassignment control is available; a code-proven buyer may attach only through the public setup flow.
 
 ### Public profile and vCard
@@ -708,9 +725,9 @@ The MVP is complete in scope when it provides:
 - **AC-053:** Given a package code has not been used or invalidated, when time passes or its legacy expiry timestamp is in the past, then it remains valid; a verification challenge expires after 10 minutes and can be used only once.
 - **AC-054:** Given a signed-out recipient opens an eligible card URL, when they continue with Google as an existing or new customer, then Tapit returns them to that exact URL with its original query string.
 - **AC-055:** Given a new customer arrives from a card URL, when profile onboarding completes, then the slug exists before Tapit asks whether to attach the card; an existing customer sees their own profile details before confirmation.
-- **AC-056:** Given a customer verifies a valid package code and confirms their own profile, when attachment succeeds, then the card attaches to that server-derived profile and the code is consumed; a profile with another live card cannot receive a second attachment.
+- **AC-056:** Given a customer verifies a valid package code and confirms their own profile, when attachment succeeds, then the card attaches to that server-derived profile and the code is consumed; a profile with another live card cannot receive a second customer attachment. This guard does not restrict administrator assignment or reassignment.
 - **AC-057:** Given a customer skips card attachment, when they open the same card URL later, then the card and code remain available and setup resumes while the customer remains in the cardless limited-access state.
-- **AC-058:** Given a card URL is resolved, when its record is registered/unassigned, eligible but unclaimed, active and claimed, inactive/replaced, correction-pending, or missing, then the resolver returns setup, claim, the current published profile, or neutral unavailable state without treating the query as ownership proof.
+- **AC-058:** Given a card URL is resolved, when its record is registered/unassigned, eligible but unclaimed, active and claimed, inactive/replaced, correction-pending, lost, or missing, then the resolver returns setup, claim, the current published profile, neutral unavailable state, or the lost-card finder page without treating the query as ownership proof.
 - **AC-059:** Given a claimed active card’s profile slug or approved assignment changes, when the same full card URL is opened, then it resolves to the current assigned profile’s published content and the stored URL remains unchanged.
 - **AC-060:** Given an authenticated customer proves a package code and reports a mistaken assignment, when the request is pending, then the card URL shows a neutral unavailable page without profile data and the code remains unconsumed.
 - **AC-061:** Given an administrator resolves a correction request, when assignment correction succeeds, then the same card record, token, full URL, and package code are preserved and the customer must rescan and confirm the corrected profile.
@@ -720,6 +737,14 @@ The MVP is complete in scope when it provides:
 - **AC-065:** Given an administrator archives an inactive or replaced card, when they open Archived and restore it, then the token and history remain reserved, the prior status returns, and the URL remains inactive.
 - **AC-066:** Given an administrator reactivates a visible inactive or replaced card, when reactivation succeeds, then its status follows the current profile state, old claim state is invalidated, and a separate fresh one-time code can be generated and claimed.
 - **AC-067:** Given multiple active or claimable cards are assigned to one profile, when an administrator reactivates one card, then every sibling card keeps its own status, URL behavior, and claim state.
+- **AC-068:** Given a profile has multiple active or claimable cards, when one card is assigned, reassigned, claimed, reactivated, deactivated, replaced, or marked lost, then each sibling retains its own token, URL, status, and claim state.
+- **AC-069:** Given an administrator marks a card lost, when the action succeeds, then the card keeps its token, URL, assignment, and claim history, any archive state remains intact, only that card changes public resolution, and the audit entry records the administrator, event time, and before/after status. Owner features remain available through any completed claim or separate access override.
+- **AC-070:** Given a visitor opens a lost card URL, when the finder page loads, then it displays “If you found this card, please contact and return it using the instructions below.” and plain-text global return instructions without loading or exposing profile, owner, or account data.
+- **AC-071:** Given lost-card return instructions are empty, when a finder page loads, then it links to the configured site-wide support destination, whose default is `mailto:officialntap.it@gmail.com`; when no support destination is available, it shows the neutral issuing-organization fallback. A configured support destination overrides the default, and no return settings appear in resolver responses for other card states.
+- **AC-072:** Given an administrator marks a card with an open correction request lost, when the action is submitted, then it is rejected. Resolving the correction request leaves the neutral correction page in place until a separate status change.
+- **AC-073:** Given an assigned lost card is recovered, when an administrator reactivates it, then its prior claim and pending challenges are invalidated and the owner must receive a fresh code and claim; sibling cards remain unchanged.
+- **AC-074:** Given an unassigned lost card is recovered, when recovery succeeds, then it returns to `registered` and its old package code is invalidated. It must be assigned and issued a fresh code before claim.
+- **AC-075:** Given an archived card is marked lost, when its lost status is set, then it remains archived while its URL shows the lost-card finder page. To recover it, the administrator must restore it first; restoring preserves its lost status until recovery is completed.
 
 ## Open questions and decisions
 
@@ -735,7 +760,7 @@ The MVP is complete in scope when it provides:
 - Authentication implementation: Convex Auth with Google OAuth for live and hosted-demo environments; local deterministic demo authentication remains separate.
 - Preferred application stack: Next.js, Convex, and Vercel, subject to production validation.
 - Card format: NFC Forum NDEF URI record.
-- Card administration: administrators manually enter full card URLs, validate token uniqueness, leave new cards unassigned, generate/invalidate package codes, assign cards, review corrections, deactivate cards, and issue replacements.
+- Card administration: administrators manually enter full card URLs, validate token uniqueness, leave new cards unassigned, generate/invalidate package codes, assign multiple cards to a profile, review corrections, deactivate or mark individual cards lost, add independent replacements, and recover cards.
 - Card links: permanent URLs identify cards and route by current state to the current published profile only after successful attachment.
 - QR: administrator preview plus downloadable PNG and SVG.
 - Public URL: platform-hosted and derived from a unique slug; self-service customers may choose the initial slug, and administrators may change it at any time. Customers cannot change an existing slug. A changed slug does not redirect the old URL, and the former slug becomes available for reuse; active card URLs continue resolving to the profile’s current URL.
@@ -744,7 +769,8 @@ The MVP is complete in scope when it provides:
 - Public design: clean, professional, mobile-first, strong contrast, restrained themes.
 - vCard: selected name, published profile photo, selected email and phone, and all enabled published profile links with labels; the Profile identity Website field, Tapit public profile URL, and duplicate link destinations are omitted.
 - Analytics: aggregate profile views and link clicks; lifetime, 7-day, 30-day, and 90-day views; no raw visitor-level history. Both customers and administrators can see analytics within their permissions.
-- Card/profile states: neutral unavailable-card page for inactive, replaced, correction-pending, and missing cards; unavailable-profile page for unpublished/suspended profiles. #196 adds lost-card return instructions and a dedicated page after this work.
+- Card/profile states: neutral unavailable-card page for inactive, replaced, correction-pending, and missing cards; a private-data-free finder page for lost cards; unavailable-profile page for unpublished/suspended profiles.
+- Lost-card return instructions: scoped global plain text visible to finders; when empty, use the configured site-wide support destination (default `mailto:officialntap.it@gmail.com`) or a neutral issuing-organization fallback.
 - Deletion: customer request and confirmation, administrator execution/approval, immediate unpublish/deactivation, minimal audit retention, later permanent deletion.
 - Accessibility: WCAG 2.2 AA basics.
 - Performance/reliability: usable within 2 seconds on normal 4G and 99.9% monthly public-profile availability excluding planned maintenance.
@@ -764,7 +790,7 @@ The MVP is complete in scope when it provides:
 - **Hosting capacity and budget:** TBD. Required inputs are expected initial customers/cards, monthly traffic, and monthly spending limit. Recommendation: establish a pilot capacity and cost ceiling before selecting production Vercel and Convex plans.
 - **Availability operations:** TBD. Monitoring, alerting, backup, recovery, and incident-response ownership must be defined before claiming the 99.9% target.
 - **Card registration input:** manual URL entry is confirmed. Whether a future scan-assisted workflow is added is out of scope for MVP.
-- **Support destination:** configurable generic support/contact destination is required, but its final URL or email is TBD.
+- **Support destination:** the configurable site-wide support/contact destination is used on a lost-card page when return instructions are empty; its default is `mailto:officialntap.it@gmail.com`.
 - **Pilot validation size:** TBD. Recommendation: test with a small group of real independent professionals and recipients, then add an explicit customer/card/tap target.
 - **Physical card inventory source:** pre-encoded cards are assumed to already exist, but the inventory owner and exact card URL generation/encoding process are TBD outside the application scope.
 

@@ -358,6 +358,7 @@ export default defineSchema({
       v.literal("active"),
       v.literal("inactive"),
       v.literal("replaced"),
+      v.literal("lost"),
     ),
     replacedByCardId: v.optional(v.id("cards")),
     assignmentReason: v.optional(v.string()),

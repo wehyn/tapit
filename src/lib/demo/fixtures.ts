@@ -1,5 +1,6 @@
 import type { CardRecord, ProfileRecord } from "@/lib/domain";
 import { cardUrlFromToken } from "@/lib/card-url";
+import { DEFAULT_SUPPORT_URL } from "@/lib/support";
 
 import { DEFAULT_DEMO_PASSWORD_HASH } from "./password";
 
@@ -200,6 +201,7 @@ export type DemoState = {
   analytics: AnalyticsBucket[];
   audits: DemoAuditEvent[];
   supportUrl: string;
+  lostCardReturnInstructions?: string;
 };
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -472,7 +474,7 @@ export function createDefaultDemoState(): DemoState {
         after: "published",
       },
     ],
-    supportUrl: "mailto:support@example.test",
+    supportUrl: DEFAULT_SUPPORT_URL,
   };
 }
 
