@@ -49,6 +49,42 @@ describe("demo storage store", () => {
     ]);
   });
 
+  it("migrates legacy relative card URLs with their query and fields, then persists them", async () => {
+    const state = createDefaultDemoState();
+    state.cards[0] = {
+      ...state.cards[0]!,
+      cardUrl: "/c/mara-card-7f2q?source=print&campaign=spring",
+      status: "inactive",
+    };
+    state.cards[2] = { ...state.cards[2]!, cardUrl: "/c/not-the-card?campaign=spring" };
+    state.cards[1] = {
+      ...state.cards[1]!,
+      cardUrl: "https://cards.example.test/c/claimable-card-demo?source=existing",
+    };
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { getDemoState } = await import("../../src/lib/demo/store");
+
+    expect(getDemoState().cards[0]).toMatchObject({
+      id: "card-mara-active",
+      token: "mara-card-7f2q",
+      cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q?source=print&campaign=spring",
+      status: "inactive",
+      profileId: "profile-mara",
+    });
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards[0]).toMatchObject({
+      id: "card-mara-active",
+      cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q?source=print&campaign=spring",
+      status: "inactive",
+    });
+    expect(getDemoState().cards[1]?.cardUrl).toBe(
+      "https://cards.example.test/c/claimable-card-demo?source=existing",
+    );
+    expect(getDemoState().cards[2]?.cardUrl).toBe("/c/not-the-card?campaign=spring");
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards[1]?.cardUrl).toBe(
+      "https://cards.example.test/c/claimable-card-demo?source=existing",
+    );
+  });
+
   it("normalizes only the exact FOUNDING aliases and preserves other legacy code limits", async () => {
     const state = createDefaultDemoState();
     state.cardOrderReferralCodes = [

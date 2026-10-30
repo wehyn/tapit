@@ -6,6 +6,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { useMutation, usePaginatedQuery } from "convex/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
+import { cardTokenFromUrl, cardUrlFromToken, normalizeCardUrl } from "@/lib/card-url";
 import type { DemoCard } from "@/lib/demo/fixtures";
 import type { Id } from "../../../convex/_generated/dataModel";
 import {
@@ -68,26 +69,6 @@ function countCards(cards: CardGroupSource[]): Record<CardFilter, number> {
   return counts;
 }
 
-function cardTokenFromUrl(value: string): string | null {
-  try {
-    const parsed = new URL(value, "https://tapit.local");
-    const segments = parsed.pathname.split("/").filter(Boolean);
-    if (segments.length !== 2 || segments[0] !== "c") return null;
-    const token = segments[1];
-    return token && /^[A-Za-z0-9_-]+$/.test(token) ? token : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizedCardUrl(value: string): string {
-  return value.trim();
-}
-
-function cardUrlFromToken(token: string): string {
-  return new URL(`/c/${token}`, window.location.origin).toString();
-}
-
 function randomDemoCardToken(existingTokens: Set<string>): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   const bucketSize = 256 - (256 % alphabet.length);
@@ -109,7 +90,9 @@ function randomDemoCardToken(existingTokens: Set<string>): string {
 }
 
 function cardUrlIdentity(value: string): string {
-  const parsed = new URL(normalizedCardUrl(value), "https://tapit.local");
+  const normalized = normalizeCardUrl(value);
+  if (normalized === null) return value;
+  const parsed = new URL(normalized);
   const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
   return `${parsed.origin}${pathname}`;
 }
@@ -173,6 +156,7 @@ function CardTable({ children }: { children: ReactNode }) {
 }
 
 function CardRow({
+  cardUrl,
   children,
   onOpen,
   profileLabel,
@@ -180,6 +164,7 @@ function CardRow({
   status,
   token,
 }: {
+  cardUrl: string;
   children: ReactNode;
   onOpen: () => void;
   profileLabel: string;
@@ -220,13 +205,14 @@ function CardRow({
             {profileLabel} ({token})
           </p>
           {children}
+          <QrControls cardUrl={cardUrl} label={token} />
         </div>
       </details>
     </article>
   );
 }
 
-function CopyCardLinkButton({ ariaLabel, token }: { ariaLabel?: string; token: string }) {
+function CopyCardLinkButton({ ariaLabel, cardUrl }: { ariaLabel?: string; cardUrl: string }) {
   const [copyMessage, setCopyMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -234,7 +220,7 @@ function CopyCardLinkButton({ ariaLabel, token }: { ariaLabel?: string; token: s
   } | null>(null);
 
   async function copyCardLink() {
-    const url = `${cardUrlFromToken(token)}?claim=1`;
+    const url = cardUrl;
     try {
       await navigator.clipboard.writeText(url);
       setCopyMessage({ tone: "success", text: "Card link copied." });
@@ -269,10 +255,12 @@ function CopyCardLinkButton({ ariaLabel, token }: { ariaLabel?: string; token: s
 }
 
 function CardDetail({
+  cardUrl,
   children,
   status,
   token,
 }: {
+  cardUrl: string;
   children: ReactNode;
   status: string;
   token: string;
@@ -283,7 +271,7 @@ function CardDetail({
         <StatusChip status={status} />
       </div>
       <div className="flex flex-col gap-2">{children}</div>
-      <CopyCardLinkButton token={token} />
+      <CopyCardLinkButton cardUrl={cardUrl} />
     </Card>
   );
 }
@@ -341,9 +329,10 @@ function DemoCardsManager() {
     : 0;
 
   function validateCardUrl(value: string): string | null {
-    const token = cardTokenFromUrl(value);
-    if (!token) return "Enter a card URL with a /c/<unique-token> path.";
-    if (state.cards.some((card) => cardUrlIdentity(card.cardUrl) === cardUrlIdentity(value)))
+    const normalized = normalizeCardUrl(value);
+    const token = normalized && cardTokenFromUrl(normalized);
+    if (!normalized || !token) return "Enter a canonical card URL with a /c/<unique-token> path.";
+    if (state.cards.some((card) => cardUrlIdentity(card.cardUrl) === cardUrlIdentity(normalized)))
       return "That card URL is already registered.";
     if (state.cards.some((card) => card.token === token))
       return `The card token “${token}” is already registered. Enter a unique token.`;
@@ -357,13 +346,14 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: error });
       return;
     }
-    const token = cardTokenFromUrl(cardUrl);
-    if (!token) return;
+    const normalized = normalizeCardUrl(cardUrl);
+    const token = normalized && cardTokenFromUrl(normalized);
+    if (!normalized || !token) return;
     const createdAt = Math.max(0, ...state.cards.map((card) => card.createdAt ?? 0)) + 1;
     const nextCard: DemoCard = {
       id: `card-${token}`,
       token,
-      cardUrl: normalizedCardUrl(cardUrl),
+      cardUrl: normalized,
       status: "registered",
       createdAt,
     };
@@ -485,8 +475,9 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: error });
       return;
     }
-    const token = cardTokenFromUrl(replacementUrl);
-    if (!token) return;
+    const normalized = normalizeCardUrl(replacementUrl);
+    const token = normalized && cardTokenFromUrl(normalized);
+    if (!normalized || !token) return;
     const replacementProfile = getDemoProfileById(state, card.profileId);
     const replacementOwner = state.customers.find(
       (customer) => customer.id === replacementProfile?.ownerId,
@@ -500,7 +491,7 @@ function DemoCardsManager() {
     const replacement: DemoCard = {
       id: `card-${token}-replacement`,
       token,
-      cardUrl: normalizedCardUrl(replacementUrl),
+      cardUrl: normalized,
       status: "active",
       profileId: card.profileId,
     };
@@ -583,7 +574,7 @@ function DemoCardsManager() {
               id="card-url"
               label="Pre-encoded card URL"
               onChange={(event) => setCardUrl(event.target.value)}
-              placeholder="/c/card-token or https://cards.example/c/card-token"
+              placeholder="/c/card-token or https://tapit-eosin.vercel.app/c/card-token"
               value={cardUrl}
             />
           </div>
@@ -631,6 +622,7 @@ function DemoCardsManager() {
                 return (
                   <CardRow
                     key={card.id}
+                    cardUrl={card.cardUrl}
                     onOpen={() => setSelectedId(card.id)}
                     profileLabel={profileLabel}
                     selected={card.id === detailCard?.id}
@@ -640,7 +632,7 @@ function DemoCardsManager() {
                     <div className="flex flex-wrap gap-2">
                       <CopyCardLinkButton
                         ariaLabel={`Copy claim link for ${card.token}`}
-                        token={card.token}
+                        cardUrl={card.cardUrl}
                       />
                       {card.status === "registered" ? (
                         <Button
@@ -779,9 +771,6 @@ function DemoCardsManager() {
                         </Button>
                       ) : null}
                     </div>
-                    {card.status === "active" ? (
-                      <QrControls cardUrl={card.cardUrl} label={card.token} />
-                    ) : null}
                   </CardRow>
                 );
               })}
@@ -791,7 +780,12 @@ function DemoCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
+            <CardDetail
+              cardUrl={detailCard.cardUrl}
+              key={detailCard.token}
+              status={detailCard.status}
+              token={detailCard.token}
+            >
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
               <DetailRow
@@ -976,12 +970,16 @@ function LiveCardsManager() {
   }
   function registerCard(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const token = cardTokenFromUrl(cardUrl);
-    if (!token)
-      return setMessage({ tone: "error", text: "Enter a card URL with a /c/<unique-token> path." });
+    const normalized = normalizeCardUrl(cardUrl);
+    const token = normalized && cardTokenFromUrl(normalized);
+    if (!normalized || !token)
+      return setMessage({
+        tone: "error",
+        text: "Enter a canonical card URL with a /c/<unique-token> path.",
+      });
     void run(async () => {
       const cardId = await register({
-        cardUrl: new URL(cardUrl.trim(), window.location.origin).toString(),
+        cardUrl: normalized,
         token,
       });
       setCardUrl("");
@@ -1112,6 +1110,7 @@ function LiveCardsManager() {
                 return (
                   <CardRow
                     key={card._id}
+                    cardUrl={card.cardUrl}
                     onOpen={() => setSelectedId(card._id)}
                     profileLabel={profileLabel}
                     selected={card._id === detailCard?._id}
@@ -1121,7 +1120,7 @@ function LiveCardsManager() {
                     <div className="flex flex-wrap gap-2">
                       <CopyCardLinkButton
                         ariaLabel={`Copy claim link for ${card.token}`}
-                        token={card.token}
+                        cardUrl={card.cardUrl}
                       />
                       {card.status === "registered" ? (
                         <>
@@ -1271,8 +1270,9 @@ function LiveCardsManager() {
                           <Button
                             disabled={pending}
                             onClick={() => {
-                              const token = cardTokenFromUrl(replacementUrl);
-                              if (!token)
+                              const normalized = normalizeCardUrl(replacementUrl);
+                              const token = normalized && cardTokenFromUrl(normalized);
+                              if (!normalized || !token)
                                 return setMessage({
                                   tone: "error",
                                   text: "Enter a valid replacement card URL.",
@@ -1281,10 +1281,7 @@ function LiveCardsManager() {
                                 () =>
                                   replace({
                                     oldCardId: card._id,
-                                    newCardUrl: new URL(
-                                      replacementUrl.trim(),
-                                      window.location.origin,
-                                    ).toString(),
+                                    newCardUrl: normalized,
                                     newToken: token,
                                   }).then(() => setReplacementUrl("")),
                                 `Card ${card.token} replaced.`,
@@ -1318,7 +1315,12 @@ function LiveCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
+            <CardDetail
+              cardUrl={detailCard.cardUrl}
+              key={detailCard.token}
+              status={detailCard.status}
+              token={detailCard.token}
+            >
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
             </CardDetail>

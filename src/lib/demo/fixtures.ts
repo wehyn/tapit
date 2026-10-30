@@ -1,4 +1,5 @@
 import type { CardRecord, ProfileRecord } from "@/lib/domain";
+import { cardUrlFromToken } from "@/lib/card-url";
 
 import { DEFAULT_DEMO_PASSWORD_HASH } from "./password";
 
@@ -321,7 +322,7 @@ export function createDefaultDemoState(): DemoState {
       {
         id: "card-mara-active",
         token: "mara-card-7f2q",
-        cardUrl: "/c/mara-card-7f2q",
+        cardUrl: cardUrlFromToken("mara-card-7f2q"),
         status: "active",
         profileId: "profile-mara",
         claimedAt: 1,
@@ -329,7 +330,7 @@ export function createDefaultDemoState(): DemoState {
       {
         id: "card-claimable-demo",
         token: "claimable-card-demo",
-        cardUrl: "/c/claimable-card-demo",
+        cardUrl: cardUrlFromToken("claimable-card-demo"),
         status: "claimable",
         profileId: "profile-claimable",
         claimCode: "MARA2Q8K",
@@ -338,7 +339,7 @@ export function createDefaultDemoState(): DemoState {
       {
         id: "card-mara-inactive",
         token: "mara-card-retired",
-        cardUrl: "/c/mara-card-retired",
+        cardUrl: cardUrlFromToken("mara-card-retired"),
         status: "inactive",
         profileId: "profile-mara",
       },

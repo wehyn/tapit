@@ -530,7 +530,7 @@ describe("content hardening", () => {
     const data = await seed(t);
     const admin = t.withIdentity(identity(data.adminUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://cards.example/c/valid-token",
+      cardUrl: "https://tapit-eosin.vercel.app/c/valid-token",
       token: "valid-token",
     });
 
@@ -549,10 +549,15 @@ describe("content hardening", () => {
     for (const cardUrl of [
       "javascript:alert(1)",
       "data:text/plain,/c/token",
-      "//cards.example/c/token",
+      "//tapit-eosin.vercel.app/c/token",
       "/c/token",
-      "https://cards.example/c/token?x=1",
-      "https://cards.example/c/token#fragment",
+      "http://tapit-eosin.vercel.app/c/token",
+      "https://tapit-eosin.vercel.app.evil.example/c/token",
+      "https://user:pass@tapit-eosin.vercel.app/c/token",
+      "https://tapit-eosin.vercel.app/c/token#fragment",
+      "https://tapit-eosin.vercel.app/not-card/token",
+      "https://tapit-eosin.vercel.app/c/other/../token",
+      "https://tapit-eosin.vercel.app/c/token ",
     ]) {
       await expect(admin.mutation(api.cards.register, { cardUrl, token: "token" })).rejects.toThrow(
         "/c/<token> format",
@@ -560,9 +565,19 @@ describe("content hardening", () => {
     }
     await expect(
       admin.mutation(api.cards.register, {
-        cardUrl: "https://cards.example/c/other-token",
+        cardUrl: "https://tapit-eosin.vercel.app/c/other-token",
         token: "token",
       }),
     ).rejects.toThrow("/c/<token> format");
+  });
+
+  it("preserves card URL queries exactly when registering", async () => {
+    const t = convexTest(schema, modules);
+    const data = await seed(t);
+    const admin = t.withIdentity(identity(data.adminUserId));
+    const cardUrl = "https://tapit-eosin.vercel.app/c/query-token?source=print&x=a%2Fb";
+    const cardId = await admin.mutation(api.cards.register, { cardUrl, token: "query-token" });
+
+    await expect(t.run((ctx) => ctx.db.get(cardId))).resolves.toMatchObject({ cardUrl });
   });
 });

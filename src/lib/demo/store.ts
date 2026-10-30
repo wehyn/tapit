@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
+import { cardTokenFromUrl, normalizeCardUrl } from "../card-url";
 import { isValidReferralFixedPriceCentavos, manilaStartOfDayTimestamp } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
 import {
@@ -67,7 +68,7 @@ const listeners = new Set<() => void>();
 let reservedSetupTokenId = 1;
 
 type StateStorageRead =
-  | { kind: "supported"; raw: string; state: DemoState }
+  | { kind: "supported"; raw: string; state: DemoState; migratedCardUrls?: boolean }
   | { kind: "missing" }
   | { kind: "malformed"; raw: string }
   | { kind: "unsupported"; raw: string; error: UnsupportedDemoStorageVersionError }
@@ -405,11 +406,22 @@ function normalizeStoredState(raw: string): StateStorageRead {
       ? { ...customer, profileId: adminProfile?.id }
       : customer,
   );
-  const cards = parsed.cards.map((card, index) => ({
-    ...card,
-    // Older demo records were appended in creation order and had no timestamp.
-    createdAt: card.createdAt ?? index,
-  }));
+  let migratedCardUrls = false;
+  const cards = parsed.cards.map((card, index) => {
+    const legacyUrl = /^\/c\/[A-Za-z0-9_-]{1,160}(?:\?[^#]*)?$/.test(card.cardUrl);
+    const normalizedUrl = legacyUrl ? normalizeCardUrl(card.cardUrl) : null;
+    const cardUrl =
+      normalizedUrl && cardTokenFromUrl(normalizedUrl) === card.token
+        ? normalizedUrl
+        : card.cardUrl;
+    migratedCardUrls ||= cardUrl !== card.cardUrl;
+    return {
+      ...card,
+      cardUrl,
+      // Older demo records were appended in creation order and had no timestamp.
+      createdAt: card.createdAt ?? index,
+    };
+  });
   const themes =
     parsed.themes ??
     Object.fromEntries(profiles.map((profile) => [profile.id, profile.theme ?? fallback.theme]));
@@ -546,7 +558,7 @@ function normalizeStoredState(raw: string): StateStorageRead {
     })),
   } as DemoState;
 
-  return { kind: "supported", raw, state: nextState };
+  return { kind: "supported", raw, state: nextState, migratedCardUrls };
 }
 
 function readStoredState(): StateStorageRead {
@@ -634,7 +646,15 @@ function installStoredSession(read: SessionStorageRead): boolean {
 function loadFromStorage() {
   if (typeof window === "undefined" || loaded) return;
   loaded = true;
-  installStoredState(readStoredState());
+  const read = readStoredState();
+  installStoredState(read);
+  if (read.kind === "supported" && read.migratedCardUrls) {
+    try {
+      persist(state);
+    } catch {
+      // Keep readable legacy data available; the guarded migration retries after reload.
+    }
+  }
 }
 
 function loadSession() {

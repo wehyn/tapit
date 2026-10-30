@@ -28,6 +28,7 @@ Let administrators preview and download a print-ready QR code for every register
 ### URL encoded in the QR
 
 - Generate the QR from the card's exact permanent production URL saved in `card.cardUrl`, as established by issue #193.
+- Use `https://tapit-eosin.vercel.app` as the canonical card URL origin. Admin registration and replacement resolve relative `/c/<token>` input against this origin and reject absolute URLs from other origins.
 - Preserve the full origin, path, and query string. For example, if the permanent URL is `https://tapit-eosin.vercel.app/c/card-29y887jo?claim=1`, encode that complete URL unchanged.
 - Do not construct the URL from `window.location.origin`, the admin's current host, or a preview/development host.
 - Do not add or remove query parameters, including `source=qr`. Do not put a one-time claim code in the QR. A stable `claim=1` hint may remain when it is part of the permanent URL.
@@ -58,7 +59,7 @@ Let administrators preview and download a print-ready QR code for every register
 
 ## Out of scope
 
-- Defining or changing permanent card URL routing, URL registration, or status-specific destinations; issue #193 owns those behaviors.
+- Status-specific card routing and destination behavior remain in issue #193. The canonical origin, registration, replacement, copy, and legacy local-demo URL migration are included in this implementation as the approved #193 URL-contract slice.
 - Storing QR assets, configuring print orders, generating physical labels, or editing the SVG layout.
 - Adding QR-specific analytics parameters or another attribution mechanism.
 - Placing one-time claim codes in a URL or QR code.

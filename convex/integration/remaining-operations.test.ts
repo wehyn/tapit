@@ -190,13 +190,16 @@ describe("Convex links, cards, analytics, and admin operations", () => {
 
     await expect(
       owner.mutation(api.cards.register, {
-        cardUrl: "https://tapit.test/c/not-admin",
+        cardUrl: "https://tapit-eosin.vercel.app/c/not-admin",
         token: "not-admin",
       }),
     ).rejects.toThrow("Administrator permission required.");
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/owned-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/owned-card?batch=first&label=a%2Fb",
       token: "owned-card",
+    });
+    await expect(t.run((ctx) => ctx.db.get(cardId))).resolves.toMatchObject({
+      cardUrl: "https://tapit-eosin.vercel.app/c/owned-card?batch=first&label=a%2Fb",
     });
     await expect(
       owner.mutation(api.cards.assign, {
@@ -215,10 +218,20 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       profile: { slug: "owner", links: [{ id: "owner-link" }] },
     });
 
+    await expect(
+      admin.mutation(api.cards.replace, {
+        oldCardId: cardId,
+        newCardUrl: "https://tapit-eosin.vercel.app.evil.example/c/rejected-card",
+        newToken: "rejected-card",
+      }),
+    ).rejects.toThrow("/c/<token> format");
     const replacementId = await admin.mutation(api.cards.replace, {
       oldCardId: cardId,
-      newCardUrl: "https://tapit.test/c/replacement-card",
+      newCardUrl: "https://tapit-eosin.vercel.app/c/replacement-card?source=replace&x=1%2F2",
       newToken: "replacement-card",
+    });
+    await expect(t.run((ctx) => ctx.db.get(replacementId))).resolves.toMatchObject({
+      cardUrl: "https://tapit-eosin.vercel.app/c/replacement-card?source=replace&x=1%2F2",
     });
     await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toEqual({
       status: "inactive",
@@ -229,12 +242,12 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     });
     const secondReplacementId = await admin.mutation(api.cards.replace, {
       oldCardId: replacementId,
-      newCardUrl: "https://tapit.test/c/replacement-card-two",
+      newCardUrl: "https://tapit-eosin.vercel.app/c/replacement-card-two",
       newToken: "replacement-card-two",
     });
     const thirdReplacementId = await admin.mutation(api.cards.replace, {
       oldCardId: secondReplacementId,
-      newCardUrl: "https://tapit.test/c/replacement-card-three",
+      newCardUrl: "https://tapit-eosin.vercel.app/c/replacement-card-three",
       newToken: "replacement-card-three",
     });
     await admin.mutation(api.cards.deactivate, { cardId: thirdReplacementId });
@@ -242,7 +255,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       status: "inactive",
     });
     const reusableCardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/reusable-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/reusable-card",
       token: "reusable-card",
     });
     await expect(
@@ -259,7 +272,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const data = await seed(t);
     const admin = t.withIdentity(identity(data.adminUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/redirect-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/redirect-card",
       token: "redirect-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
@@ -365,7 +378,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const admin = t.withIdentity(identity(data.adminUserId));
     const owner = t.withIdentity(identity(data.ownerUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/draft-redirect-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/draft-redirect-card",
       token: "draft-redirect-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
@@ -406,7 +419,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const data = await seed(t);
     const admin = t.withIdentity(identity(data.adminUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/unavailable-redirect-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/unavailable-redirect-card",
       token: "unavailable-redirect-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
@@ -434,7 +447,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     const other = t.withIdentity(identity(data.otherUserId));
     const admin = t.withIdentity(identity(data.adminUserId));
     const cardId = await admin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/analytics-card",
+      cardUrl: "https://tapit-eosin.vercel.app/c/analytics-card",
       token: "analytics-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
