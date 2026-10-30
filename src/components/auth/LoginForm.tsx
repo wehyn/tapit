@@ -170,14 +170,18 @@ function DemoLoginForm({
         if (currentAccount.demoResetInProgress === true && currentAccount.isDemo === true) {
           setDemoSession(candidateSession);
           await resetCurrentDemoAccountData();
-          router.replace("/onboarding");
+          router.replace(
+            `/onboarding${safeNextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`,
+          );
           return;
         }
         const access = resolveDemoSessionAccess(after.snapshot.state, candidateSession);
         if (access.kind === "restricted") {
           if (currentAccount.demoOnboardingPending === true && currentAccount.isDemo === true) {
             setDemoSession(candidateSession);
-            router.replace("/onboarding");
+            router.replace(
+              `/onboarding${safeNextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`,
+            );
             return;
           }
           setSubmitting(false);
@@ -369,7 +373,8 @@ function LiveLoginForm({
   const createStarted = useRef(false);
   const safeNextPath = sanitizeReturnPath(nextPath);
   let signedInPath: string | null = null;
-  if (access?.accountStatus === "pending") signedInPath = "/onboarding";
+  if (access?.accountStatus === "pending")
+    signedInPath = `/onboarding${safeNextPath ? `?next=${encodeURIComponent(safeNextPath)}` : ""}`;
   else if (isActiveAccess(access)) {
     if (access.role === "admin") signedInPath = safeNextPath || "/admin/customers";
     else if (access.role === "customer" && access.profileId !== null)

@@ -122,6 +122,22 @@ describe("published demo profile paths", () => {
     expect(paths[0]?.marker).toContain("bg-tapit-warm-studio-page");
   });
 
+  it("keeps an active unclaimed card unavailable when its owner is inactive", () => {
+    const state = pathMocks.state;
+    const card = state?.cards.find((candidate) => candidate.token === "active-unclaimed-card-demo");
+    const profile = state?.profiles.find((candidate) => candidate.id === card?.profileId);
+    const owner = state?.customers.find((customer) => customer.id === profile?.ownerId);
+    if (!card || !profile || !owner)
+      throw new Error("The active unclaimed card fixture is missing.");
+    owner.status = "deleted";
+
+    render(<CardResolverClient cardToken={card.token} />);
+
+    expect(
+      screen.getByRole("heading", { name: "This profile is currently unavailable" }),
+    ).toBeVisible();
+  });
+
   it("does not record profile-link analytics for contact actions on either path", () => {
     for (const path of ["direct", "card"] as const) {
       const view = renderPublishedPath(path);

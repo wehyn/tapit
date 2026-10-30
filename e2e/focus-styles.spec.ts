@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 const ORANGE_FOCUS = /#b86500|rgb\(\s*184,\s*101,\s*0|rgba\(\s*184,\s*101,\s*0/i;
 const FORM_CONTROLS =
   'input:not([type="hidden"]):not([disabled]):visible, textarea:not([disabled]):visible, select:not([disabled]):visible, button:not([disabled]):visible, summary:visible';
+const LINKS = "a[href]:visible";
 
 type FocusStyles = {
   colors: string;
@@ -41,8 +42,8 @@ async function readFocusStyles(surface: Locator): Promise<FocusStyles> {
   });
 }
 
-async function expectNoOrangeFocus(page: Page, route: string) {
-  const controls = page.locator("main").locator(FORM_CONTROLS);
+async function expectNoOrangeFocus(page: Page, route: string, selector = FORM_CONTROLS) {
+  const controls = page.locator("main").locator(selector);
   await expect(controls.first(), `${route} should expose form controls`).toBeVisible();
   const controlCount = await controls.count();
   expect(controlCount, `${route} should expose form controls`).toBeGreaterThan(0);
@@ -106,7 +107,7 @@ test("form focus indicators stay within the Soft Precision theme", async ({ page
   ]) {
     await page.goto(route);
     await expect(page.locator("main").first()).toBeVisible();
-    await expectNoOrangeFocus(page, route);
+    await expectNoOrangeFocus(page, route, route === "/c/claimable-card-demo" ? LINKS : undefined);
   }
 
   await page.goto("/login");

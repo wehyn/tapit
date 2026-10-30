@@ -52,13 +52,22 @@ export const verifyCode = mutation({
       .unique();
     const now = Date.now();
     if (card === null) return { ok: false as const };
-    if ((card.status !== "claimable" && card.status !== "active") || card.profileId === undefined)
+    const customer = await customerForAuthUser(ctx, userId);
+    if (
+      !customer ||
+      !isActiveCustomer(customer) ||
+      customer.role !== "customer" ||
+      !sameScope(customer, card)
+    )
+      return { ok: false as const };
+    if (
+      card.correctionRequestedAt !== undefined ||
+      (card.status !== "registered" && card.status !== "claimable" && card.status !== "active")
+    )
       return { ok: false as const };
     const claimCodeHash = card.claimCodeHash;
     if (claimCodeHash === undefined) return { ok: false as const };
     if (card.claimCodeInvalidatedAt !== undefined || card.claimCodeClaimedAt !== undefined)
-      return { ok: false as const };
-    if (card.claimCodeExpiresAt === undefined || card.claimCodeExpiresAt <= now)
       return { ok: false as const };
     if ((await digest(code)) !== claimCodeHash) return { ok: false as const };
     const challenge = challengeValue();
@@ -66,6 +75,7 @@ export const verifyCode = mutation({
     await ctx.db.insert("cardClaimChallenges", {
       scope: card.scope,
       cardId: card._id,
+      userId,
       claimCodeHash,
       challengeHash: await digest(challenge),
       expiresAt,
@@ -90,16 +100,18 @@ export const complete = mutation({
       throw new Error("The claim code is invalid or unavailable.");
     }
     if (challenge.usedAt !== undefined || challenge.expiresAt <= Date.now()) failure();
+    if (challenge.userId !== userId) failure();
     const card = await ctx.db.get(challenge.cardId);
     const customer = await customerForAuthUser(ctx, userId);
     if (card === null) {
       throw new Error("The claim code is invalid or unavailable.");
     }
-    if (customer === null || !isActiveCustomer(customer)) {
+    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
       throw new Error("The claim code is invalid or unavailable.");
     }
     if (
-      (card.status !== "claimable" && card.status !== "active") ||
+      (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||
+      card.correctionRequestedAt !== undefined ||
       card.claimCodeInvalidatedAt !== undefined ||
       card.claimCodeClaimedAt !== undefined ||
       card.claimCodeHash !== challenge.claimCodeHash
@@ -107,10 +119,8 @@ export const complete = mutation({
       throw new Error("The claim code is invalid or unavailable.");
     }
     if (!sameScope(customer, card)) failure();
-    const profileId = card.profileId;
-    if (profileId === undefined) {
-      throw new Error("The claim code is invalid or unavailable.");
-    }
+    const profileId = card.profileId ?? customer.profileId;
+    if (profileId === undefined) throw new Error("The claim code is invalid or unavailable.");
     const profile = await ctx.db.get(profileId);
     if (profile === null) {
       throw new Error("The claim code is invalid or unavailable.");
@@ -119,10 +129,28 @@ export const complete = mutation({
     if (profile.ownerId !== customer._id) {
       throw new Error("The claim code is invalid or unavailable.");
     }
+    if (card.profileId === undefined) {
+      const [activeCards, claimableCards] = await Promise.all([
+        ctx.db
+          .query("cards")
+          .withIndex("by_profileId_and_status", (q) =>
+            q.eq("profileId", profile._id).eq("status", "active"),
+          )
+          .take(1),
+        ctx.db
+          .query("cards")
+          .withIndex("by_profileId_and_status", (q) =>
+            q.eq("profileId", profile._id).eq("status", "claimable"),
+          )
+          .take(1),
+      ]);
+      if (activeCards.length || claimableCards.length) failure();
+    }
     const now = Date.now();
     await ctx.db.patch(challenge._id, { usedAt: now });
     await ctx.db.patch(card._id, {
       claimCodeClaimedAt: now,
+      profileId: profile._id,
       status: profile.status === "published" ? "active" : "claimable",
       updatedAt: now,
     });

@@ -765,7 +765,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   ).toBeVisible();
 });
 
-test("administrator registers, assigns, replaces, deactivates, and audits cards", async ({
+test("administrator registers unassigned cards, manages claim codes, replaces, deactivates, and audits cards", async ({
   page,
 }) => {
   await signInAsAdmin(page);
@@ -775,7 +775,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   const activeCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
   await activeCard.locator("summary").first().click();
-  await page.getByRole("button", { name: "Copy link", exact: true }).click();
+  await page.getByRole("button", { name: "Copy card URL for mara-card-7f2q", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Card link copied." })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
@@ -798,20 +798,23 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
     page.getByText("Card new-card-abc registered and ready for assignment."),
   ).toBeVisible();
   const newCard = page.locator("article").filter({ hasText: "new-card-abc" }).first();
-  await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeVisible();
-  await page
-    .getByRole("dialog", { name: "Confirm card attachment" })
-    .getByRole("button", { name: "Attach card" })
-    .click();
-  await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeHidden();
   await newCard.locator("summary").first().click();
-  await expect(newCard.getByText(/Mara Velasquez \(new-card-abc\)/)).toBeVisible();
-  await expect(
-    page.getByText(
-      "Card new-card-abc is active for Mara Velasquez. Generate and share a claim code so the owner can unlock card-owner features.",
-    ),
-  ).toBeVisible();
-  await expect(newCard.getByRole("button", { name: "Generate claim code" })).toBeVisible();
+  await expect(newCard.getByText("Unassigned (new-card-abc)", { exact: true })).toBeVisible();
+  await expect(newCard.getByRole("button", { name: "Generate code" })).toBeVisible();
+  await newCard.getByRole("button", { name: "Generate code" }).click();
+  const initialClaimCode = await newCard.getByLabel("Claim code for new-card-abc").textContent();
+  await expect(newCard.getByLabel("Claim code for new-card-abc")).toHaveText(
+    /^[A-HJ-NP-Z2-9]{8}Invalidate$/,
+  );
+  await expect(newCard.getByRole("button", { name: "Invalidate" })).toBeVisible();
+  await newCard.getByRole("button", { name: "Invalidate" }).click();
+  await expect(page.getByText("Claim code for new-card-abc invalidated.")).toBeVisible();
+  await expect(newCard.getByLabel("Claim code for new-card-abc")).toHaveCount(0);
+  await newCard.getByRole("button", { name: "Generate code" }).click();
+  await expect(newCard.getByLabel("Claim code for new-card-abc")).toBeVisible();
+  expect(await newCard.getByLabel("Claim code for new-card-abc").textContent()).not.toBe(
+    initialClaimCode,
+  );
 
   const originalCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
   await originalCard.locator("summary").first().click();
@@ -826,7 +829,9 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect(page.getByText("Card mara-card-7f2q was replaced.")).toBeVisible();
 
   await page.goto("/c/mara-card-7f2q");
-  await expect(page.getByRole("heading", { name: "This card is inactive" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
   await page.goto("/c/replacement-card-xyz");
   await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
 
@@ -843,10 +848,9 @@ test("administrator previews and downloads a permanent card QR without storing a
   await page.getByRole("link", { name: "Cards", exact: true }).click();
   await page.getByLabel("Pre-encoded card URL").fill(cardUrl);
   await page.getByRole("button", { name: "Register card" }).click();
-  await page
-    .getByRole("dialog", { name: "Confirm card attachment" })
-    .getByRole("button", { name: "Cancel" })
-    .click();
+  await expect(
+    page.getByText("Card e2e-card-qr registered and ready for assignment."),
+  ).toBeVisible();
 
   const row = page.locator("article").filter({ hasText: "e2e-card-qr" }).first();
   await row.locator("summary").first().click();
@@ -854,6 +858,13 @@ test("administrator previews and downloads a permanent card QR without storing a
   await row.getByText("QR fallback", { exact: true }).click();
   await expect(row.getByText(`Encodes ${cardUrl}`, { exact: true })).toBeVisible();
   await expect(row.getByRole("img", { name: "QR code for e2e-card-qr" })).toBeVisible();
+  await row
+    .locator("details")
+    .last()
+    .screenshot({
+      path: testInfo.outputPath("permanent-card-qr.png"),
+      animations: "disabled",
+    });
 
   const downloadPromise = page.waitForEvent("download");
   await row.getByRole("button", { name: "Download SVG" }).click();

@@ -19,6 +19,8 @@ describe("card claiming contracts", () => {
     const ids = await t.run(async (ctx) => {
       const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
       const customerUserId = await ctx.db.insert("users", { email: "customer@example.com" });
+      const otherUserId = await ctx.db.insert("users", { email: "other@example.com" });
+      const demoAdminUserId = await ctx.db.insert("users", { email: "demo-admin@example.com" });
       await ctx.db.insert("customers", {
         userId: adminUserId,
         email: "admin@example.com",
@@ -28,7 +30,7 @@ describe("card claiming contracts", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      await ctx.db.insert("customers", {
+      const customerId = await ctx.db.insert("customers", {
         userId: customerUserId,
         email: "customer@example.com",
         role: "customer",
@@ -37,10 +39,48 @@ describe("card claiming contracts", () => {
         createdAt: 1,
         updatedAt: 1,
       });
-      return { adminUserId, customerUserId };
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId: customerId,
+        slug: "package-owner",
+        status: "draft",
+        draft: { name: "Package Owner", slug: "package-owner", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(customerId, { profileId });
+      const otherCustomerId = await ctx.db.insert("customers", {
+        userId: otherUserId,
+        email: "other@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const otherProfileId = await ctx.db.insert("profiles", {
+        ownerId: otherCustomerId,
+        slug: "other",
+        status: "draft",
+        draft: { name: "Other", slug: "other", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(otherCustomerId, { profileId: otherProfileId });
+      await ctx.db.insert("customers", {
+        userId: demoAdminUserId,
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        scope: "demo",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return { adminUserId, customerUserId, customerId, profileId, otherUserId, demoAdminUserId };
     });
     const admin = t.withIdentity(identity(ids.adminUserId));
     const customer = t.withIdentity(identity(ids.customerUserId));
+    const other = t.withIdentity(identity(ids.otherUserId));
+    const demoAdmin = t.withIdentity(identity(ids.demoAdminUserId));
 
     await expect(customer.mutation(api.cards.generateCardToken, {})).rejects.toThrow(
       "Administrator permission required.",
@@ -58,6 +98,60 @@ describe("card claiming contracts", () => {
       token: firstToken,
     });
     expect(cardId).toBeDefined();
+    const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId });
+    expect(await t.run((ctx) => ctx.db.get(cardId))).toMatchObject({
+      status: "registered",
+      claimCodeHash: expect.any(String),
+    });
+    expect(await t.run((ctx) => ctx.db.get(cardId))).not.toHaveProperty("claimCodeExpiresAt");
+    // Legacy timestamps are advisory only; an old past expiry does not invalidate a package code.
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeExpiresAt: 1 }));
+    const paginatedCards = await admin.query(api.cards.adminListPaginated, {
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(paginatedCards.page.find((card) => card._id === cardId)).not.toHaveProperty(
+      "claimCodeExpiresAt",
+    );
+    const verification = await customer.mutation(api.cardClaims.verifyCode, {
+      token: firstToken,
+      code,
+    });
+    expect(verification.ok).toBe(true);
+    if (!verification.ok) throw new Error("Expected the pre-assignment package code to verify.");
+    await expect(
+      other.mutation(api.cardClaims.complete, { challenge: verification.challenge }),
+    ).rejects.toThrow();
+    await t.run(async (ctx) => {
+      const challenge = await ctx.db
+        .query("cardClaimChallenges")
+        .withIndex("by_cardId", (q) => q.eq("cardId", cardId))
+        .first();
+      if (!challenge) throw new Error("Expected persisted challenge");
+      await ctx.db.patch(challenge._id, { expiresAt: 1 });
+    });
+    await expect(
+      customer.mutation(api.cardClaims.complete, { challenge: verification.challenge }),
+    ).rejects.toThrow();
+    const freshVerification = await customer.mutation(api.cardClaims.verifyCode, {
+      token: firstToken,
+      code,
+    });
+    expect(freshVerification.ok).toBe(true);
+    if (!freshVerification.ok) throw new Error("Expected an unexpired challenge");
+    await expect(
+      customer.mutation(api.cardClaims.complete, { challenge: freshVerification.challenge }),
+    ).resolves.toEqual({ cardId, profileId: ids.profileId });
+    await expect(
+      customer.mutation(api.cardClaims.complete, { challenge: freshVerification.challenge }),
+    ).rejects.toThrow();
+    const demoCardId = await demoAdmin.mutation(api.cards.register, {
+      cardUrl: "https://tapit-eosin.vercel.app/c/demo-scope",
+      token: "demo-scope",
+    });
+    const demoCode = await demoAdmin.mutation(api.cards.generateClaimCode, { cardId: demoCardId });
+    await expect(
+      customer.mutation(api.cardClaims.verifyCode, { token: "demo-scope", code: demoCode.code }),
+    ).resolves.toEqual({ ok: false });
     await expect(
       admin.mutation(api.cards.register, {
         cardUrl: `https://tapit-eosin.vercel.app/c/${firstToken}`,
@@ -213,17 +307,14 @@ describe("card claiming contracts", () => {
     });
     expect(attached.status).toBe("claimable");
     expect(await t.query(api.cards.resolve, { token: "card-1" })).toEqual({
-      status: "onboarding",
+      status: "claim",
     });
     // The public resolver must not disclose the owner's draft while the card is
     // claimable. Keep this assertion explicit because the resolver is callable
     // without authentication.
     const unpublishedResolution = await t.query(api.cards.resolve, { token: "card-1" });
-    expect(unpublishedResolution).toEqual({ status: "onboarding" });
+    expect(unpublishedResolution).toEqual({ status: "claim" });
     expect(JSON.stringify(unpublishedResolution)).not.toContain("Owner");
-    await expect(
-      owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
-    ).resolves.toMatchObject({ slug: "owner" });
     const { code: firstCode } = await admin.mutation(api.cards.generateClaimCode, {
       cardId: ids.cardId,
     });
@@ -254,6 +345,9 @@ describe("card claiming contracts", () => {
     await expect(
       owner.mutation(api.cardClaims.complete, { challenge: staleChallenge }),
     ).rejects.toThrow();
+    await expect(t.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
     const { code } = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId });
     const verification = await owner.mutation(api.cardClaims.verifyCode, {
       token: "card-1",
@@ -267,6 +361,18 @@ describe("card claiming contracts", () => {
       cardId: ids.cardId,
       profileId: ids.profileId,
     });
+    await expect(t.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await expect(owner.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "ownerSetup",
+    });
+    await expect(unrelated.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await expect(
+      owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
+    ).resolves.toMatchObject({ slug: "owner" });
     await expect(owner.mutation(api.cardClaims.complete, { challenge })).rejects.toThrow();
     await expect(
       owner.mutation(api.cardClaims.verifyCode, { token: "card-1", code }),
@@ -274,11 +380,6 @@ describe("card claiming contracts", () => {
     await expect(
       admin.mutation(api.cards.generateClaimCode, { cardId: ids.cardId }),
     ).rejects.toThrow();
-    await expect(
-      owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
-    ).resolves.toMatchObject({
-      slug: "owner",
-    });
     await expect(t.query(api.cards.resolve, { token: "card-1" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner" },
@@ -313,9 +414,8 @@ describe("card claiming contracts", () => {
     await expect(
       admin.mutation(api.cards.attach, { cardId: immediateCardId, profileId: publishedProfileId }),
     ).resolves.toEqual({ status: "active" });
-    await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toMatchObject({
-      status: "active",
-      profile: { slug: "owner-two" },
+    await expect(t.query(api.cards.resolve, { token: "card-2" })).resolves.toEqual({
+      status: "claim",
     });
     // A published profile becomes public as soon as a newly attached card is assigned.
 
@@ -373,11 +473,8 @@ describe("card claiming contracts", () => {
     const { code: publishedProfileCode } = await admin.mutation(api.cards.generateClaimCode, {
       cardId: claimablePublishedCardId,
     });
-    await expect(
-      t.query(api.cards.resolve, { token: "cardless-published" }),
-    ).resolves.toMatchObject({
-      status: "active",
-      claimCodeExpiresAt: expect.any(Number),
+    await expect(t.query(api.cards.resolve, { token: "cardless-published" })).resolves.toEqual({
+      status: "claim",
     });
     const publishedProfileVerification = await cardlessOwner.mutation(api.cardClaims.verifyCode, {
       token: "cardless-published",
@@ -416,7 +513,7 @@ describe("card claiming contracts", () => {
       }),
     ).resolves.toEqual({ status: "claimable" });
     await expect(t.query(api.cards.resolve, { token: "card-invited" })).resolves.toEqual({
-      status: "onboarding",
+      status: "claim",
     });
   });
 

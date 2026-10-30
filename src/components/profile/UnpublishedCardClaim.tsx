@@ -14,7 +14,13 @@ import { Field } from "@/components/ui/Field";
 import { Notice } from "@/components/ui/Notice";
 import { Icon } from "@/components/ui/Icon";
 import { normalizeClaimCode } from "@/lib/auth/claim-code";
-import { completeDemoCardClaim, verifyDemoCardClaim, useDemoSession } from "@/lib/demo/store";
+import { sanitizeReturnPath } from "@/lib/auth/return-path";
+import {
+  completeDemoCardClaim,
+  verifyDemoCardClaim,
+  requestDemoCardCorrection,
+  useDemoSession,
+} from "@/lib/demo/store";
 import { api } from "../../../convex/_generated/api";
 
 const RETURN_PATH = (token: string) => `/c/${encodeURIComponent(token)}`;
@@ -42,6 +48,8 @@ type ClaimScreenProps = {
   backHref?: string;
   signInHref?: string;
   submitting: boolean;
+  onRequestCorrection?: () => void;
+  correctionRequested?: boolean;
 };
 
 function ClaimPageShell({
@@ -106,6 +114,8 @@ function ClaimScreen({
   backHref,
   signInHref,
   submitting,
+  onRequestCorrection,
+  correctionRequested,
 }: ClaimScreenProps) {
   return (
     <ClaimPageShell backHref={backHref} signInHref={signInHref}>
@@ -125,6 +135,12 @@ function ClaimScreen({
           {error ? <Notice tone="error">{error}</Notice> : null}
           {challenge ? (
             <Notice tone="success">Code verified. Continue to your profile workspace.</Notice>
+          ) : null}
+          {correctionRequested ? (
+            <Notice>
+              Your card is paused while its assignment is corrected. Scan again after the
+              correction.
+            </Notice>
           ) : null}
           <div className="[&_input]:text-center [&_input]:font-mono [&_input]:font-semibold [&_input]:tracking-widest">
             <Field
@@ -146,6 +162,11 @@ function ClaimScreen({
           >
             {submitting ? "Checking code" : "Claim this card"}
           </Button>
+          {challenge && onRequestCorrection && !correctionRequested ? (
+            <Button onClick={onRequestCorrection} type="button" variant="secondary">
+              Request assignment correction
+            </Button>
+          ) : null}
         </form>
       </section>
     </ClaimPageShell>
@@ -165,6 +186,8 @@ function DemoUnpublishedCardClaim({
   const [challenge, setChallenge] = useState<string>();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [correctionRequested, setCorrectionRequested] = useState(false);
+  const safeReturnHref = sanitizeReturnPath(returnHref) ?? RETURN_PATH(cardToken);
 
   useEffect(() => {
     if (!session) return;
@@ -199,7 +222,7 @@ function DemoUnpublishedCardClaim({
     setSubmitting(true);
     setError("");
     try {
-      const nextChallenge = verifyDemoCardClaim(cardToken, normalized);
+      const nextChallenge = verifyDemoCardClaim(cardToken, normalized, session?.email ?? "");
       sessionStorage.setItem(`tapit:claim:${cardToken}`, nextChallenge);
       setChallenge(nextChallenge);
       if (session) {
@@ -207,13 +230,23 @@ function DemoUnpublishedCardClaim({
         sessionStorage.removeItem(`tapit:claim:${cardToken}`);
         router.replace("/app/profile");
       } else {
-        router.replace(`/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`);
+        router.replace(`/login?next=${encodeURIComponent(safeReturnHref)}`);
       }
     } catch {
       setError(
         "That code is invalid, expired, used, or unavailable. Check the code and try again.",
       );
       setSubmitting(false);
+    }
+  }
+
+  function requestCorrection() {
+    if (!challenge || !session) return;
+    try {
+      requestDemoCardCorrection(cardToken, challenge, session.email);
+      setCorrectionRequested(true);
+    } catch {
+      setError("The correction request could not be sent. Try again.");
     }
   }
 
@@ -224,13 +257,11 @@ function DemoUnpublishedCardClaim({
       error={error}
       onChange={setCode}
       onSubmit={submit}
-      backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
-      signInHref={
-        session
-          ? undefined
-          : `/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`
-      }
+      backHref={returnHref ? safeReturnHref : undefined}
+      signInHref={session ? undefined : `/login?next=${encodeURIComponent(safeReturnHref)}`}
       submitting={submitting}
+      onRequestCorrection={session ? requestCorrection : undefined}
+      correctionRequested={correctionRequested}
     />
   );
 }
@@ -246,10 +277,13 @@ function LiveUnpublishedCardClaim({
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const verifyCode = useMutation(api.cardClaims.verifyCode);
   const completeClaim = useMutation(api.cardClaims.complete);
+  const requestCorrection = useMutation(api.cardCorrectionRequests.requestCorrection);
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState<string>();
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [correctionRequested, setCorrectionRequested] = useState(false);
+  const safeReturnHref = sanitizeReturnPath(returnHref) ?? RETURN_PATH(cardToken);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -292,7 +326,7 @@ function LiveUnpublishedCardClaim({
         sessionStorage.removeItem(`tapit:claim:${cardToken}`);
         router.replace("/app/profile");
       } else {
-        router.replace(`/login?next=${encodeURIComponent(RETURN_PATH(cardToken))}`);
+        router.replace(`/login?next=${encodeURIComponent(safeReturnHref)}`);
       }
     } catch {
       setError(
@@ -302,12 +336,28 @@ function LiveUnpublishedCardClaim({
     }
   }
 
+  async function requestAssignmentCorrection() {
+    if (!challenge) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await requestCorrection({ token: cardToken, challenge });
+      setCorrectionRequested(true);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "The correction request could not be sent.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (authLoading) return <ClaimLoading />;
   if (!isAuthenticated) {
     return (
       <ClaimPageShell
-        backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
-        signInHref={`/login?next=${encodeURIComponent(returnHref ?? RETURN_PATH(cardToken))}`}
+        backHref={returnHref ? safeReturnHref : undefined}
+        signInHref={`/login?next=${encodeURIComponent(safeReturnHref)}`}
       >
         <section className="flex flex-col items-center gap-4 text-center">
           <p className="text-xs font-semibold tracking-[0.18em] text-tapit-accent uppercase">
@@ -332,8 +382,10 @@ function LiveUnpublishedCardClaim({
       error={error}
       onChange={setCode}
       onSubmit={submit}
-      backHref={returnHref ? RETURN_PATH(cardToken) : undefined}
+      backHref={returnHref ? safeReturnHref : undefined}
       submitting={submitting}
+      onRequestCorrection={requestAssignmentCorrection}
+      correctionRequested={correctionRequested}
     />
   );
 }

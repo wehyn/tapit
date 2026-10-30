@@ -3,7 +3,7 @@
 import { isLocalDemoMode } from "@/lib/demo/mode";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 
 import { canTransitionCard, isActiveAccount, transitionCard } from "@/lib/domain";
 import { cardTokenFromUrl, cardUrlFromToken, normalizeCardUrl } from "@/lib/card-url";
@@ -69,6 +69,27 @@ function countCards(cards: CardGroupSource[]): Record<CardFilter, number> {
   return counts;
 }
 
+function demoClaimCode(token: string, generation: number): string {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const tokenSuffix = token
+    .replace(/[^A-HJ-NP-Z2-9]/gi, "")
+    .toUpperCase()
+    .slice(-4)
+    .padStart(4, "2");
+  let serial = [...tokenSuffix].reduce(
+    (value, character) => value * alphabet.length + alphabet.indexOf(character),
+    0,
+  );
+  // shortcut: the demo suffix wraps after 32^4 generations per card; widen it if that matters.
+  serial = (serial + generation - 1) % alphabet.length ** 4;
+  let suffix = "";
+  for (let index = 0; index < 4; index += 1) {
+    suffix = `${alphabet[serial % alphabet.length]}${suffix}`;
+    serial = Math.floor(serial / alphabet.length);
+  }
+  return `DEMA${suffix}`;
+}
+
 function randomDemoCardToken(existingTokens: Set<string>): string {
   const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
   const bucketSize = 256 - (256 % alphabet.length);
@@ -91,7 +112,7 @@ function randomDemoCardToken(existingTokens: Set<string>): string {
 
 function cardUrlIdentity(value: string): string {
   const normalized = normalizeCardUrl(value);
-  if (normalized === null) return value;
+  if (!normalized) return value;
   const parsed = new URL(normalized);
   const pathname = parsed.pathname.replace(/\/+$/, "") || "/";
   return `${parsed.origin}${pathname}`;
@@ -212,7 +233,15 @@ function CardRow({
   );
 }
 
-function CopyCardLinkButton({ ariaLabel, cardUrl }: { ariaLabel?: string; cardUrl: string }) {
+function CopyCardLinkButton({
+  ariaLabel,
+  token,
+  cardUrl,
+}: {
+  ariaLabel?: string;
+  token: string;
+  cardUrl?: string;
+}) {
   const [copyMessage, setCopyMessage] = useState<{
     tone: "success" | "error";
     text: string;
@@ -220,7 +249,11 @@ function CopyCardLinkButton({ ariaLabel, cardUrl }: { ariaLabel?: string; cardUr
   } | null>(null);
 
   async function copyCardLink() {
-    const url = cardUrl;
+    const url = cardUrl === undefined ? cardUrlFromToken(token) : normalizeCardUrl(cardUrl);
+    if (!url) {
+      setCopyMessage({ tone: "error", text: "This card URL is invalid." });
+      return;
+    }
     try {
       await navigator.clipboard.writeText(url);
       setCopyMessage({ tone: "success", text: "Card link copied." });
@@ -271,7 +304,7 @@ function CardDetail({
         <StatusChip status={status} />
       </div>
       <div className="flex flex-col gap-2">{children}</div>
-      <CopyCardLinkButton cardUrl={cardUrl} />
+      <CopyCardLinkButton cardUrl={cardUrl} token={token} />
     </Card>
   );
 }
@@ -300,7 +333,6 @@ function DemoCardsManager() {
   const [claimCode, setClaimCode] = useState<{
     cardId: string;
     code: string;
-    expiresAt: number;
   } | null>(null);
   const selectedProfile = getDemoProfileById(state, selectedProfileId) ?? profiles[0];
 
@@ -327,6 +359,90 @@ function DemoCardsManager() {
   const detailAuditCount = detailCard
     ? state.audits.filter((audit) => audit.target.includes(detailCard.token)).length
     : 0;
+  const correctionRequests = (state.cardCorrectionRequests ?? []).filter(
+    (request) => request.status === "pending",
+  );
+  const confirmationCorrectionPending =
+    (confirmation?.type === "deactivate" || confirmation?.type === "replace") &&
+    correctionRequests.some((request) => request.token === confirmation.card.token);
+
+  function correctDemoAssignment(requestId: string) {
+    let applied = false;
+    let conflict = false;
+    let token = "";
+    updateDemoState((current) => {
+      const currentRequest = current.cardCorrectionRequests?.find(
+        (candidate) => candidate.id === requestId && candidate.status === "pending",
+      );
+      const requester = current.customers.find(
+        (candidate) => candidate.email === currentRequest?.requestedBy,
+      );
+      const currentTarget = currentRequest?.profileId
+        ? getDemoProfileById(current, currentRequest.profileId)
+        : undefined;
+      const currentCard = current.cards.find(
+        (candidate) => candidate.token === currentRequest?.token,
+      );
+      if (
+        !currentRequest ||
+        !requester ||
+        requester.role !== "customer" ||
+        requester.status !== "active" ||
+        requester.deletionStatus !== "active" ||
+        !currentTarget ||
+        currentTarget.ownerId !== requester.id ||
+        requester.profileId !== currentTarget.id ||
+        !currentCard ||
+        (currentCard.status !== "active" && currentCard.status !== "claimable") ||
+        currentCard.claimedAt !== undefined ||
+        currentCard.claimCodeInvalidatedAt !== undefined
+      )
+        return current;
+      conflict = current.cards.some(
+        (candidate) =>
+          candidate.id !== currentCard.id &&
+          candidate.profileId === currentTarget.id &&
+          (candidate.status === "active" || candidate.status === "claimable"),
+      );
+      if (conflict) return current;
+      token = currentCard.token;
+      applied = true;
+      return {
+        ...current,
+        cards: current.cards.map((candidate) =>
+          candidate.id === currentCard.id
+            ? {
+                ...candidate,
+                profileId: currentTarget.id,
+                status: currentTarget.status === "published" ? "active" : "claimable",
+              }
+            : candidate,
+        ),
+        cardCorrectionRequests: (current.cardCorrectionRequests ?? []).map((candidate) =>
+          candidate.id === requestId ? { ...candidate, status: "corrected" } : candidate,
+        ),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: "admin@tapit.local",
+            action: "card.assignment_corrected",
+            target: `${currentCard.token} → ${currentTarget.draft.name || currentTarget.draft.slug}`,
+            occurredAt: new Date().toISOString(),
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (!applied) {
+      if (conflict)
+        setMessage({
+          tone: "error",
+          text: "This requester already has an active or claimable card. The correction request remains pending.",
+        });
+      return;
+    }
+    setMessage({ tone: "success", text: `Assignment for ${token} corrected.` });
+  }
 
   function validateCardUrl(value: string): string | null {
     const normalized = normalizeCardUrl(value);
@@ -346,36 +462,58 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: error });
       return;
     }
-    const normalized = normalizeCardUrl(cardUrl);
-    const token = normalized && cardTokenFromUrl(normalized);
-    if (!normalized || !token) return;
-    const createdAt = Math.max(0, ...state.cards.map((card) => card.createdAt ?? 0)) + 1;
-    const nextCard: DemoCard = {
-      id: `card-${token}`,
-      token,
-      cardUrl: normalized,
-      status: "registered",
-      createdAt,
-    };
-    updateDemoState((current) => ({
-      ...current,
-      cards: [...current.cards, nextCard],
-      audits: [
-        {
-          id: `audit-${Date.now()}`,
-          actor: "admin@tapit.local",
-          action: "card.registered",
-          target: token,
-          occurredAt: new Date().toISOString(),
-          after: "registered",
-        },
-        ...current.audits,
-      ],
-    }));
+    const normalizedUrl = normalizeCardUrl(cardUrl);
+    const token = normalizedUrl && cardTokenFromUrl(normalizedUrl);
+    if (!normalizedUrl || !token) return;
+    let applied = false;
+    let rejection: string | null = null;
+    updateDemoState((current) => {
+      if (current.cards.some((card) => card.token === token)) {
+        rejection = `The card token “${token}” is already registered. Enter a unique token.`;
+        return current;
+      }
+      if (current.cards.some((card) => card.id === `card-${token}`)) {
+        rejection = "That card ID is already registered. Enter a unique token.";
+        return current;
+      }
+      if (
+        current.cards.some(
+          (card) => cardUrlIdentity(card.cardUrl) === cardUrlIdentity(normalizedUrl),
+        )
+      ) {
+        rejection = "That card URL is already registered.";
+        return current;
+      }
+      applied = true;
+      const nextCard: DemoCard = {
+        id: `card-${token}`,
+        token,
+        cardUrl: normalizedUrl,
+        status: "registered",
+        createdAt: Math.max(0, ...current.cards.map((card) => card.createdAt ?? 0)) + 1,
+      };
+      return {
+        ...current,
+        cards: [...current.cards, nextCard],
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: "admin@tapit.local",
+            action: "card.registered",
+            target: token,
+            occurredAt: new Date().toISOString(),
+            after: "registered",
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (!applied) {
+      if (rejection) setMessage({ tone: "error", text: rejection });
+      return;
+    }
     setCardUrl("");
     setMessage({ tone: "success", text: `Card ${token} registered and ready for assignment.` });
-    if (selectedProfile !== undefined)
-      setConfirmation({ type: "attach", card: nextCard, profileId: selectedProfile.id });
   }
 
   function generateCardUrl() {
@@ -413,55 +551,102 @@ function DemoCardsManager() {
       setMessage({ tone: "error", text: "The profile owner account is not available." });
       return;
     }
-    const nextCard = transitionCard(card, targetStatus, profile.id);
-    updateDemoState((current) => ({
-      ...current,
-      cards: current.cards.map((candidate) =>
-        candidate.id === card.id ? { ...candidate, ...nextCard, profileId: profile.id } : candidate,
-      ),
-      audits: [
-        {
-          id: `audit-${Date.now()}`,
-          actor: "admin@tapit.local",
-          action: "card.assigned",
-          target: `${card.token} → ${profile.draft.name || profile.draft.slug}`,
-          occurredAt: new Date().toISOString(),
-          before: "registered",
-          after: targetStatus,
-        },
-        ...current.audits,
-      ],
-    }));
+    let applied = false;
+    let assignmentName = "";
+    let assignedStatus: "active" | "claimable" | null = null;
+    updateDemoState((current) => {
+      const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+      const currentProfile = getDemoProfileById(current, profileId);
+      const currentOwner = current.customers.find(
+        (customer) => customer.id === currentProfile?.ownerId,
+      );
+      if (
+        !currentCard ||
+        currentCard.profileId !== undefined ||
+        !currentProfile ||
+        !canTransitionCard(
+          currentCard.status,
+          currentProfile.status === "published" ? "active" : "claimable",
+        ) ||
+        currentOwner === undefined ||
+        currentOwner.status === "deleted" ||
+        currentOwner.deletionStatus !== "active"
+      )
+        return current;
+      assignedStatus = currentProfile.status === "published" ? "active" : "claimable";
+      assignmentName = currentProfile.draft.name || currentProfile.draft.slug;
+      const nextCard = transitionCard(currentCard, assignedStatus, currentProfile.id);
+      applied = true;
+      return {
+        ...current,
+        cards: current.cards.map((candidate) =>
+          candidate.id === currentCard.id ? { ...candidate, ...nextCard } : candidate,
+        ),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: "admin@tapit.local",
+            action: "card.assigned",
+            target: `${currentCard.token} → ${assignmentName}`,
+            occurredAt: new Date().toISOString(),
+            before: "registered",
+            after: assignedStatus,
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (!applied || assignedStatus === null) return;
     setConfirmation(null);
     setMessage({
       tone: "success",
       text:
-        targetStatus === "active"
-          ? `Card ${card.token} is active for ${profile.draft.name || profile.draft.slug}. Generate and share a claim code so the owner can unlock card-owner features.`
-          : `Card ${card.token} is claimable and assigned to ${profile.draft.name || profile.draft.slug}. It must be activated with a claim code.`,
+        assignedStatus === "active"
+          ? `Card ${card.token} is active for ${assignmentName}. Generate and share a claim code so the owner can unlock card-owner features.`
+          : `Card ${card.token} is claimable and assigned to ${assignmentName}. It must be activated with a claim code.`,
     });
   }
 
   function deactivateCard(card: DemoCard) {
-    const nextCard = transitionCard(card, "inactive");
-    updateDemoState((current) => ({
-      ...current,
-      cards: current.cards.map((candidate) =>
-        candidate.id === card.id ? { ...candidate, ...nextCard } : candidate,
-      ),
-      audits: [
-        {
-          id: `audit-${Date.now()}`,
-          actor: "admin@tapit.local",
-          action: "card.deactivated",
-          target: card.token,
-          occurredAt: new Date().toISOString(),
-          before: "active",
-          after: "inactive",
-        },
-        ...current.audits,
-      ],
-    }));
+    if (
+      state.cardCorrectionRequests?.some(
+        (request) => request.token === card.token && request.status === "pending",
+      )
+    )
+      return;
+    let applied = false;
+    updateDemoState((current) => {
+      const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+      if (
+        !currentCard ||
+        currentCard.status !== "active" ||
+        current.cardCorrectionRequests?.some(
+          (request) => request.token === card.token && request.status === "pending",
+        )
+      )
+        return current;
+      applied = true;
+      const nextCard = transitionCard(currentCard, "inactive");
+      return {
+        ...current,
+        cards: current.cards.map((candidate) =>
+          candidate.id === currentCard.id ? { ...candidate, ...nextCard } : candidate,
+        ),
+        audits: [
+          {
+            id: `audit-${Date.now()}`,
+            actor: "admin@tapit.local",
+            action: "card.deactivated",
+            target: card.token,
+            occurredAt: new Date().toISOString(),
+            before: "active",
+            after: "inactive",
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (!applied) return;
     setConfirmation(null);
     setMessage({
       tone: "success",
@@ -470,67 +655,114 @@ function DemoCardsManager() {
   }
 
   function replaceCard(card: DemoCard) {
+    if (
+      state.cardCorrectionRequests?.some(
+        (request) => request.token === card.token && request.status === "pending",
+      )
+    )
+      return;
     const error = validateCardUrl(replacementUrl);
     if (error) {
       setMessage({ tone: "error", text: error });
       return;
     }
-    const normalized = normalizeCardUrl(replacementUrl);
-    const token = normalized && cardTokenFromUrl(normalized);
-    if (!normalized || !token) return;
-    const replacementProfile = getDemoProfileById(state, card.profileId);
-    const replacementOwner = state.customers.find(
-      (customer) => customer.id === replacementProfile?.ownerId,
-    );
-    if (!isActiveAccount(replacementOwner?.status, replacementOwner?.deletionStatus)) {
-      setMessage({ tone: "error", text: "The profile owner account is not active." });
+    const replacementUrlValue = normalizeCardUrl(replacementUrl);
+    const token = replacementUrlValue && cardTokenFromUrl(replacementUrlValue);
+    if (!replacementUrlValue || !token) return;
+    let applied = false;
+    let rejection: string | null = null;
+    let replacementProfileName = "its existing profile";
+    updateDemoState((current) => {
+      const currentCard = current.cards.find((candidate) => candidate.id === card.id);
+      const replacementId = `card-${token}-replacement`;
+      const replacementProfile = getDemoProfileById(current, currentCard?.profileId);
+      const replacementOwner = current.customers.find(
+        (customer) => customer.id === replacementProfile?.ownerId,
+      );
+      if (
+        !currentCard ||
+        currentCard.status !== "active" ||
+        current.cardCorrectionRequests?.some(
+          (request) => request.token === card.token && request.status === "pending",
+        ) ||
+        !replacementProfile ||
+        !isActiveAccount(replacementOwner?.status, replacementOwner?.deletionStatus)
+      )
+        return current;
+      if (
+        current.cards.some(
+          (candidate) =>
+            candidate.id !== currentCard.id &&
+            (candidate.token === token ||
+              cardUrlIdentity(candidate.cardUrl) === cardUrlIdentity(replacementUrlValue)),
+        )
+      ) {
+        rejection = "That replacement card URL or token is already registered.";
+        return current;
+      }
+      if (current.cards.some((candidate) => candidate.id === replacementId)) {
+        rejection = "That replacement card ID is already registered. Enter a unique token.";
+        return current;
+      }
+      const replacement: DemoCard = {
+        id: replacementId,
+        token,
+        cardUrl: replacementUrlValue,
+        status: "active",
+        profileId: currentCard.profileId,
+        ...(currentCard.claimedAt === undefined
+          ? {
+              claimCode: currentCard.claimCode,
+              claimCodeGeneration: currentCard.claimCodeGeneration,
+              claimCodeExpiresAt: currentCard.claimCodeExpiresAt,
+              claimCodeInvalidatedAt: currentCard.claimCodeInvalidatedAt,
+            }
+          : { claimedAt: currentCard.claimedAt }),
+      };
+      const retired = transitionCard(currentCard, "replaced", undefined, replacementId);
+      replacementProfileName =
+        replacementProfile.draft.name || replacementProfile.draft.slug || "its existing profile";
+      applied = true;
+      return {
+        ...current,
+        cards: [
+          ...current.cards.map((candidate) =>
+            candidate.id === currentCard.id ? { ...candidate, ...retired } : candidate,
+          ),
+          replacement,
+        ],
+        audits: [
+          {
+            id: `audit-${Date.now()}-new`,
+            actor: "admin@tapit.local",
+            action: "card.assigned",
+            target: `${replacement.token} → ${replacementProfileName}`,
+            occurredAt: new Date().toISOString(),
+            after: "active",
+          },
+          {
+            id: `audit-${Date.now()}-old`,
+            actor: "admin@tapit.local",
+            action: "card.replaced",
+            target: `${card.token} → ${replacement.token}`,
+            occurredAt: new Date().toISOString(),
+            before: "active",
+            after: "replaced",
+          },
+          ...current.audits,
+        ],
+      };
+    });
+    if (!applied) {
+      if (rejection) setMessage({ tone: "error", text: rejection });
       return;
     }
-    const profileName =
-      replacementProfile?.draft.name || replacementProfile?.draft.slug || "its existing profile";
-    const replacement: DemoCard = {
-      id: `card-${token}-replacement`,
-      token,
-      cardUrl: normalized,
-      status: "active",
-      profileId: card.profileId,
-    };
-    const retired = transitionCard(card, "replaced", undefined, replacement.id);
-    updateDemoState((current) => ({
-      ...current,
-      cards: [
-        ...current.cards.map((candidate) =>
-          candidate.id === card.id ? { ...candidate, ...retired } : candidate,
-        ),
-        replacement,
-      ],
-      audits: [
-        {
-          id: `audit-${Date.now()}-new`,
-          actor: "admin@tapit.local",
-          action: "card.assigned",
-          target: `${replacement.token} → ${profileName}`,
-          occurredAt: new Date().toISOString(),
-          after: "active",
-        },
-        {
-          id: `audit-${Date.now()}-old`,
-          actor: "admin@tapit.local",
-          action: "card.replaced",
-          target: `${card.token} → ${replacement.token}`,
-          occurredAt: new Date().toISOString(),
-          before: "active",
-          after: "replaced",
-        },
-        ...current.audits,
-      ],
-    }));
     setReplacementUrl("");
     setConfirmation(null);
     setReplacementReview(false);
     setMessage({
       tone: "success",
-      text: `Card ${card.token} was replaced. ${replacement.token} is active; the old path is inactive.`,
+      text: `Card ${card.token} was replaced. ${token} is active; the old path is inactive.`,
     });
   }
 
@@ -543,6 +775,7 @@ function DemoCardsManager() {
 
   function reviewReplacement() {
     if (confirmation?.type !== "replace") return;
+    if (confirmationCorrectionPending) return;
     const error = validateCardUrl(replacementUrl);
     if (error) {
       setMessage({ tone: "error", text: error });
@@ -565,8 +798,8 @@ function DemoCardsManager() {
       <section className="flex min-w-0 flex-col gap-4 rounded-card bg-tapit-accent-soft p-6">
         <h2 className="text-lg font-semibold text-tapit-ink">Register card URL</h2>
         <p className="text-sm text-tapit-muted">
-          Register the pre-encoded URL exactly once. Assignments and replacements are
-          administrator-only and auditable.
+          Registration leaves a card unassigned. Assignments and replacements are administrator-only
+          and auditable.
         </p>
         <form className="flex flex-wrap items-end gap-4" onSubmit={registerCard}>
           <div className="min-w-0 flex-1 sm:min-w-72">
@@ -581,24 +814,63 @@ function DemoCardsManager() {
           <Button onClick={generateCardUrl} type="button" variant="secondary">
             Generate secure URL
           </Button>
-          <div className="min-w-0 sm:min-w-64">
-            <SelectField
-              id="card-assignment-profile"
-              label="Assignment profile"
-              onChange={(event) => setSelectedProfileId(event.target.value)}
-              value={selectedProfileId}
-            >
-              {profiles.map((profile) => (
-                <option key={profile.id} value={profile.id}>
-                  {profile.draft.name || "Unnamed profile"} · {profile.draft.slug}
-                </option>
-              ))}
-            </SelectField>
-          </div>
           <Button type="submit">Register card</Button>
         </form>
         {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
       </section>
+
+      {correctionRequests.length ? (
+        <section className="grid gap-3 rounded-card bg-tapit-surface p-4 shadow-card">
+          <h2 className="text-lg font-semibold text-tapit-ink">Assignment corrections</h2>
+          {correctionRequests.map((request) => {
+            const profile = request.profileId
+              ? getDemoProfileById(state, request.profileId)
+              : undefined;
+            const card = state.cards.find((candidate) => candidate.token === request.token);
+            const conflict = Boolean(
+              profile &&
+              state.cards.some(
+                (candidate) =>
+                  candidate.id !== card?.id &&
+                  candidate.profileId === profile.id &&
+                  (candidate.status === "active" || candidate.status === "claimable"),
+              ),
+            );
+            const invalidRequest =
+              !card || (card.status !== "active" && card.status !== "claimable") || !profile;
+            return (
+              <article
+                className="grid gap-2 rounded-control bg-tapit-soft-surface p-4"
+                key={request.id}
+              >
+                <p className="font-semibold text-tapit-ink">
+                  {request.token} · requested by {request.requestedBy}
+                </p>
+                <p className="text-sm text-tapit-muted">
+                  Current assignment:{" "}
+                  {card?.profileId
+                    ? getDemoProfileById(state, card.profileId)?.draft.name || "Unknown profile"
+                    : "Unassigned"}{" "}
+                  · Requested profile: {profile?.draft.name || "Unknown profile"} (/
+                  {profile?.draft.slug})
+                </p>
+                {conflict ? (
+                  <Notice tone="error">
+                    Requester already has an active or claimable card. This request remains pending.
+                  </Notice>
+                ) : null}
+                <Button
+                  disabled={invalidRequest || conflict}
+                  onClick={() => correctDemoAssignment(request.id)}
+                  type="button"
+                >
+                  Correct assignment
+                </Button>
+              </article>
+            );
+          })}
+        </section>
+      ) : null}
 
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
         <Card
@@ -619,6 +891,9 @@ function DemoCardsManager() {
               {cards.map((card) => {
                 const profile = getDemoProfileById(state, card.profileId);
                 const profileLabel = profile?.draft.name || profile?.draft.slug || "Unassigned";
+                const correctionPending = state.cardCorrectionRequests?.some(
+                  (request) => request.token === card.token && request.status === "pending",
+                );
                 return (
                   <CardRow
                     key={card.id}
@@ -631,70 +906,111 @@ function DemoCardsManager() {
                   >
                     <div className="flex flex-wrap gap-2">
                       <CopyCardLinkButton
-                        ariaLabel={`Copy claim link for ${card.token}`}
+                        ariaLabel={`Copy card URL for ${card.token}`}
+                        token={card.token}
                         cardUrl={card.cardUrl}
                       />
                       {card.status === "registered" ? (
-                        <Button
-                          onClick={() =>
-                            selectedProfile &&
-                            setConfirmation({
-                              type: "attach",
-                              card,
-                              profileId: selectedProfile.id,
-                            })
-                          }
-                          type="button"
-                        >
-                          Assign to profile
-                        </Button>
+                        <>
+                          <SelectField
+                            id={`assignment-target-${card.id}`}
+                            label={`Assign ${card.token} to profile`}
+                            onChange={(event) => setSelectedProfileId(event.target.value)}
+                            value={selectedProfileId}
+                          >
+                            {profiles.map((profile) => (
+                              <option key={profile.id} value={profile.id}>
+                                {profile.draft.name || "Unnamed profile"} · {profile.draft.slug}
+                              </option>
+                            ))}
+                          </SelectField>
+                          <Button
+                            onClick={() =>
+                              selectedProfile &&
+                              setConfirmation({
+                                type: "attach",
+                                card,
+                                profileId: selectedProfile.id,
+                              })
+                            }
+                            type="button"
+                          >
+                            Assign to profile
+                          </Button>
+                        </>
                       ) : null}
                       {card.claimedAt === undefined &&
-                      (card.status === "claimable" || card.status === "active") ? (
+                      (card.status === "registered" ||
+                        card.status === "claimable" ||
+                        card.status === "active") ? (
                         <div className="flex flex-wrap gap-2">
+                          {correctionPending ? (
+                            <Notice>
+                              Resolve the pending assignment correction before changing its claim
+                              code.
+                            </Notice>
+                          ) : null}
                           <Button
+                            disabled={correctionPending}
                             onClick={() => {
-                              const generatedCode = `DEMA${Date.now()
-                                .toString(36)
-                                .slice(-4)
-                                .toUpperCase()
-                                .replace(/[IO01]/g, "2")}`;
-                              setClaimCode({
-                                cardId: card.id,
-                                code: generatedCode,
-                                expiresAt: Date.now() + 86400000,
+                              let generatedCode: string | null = null;
+                              updateDemoState((current) => {
+                                const currentCard = current.cards.find(
+                                  (candidate) => candidate.id === card.id,
+                                );
+                                if (
+                                  !currentCard ||
+                                  (currentCard.status !== "registered" &&
+                                    currentCard.status !== "claimable" &&
+                                    currentCard.status !== "active") ||
+                                  currentCard.claimedAt !== undefined ||
+                                  current.cardCorrectionRequests?.some(
+                                    (request) =>
+                                      request.token === card.token && request.status === "pending",
+                                  )
+                                ) {
+                                  return current;
+                                }
+                                const generation =
+                                  (currentCard.claimCodeGeneration ??
+                                    (currentCard.claimCode ? 1 : 0)) + 1;
+                                generatedCode = demoClaimCode(card.token, generation);
+                                return {
+                                  ...current,
+                                  cards: current.cards.map((candidate) =>
+                                    candidate.id === currentCard.id
+                                      ? {
+                                          ...candidate,
+                                          claimCodeGeneration: generation,
+                                          claimCode: generatedCode!,
+                                          claimCodeExpiresAt: undefined,
+                                          claimCodeInvalidatedAt: undefined,
+                                          claimChallenge: undefined,
+                                          claimChallengeCode: undefined,
+                                          claimChallengeExpiresAt: undefined,
+                                          claimedAt: undefined,
+                                        }
+                                      : candidate,
+                                  ),
+                                  audits: [
+                                    {
+                                      id: `audit-${Date.now()}`,
+                                      actor: "admin@tapit.local",
+                                      action: "card.claim_code_generated",
+                                      target: card.token,
+                                      occurredAt: new Date().toISOString(),
+                                      after: "generated",
+                                    },
+                                    ...current.audits,
+                                  ],
+                                };
                               });
-                              updateDemoState((current) => ({
-                                ...current,
-                                cards: current.cards.map((candidate) =>
-                                  candidate.id === card.id
-                                    ? {
-                                        ...candidate,
-                                        claimCode: generatedCode,
-                                        claimCodeExpiresAt: Date.now() + 86400000,
-                                        claimCodeInvalidatedAt: undefined,
-                                        claimChallenge: undefined,
-                                        claimChallengeExpiresAt: undefined,
-                                        claimedAt: undefined,
-                                      }
-                                    : candidate,
-                                ),
-                                audits: [
-                                  {
-                                    id: `audit-${Date.now()}`,
-                                    actor: "admin@tapit.local",
-                                    action: "card.claim_code_generated",
-                                    target: card.token,
-                                    occurredAt: new Date().toISOString(),
-                                    after: "generated",
-                                  },
-                                  ...current.audits,
-                                ],
-                              }));
+                              if (generatedCode === null) return;
+                              setClaimCode({ cardId: card.id, code: generatedCode });
                             }}
                             type="button"
                           >
-                            Generate claim code
+                            {claimCode?.cardId === card.id ? "Regenerate code" : "Generate code"}
                           </Button>
                           {claimCode?.cardId === card.id ? (
                             <span
@@ -711,33 +1027,58 @@ function DemoCardsManager() {
                                 <Icon name="link" size={16} />
                               </Button>
                               <Button
+                                disabled={correctionPending}
                                 onClick={() => {
+                                  let applied = false;
+                                  updateDemoState((current) => {
+                                    const currentCard = current.cards.find(
+                                      (candidate) => candidate.id === card.id,
+                                    );
+                                    if (
+                                      !currentCard ||
+                                      (currentCard.status !== "registered" &&
+                                        currentCard.status !== "claimable" &&
+                                        currentCard.status !== "active") ||
+                                      currentCard.claimedAt !== undefined ||
+                                      currentCard.claimCode !== claimCode.code ||
+                                      current.cardCorrectionRequests?.some(
+                                        (request) =>
+                                          request.token === card.token &&
+                                          request.status === "pending",
+                                      )
+                                    ) {
+                                      return current;
+                                    }
+                                    applied = true;
+                                    return {
+                                      ...current,
+                                      cards: current.cards.map((candidate) =>
+                                        candidate.id === currentCard.id
+                                          ? {
+                                              ...candidate,
+                                              claimCode: undefined,
+                                              claimCodeInvalidatedAt: Date.now(),
+                                              claimChallenge: undefined,
+                                              claimChallengeCode: undefined,
+                                              claimChallengeExpiresAt: undefined,
+                                            }
+                                          : candidate,
+                                      ),
+                                      audits: [
+                                        {
+                                          id: `audit-${Date.now()}`,
+                                          actor: "admin@tapit.local",
+                                          action: "card.claim_code_invalidated",
+                                          target: card.token,
+                                          occurredAt: new Date().toISOString(),
+                                          after: "invalidated",
+                                        },
+                                        ...current.audits,
+                                      ],
+                                    };
+                                  });
+                                  if (!applied) return;
                                   setClaimCode(null);
-                                  updateDemoState((current) => ({
-                                    ...current,
-                                    cards: current.cards.map((candidate) =>
-                                      candidate.id === card.id
-                                        ? {
-                                            ...candidate,
-                                            claimCode: undefined,
-                                            claimCodeInvalidatedAt: Date.now(),
-                                            claimChallenge: undefined,
-                                            claimChallengeExpiresAt: undefined,
-                                          }
-                                        : candidate,
-                                    ),
-                                    audits: [
-                                      {
-                                        id: `audit-${Date.now()}`,
-                                        actor: "admin@tapit.local",
-                                        action: "card.claim_code_invalidated",
-                                        target: card.token,
-                                        occurredAt: new Date().toISOString(),
-                                        after: "invalidated",
-                                      },
-                                      ...current.audits,
-                                    ],
-                                  }));
                                   setMessage({
                                     tone: "success",
                                     text: `Claim code for ${card.token} invalidated.`,
@@ -754,6 +1095,7 @@ function DemoCardsManager() {
                       ) : null}
                       {card.status === "active" ? (
                         <Button
+                          disabled={correctionPending}
                           onClick={() => setConfirmation({ type: "deactivate", card })}
                           type="button"
                           variant="danger-soft"
@@ -763,6 +1105,7 @@ function DemoCardsManager() {
                       ) : null}
                       {card.status === "active" ? (
                         <Button
+                          disabled={correctionPending}
                           onClick={() => setConfirmation({ type: "replace", card })}
                           type="button"
                           variant="secondary"
@@ -814,7 +1157,11 @@ function DemoCardsManager() {
                     value={replacementUrl}
                   />
                 </div>
-                <Button onClick={reviewReplacement} type="button">
+                <Button
+                  disabled={confirmationCorrectionPending}
+                  onClick={reviewReplacement}
+                  type="button"
+                >
                   Review replacement
                 </Button>
                 <Button onClick={cancelConfirmation} type="button" variant="quiet">
@@ -827,6 +1174,7 @@ function DemoCardsManager() {
       </div>
 
       <ConfirmDialog
+        confirmDisabled={confirmationCorrectionPending}
         confirmLabel={
           confirmation?.type === "replace"
             ? "Replace card"
@@ -885,6 +1233,8 @@ function LiveCardsManager() {
   const invalidateClaimCode = useMutation(api.cards.invalidateClaimCode);
   const deactivate = useMutation(api.cards.deactivate);
   const replace = useMutation(api.cards.replace);
+  const correctionRequests = useQuery(api.cardCorrectionRequests.adminList);
+  const correctAssignment = useMutation(api.cardCorrectionRequests.correctAssignment);
   const [cardUrl, setCardUrl] = useState("");
   const [replacementUrl, setReplacementUrl] = useState("");
   const [query, setQuery] = useState("");
@@ -902,9 +1252,7 @@ function LiveCardsManager() {
   } | null>(null);
   const [message, setMessage] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [pending, setPending] = useState(false);
-  const [claimCodes, setClaimCodes] = useState<Record<string, { code: string; expiresAt: number }>>(
-    {},
-  );
+  const [claimCodes, setClaimCodes] = useState<Record<string, { code: string }>>({});
 
   const orderedCards = useMemo(
     () => [...cards].sort((first, second) => second.createdAt - first.createdAt),
@@ -978,24 +1326,11 @@ function LiveCardsManager() {
         text: "Enter a canonical card URL with a /c/<unique-token> path.",
       });
     void run(async () => {
-      const cardId = await register({
+      await register({
         cardUrl: normalized,
         token,
       });
       setCardUrl("");
-      const profile = assignableProfiles.find((candidate) => candidate._id === selectedProfileId);
-      if (profile === undefined || selectedProfileId === undefined) return;
-      setAttachment({
-        cardId,
-        token,
-        profileId: profile._id,
-        profile: profile.draft.name || profile.draft.slug || "selected profile",
-        customer:
-          availableCustomers.find((candidate) => candidate._id === profile.ownerId)?.email ||
-          "selected customer",
-        profileStatus: profile.status,
-        cardStatus: "registered",
-      });
     }, `Card ${token} registered and ready for assignment.`);
   }
 
@@ -1023,52 +1358,6 @@ function LiveCardsManager() {
               value={cardUrl}
             />
           </div>
-          <div className="min-w-0 sm:min-w-64">
-            <SelectField
-              id="live-card-assignment-profile"
-              label="Assignment profile"
-              onChange={(event) => setProfileId(event.target.value as Id<"profiles">)}
-              value={selectedProfileId ?? ""}
-            >
-              {assignableProfiles.map((candidate) =>
-                (() => {
-                  const attachedCard = liveCardForProfile(candidate._id);
-                  return (
-                    <option key={candidate._id} value={candidate._id}>
-                      {candidate.draft.name || candidate.draft.slug} · {candidate.slug} ·{" "}
-                      {availableCustomers.find((customer) => customer._id === candidate.ownerId)
-                        ?.email ?? "unassigned"}
-                      {attachedCard ? ` · ${attachedCard.status}: ${attachedCard.token}` : ""}
-                    </option>
-                  );
-                })(),
-              )}
-            </SelectField>
-            {profilesStatus === "CanLoadMore" || profilesStatus === "LoadingMore" ? (
-              <Button
-                className="mt-2"
-                disabled={profilesStatus === "LoadingMore"}
-                onClick={() => loadMoreProfiles(50)}
-                type="button"
-                variant="quiet"
-              >
-                {profilesStatus === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
-              </Button>
-            ) : null}
-            {customerPages.status === "CanLoadMore" || customerPages.status === "LoadingMore" ? (
-              <Button
-                className="mt-2"
-                disabled={customerPages.status === "LoadingMore"}
-                onClick={() => customerPages.loadMore(50)}
-                type="button"
-                variant="quiet"
-              >
-                {customerPages.status === "LoadingMore"
-                  ? "Loading customers…"
-                  : "Load more customers"}
-              </Button>
-            ) : null}
-          </div>
           <Button disabled={pending} onClick={generateCardUrl} type="button" variant="secondary">
             Generate secure URL
           </Button>
@@ -1076,16 +1365,48 @@ function LiveCardsManager() {
             Register card
           </Button>
         </form>
-        {selectedProfileId && liveCardForProfile(selectedProfileId) ? (
-          <Notice tone="error">
-            This profile already has {liveCardForProfile(selectedProfileId)!.status} card{" "}
-            <span className="font-mono">{liveCardForProfile(selectedProfileId)!.token}</span>. A
-            second card cannot be attached; use Replace on the existing card when this is a
-            physical-card replacement.
-          </Notice>
-        ) : null}
         {message ? <Notice tone={message.tone}>{message.text}</Notice> : null}
       </section>
+
+      {correctionRequests?.length ? (
+        <section className="grid gap-3 rounded-card bg-tapit-surface p-4 shadow-card">
+          <h2 className="text-lg font-semibold text-tapit-ink">Assignment corrections</h2>
+          {correctionRequests.map((request) => (
+            <article
+              className="grid gap-2 rounded-control bg-tapit-soft-surface p-4"
+              key={request.requestId}
+            >
+              <p className="font-semibold text-tapit-ink">
+                {request.token} · requested by {request.requesterProfileName} (/
+                {request.requesterProfileSlug})
+              </p>
+              <p className="text-sm text-tapit-muted">
+                Current assignment: {request.currentProfileName ?? "Unassigned"}
+                {request.currentProfileSlug ? ` (/${request.currentProfileSlug})` : ""} · Card:{" "}
+                {request.cardUrl}
+              </p>
+              {request.hasLiveCardConflict ? (
+                <Notice tone="error">
+                  This requester already has an active or claimable card. The request stays pending
+                  until that conflict is resolved.
+                </Notice>
+              ) : null}
+              <Button
+                disabled={pending || request.hasLiveCardConflict}
+                onClick={() =>
+                  void run(
+                    () => correctAssignment({ requestId: request.requestId }),
+                    `Assignment for ${request.token} corrected.`,
+                  )
+                }
+                type="button"
+              >
+                Correct assignment
+              </Button>
+            </article>
+          ))}
+        </section>
+      ) : null}
 
       <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_384px]">
         <Card description="Inactive and replaced cards cannot be reused." title="Card registry">
@@ -1096,6 +1417,28 @@ function LiveCardsManager() {
             onQueryChange={setQuery}
             query={query}
           />
+          {profilesStatus === "CanLoadMore" || profilesStatus === "LoadingMore" ? (
+            <Button
+              disabled={profilesStatus === "LoadingMore"}
+              onClick={() => loadMoreProfiles(50)}
+              type="button"
+              variant="quiet"
+            >
+              {profilesStatus === "LoadingMore" ? "Loading profiles…" : "Load more profiles"}
+            </Button>
+          ) : null}
+          {customerPages.status === "CanLoadMore" || customerPages.status === "LoadingMore" ? (
+            <Button
+              disabled={customerPages.status === "LoadingMore"}
+              onClick={() => customerPages.loadMore(50)}
+              type="button"
+              variant="quiet"
+            >
+              {customerPages.status === "LoadingMore"
+                ? "Loading customers…"
+                : "Load more customers"}
+            </Button>
+          ) : null}
           {visibleCards.length === 0 ? (
             <Notice>
               {orderedCards.length === 0
@@ -1119,7 +1462,8 @@ function LiveCardsManager() {
                   >
                     <div className="flex flex-wrap gap-2">
                       <CopyCardLinkButton
-                        ariaLabel={`Copy claim link for ${card.token}`}
+                        ariaLabel={`Copy card URL for ${card.token}`}
+                        token={card.token}
                         cardUrl={card.cardUrl}
                       />
                       {card.status === "registered" ? (
@@ -1192,7 +1536,9 @@ function LiveCardsManager() {
                         </>
                       ) : null}
                       {card.claimCodeClaimedAt === undefined &&
-                      (card.status === "claimable" || card.status === "active") ? (
+                      (card.status === "registered" ||
+                        card.status === "claimable" ||
+                        card.status === "active") ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <Button
                             disabled={pending}
@@ -1204,7 +1550,7 @@ function LiveCardsManager() {
                             }
                             type="button"
                           >
-                            {claimCodes[card._id] ? "Regenerate claim code" : "Generate claim code"}
+                            {claimCodes[card._id] ? "Regenerate code" : "Generate code"}
                           </Button>
                           {claimCodes[card._id]
                             ? (() => {
@@ -1227,10 +1573,14 @@ function LiveCardsManager() {
                                     </Button>
                                     <Button
                                       onClick={() =>
-                                        void run(
-                                          () => invalidateClaimCode({ cardId: card._id }),
-                                          `Claim code for ${card.token} invalidated.`,
-                                        )
+                                        void run(async () => {
+                                          await invalidateClaimCode({ cardId: card._id });
+                                          setClaimCodes((current) => {
+                                            const next = { ...current };
+                                            delete next[card._id];
+                                            return next;
+                                          });
+                                        }, `Claim code for ${card.token} invalidated.`)
                                       }
                                       type="button"
                                       variant="quiet"

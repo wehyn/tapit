@@ -18,6 +18,7 @@ import type * as auth from "../auth.js";
 import type * as authIdentity from "../authIdentity.js";
 import type * as bootstrap from "../bootstrap.js";
 import type * as cardClaims from "../cardClaims.js";
+import type * as cardCorrectionRequests from "../cardCorrectionRequests.js";
 import type * as cardOrderDesignProcessing from "../cardOrderDesignProcessing.js";
 import type * as cardOrderDesignUploadHttp from "../cardOrderDesignUploadHttp.js";
 import type * as cardOrderDesigns from "../cardOrderDesigns.js";
@@ -76,6 +77,7 @@ declare const fullApi: ApiFromModules<{
   authIdentity: typeof authIdentity;
   bootstrap: typeof bootstrap;
   cardClaims: typeof cardClaims;
+  cardCorrectionRequests: typeof cardCorrectionRequests;
   cardOrderDesignProcessing: typeof cardOrderDesignProcessing;
   cardOrderDesignUploadHttp: typeof cardOrderDesignUploadHttp;
   cardOrderDesigns: typeof cardOrderDesigns;

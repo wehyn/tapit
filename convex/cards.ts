@@ -1,9 +1,10 @@
+import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 
 import { mutation, query } from "./_generated/server";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
-import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
+import { customerForAuthUser, isActiveCustomer, requireAdministrator, sameScope } from "./admin";
 import { cardStatusValidator, publicProfileValidator, validateProfileContent } from "./validators";
 import { projectPublicProfile, resolvePublishedRedirectDestination } from "./profileProjection";
 import { components } from "./components";
@@ -14,12 +15,13 @@ const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
   v.object({ status: v.literal("inactive") }),
   v.object({ status: v.literal("unavailable") }),
-  v.object({ status: v.literal("onboarding") }),
+  v.object({ status: v.literal("setup") }),
+  v.object({ status: v.literal("ownerSetup") }),
+  v.object({ status: v.literal("claim") }),
   v.object({
     status: v.literal("active"),
     profile: publicProfileValidator,
     redirectDestination: v.optional(v.string()),
-    claimCodeExpiresAt: v.optional(v.number()),
   }),
 );
 
@@ -33,33 +35,43 @@ export const resolve = query({
       .withIndex("by_token", (query) => query.eq("token", args.token))
       .unique();
     if (card === null) return { status: "missing" as const };
-    if (card.profileId === undefined)
-      return {
-        status: card.status === "active" ? ("unavailable" as const) : ("inactive" as const),
-      };
+    if (card.correctionRequestedAt !== undefined) return { status: "unavailable" as const };
+    if (card.status === "inactive" || card.status === "replaced")
+      return { status: "inactive" as const };
+    if (card.status === "registered") return { status: "setup" as const };
     if (card.status === "claimable") {
-      const profile = await ctx.db.get(card.profileId);
-      return profile === null
-        ? { status: "unavailable" as const }
-        : { status: "onboarding" as const };
+      if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
+      if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
+      const userId = await getAuthUserId(ctx);
+      const customer = userId === null ? null : await customerForAuthUser(ctx, userId);
+      const profile = card.profileId === undefined ? null : await ctx.db.get(card.profileId);
+      if (
+        !customer ||
+        !isActiveCustomer(customer) ||
+        customer.role !== "customer" ||
+        customer.profileId !== card.profileId ||
+        !sameScope(customer, card) ||
+        profile === null ||
+        profile.ownerId !== customer._id ||
+        !sameScope(customer, profile)
+      )
+        return { status: "unavailable" as const };
+      return { status: "ownerSetup" as const };
     }
-    if (card.status !== "active") return { status: "inactive" as const };
+    if (card.status !== "active" || card.profileId === undefined)
+      return { status: "unavailable" as const };
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
-    const projection = profile === null ? null : await projectPublicProfile(ctx, profile);
-    if (profile === null || !isActiveCustomer(owner) || projection === null)
-      return { status: "unavailable" as const };
+    if (profile === null || !isActiveCustomer(owner)) return { status: "unavailable" as const };
+    if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
+    if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
+    const projection = await projectPublicProfile(ctx, profile);
+    if (projection === null) return { status: "unavailable" as const };
     const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
     return {
       status: "active" as const,
       profile: projection,
       ...(redirectDestination === undefined ? {} : { redirectDestination }),
-      ...(card.claimCodeHash !== undefined &&
-      card.claimCodeClaimedAt === undefined &&
-      card.claimCodeInvalidatedAt === undefined &&
-      card.claimCodeExpiresAt !== undefined
-        ? { claimCodeExpiresAt: card.claimCodeExpiresAt }
-        : {}),
     };
   },
 });
@@ -82,7 +94,6 @@ export const adminList = query({
       assignedAt: v.optional(v.number()),
       deactivatedAt: v.optional(v.number()),
       claimCodeGeneratedAt: v.optional(v.number()),
-      claimCodeExpiresAt: v.optional(v.number()),
       claimCodeInvalidatedAt: v.optional(v.number()),
       claimCodeClaimedAt: v.optional(v.number()),
     }),
@@ -103,7 +114,9 @@ export const adminList = query({
 
 export const adminListPaginated = query({
   args: { paginationOpts: paginationOptsValidator },
-  returns: paginationResultValidator(schema.doc("cards").omit("claimCodeHash")),
+  returns: paginationResultValidator(
+    schema.doc("cards").omit("claimCodeHash", "claimCodeExpiresAt"),
+  ),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const cards = await ctx.db
@@ -116,6 +129,7 @@ export const adminListPaginated = query({
       page: cards.page.map((card) => {
         const safeCard = { ...card };
         delete safeCard.claimCodeHash;
+        delete safeCard.claimCodeExpiresAt;
         return safeCard;
       }),
     };
@@ -255,16 +269,21 @@ export const attach = mutation({
 
 export const generateClaimCode = mutation({
   args: { cardId: v.id("cards") },
-  returns: v.object({ code: v.string(), expiresAt: v.number() }),
+  returns: v.object({ code: v.string() }),
   handler: async (ctx, args) => {
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
-    // Published profiles keep active card URLs while the owner still needs to claim the card.
+    // Codes can be issued before assignment so the package can ship with setup instructions.
+    const eligibleCard =
+      card !== null &&
+      ((card.status === "registered" && card.profileId === undefined) ||
+        ((card.status === "claimable" || card.status === "active") &&
+          card.profileId !== undefined));
     if (
       card === null ||
       !sameScope(account, card) ||
-      card.profileId === undefined ||
-      (card.status !== "claimable" && card.status !== "active") ||
+      !eligibleCard ||
+      card.correctionRequestedAt !== undefined ||
       card.claimCodeClaimedAt !== undefined
     )
       throw new Error("Claim code unavailable.");
@@ -272,11 +291,10 @@ export const generateClaimCode = mutation({
     if (!limit.ok) throw new Error("Too many claim code attempts. Try again later.");
     const code = randomCode();
     const now = Date.now();
-    const expiresAt = now + 24 * 60 * 60 * 1000;
     await ctx.db.patch(card._id, {
       claimCodeHash: await digest(code),
       claimCodeGeneratedAt: now,
-      claimCodeExpiresAt: expiresAt,
+      claimCodeExpiresAt: undefined,
       claimCodeInvalidatedAt: undefined,
       updatedAt: now,
     });
@@ -290,7 +308,7 @@ export const generateClaimCode = mutation({
       occurredAt: now,
       after: "generated",
     });
-    return { code, expiresAt };
+    return { code };
   },
 });
 
@@ -301,6 +319,8 @@ export const invalidateClaimCode = mutation({
     const { userId, account } = await requireAdministrator(ctx);
     const card = await ctx.db.get(args.cardId);
     if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
+    if (card.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before invalidating its code.");
     const now = Date.now();
     await ctx.db.patch(card._id, { claimCodeInvalidatedAt: now, updatedAt: now });
     await ctx.db.insert("auditLogs", {
@@ -322,7 +342,6 @@ export const claimStatus = query({
   returns: v.object({
     status: cardStatusValidator,
     hasClaimCode: v.boolean(),
-    expiresAt: v.union(v.number(), v.null()),
     claimedAt: v.union(v.number(), v.null()),
   }),
   handler: async (ctx, args) => {
@@ -335,7 +354,6 @@ export const claimStatus = query({
         card.claimCodeHash !== undefined &&
         card.claimCodeInvalidatedAt === undefined &&
         card.claimCodeClaimedAt === undefined,
-      expiresAt: card.claimCodeExpiresAt ?? null,
       claimedAt: card.claimCodeClaimedAt ?? null,
     };
   },
@@ -458,6 +476,8 @@ export const deactivate = mutation({
     const card = await ctx.db.get(args.cardId);
     if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
     if (card.status !== "active") throw new Error("Only an active card can be deactivated.");
+    if (card.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before deactivating this card.");
     const now = Date.now();
     await ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now });
     await ctx.db.insert("auditLogs", {
@@ -488,6 +508,8 @@ export const replace = mutation({
       oldCard.profileId === undefined
     )
       throw new Error("Only an active assigned card can be replaced.");
+    if (oldCard.correctionRequestedAt !== undefined)
+      throw new Error("Resolve the pending assignment correction before replacing this card.");
     if (cardTokenFromUrl(args.newCardUrl) !== args.newToken)
       throw new Error("Card URL must use the /c/<token> format and match its token.");
     const profile = await ctx.db.get(oldCard.profileId);
@@ -518,6 +540,9 @@ export const replace = mutation({
       profileId: oldCard.profileId,
       status: "active",
       assignmentReason: "replacement",
+      ...(oldCard.claimCodeClaimedAt === undefined
+        ? {}
+        : { claimCodeClaimedAt: oldCard.claimCodeClaimedAt }),
       createdAt: now,
       updatedAt: now,
       assignedAt: now,

@@ -13,11 +13,25 @@ export type DemoCard = CardRecord & {
   token: string;
   createdAt?: number;
   claimCode?: string;
+  claimCodeGeneration?: number;
   claimCodeExpiresAt?: number;
   claimCodeInvalidatedAt?: number;
+  correctionRequestedAt?: number;
   claimChallenge?: string;
+  claimChallengeCode?: string;
   claimChallengeExpiresAt?: number;
+  claimChallengeEmail?: string;
   claimedAt?: number;
+};
+
+export type DemoCardCorrectionRequest = {
+  id: string;
+  token: string;
+  challenge: string;
+  profileId?: string;
+  requestedBy: string;
+  requestedAt: number;
+  status: "pending" | "corrected";
 };
 
 export type DemoCustomer = {
@@ -178,6 +192,7 @@ export type DemoState = {
   themes: Record<string, ProfileTheme>;
   theme: ProfileTheme;
   cards: DemoCard[];
+  cardCorrectionRequests?: DemoCardCorrectionRequest[];
   cardOrderPaymentMethods: DemoCardOrderPaymentMethod[];
   cardOrderReferralCodes: DemoCardOrderReferralCode[];
   cardOrderOffers: DemoCardOrderOffer[];
@@ -281,6 +296,27 @@ export function createDefaultDemoState(): DemoState {
     draft: { name: "Tapit Admin", slug: "admin-tapit", email: "admin@tapit.local", links: [] },
     published: null,
   };
+  const setupProfile: DemoProfile = {
+    id: "profile-buyer-setup",
+    ownerId: "customer-buyer-setup",
+    status: "draft",
+    theme: "paper",
+    draft: {
+      name: "Buyer Setup",
+      slug: "buyer-setup",
+      bio: "A private draft for card setup.",
+      links: [],
+    },
+    published: null,
+  };
+  const activeUnclaimedProfile: DemoProfile = {
+    id: "profile-active-unclaimed",
+    ownerId: "customer-active-unclaimed",
+    status: "draft",
+    theme: "paper",
+    draft: { name: "Active Setup", slug: "active-setup", links: [] },
+    published: null,
+  };
   return {
     customers: [
       {
@@ -311,14 +347,43 @@ export function createDefaultDemoState(): DemoState {
         deletionStatus: "active",
         passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
       },
+      {
+        id: "customer-buyer-setup",
+        email: "buyer@example.test",
+        role: "customer",
+        profileId: "profile-buyer-setup",
+        status: "active",
+        deletionStatus: "active",
+        passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
+      },
+      {
+        id: "customer-active-unclaimed",
+        email: "active-setup@example.test",
+        role: "customer",
+        profileId: "profile-active-unclaimed",
+        status: "active",
+        deletionStatus: "active",
+        passwordHash: DEFAULT_DEMO_PASSWORD_HASH,
+      },
     ],
     setupInvitations: [],
     nextSetupTokenId: 1,
-    profiles: [primaryProfile, claimProfile, adminProfile],
+    profiles: [primaryProfile, claimProfile, adminProfile, setupProfile, activeUnclaimedProfile],
     profile: primaryProfile,
-    themes: { [primaryProfile.id]: primaryProfile.theme, [adminProfile.id]: adminProfile.theme },
+    themes: {
+      [primaryProfile.id]: primaryProfile.theme,
+      [adminProfile.id]: adminProfile.theme,
+      [setupProfile.id]: setupProfile.theme,
+    },
     theme: "paper",
     cards: [
+      {
+        id: "card-unassigned-demo",
+        token: "unassigned-card-demo",
+        cardUrl: cardUrlFromToken("unassigned-card-demo"),
+        status: "registered",
+        claimCode: "DEMA29BC",
+      },
       {
         id: "card-mara-active",
         token: "mara-card-7f2q",
@@ -334,7 +399,14 @@ export function createDefaultDemoState(): DemoState {
         status: "claimable",
         profileId: "profile-claimable",
         claimCode: "MARA2Q8K",
-        claimCodeExpiresAt: Date.now() + DAY,
+      },
+      {
+        id: "card-active-unclaimed-demo",
+        token: "active-unclaimed-card-demo",
+        cardUrl: cardUrlFromToken("active-unclaimed-card-demo"),
+        status: "active",
+        profileId: "profile-active-unclaimed",
+        claimCode: "ACTV29BC",
       },
       {
         id: "card-mara-inactive",

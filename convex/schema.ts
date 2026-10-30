@@ -370,6 +370,7 @@ export default defineSchema({
     claimCodeExpiresAt: v.optional(v.number()),
     claimCodeInvalidatedAt: v.optional(v.number()),
     claimCodeClaimedAt: v.optional(v.number()),
+    correctionRequestedAt: v.optional(v.number()),
   })
     .index("by_cardUrl", ["cardUrl"])
     .index("by_token", ["token"])
@@ -425,6 +426,7 @@ export default defineSchema({
   cardClaimChallenges: defineTable({
     scope: v.optional(v.literal("demo")),
     cardId: v.id("cards"),
+    userId: v.optional(v.id("users")),
     claimCodeHash: v.string(),
     challengeHash: v.string(),
     expiresAt: v.number(),
@@ -435,6 +437,21 @@ export default defineSchema({
     .index("by_cardId", ["cardId"])
     .index("by_expiresAt", ["expiresAt"])
     .index("by_scope", ["scope"]),
+  cardCorrectionRequests: defineTable({
+    scope: v.optional(v.literal("demo")),
+    cardId: v.id("cards"),
+    requesterId: v.id("customers"),
+    profileId: v.id("profiles"),
+    status: v.union(v.literal("open"), v.literal("corrected")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    resolvedByUserId: v.optional(v.id("users")),
+    resolvedProfileId: v.optional(v.id("profiles")),
+  })
+    .index("by_scope_and_status", ["scope", "status"])
+    .index("by_cardId_and_status", ["cardId", "status"])
+    .index("by_requesterId", ["requesterId"]),
   auditLogs: defineTable({
     scope: v.optional(v.literal("demo")),
     actorUserId: v.optional(v.id("users")),

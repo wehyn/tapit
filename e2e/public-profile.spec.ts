@@ -653,7 +653,9 @@ test("inactive cards never reveal their former profile and vCard includes approv
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/c/mara-card-retired");
-    await expect(page.getByRole("heading", { name: "This card is inactive" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "This profile is currently unavailable" }),
+    ).toBeVisible();
     await expect(page.getByText("Mara Velasquez")).toHaveCount(0);
     await expect(page.getByText("Brand systems for independent teams.")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Contact support" })).toBeVisible();
@@ -831,25 +833,22 @@ test("a published website-only profile can be saved as a contact", async ({ page
 });
 
 test("demo card claim, publish, and resolver activation complete as one flow", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("owner@example.test");
-  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
-  await page.getByRole("button", { name: "Sign in", exact: true }).click();
-  await expect(page).toHaveURL(/\/app\/profile$/);
-  await page.goto("/app/links");
-  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeEnabled();
-  await page.getByRole("button", { name: "Account menu for owner@example.test" }).click();
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
-
   await page.goto("/c/claimable-card-demo");
-  await expect(page.getByRole("heading", { name: "This card is ready to set up" })).toBeVisible();
-  await page.getByLabel("Claim code").fill("MARA2Q8K");
-  await page.getByRole("button", { name: "Claim this card" }).click();
-  await expect(page).toHaveURL(/\/login\?next=%2Fc%2Fclaimable-card-demo$/);
+  await expect(page.getByRole("heading", { name: "Sign in to set up your card" })).toBeVisible();
+  await expect(page.getByText("Claimed profile")).toHaveCount(0);
+  await page.getByRole("link", { name: "I already have an account" }).click();
 
   await page.getByLabel("Email").fill("owner@example.test");
   await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/c\/claimable-card-demo$/);
+  await expect(page.getByText("Claimed profile")).toBeVisible();
+  await expect(page.getByText("Profile preview · Private draft", { exact: true })).toBeVisible();
+  await page.getByLabel("Card code").fill("MARA2Q8K");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Confirm and attach card" })).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card" }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   await page.getByRole("button", { name: /^Publish(?: changes)?$/ }).click();
   await expect(
@@ -858,4 +857,125 @@ test("demo card claim, publish, and resolver activation complete as one flow", a
 
   await page.goto("/c/claimable-card-demo");
   await expect(page.getByRole("heading", { name: "Claimed profile" })).toBeVisible();
+});
+
+test("demo unassigned card keeps its code and query through skip and rescan", async ({ page }) => {
+  const cardPath = "/c/unassigned-card-demo?source=qr&claim=1&a=%20&b=1&a=2";
+  await page.goto(cardPath);
+  await expect(page.getByRole("heading", { name: "Sign in to set up your card" })).toBeVisible();
+  await expect(page.getByText("Buyer Setup")).toHaveCount(0);
+  await page.getByRole("link", { name: "I already have an account" }).click();
+  await page.getByLabel("Email").fill("buyer@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(cardPath);
+  await expect(page.getByText("Buyer Setup")).toBeVisible();
+  await expect(page.getByText("Profile preview · Private draft", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Skip for now" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto(cardPath);
+  await expect(page.getByText("Buyer Setup")).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveValue("DEMA29BC");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto(cardPath);
+  await expect(page.getByRole("heading", { name: "Finish setting up your card" })).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveCount(0);
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Account menu for buyer@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto(cardPath);
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+  await expect(page.getByText("Buyer Setup")).toHaveCount(0);
+});
+
+test("active but unclaimed cards require a code and keep the draft private", async ({ page }) => {
+  const cardPath = "/c/active-unclaimed-card-demo?source=qr";
+  await page.goto(cardPath);
+  await expect(page.getByRole("heading", { name: "Sign in to set up your card" })).toBeVisible();
+  await expect(page.getByText("Active Setup")).toHaveCount(0);
+  await page.getByRole("link", { name: "I already have an account" }).click();
+  await page.getByLabel("Email").fill("active-setup@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(cardPath);
+  await expect(page.getByText("Active Setup")).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveValue("ACTV29BC");
+  await page.getByLabel("Card code").fill("ACTV29BC");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: "Confirm and attach card" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto(cardPath);
+  await expect(page.getByRole("heading", { name: "Finish setting up your card" })).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveCount(0);
+});
+
+test("claim query does not force the claim screen for an active card", async ({ page }) => {
+  await page.goto("/c/mara-card-7f2q?claim=1&source=qr");
+  await expect(page.getByRole("heading", { name: "Mara Velasquez" })).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveCount(0);
+});
+
+test("a code-proven correction pauses the URL until an administrator corrects its assignment", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("buyer@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: "Maybe later", exact: true }).click();
+  await page.goto("/c/claimable-card-demo?source=qr&claim=1");
+  await expect(page.getByText("Buyer Setup")).toBeVisible();
+  await page.getByLabel("Card code").fill("MARA2Q8K");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: "Request assignment correction" }).click();
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Account menu for buyer@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("admin@tapit.local");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.goto("/admin/cards");
+  const request = page.locator("section").filter({ hasText: "Assignment corrections" });
+  await expect(request.getByText(/claimable-card-demo.*Buyer Setup/)).toBeVisible();
+  const pendingCard = page.locator("article").filter({ hasText: "/c/claimable-card-demo" });
+  await pendingCard.locator("summary").first().click();
+  await expect(pendingCard.getByRole("button", { name: "Generate code" })).toBeDisabled();
+  await expect(pendingCard.getByText(/Resolve the pending assignment correction/)).toBeVisible();
+  await request.getByRole("button", { name: "Correct assignment" }).click();
+  await expect(page.getByText("Assignment for claimable-card-demo corrected.")).toBeVisible();
+
+  await page.goto("/admin/cards");
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("buyer@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await page.goto("/c/claimable-card-demo?source=qr&claim=1");
+  await expect(page.getByText("Buyer Setup")).toBeVisible();
+  await page.getByLabel("Card code").fill("MARA2Q8K");
+  await page.getByRole("button", { name: "Verify code" }).click();
+  await page.getByRole("button", { name: "Confirm and attach card" }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/c/claimable-card-demo?source=qr&claim=1");
+  await expect(page.getByRole("heading", { name: "Finish setting up your card" })).toBeVisible();
+  await expect(page.getByLabel("Card code")).toHaveCount(0);
+  await page.goto("/app/profile");
+  await page.getByRole("button", { name: "Account menu for buyer@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/c/claimable-card-demo?source=qr&claim=1");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
 });

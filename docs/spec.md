@@ -2,15 +2,15 @@
 
 Document status: draft  
 Author: `<name/team>`  
-Date: 2026-09-25
+Date: 2026-10-30
 
 ## Product summary
 
-Tapit is a mobile-first digital profile service for independent professionals, with the same one-account/one-profile model available to small businesses. A customer receives a pre-encoded NFC card. When a recipient taps the card, scans its QR fallback, or opens the customer’s public profile URL, Tapit displays a published profile with the customer’s identity and useful contact links.
+Tapit is a mobile-first digital profile service for independent professionals, with the same one-account/one-profile model available to small businesses. A buyer receives a pre-encoded NFC card and completes setup by opening its permanent URL, authenticating, and explicitly attaching the card to their own profile. A recipient can tap the card, scan its QR fallback, or open the customer’s public profile URL to view the published profile and useful contact links.
 
-Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. NFC card URLs are unique per physical card and resolve to the profile’s current public URL. An administrator may change the profile slug; the old direct profile URL then stops resolving, while card URLs continue to resolve to that profile.
+Tapit addresses two connected problems: professionals need to share multiple contact destinations quickly in person, and they need to update those destinations without replacing printed or encoded cards. Each physical card has a permanent URL stored and encoded in full for NFC and QR. The URL identifies the card but does not prove ownership. Tapit resolves it according to the card’s current state and, after setup, to the profile’s current published content. Slug changes and approved assignment corrections do not change the card URL.
 
-The MVP supports two customer onboarding paths: a visitor can self-sign up from the public login page, or an administrator can provision an invited customer. Administrators manage customer accounts, profiles, NFC card records, assignments, replacements, owner-access exceptions, suspensions, analytics, and audit history. Customers use email/password access to create, edit, preview, publish, and analyze their own profile. Visitors need no Tapit account and no app.
+Live and hosted-demo customers authenticate with Google. New customers complete profile onboarding before being asked whether to attach a card; existing customers review their own profile before confirming. Skipping leaves an unassigned card available and the customer in the existing cardless limited-access state; scanning again resumes setup. Administrators manage customer accounts, profiles, NFC card records, package codes, assignments, replacements, correction requests, owner-access exceptions, suspensions, analytics, and audit history. Visitors need no Tapit account and no app.
 
 Administrators can designate an active customer as Demo before promoting that account to Administrator. Demo remains a customer classification with ordinary customer permissions. A Demo customer can reset Tapit-owned account data and linked cards, then sign in with the same identity and complete onboarding again; ordinary customer deletion remains a separate flow.
 
@@ -32,19 +32,19 @@ The following are explicitly outside the MVP:
 
 - Government-ID replacement, official identity verification, visitor authentication, or access control.
 - Physical card manufacturing, sourcing, inventory management, encoding operations, and shipping.
-- Customer self-service card claiming, card transfer, or customer-controlled card reassignment.
+- Customer-controlled card transfer, arbitrary reassignment, or a customer Cards screen. Buyers may attach an eligible card to their own profile through the protected setup flow; mistaken assignments require administrator review.
 - Native iOS or Android applications.
 - Custom domains, custom CSS, advanced layouts, and complex page builders.
 - Uploading a custom `.ico` logo or picture for an individual link icon; links currently use built-in presets.
 - Posts, videos, storefronts, courses, communities, or other rich content systems.
-- Social-login integrations and direct LinkedIn, WhatsApp, or other social-platform APIs.
+- Additional authentication providers and direct LinkedIn, WhatsApp, or other social-platform APIs.
 - Multi-profile accounts, team workspaces, employee management, or granular administrator roles.
 - Bulk card import, advanced attribution, demographics, cross-platform reporting, or visitor-level analytics.
 - Automated moderation and public profile-reporting workflows.
 - Customer billing, subscriptions, paid plans, and in-app payments.
-- Email verification and password-reset flows for the initial MVP; these must be reconsidered before production launch.
+- Lost-card return instructions and the dedicated lost-card page; issue #196 follows this work and adds them.
 
-Potential future scope includes custom domains, richer content, team management, card inventory/fulfillment, customer billing, social integrations, self-service card claiming, and advanced analytics.
+Potential future scope includes custom domains, richer content, team management, card inventory/fulfillment, customer billing, additional social integrations, and advanced analytics.
 
 ## Target users
 
@@ -62,30 +62,27 @@ Recipients receive or tap a card. They need to view the published profile quickl
 
 ### Operational: platform administrators
 
-Administrators provision customer accounts and physical card records, assign cards to profiles, deactivate and replace cards, manage profiles, view analytics, suspend content, and inspect audit history. MVP has one administrator role with full administrative access.
+Administrators provision customer accounts and physical card records, generate and invalidate package codes, assign cards, correct reported assignment mistakes, deactivate and replace cards, manage profiles, view analytics, suspend content, and inspect audit history. MVP has one administrator role with full administrative access.
 
 ## Main user workflows
 
-### 1. Customer self-signs up
+### 1. Customer starts with Google
 
-1. A visitor chooses customer signup on the public login page.
-2. The visitor enters a display name, desired profile slug, email, password, and password confirmation.
-3. Tapit authenticates the customer and creates one active customer account plus one draft profile without an invitation or published snapshot.
-4. The customer enters the existing workspace and is guided to add links before publishing.
+1. A visitor continues with Google from the public login page or a card setup page.
+2. A new user completes onboarding with a display name; Tapit creates one customer account and private draft profile with a unique slug.
+3. If the user arrived from a card, Tapit returns them to that card URL after onboarding and then asks whether to attach it.
+4. An existing customer returns to their workspace or card setup without creating a second account.
 
-### 2. Administrator creates and provisions a customer
+### 2. Administrator creates and invites a customer
 
-1. An administrator signs in through the administrator interface.
-2. The administrator creates a customer account using the customer’s email address.
-3. The administrator registers a pre-encoded NFC card by manually entering its unique card URL.
-4. Tapit validates that the card URL is unused.
-5. The administrator creates or selects the customer’s unique profile slug and assigns the card to the customer’s profile. The customer cannot change the slug after profile creation.
-6. Tapit sends the customer a one-time setup link.
-7. The customer uses the link to set a password and access the profile editor.
+1. An administrator creates an invitation for the customer’s verified email and profile display name.
+2. Tapit provides a manually shareable invitation link; no authentication email provider is required.
+3. The invited customer continues with Google from the link and must match the verified invitation email.
+4. Tapit activates the pre-created customer and preserves the administrator-created profile.
 
 ### 3. Customer creates and publishes a profile
 
-1. The customer signs in with email and password.
+1. The customer signs in with Google.
 2. The customer enters the required name and at least one link.
 3. The customer optionally adds a profile photo or business logo, short bio/role, email, phone, website, booking link, social links, and other allowed links.
 4. The customer chooses basic visual customization and orders the links.
@@ -104,7 +101,7 @@ Administrators provision customer accounts and physical card records, assign car
 ### 5. Visitor uses a Tapit card
 
 1. The visitor taps the NFC card or scans its QR code.
-2. The card URL resolves through the card registry to the profile’s current public URL.
+2. The complete permanent card URL resolves according to the card’s current state.
 3. Tapit records an aggregate profile view without storing visitor identity.
 4. Tapit displays the published profile on the visitor’s mobile browser.
 5. The visitor may select a link, save a vCard, or return to the profile.
@@ -120,7 +117,7 @@ Administrators provision customer accounts and physical card records, assign car
 
 1. An administrator selects an assigned card.
 2. The administrator deactivates the old card immediately.
-3. The old card URL begins showing the branded inactive-card page without revealing the former profile.
+3. The old card URL begins showing a neutral unavailable-card page without revealing the former profile.
 4. The administrator registers a new pre-encoded card URL and assigns it to the same profile.
 5. Tapit records assignment, deactivation, and replacement events in the audit log.
 6. The new card resolves to the profile’s current public URL.
@@ -135,8 +132,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 
 1. An administrator opens an active customer in `/admin/customers` and grants or revokes the admin owner-access override.
 2. Tapit records each actual grant or revocation in the audit log; repeating the current state makes no change.
-3. The override grants or removes only override-based card-owner access without creating or changing a card claim or card record; revoking it leaves access from a successful card claim intact.
-4. A normal card claim still requires the card token and its one-time code.
+3. The override grants or removes only override-based card-owner access without creating or changing a card record; revoking it leaves access from a successful card attachment intact.
+4. Card attachment still requires a package code and a current one-time verification challenge.
 
 ### 10. Customer requests account deletion
 
@@ -161,16 +158,33 @@ An administrator can view and edit customer profile content, publish or unpublis
 3. Tapit retains the account's sign-in identity and Demo classification, then routes the account to customer onboarding.
 4. The customer completes onboarding under the same identity. Ordinary customers keep the existing **Delete Account** request flow.
 
+### 13. Buyer sets up a registered card
+
+1. An administrator registers a pre-encoded card URL and leaves the card unassigned. The administrator may generate a package code before assignment.
+2. The buyer opens the permanent NFC or QR URL. Its query string is an entry hint only and does not prove ownership.
+3. The buyer signs in with Google or completes new-customer profile onboarding.
+4. Tapit shows the customer’s own profile details and slug. The customer enters the package code, reviews the profile, and explicitly confirms attachment.
+5. Successful confirmation attaches the card to the authenticated customer’s server-owned profile and consumes the package code. A profile with another live card cannot receive a second card.
+6. Skipping leaves the card unassigned and the package code available. The customer stays in the existing cardless limited-access state and can resume by opening the same URL later.
+
+### 14. Customer requests correction of a mistaken assignment
+
+1. A signed-in customer proves possession of the package code through a current verification challenge and requests correction.
+2. The permanent URL pauses on a neutral unavailable page while the request is pending; no profile data is returned.
+3. An administrator reviews the request and may correct the assignment to the requester’s own profile.
+4. Correction preserves the physical card, token, complete URL, and unused package code. The customer scans again and confirms the corrected profile.
+5. If the requester’s profile already has a live card, the request remains pending and the admin interface explains the conflict.
+
 ## Functional requirements
 
 - **FR-001:** The system shall support one customer account with one customer profile.
 - **FR-002:** The system shall support one platform administrator role with full customer, profile, card, analytics, settings, and audit-log access.
 - **FR-003:** Administrators shall be able to create customer accounts using an email address.
-- **FR-004:** The system shall send a one-time setup link allowing a customer to set an initial password and access profile setup.
-- **FR-005:** Customers shall be able to sign in with email and password.
-- **FR-006:** The system shall not expose or store customer passwords in administrator interfaces.
+- **FR-004:** Administrators shall be able to create manually shareable customer invitation links that activate a pre-created customer after Google authentication with the matching verified email.
+- **FR-005:** Live and hosted-demo customers shall authenticate with Google OAuth. Local deterministic demo authentication shall remain available and unchanged.
+- **FR-006:** Account identity, role, and ownership shall be derived and enforced server-side; administrator interfaces shall not expose authentication secrets.
 - **FR-007:** Administrators shall be able to create customer profiles and assign a unique slug before publication.
-- **FR-008:** Self-service customers may choose an initial slug during signup. Customers shall not be able to change an assigned slug after profile creation.
+- **FR-008:** Self-service onboarding shall generate a unique slug from the customer’s display name. Customers may change it later through a dedicated authorized control; profile-save and publish operations shall not change it implicitly.
 - **FR-009:** Administrators shall be able to change a profile slug at any time, including after publication. The system shall validate and reserve the new slug, update the current public URL immediately, and make the old direct profile URL stop resolving without a redirect.
 - **FR-010:** The system shall require a name and at least one link before publication.
 - **FR-011:** The system shall support an optional profile photo or business logo.
@@ -182,19 +196,19 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-017:** Customers shall be able to customize profile colors, fonts, button styles, and select from a small set of themes.
 - **FR-018:** The system shall support draft, published, unpublished, and suspended profile states.
 - **FR-019:** Customers shall be able to save drafts and preview profile changes before publication.
-- **FR-020:** Customer content changes to a published profile shall not become public until the customer explicitly publishes them. An administrator’s slug change shall update the public URL immediately without publishing pending content changes.
+- **FR-020:** Customer content changes to a published profile shall not become public until the customer explicitly publishes them. An authorized customer or administrator slug change shall update the public URL immediately without publishing pending content changes.
 - **FR-021:** The system shall expose a platform-hosted public profile URL derived from the profile’s current slug.
-- **FR-022:** The system shall store and manage a unique pre-encoded card URL for each physical NFC card.
-- **FR-023:** Each active NFC card URL shall resolve to the assigned profile’s current public profile URL, including after an administrator changes the profile slug.
-- **FR-024:** Administrators shall manually enter each card’s unique pre-encoded URL and the system shall reject duplicate registrations.
-- **FR-025:** Administrators shall be able to assign a card to a profile.
+- **FR-022:** The system shall store each physical card’s unique pre-encoded URL on the canonical `https://tapit-eosin.vercel.app` origin, in full including its query string, and preserve that value for NFC and QR. Relative `/c/<token>` inputs shall normalize to this origin; absolute URLs on other origins shall be rejected.
+- **FR-023:** A claimed active card URL shall resolve to the assigned profile’s current published content, including after a slug change; the URL shall not prove ownership.
+- **FR-024:** Administrators shall enter a relative `/c/<token>` path or a full URL on the canonical origin; the system shall reject duplicate tokens and preserve the validated URL and query.
+- **FR-025:** Administrators shall be able to assign cards to profiles and generate a package code for a registered unassigned card or an eligible attached but unclaimed card.
 - **FR-026:** Administrators shall be able to deactivate cards and issue replacements.
 - **FR-027:** Deactivated or replaced cards shall not reveal the former profile.
 - **FR-028:** Deactivated cards shall not be reactivated or reassigned; a new card shall be used instead.
-- **FR-029:** The system shall support standard NFC Forum NDEF URI records encoded with card URLs.
-- **FR-030:** Administrators shall be able to generate a QR code for each assigned card URL.
+- **FR-029:** The system shall support standard NFC Forum NDEF URI records encoded with the exact stored card URL.
+- **FR-030:** Administrators shall be able to generate a QR code for any registered card URL, including unassigned cards.
 - **FR-031:** Administrators shall be able to preview and download card QR codes as PNG and SVG files.
-- **FR-032:** QR codes and manually shared profile URLs shall resolve to the same profile content as active NFC cards.
+- **FR-032:** NFC and QR shall use the same complete card URL and resolve to the same card state and profile content. Direct profile URLs resolve independently by current slug.
 - **FR-033:** Visitors shall be able to view published profiles without a Tapit account or native app.
 - **FR-034:** The public profile shall include a Save contact action when a name and at least one published contact field, profile photo, or enabled profile link are available.
 - **FR-035:** Generated vCards shall contain the selected name, published profile photo, selected email and phone number, and every enabled published profile link with its label. They shall omit the Profile identity Website field and Tapit public profile URL, and duplicate link destinations shall appear once.
@@ -209,26 +223,53 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-044:** Administrators shall be able to view customer, profile, and card status.
 - **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, profile changes including slug changes, suspension, and deletion handling.
 - **FR-046:** Audit entries shall include the administrator, action, affected account/card/profile, timestamp, and relevant before-and-after status.
-- **FR-047:** Customers shall be able to change their password, view their account email, request account deletion, and access support.
-- **FR-048:** Customers shall not have a Cards navigation screen or card reassignment controls in the MVP.
+- **FR-047:** Customers shall be able to view their account email, request account deletion, and access support. Live and hosted-demo authentication is managed by Google.
+- **FR-048:** Customers shall not have a Cards screen or arbitrary card assignment controls. Buyers may attach a code-proven card to their own profile through the public setup flow.
 - **FR-049:** Customers shall be able to copy and share their current public profile URL from the Profile area.
 - **FR-050:** Deleted or unpublished profiles shall not expose unpublished profile information.
-- **FR-051:** A visitor shall be able to choose customer self-service signup from the login page using display name, profile slug, email, password, and password confirmation.
-- **FR-052:** Customer self-service signup shall create one active customer account and one draft profile owned by that account, with no invitation and no published snapshot.
+- **FR-051:** A visitor shall be able to begin customer onboarding through Google OAuth, including from a card setup return path.
+- **FR-052:** A new customer shall complete onboarding with a display name and receive one account and private draft profile, without an invitation or published snapshot.
 - **FR-053:** The system shall derive the signup email and account role from the authenticated server identity and shall never accept a caller-supplied user ID or role for provisioning.
-- **FR-054:** The system shall normalize, validate, reserve, and uniquely enforce current profile slugs at creation and on administrator changes. A normal customer shall not be able to change an existing slug through profile-save or publish operations.
-- **FR-055:** A self-service customer shall receive a platform-hosted profile URL immediately, but that URL shall remain unavailable to visitors until explicit publication requirements are met.
+- **FR-054:** The system shall normalize, validate, reserve, and uniquely enforce profile slugs at creation and on authorized customer or administrator changes. Customers shall not change a slug through profile-save or publish operations.
+- **FR-055:** A self-service customer shall receive a platform-hosted profile URL after onboarding, unavailable to visitors until publication requirements are met. Card setup shall ask about attachment only after the profile and slug exist.
 - **FR-056:** Self-service customers shall be able to use the existing labeled-link editor for portfolio, TikTok, social, contact, booking, and other destinations allowed by FR-014.
 - **FR-057:** Selecting a profile in the administrator Profiles registry shall open a popup on an **Edit profile** tab and provide a separate **Details & slug** tab for the complete profile record, including the overview, draft and published values, image, contact fields, theme, redirect, links and their enabled state, publication state, and available profile timestamps.
 - **FR-058:** Administrators shall be able to change a profile slug from the **Details & slug** tab. The slug change shall be authorized by the server, validated for format and uniqueness, synchronize the current slug in the draft and published profile, and record the actor and before-and-after values in the audit log.
 - **FR-059:** A slug change shall not create a redirect or alias from the old direct profile URL. The old URL shall return the existing unavailable/missing-profile state until the slug is assigned to another profile, while assigned active card URLs shall continue resolving to the original profile at its current slug.
 - **FR-060:** Before applying a slug change, the administrator control shall warn that the old direct URL will stop resolving and may later be assigned to another profile.
 - **FR-061:** After an administrator changes a slug, the former slug shall be available for reuse. If assigned to another profile, the URL shall resolve directly to that profile and shall not redirect to the original profile.
-- **FR-062:** Administrators shall be able to grant or revoke an audited owner-feature access override for an active customer. This exception shall not create or modify a card claim; claiming a card shall continue to require its token and one-time code.
+- **FR-062:** Administrators shall be able to grant or revoke an audited owner-feature access override for an active customer. This exception shall not change card records; attachment still requires an authenticated customer, package code, and current one-time challenge.
 - **FR-063:** Administrators shall promote an active customer to Demo before promoting that account to Administrator. Demo remains a customer classification; administrator promotion clears it and preserves the account data and sign-in identity.
 - **FR-064:** A signed-in Demo customer shall be able to confirm an account reset that removes account-owned Tapit data and linked or claimed cards while preserving the sign-in identity, Demo classification, shared files, and unrelated account data, then complete customer onboarding again under that identity. Ordinary customer deletion behavior shall remain unchanged.
+- **FR-065:** Newly registered cards shall remain unassigned by default. Administrators may generate codes for registered unassigned cards and eligible attached unclaimed cards.
+- **FR-066:** A package code shall be stored as a hash and remain valid until used or explicitly invalidated/replaced. Show the raw code only in the administrator’s generation response. Legacy expiry timestamps shall not invalidate otherwise valid codes.
+- **FR-067:** Package-code verification shall use a separate, one-time challenge that expires after 10 minutes. Expiring or replaying the challenge shall not consume the code.
+- **FR-068:** Before attachment, the customer shall see their own profile details and explicitly confirm. The server shall derive the target profile from the authenticated customer.
+- **FR-069:** Skipping shall leave the unassigned card and package code available, retain the cardless limited-access state, and allow setup to resume from the same URL.
+- **FR-070:** A customer may request correction of a mistaken assignment only after proving the package code through a current challenge; requesting correction shall not consume the code.
+- **FR-071:** A correction-pending card shall resolve to a neutral unavailable page without profile data until an administrator resolves it.
+- **FR-072:** Administrator correction shall assign only to the requester’s server-owned profile and preserve the card record, token, full URL, and unused code. A second live card is blocked and remains an admin-visible conflict.
+- **FR-073:** The resolver shall route a registered unassigned card to setup, an eligible unclaimed card to claim, a claimed active card to its current published profile, and inactive, replaced, correction-pending, or missing cards to a neutral unavailable page.
+- **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or data for unavailable cards.
+- **FR-075:** NFC and QR shall preserve and use the full stored URL, including query strings. Query values never authorize ownership; package codes never appear in URLs or QR.
+- **FR-076:** Lost-card status, administrator lost-card actions, configured return instructions, and the dedicated lost-card page are issue #196 follow-up scope after this work.
 
 ## User experience
+
+### Card resolver and setup flow
+
+| Card state | Resolver result | Public profile data |
+|---|---|---|
+| Registered, no profile assignment | Setup | None |
+| Claimable, package code not used | Claim | None |
+| Claimable, code used, profile still a private draft | Setup | None |
+| Active, package code not used | Claim | None |
+| Active, code used, profile published | Active | Current published projection |
+| Inactive or replaced | Inactive, shown as unavailable | None |
+| Correction request pending | Unavailable | None |
+| Token not found | Missing, shown as unavailable | None |
+
+The resolver result, not a query such as claim=1, determines the page. NFC and QR retain the same full stored URL. Neither the URL nor its query proves ownership; package codes are entered only in the setup flow. Unpublished, suspended, foreign, or otherwise unavailable profile data is never returned by a public resolver.
 
 ### Information architecture and navigation
 
@@ -237,13 +278,13 @@ Customer navigation:
 - Profile: identity fields, current public URL, read-only assigned slug, draft/published state, preview, and publish controls.
 - Links: link list, add/edit forms, labels, icons, enabled state, and ordering.
 - Analytics: profile views, unique views, link clicks, and time ranges.
-- Account: password change, account email display, deletion request, and support.
+- Account: Google account email display, deletion request, and support.
 
 Administrator navigation:
 
-- Customers: customer account creation, invitation/setup status, and customer search.
+- Customers: customer invitation creation/revocation, account status, and customer search. Invitation links are shared manually.
 - Profiles: profile status, content management, publication, suspension, and support actions.
-- Cards: manual card URL registration, duplicate validation, assignment, status, replacement, QR generation, and QR downloads.
+- Cards: full card URL registration, duplicate-token validation, initially unassigned cards, package-code generation/invalidation, assignment, correction review, replacement, QR generation, and QR downloads.
 - Analytics: profile and link analytics across customers.
 - Audit log: searchable administrative history.
 - Settings: administrator and platform settings, including the configurable generic support/contact destination.
@@ -262,7 +303,7 @@ The page should be clean, professional, mobile-first, high contrast, and restrai
 
 ### Customer profile editor
 
-The editor should distinguish draft content from the currently published version. Required fields should be visibly marked. The customer should be able to save a draft, preview responsive layouts, and explicitly publish. The interface should show the current public URL and provide a copy action. After profile creation, the slug is read-only to customers; administrators change it from the Profiles area.
+The editor should distinguish draft content from the currently published version. Required fields should be visibly marked. The customer should be able to save a draft, preview responsive layouts, and explicitly publish. The interface should show the current public URL and provide a copy action. Customers may change their slug through a dedicated control; administrators may also change it from the Profiles area.
 
 ### Link editor
 
@@ -282,11 +323,11 @@ Validation should explain invalid URL schemes, malformed addresses, missing labe
 
 The administrator card workflow should provide:
 
-- Manual unique card URL entry.
-- Duplicate/unused validation.
-- Customer/profile assignment.
-- Status: active, inactive, replaced, or otherwise unavailable as applicable.
-- Assignment and replacement actions.
+- Manual complete card URL entry with duplicate-token validation.
+- Registration in an unassigned state by default.
+- Assignment controls and package-code generation/invalidation for eligible cards.
+- Pending correction requests with requester profile, current assignment, and correction action.
+- Status: registered, claimable, active, inactive, replaced, correction-pending, or otherwise unavailable. Lost-card state follows in #196.
 - QR preview and PNG/SVG download.
 - Relevant audit history.
 
@@ -309,6 +350,10 @@ The administrator card workflow should provide:
 - Required-field errors should be inline, specific, and associated with the relevant control.
 - Unsafe URL schemes must be rejected before save.
 - Duplicate card URLs must prevent registration and explain that the card is already registered.
+- A signed-out buyer opening an eligible card URL can continue with Google and return to the same path and query string.
+- Card setup shows only the signed-in customer’s own profile and never returns a foreign draft.
+- Skipping setup leaves the card unattached and explains that rescanning the same URL resumes setup.
+- Inactive, replaced, correction-pending, and missing cards show a neutral unavailable page without former or private profile data.
 - An unavailable profile should show the fixed branded “This profile is currently unavailable” page.
 - An inactive/replaced card should show the fixed branded “This card is inactive” page and must not show the former profile.
 - Temporary service failures should show a friendly error page with the configured generic support/contact destination where appropriate.
@@ -378,13 +423,23 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 #### NFC card
 
 - Internal card identifier.
-- Unique pre-encoded card URL.
-- Assigned profile identifier.
-- Card status.
+- Unique pre-encoded card URL on the canonical `https://tapit-eosin.vercel.app` origin, preserved exactly including any query string. Relative `/c/<token>` input is normalized to the canonical origin.
+- Token derived from and unique within the card URL.
+- Optional assigned profile identifier; new cards are unassigned by default.
+- Card status, package-code hash and lifecycle timestamps, and correction-pending state.
 - Assignment timestamp.
 - Deactivation/replacement timestamp and reason where provided.
 - Replacement relationship to prior or new card where applicable.
 - Created and updated timestamps.
+
+Package codes remain valid until used or explicitly invalidated/replaced. A separate one-time verification challenge expires after 10 minutes. A successful attachment consumes the code; a correction request proves possession but leaves it available for confirmation after administrator correction.
+
+#### Card correction request
+
+- Card and requesting customer/profile identifiers.
+- Request status and request timestamp.
+- Resolution timestamp and administrator identifier when resolved.
+- No raw package code.
 
 #### QR code
 
@@ -442,7 +497,8 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 
 - **Convex:** backend functions, database, authentication integration, and profile image/file storage.
 - **Vercel:** deployment for the Next.js web application.
-- **Transactional email provider:** required for setup links, but provider selection is TBD. Options include Resend, Postmark, and SendGrid. Recommendation: evaluate Resend first for the small MVP, subject to cost, deliverability, and regional requirements.
+- **Google OAuth:** live and hosted-demo authentication provider, configured separately for development, Preview, and Production.
+- **Invitation links:** manually shared; no transactional email provider is required for authentication or invitations.
 - **NFC:** no software API integration is required for visitors; cards use standard NDEF URI records.
 - **Social platforms:** no API integrations in MVP. LinkedIn, WhatsApp, and other destinations are stored as ordinary links or safe direct actions.
 
@@ -451,7 +507,7 @@ Tapit should target the agreed WCAG 2.2 AA basics:
 Preferred architecture:
 
 - Next.js serves public profile routes and responsive customer/administrator dashboards.
-- Convex Auth manages email/password authentication; Convex stores application data, runs backend functions, and stores profile images.
+- Convex Auth manages Google OAuth authentication; Convex stores application data, runs backend functions, and stores profile images.
 - Vercel deploys the Next.js application.
 - An active card URL identifies the card, the backend resolves the card to its assigned profile, and the visitor receives the published profile.
 
@@ -468,7 +524,7 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 
 | Capability | Customer | Administrator |
 |---|---:|---:|
-| Sign in with email/password | Yes | Yes |
+| Sign in with Google OAuth | Yes | Yes |
 | Create/edit own profile | Yes | Yes |
 | Save drafts and preview | Yes | Yes |
 | Publish/unpublish own profile | Yes | Yes |
@@ -477,7 +533,8 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 | View all customer analytics | No | Yes |
 | View assigned card details | No Cards screen in MVP | Yes |
 | Register card URLs | No | Yes |
-| Assign/reassign cards | No | Yes |
+| Attach an eligible card to own profile through setup | Yes | N/A; admins use assignment controls |
+| Arbitrary assign/reassign cards | No | Yes |
 | Deactivate or replace cards | No | Yes |
 | Suspend another profile | No | Yes |
 | View audit log | No | Yes |
@@ -488,23 +545,23 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 
 ### Authentication lifecycle
 
-- Customer onboarding has two supported paths: customer self-service signup from the public login page, and administrator-created or administrator-invited customer setup through the existing one-time setup link.
+- Live and hosted-demo customer onboarding uses Google OAuth. New customers complete self-service onboarding; invited customers use a manually shared invitation link and matching verified email. Local deterministic demo authentication remains separate.
 - The first administrator remains operator-provisioned. The public signup path never exposes an administrator role or creates an administrator account.
 - Customer promotion to Administrator requires the account to be designated Demo first. Demo does not grant additional customer permissions; administrator promotion clears Demo while preserving customer data and sign-in identity.
 - Demo customers may reset their account from Account. Reset removes their account-owned profile, media, links, customization, analytics, orders/uploads, claims, and linked or claimed cards; it preserves their sign-in identity and Demo classification and returns them to onboarding. Shared files still referenced elsewhere and unrelated account data remain intact.
-- Self-service customers authenticate with Password sign-up, then receive one active customer record and one private draft profile through an authenticated server-side provisioning mutation.
-- Invited customers use the setup link to set their password and then sign in normally.
+- New Google users receive a pending customer state with access limited to onboarding. Completing onboarding creates or activates one customer account and one private draft profile through an authenticated server-side mutation.
+- Invited customers authenticate with Google from the invitation link; a matching verified email activates the pre-created customer and preserves its profile.
 - Customers do not need an account to visit a public profile.
 - Convex Auth is the selected authentication implementation.
-- Email verification and password reset are deferred and must be treated as a pre-production security decision rather than silently assumed.
-- Setup-link expiration, resend behavior, and invalidation are TBD.
+- Invitation links are reusable until revoked and are limited to the matching verified Google identity. They have no automatic expiry; administrators can revoke and replace them.
 
 ## Security, privacy, and compliance
 
 - Card IDs/URLs must be unique and protected against duplicate registration.
-- Card ownership and reassignment must be controlled by administrators because the platform owns the physical card inventory.
-- Customers must not be able to claim arbitrary cards, transfer card ownership, or access another customer’s profile-management data.
-- An administrator may grant or revoke owner-feature access for an active customer as an audited exception. This override does not represent a card claim or change card records; a customer card claim still requires the card token and one-time code.
+- Card inventory, administrative assignment, and correction must be controlled by administrators. A buyer may attach only an eligible card to their own server-derived profile after proving the package code and confirming the profile.
+- Customers must not be able to transfer cards, choose another profile, or access another customer’s profile-management data.
+- A correction request requires package-code proof and administrator review. While pending, the card URL returns no profile data; correction preserves the permanent URL and unused package code.
+- An administrator may grant or revoke owner-feature access for an active customer as an audited exception. The override does not change card records; attachment still requires a package code and one-time verification challenge.
 - Server-side authorization must enforce account/profile ownership for every customer operation.
 - Administrator actions affecting accounts, profiles, cards, owner-access overrides, suspensions, and deletion must be audited.
 - Public profile fields must be opt-in at the field/link level; nothing is shown unless added and published by the owner.
@@ -513,7 +570,7 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 - Public profiles should be `noindex` by default while remaining accessible through direct URL, NFC, and QR.
 - Allowed link schemes must be validated server-side as well as client-side.
 - Profile-image upload validation must enforce type and size limits.
-- Authentication must use Convex Auth’s secure password handling; administrators must never see customer passwords.
+- Authentication must use Convex Auth with Google OAuth in live and hosted-demo environments; local demo authentication remains isolated.
 - Rate limiting must protect login and sensitive administrative actions.
 - Profile suspension and card deactivation must take effect immediately for public requests.
 - Deletion must immediately hide profile content and deactivate cards, retain only the minimal audit record, and permanently delete personal/profile data after a TBD retention period.
@@ -535,24 +592,26 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 
 The MVP is complete in scope when it provides:
 
-- Customer self-service and administrator-invited customer accounts.
-- Customer email/password login through Convex Auth.
+- Google OAuth customer onboarding and administrator-invited customer accounts, with deterministic local demo authentication retained.
 - One profile per customer account.
 - Required name and one-link publication validation.
 - Optional identity/contact fields and profile image/logo.
 - Editable, reorderable links with custom labels, preset icons, and safe URL validation.
 - Draft, preview, explicit publish, and unpublish behavior.
 - Basic restrained profile customization.
-- Profile slugs selected during self-service signup or assigned by administrators for invited customers; after profile creation, only administrators may change them.
-- Pre-encoded NFC card URL registration by manual entry.
-- One or more active cards assigned to a profile by administrators.
-- Unique card URL resolution to the profile’s current public URL.
+- Profile slugs generated from a new customer’s display name or assigned by administrators for invited customers; authorized customers and administrators may change them.
+- Pre-encoded card URL registration by manual entry, preserving the complete URL.
+- Registered, initially unassigned cards with administrator-generated package codes.
+- Buyer setup to attach a code-proven card to the buyer’s own profile after preview and explicit confirmation.
+- Package codes that remain valid until used or invalidated, with a separate 10-minute one-time verification challenge.
+- Skip and later resume behavior, plus administrator-reviewed correction requests that pause card resolution.
+- Permanent card URL routing by card state to current published content only after successful attachment.
 - QR-code preview and PNG/SVG downloads.
 - Visitor profile access from NFC, QR, or direct URL without an account or app.
 - vCard download with the approved field set.
 - Privacy-preserving lifetime, 7-day, 30-day, and 90-day analytics.
 - Administrator card deactivation and new-card replacement workflow.
-- Branded inactive-card and unavailable-profile pages.
+- Neutral unavailable-card and unavailable-profile pages that do not expose former, draft, or unpublished profile data.
 - Profile suspension and administrative audit log.
 - Customer account deletion request and administrator execution/approval workflow.
 - Responsive desktop/mobile dashboards and mobile-first public pages.
@@ -563,9 +622,9 @@ The MVP is complete in scope when it provides:
 
 ### Account and onboarding
 
-- **AC-001:** Given an administrator enters a new customer email, when the account is created, then Tapit creates the customer account and sends a one-time setup link.
-- **AC-002:** Given a customer opens a valid setup link, when they set a password, then they can sign in and access their profile editor.
-- **AC-003:** Given a visitor chooses Create your profile, when valid customer signup data is submitted, then Tapit authenticates the customer and provisions one active customer account with one private draft profile.
+- **AC-001:** Given an administrator creates a customer invitation, when Tapit creates it, then the administrator receives a manually shareable link that remains usable until revoked.
+- **AC-002:** Given an invited customer opens the invitation link and continues with Google, when their verified email matches, then Tapit activates the pre-created customer and preserves its profile.
+- **AC-003:** Given a new visitor continues with Google and completes onboarding with a display name, when provisioning succeeds, then Tapit creates one customer account and one private draft profile.
 
 ### Profile creation and publication
 
@@ -586,13 +645,13 @@ The MVP is complete in scope when it provides:
 
 ### NFC, QR, and card administration
 
-- **AC-015:** Given an administrator enters an unused pre-encoded card URL, when they register it, then Tapit creates an active card record available for assignment.
+- **AC-015:** Given an administrator registers an unused card URL, when registration succeeds, then Tapit creates an unassigned record, normalizes a relative path to the canonical origin, and preserves the complete URL and query. Absolute URLs on other origins are rejected.
 - **AC-016:** Given an administrator enters a card URL already registered, when they submit it, then Tapit rejects the registration and identifies the duplicate condition.
-- **AC-017:** Given an active card is assigned to a published profile, when its NFC URL is opened, then Tapit resolves the card to the profile’s current URL and displays the published profile.
-- **AC-018:** Given an administrator generates a QR code for an active card, when they preview or download it, then both PNG and SVG outputs encode the unique card URL.
-- **AC-019:** Given an administrator deactivates a card, when a visitor opens its NFC or QR URL, then the inactive-card page appears and the former profile is not exposed.
+- **AC-017:** Given an active card is claimed for a published profile, when its NFC URL is opened, then Tapit displays that profile’s current published content.
+- **AC-018:** Given an administrator generates a QR code for a registered card, when they preview or download it, then both PNG and SVG encode the exact stored URL, including its query string.
+- **AC-019:** Given a card is inactive, replaced, correction-pending, or missing, when a visitor opens its URL, then a neutral unavailable-card page appears without former or private profile data.
 - **AC-020:** Given an old card is replaced, when the new card is assigned, then the old card remains inactive and the new card resolves to the assigned profile.
-- **AC-021:** Given a customer tries to access card assignment controls, when they use the customer interface, then no customer Cards screen or reassignment control is available.
+- **AC-021:** Given a customer uses the workspace, when they look for card management, then no Cards screen or arbitrary reassignment control is available; a code-proven buyer may attach only through the public setup flow.
 
 ### Public profile and vCard
 
@@ -615,13 +674,13 @@ The MVP is complete in scope when it provides:
 - **AC-032:** Given a visitor uses a supported current iPhone or Android phone on a normal 4G connection, when they open an active card URL, then the profile becomes usable within 2 seconds under the agreed measurement method.
 - **AC-033:** Given the public profile service experiences a temporary failure, when a visitor requests a profile, then Tapit shows the friendly error page rather than an unhandled error.
 - **AC-034:** Given the service is measured over a calendar month after production monitoring is established, when planned maintenance is excluded, then public-profile availability meets the 99.9% target.
-- **AC-035:** Given signup creates a profile, when the customer opens the workspace, then the current profile URL is shown and the customer is directed to add links before publication.
-- **AC-036:** Given a requested slug is invalid, reserved, or already in use, when signup is submitted, then Tapit rejects provisioning with an actionable error and does not create a second account or profile.
+- **AC-035:** Given Google onboarding creates a profile, when the customer opens the workspace, then the current profile URL is shown and the customer is directed to add links before publication.
+- **AC-036:** Given a customer or administrator requests a slug that is invalid, reserved, or already in use, when the slug change is submitted, then Tapit rejects it with an actionable error and preserves the existing profile URL.
 - **AC-037:** Given a newly signed-up customer saves a bio or links without publishing, when a visitor opens the profile URL, then the visitor sees the existing missing/unavailable state and no draft content.
 - **AC-038:** Given a customer adds enabled Portfolio and TikTok HTTPS links and publishes a valid profile, when a signed-out visitor opens the profile URL, then the profile name, bio, and both labeled links are visible without authentication.
 - **AC-039:** Given a visitor attempts to create an administrator account through the public login page, when signup is submitted, then no administrator path or role selection is available.
-- **AC-040:** Given the existing invitation setup flow is used, when the invited customer completes setup, then the invitation remains one-time and the customer can still access the same profile workflow.
-- **AC-041:** Given a normal customer has a draft profile, when they attempt to change its slug through a save or publish request, then the server rejects the change even though the profile is unpublished.
+- **AC-040:** Given an invited customer opens a valid invitation and authenticates with the matching verified Google email, when access is granted, then the existing customer and profile are activated without replacing profile data.
+- **AC-041:** Given a customer has a draft profile, when they attempt to change its slug through a general save or publish request, then the server rejects the implicit change; a dedicated authorized slug change remains available.
 - **AC-042:** Given an administrator changes a profile slug, when the new slug is valid and unused, then the profile’s current URL changes immediately, the old direct URL shows the unavailable/missing-profile state without redirecting, and active card URLs continue resolving to the same profile.
 - **AC-043:** Given an administrator enters an invalid, reserved, or already-used slug, when they submit the change, then Tapit rejects it and preserves the existing profile URL.
 - **AC-044:** Given an administrator changes a slug, when the operation succeeds, then the audit log records the administrator, profile, old slug, new slug, and timestamp.
@@ -632,6 +691,19 @@ The MVP is complete in scope when it provides:
 - **AC-049:** Given a signed-in Demo customer confirms **Reset account**, when reset completes, then Tapit removes the account-owned data, claim state, and linked or claimed cards, preserves the sign-in identity and Demo classification, and returns the customer to onboarding under the same identity.
 - **AC-050:** Given an ordinary customer requests deletion, when they use Account, then the existing deletion request and administrator approval flow remains available; Demo reset is unavailable to them.
 - **AC-051:** Given a Demo reset removes account data, when shared files or unrelated records remain referenced, then those records and files remain available to their other owners.
+- **AC-052:** Given an administrator registers a card, when registration succeeds, then the card remains unassigned and the administrator can generate a package code before assignment.
+- **AC-053:** Given a package code has not been used or invalidated, when time passes or its legacy expiry timestamp is in the past, then it remains valid; a verification challenge expires after 10 minutes and can be used only once.
+- **AC-054:** Given a signed-out recipient opens an eligible card URL, when they continue with Google as an existing or new customer, then Tapit returns them to that exact URL with its original query string.
+- **AC-055:** Given a new customer arrives from a card URL, when profile onboarding completes, then the slug exists before Tapit asks whether to attach the card; an existing customer sees their own profile details before confirmation.
+- **AC-056:** Given a customer verifies a valid package code and confirms their own profile, when attachment succeeds, then the card attaches to that server-derived profile and the code is consumed; a profile with another live card cannot receive a second attachment.
+- **AC-057:** Given a customer skips card attachment, when they open the same card URL later, then the card and code remain available and setup resumes while the customer remains in the cardless limited-access state.
+- **AC-058:** Given a card URL is resolved, when its record is registered/unassigned, eligible but unclaimed, active and claimed, inactive/replaced, correction-pending, or missing, then the resolver returns setup, claim, the current published profile, or neutral unavailable state without treating the query as ownership proof.
+- **AC-059:** Given a claimed active card’s profile slug or approved assignment changes, when the same full card URL is opened, then it resolves to the current assigned profile’s published content and the stored URL remains unchanged.
+- **AC-060:** Given an authenticated customer proves a package code and reports a mistaken assignment, when the request is pending, then the card URL shows a neutral unavailable page without profile data and the code remains unconsumed.
+- **AC-061:** Given an administrator resolves a correction request, when assignment correction succeeds, then the same card record, token, full URL, and package code are preserved and the customer must rescan and confirm the corrected profile.
+- **AC-062:** Given NFC and QR are generated for a card URL with a query string, when each is inspected, then both use the exact stored URL and contain no package code.
+- **AC-063:** Given a card or profile is missing, unavailable, unpublished, or suspended, when its permanent URL is opened, then Tapit exposes no private draft, foreign, or former-owner data.
+- **AC-064:** Given a correction request targets a profile that already has a live card, when an administrator reviews it, then the request remains pending, the conflicting card is unchanged, and the admin interface explains the conflict.
 
 ## Open questions and decisions
 
@@ -641,14 +713,14 @@ The MVP is complete in scope when it provides:
 - MVP audience: independent professionals first, with small businesses supported through the same one-account/one-profile model.
 - Primary problem: updateable contact information and fast in-person sharing, with multiple useful links as the core content.
 - Primary usage: networking, client meetings, events, and business introductions.
-- Onboarding: administrator-created or administrator-invited accounts; customers log in to complete their profiles.
+- Onboarding: new customers start with Google OAuth and complete profile onboarding; invited customers use a manually shared invitation link and matching Google identity.
 - Customer dashboard: Profile, Links, Analytics, and Account. No customer Cards screen.
 - Administrator dashboard: Customers, Profiles, Cards, Analytics, Audit log, and Settings.
-- Authentication implementation: Convex Auth with email/password.
+- Authentication implementation: Convex Auth with Google OAuth for live and hosted-demo environments; local deterministic demo authentication remains separate.
 - Preferred application stack: Next.js, Convex, and Vercel, subject to production validation.
 - Card format: NFC Forum NDEF URI record.
-- Card administration: administrators manually enter card URLs, validate uniqueness, assign cards, deactivate old cards, and assign new replacement cards.
-- Card links: unique per-card URLs resolve to the profile’s current URL.
+- Card administration: administrators manually enter full card URLs, validate token uniqueness, leave new cards unassigned, generate/invalidate package codes, assign cards, review corrections, deactivate cards, and issue replacements.
+- Card links: permanent URLs identify cards and route by current state to the current published profile only after successful attachment.
 - QR: administrator preview plus downloadable PNG and SVG.
 - Public URL: platform-hosted and derived from a unique slug; self-service customers may choose the initial slug, and administrators may change it at any time. Customers cannot change an existing slug. A changed slug does not redirect the old URL, and the former slug becomes available for reuse; active card URLs continue resolving to the profile’s current URL.
 - Profile publication: name plus at least one link required; draft, preview, and explicit publish.
@@ -656,7 +728,7 @@ The MVP is complete in scope when it provides:
 - Public design: clean, professional, mobile-first, strong contrast, restrained themes.
 - vCard: selected name, published profile photo, selected email and phone, and all enabled published profile links with labels; the Profile identity Website field, Tapit public profile URL, and duplicate link destinations are omitted.
 - Analytics: aggregate profile views and link clicks; lifetime, 7-day, 30-day, and 90-day views; no raw visitor-level history. Both customers and administrators can see analytics within their permissions.
-- Card/profile states: inactive-card page for deactivated/replaced cards; unavailable-profile page for unpublished/suspended profiles.
+- Card/profile states: neutral unavailable-card page for inactive, replaced, correction-pending, and missing cards; unavailable-profile page for unpublished/suspended profiles. #196 adds lost-card return instructions and a dedicated page after this work.
 - Deletion: customer request and confirmation, administrator execution/approval, immediate unpublish/deactivation, minimal audit retention, later permanent deletion.
 - Accessibility: WCAG 2.2 AA basics.
 - Performance/reliability: usable within 2 seconds on normal 4G and 99.9% monthly public-profile availability excluding planned maintenance.
@@ -667,9 +739,8 @@ The MVP is complete in scope when it provides:
 - **Author:** `<name/team>` is not yet provided.
 - **Production domain:** TBD. Options are a Tapit-owned domain, a subdomain of an existing company domain, or a temporary deployment domain. Recommendation: use a Tapit-owned production domain before issuing cards at scale.
 - **Maximum links per profile:** TBD. Options are no product cap, a fixed MVP cap, or a plan-based cap. Recommendation: use a documented MVP cap only if needed for performance or usability; otherwise begin without a user-visible cap and monitor.
-- **Transactional email provider:** TBD. Options include Resend, Postmark, or SendGrid. Recommendation: evaluate Resend first, then verify deliverability, pricing, and regional requirements.
-- **Setup-link policy:** TBD. The system needs an expiry period, resend behavior, and invalidation behavior. Recommendation: one-time links with a short expiry and administrator-controlled resend/invalidation, subject to security review.
-- **Email verification and password reset:** deferred by decision, but required as a pre-production security review item. Options are Convex Auth-native flows or a managed authentication provider. Recommendation: do not launch broadly without a secure recovery path.
+- **Customer recovery:** Google account recovery is provided by Google for live and hosted-demo authentication. Any future provider or identity-replacement flow requires a separate decision.
+- **Invitation-link policy:** manually shared, reusable until revoked, and limited to the matching verified email.
 - **Customer account email changes:** TBD. Options are disallowing changes in MVP or requiring administrator-mediated verification. Recommendation: disallow self-service email changes in MVP and handle exceptional changes administratively.
 - **Unique-view calculation:** TBD. Options include privacy-preserving rotating pseudonymous identifiers, coarse time-bucketed counting, or aggregate edge analytics. Recommendation: choose a method that cannot reconstruct visitor history and document its retention window.
 - **Deleted-data retention period:** TBD. Recommendation: define the period with the launch jurisdiction’s privacy requirements before production.
@@ -687,13 +758,15 @@ The MVP is complete in scope when it provides:
 - Every MVP functional requirement has an implementation approach and testable acceptance criterion.
 - Customer and administrator navigation and all required loading, empty, validation, unavailable, inactive, and error states are specified.
 - The public profile, NFC path, QR path, direct URL path, vCard action, and analytics behavior are tested on real current iPhones and Android phones.
-- Customer authorization prevents access to other profiles and prevents customer card claiming, transfer, reassignment, or deactivation.
-- Administrator card registration rejects duplicates and supports assignment, deactivation, replacement, QR generation, and audit history.
+- Customer authorization prevents access to other profiles and arbitrary card transfer, reassignment, or deactivation; a buyer may attach only a code-proven card to their own profile after confirmation.
+- Administrator card registration rejects duplicate tokens, preserves the full NFC/QR URL, and supports unassigned setup, package-code controls, assignment, correction, deactivation, replacement, QR generation, and audit history.
+- Package codes remain valid until used or invalidated; verification challenges expire after 10 minutes and are single-use.
+- Card routing follows the documented state table and never exposes private profile data from setup or unavailable responses.
 - Profile updates require explicit publication and never require NFC re-encoding.
 - Deactivated cards never reveal former profile content; unpublished or suspended profiles never expose unpublished content.
-- Image validation, URL-scheme validation, password handling, rate limiting, audit logging, and deletion behavior are implemented and reviewed.
+- Image validation, URL-scheme validation, OAuth authorization, rate limiting, audit logging, and deletion behavior are implemented and reviewed.
 - Accessibility checks cover the agreed WCAG 2.2 AA basics across public and dashboard screens.
 - Public-page performance is measured on a normal 4G connection and meets the 2-second usability target.
 - Production monitoring demonstrates or is ready to measure 99.9% public-profile availability, excluding planned maintenance.
-- The selected Vercel and Convex plans, email provider, production domain, launch jurisdiction, data-retention rules, recovery flows, and operational ownership are resolved before broad public launch.
+- The selected Vercel and Convex plans, Google OAuth environment configuration, production domain, launch jurisdiction, data-retention rules, and operational ownership are resolved before broad public launch.
 - A real-device pilot with independent professionals and recipients validates the core workflows; the final pilot size and adoption threshold are recorded when decided.

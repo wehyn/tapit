@@ -51,38 +51,51 @@ describe("demo storage store", () => {
 
   it("migrates legacy relative card URLs with their query and fields, then persists them", async () => {
     const state = createDefaultDemoState();
-    state.cards[0] = {
-      ...state.cards[0]!,
-      cardUrl: "/c/mara-card-7f2q?source=print&campaign=spring",
-      status: "inactive",
-    };
-    state.cards[2] = { ...state.cards[2]!, cardUrl: "/c/not-the-card?campaign=spring" };
-    state.cards[1] = {
-      ...state.cards[1]!,
-      cardUrl: "https://cards.example.test/c/claimable-card-demo?source=existing",
-    };
+    const maraCard = state.cards.find((card) => card.token === "mara-card-7f2q")!;
+    maraCard.cardUrl = "/c/mara-card-7f2q?source=print&campaign=spring";
+    maraCard.status = "inactive";
+    const claimableCard = state.cards.find((card) => card.token === "claimable-card-demo")!;
+    claimableCard.cardUrl = "https://cards.example.test/c/claimable-card-demo?source=existing";
+    const unassignedCard = state.cards.find((card) => card.token === "unassigned-card-demo")!;
+    unassignedCard.cardUrl = "/c/not-the-card?campaign=spring";
+    const localCard = state.cards.find((card) => card.token === "active-unclaimed-card-demo")!;
+    localCard.cardUrl = new URL(
+      "/c/active-unclaimed-card-demo?source=local&claim=1",
+      window.location.origin,
+    ).toString();
     localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
     const { getDemoState } = await import("../../src/lib/demo/store");
 
-    expect(getDemoState().cards[0]).toMatchObject({
+    expect(getDemoState().cards.find((card) => card.token === "mara-card-7f2q")).toMatchObject({
       id: "card-mara-active",
       token: "mara-card-7f2q",
       cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q?source=print&campaign=spring",
       status: "inactive",
       profileId: "profile-mara",
     });
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards[0]).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards.find(
+        (card: { token: string }) => card.token === "mara-card-7f2q",
+      ),
+    ).toMatchObject({
       id: "card-mara-active",
       cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q?source=print&campaign=spring",
       status: "inactive",
     });
-    expect(getDemoState().cards[1]?.cardUrl).toBe(
+    expect(getDemoState().cards.find((card) => card.token === "claimable-card-demo")?.cardUrl).toBe(
       "https://cards.example.test/c/claimable-card-demo?source=existing",
     );
-    expect(getDemoState().cards[2]?.cardUrl).toBe("/c/not-the-card?campaign=spring");
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards[1]?.cardUrl).toBe(
-      "https://cards.example.test/c/claimable-card-demo?source=existing",
-    );
+    expect(
+      getDemoState().cards.find((card) => card.token === "unassigned-card-demo")?.cardUrl,
+    ).toBe("/c/not-the-card?campaign=spring");
+    expect(
+      getDemoState().cards.find((card) => card.token === "active-unclaimed-card-demo")?.cardUrl,
+    ).toBe("https://tapit-eosin.vercel.app/c/active-unclaimed-card-demo?source=local&claim=1");
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards.find(
+        (card: { token: string }) => card.token === "claimable-card-demo",
+      )?.cardUrl,
+    ).toBe("https://cards.example.test/c/claimable-card-demo?source=existing");
   });
 
   it("normalizes only the exact FOUNDING aliases and preserves other legacy code limits", async () => {

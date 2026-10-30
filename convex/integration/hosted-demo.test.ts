@@ -346,6 +346,20 @@ describe("hosted-demo scope boundaries", () => {
       const first = await t.mutation(internal.demo.initialize, {
         operatorUserId: ids.operatorUserId,
       });
+      await t.run(async (ctx) => {
+        const card = (await ctx.db.get(first.claimableCardId))!;
+        const profile = (await ctx.db.get(first.maraProfileId))!;
+        await ctx.db.patch(card._id, { correctionRequestedAt: 1 });
+        await ctx.db.insert("cardCorrectionRequests", {
+          scope: "demo",
+          cardId: card._id,
+          requesterId: profile.ownerId,
+          profileId: profile._id,
+          status: "open",
+          createdAt: 1,
+          updatedAt: 1,
+        });
+      });
       const reset = await t.mutation(internal.demo.reset, { operatorUserId: ids.operatorUserId });
       const resetAgain = await t.mutation(internal.demo.reset, {
         operatorUserId: ids.operatorUserId,
@@ -357,6 +371,12 @@ describe("hosted-demo scope boundaries", () => {
         expect(await ctx.db.get(ids.profileId)).not.toBeNull();
         expect(await ctx.db.get(ids.cardId)).not.toBeNull();
         expect(await ctx.db.get(first.claimableCardId)).toBeNull();
+        expect(
+          await ctx.db
+            .query("cardCorrectionRequests")
+            .withIndex("by_scope_and_status", (q) => q.eq("scope", "demo").eq("status", "open"))
+            .collect(),
+        ).toEqual([]);
       });
     } finally {
       if (previous === undefined) delete process.env.TAPIT_DEMO_AUTH_MODE;

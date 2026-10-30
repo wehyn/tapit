@@ -213,6 +213,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
         profileId: data.ownerProfileId,
       }),
     ).resolves.toEqual({ status: "active" });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeClaimedAt: 2 }));
     await expect(t.query(api.cards.resolve, { token: "owned-card" })).resolves.toMatchObject({
       status: "active",
       profile: { slug: "owner", links: [{ id: "owner-link" }] },
@@ -276,6 +277,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       token: "redirect-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeClaimedAt: 2 }));
 
     await t.run(async (ctx) => {
       const profile = await ctx.db.get(data.ownerProfileId);
@@ -330,13 +332,21 @@ describe("Convex links, cards, analytics, and admin operations", () => {
     };
     await setPublishedRedirect("https://redirect.example/active");
     for (const status of ["inactive", "replaced", "claimable"] as const) {
-      await t.run(async (ctx) => await ctx.db.patch(cardId, { status }));
+      await t.run(
+        async (ctx) =>
+          await ctx.db.patch(cardId, {
+            status,
+            ...(status === "claimable" ? { claimCodeClaimedAt: undefined } : {}),
+          }),
+      );
       await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
-        status: status === "claimable" ? "onboarding" : "inactive",
+        status: status === "claimable" ? "claim" : "inactive",
       });
     }
 
-    await t.run(async (ctx) => await ctx.db.patch(cardId, { status: "active" }));
+    await t.run(
+      async (ctx) => await ctx.db.patch(cardId, { status: "active", claimCodeClaimedAt: 2 }),
+    );
     await t.run(async (ctx) => await ctx.db.patch(data.ownerProfileId, { status: "unpublished" }));
     await expect(t.query(api.cards.resolve, { token: "redirect-card" })).resolves.toEqual({
       status: "unavailable",
@@ -382,6 +392,7 @@ describe("Convex links, cards, analytics, and admin operations", () => {
       token: "draft-redirect-card",
     });
     await admin.mutation(api.cards.assign, { cardId, profileId: data.ownerProfileId });
+    await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeClaimedAt: 2 }));
 
     await owner.mutation(api.profiles.saveDraft, {
       profileId: data.ownerProfileId,
