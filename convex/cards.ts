@@ -252,6 +252,92 @@ export const attach = mutation({
   },
 });
 
+export const reassign = mutation({
+  args: {
+    cardId: v.id("cards"),
+    expectedProfileId: v.id("profiles"),
+    expectedStatus: v.union(v.literal("active"), v.literal("claimable")),
+    profileId: v.id("profiles"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, account } = await requireAdministrator(ctx);
+    const card = await ctx.db.get(args.cardId);
+    const oldProfile = await ctx.db.get(args.expectedProfileId);
+    const profile = await ctx.db.get(args.profileId);
+    if (
+      card === null ||
+      oldProfile === null ||
+      profile === null ||
+      !sameScope(account, card) ||
+      !sameScope(account, oldProfile) ||
+      !sameScope(account, profile)
+    )
+      throw new Error("Card or profile not found.");
+    if (
+      card.status !== args.expectedStatus ||
+      card.profileId !== args.expectedProfileId ||
+      (card.status !== "active" && card.status !== "claimable")
+    )
+      throw new Error("The card assignment has changed. Refresh and try again.");
+    if (args.profileId === args.expectedProfileId)
+      throw new Error("The card is already assigned to that profile.");
+    const oldOwner = await ctx.db.get(oldProfile.ownerId);
+    const owner = await ctx.db.get(profile.ownerId);
+    if (
+      oldOwner === null ||
+      !sameScope(account, oldOwner) ||
+      !sameScope(oldOwner, oldProfile) ||
+      owner === null ||
+      !isActiveCustomer(owner) ||
+      !sameScope(account, owner) ||
+      !sameScope(owner, profile)
+    )
+      throw new Error("The profile owner account is not active.");
+    if (profile.status === "published") {
+      if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+        throw new Error("A valid published profile is required.");
+    } else if (profile.status !== "draft" && profile.status !== "unpublished") {
+      throw new Error("The destination profile is not assignable.");
+    }
+
+    const now = Date.now();
+    await ctx.db.patch(card._id, {
+      profileId: profile._id,
+      assignedAt: now,
+      updatedAt: now,
+      claimCodeHash: undefined,
+      claimCodeGeneratedAt: undefined,
+      claimCodeExpiresAt: undefined,
+      claimCodeClaimedAt: undefined,
+      claimCodeInvalidatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: account.scope,
+      actorUserId: userId,
+      actorLabel: "Administrator",
+      action: "card.reassigned",
+      cardId: card._id,
+      profileId: profile._id,
+      accountId: owner._id,
+      occurredAt: now,
+      before: JSON.stringify({
+        profileId: oldProfile._id,
+        profileName: oldProfile.draft.name || oldProfile.slug,
+        accountId: oldOwner._id,
+        status: card.status,
+      }),
+      after: JSON.stringify({
+        profileId: profile._id,
+        profileName: profile.draft.name || profile.slug,
+        accountId: owner._id,
+        status: card.status,
+      }),
+    });
+    return null;
+  },
+});
+
 export const generateClaimCode = mutation({
   args: { cardId: v.id("cards") },
   returns: v.object({ code: v.string() }),

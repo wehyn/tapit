@@ -124,18 +124,27 @@ Administrators provision customer accounts and physical card records, generate a
 
 Administrators may reactivate a visible inactive or replaced card assigned to an eligible profile. Reactivation preserves its token and profile assignment, sets it to active for a published profile or claimable otherwise, invalidates prior claim state, and requires a separately generated fresh one-time claim code. Inactive and replaced cards remain ineligible for reassignment.
 
-### 8. Administrator manages a profile
+### 8. Administrator corrects a card assignment
+
+1. An administrator selects an active or claimable card that is attached to the wrong profile and chooses **Reassign card**.
+2. Before committing, Tapit identifies the current and destination profiles and confirms that the card token and URL will stay the same and that the destination owner must make a fresh claim.
+3. On confirmation, Tapit moves the card assignment without replacing the card, invalidates its prior claim codes and challenges, and removes card-derived owner access from the former profile owner.
+4. The destination owner completes a fresh claim using the card token and a new one-time code. The destination may already have another active or claimable card.
+5. Other cards and separate owner-access grants remain unchanged. Inactive and replaced cards remain ineligible for reassignment.
+6. Tapit records the administrator and the old and new profile assignments in the audit log.
+
+### 9. Administrator manages a profile
 
 An administrator can view and edit customer profile content, publish or unpublish a profile, suspend it for policy enforcement, deactivate assigned cards, and inspect related audit history. An unpublished or suspended profile shows a branded unavailable-profile page and does not expose unpublished content.
 
-### 9. Administrator grants or revokes owner-feature access
+### 10. Administrator grants or revokes owner-feature access
 
 1. An administrator opens an active customer in `/admin/customers` and grants or revokes the admin owner-access override.
 2. Tapit records each actual grant or revocation in the audit log; repeating the current state makes no change.
 3. The override grants or removes only override-based card-owner access without creating or changing a card record; revoking it leaves access from a successful card attachment intact.
 4. Card attachment still requires a package code and a current one-time verification challenge.
 
-### 10. Customer requests account deletion
+### 11. Customer requests account deletion
 
 1. The customer submits a deletion request from Account.
 2. The customer confirms the request.
@@ -144,14 +153,14 @@ An administrator can view and edit customer profile content, publish or unpublis
 5. Tapit retains a minimal administrative audit record.
 6. Personal and profile data are permanently deleted after a retention period that is TBD.
 
-### 11. Administrator designates or promotes a Demo customer
+### 12. Administrator designates or promotes a Demo customer
 
 1. An administrator promotes an active customer to Demo in `/admin/customers`.
 2. The account remains a customer with its existing profile and sign-in identity.
 3. The administrator may later promote that Demo customer to Administrator. This replaces the Demo classification and preserves the account data and sign-in identity.
 4. A customer cannot be promoted directly to Administrator, and administrators cannot be marked Demo.
 
-### 12. Demo customer resets their account
+### 13. Demo customer resets their account
 
 1. A Demo customer chooses **Reset account** in Account and confirms removal of their Tapit data and linked cards.
 2. Tapit removes the account's profile/onboarding data, links, customization, media, analytics, card orders and uploads, claim state, and linked or claimed cards while preserving shared or unrelated records.
@@ -255,6 +264,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-076:** Lost-card status, administrator lost-card actions, configured return instructions, and the dedicated lost-card page are issue #196 follow-up scope after this work.
 - **FR-077:** Administrators shall archive inactive or replaced cards without deleting their record, token, assignment, claim history, or audit history; restoring shall clear only the archive timestamp.
 - **FR-078:** A profile may have multiple active or claimable cards, and changing one card shall not change the status, URL, or claim history of its siblings.
+- **FR-079:** Administrators shall be able to correct an active or claimable card's profile assignment without replacing the card. Before confirmation, the administrator shall see the old and destination profiles and the unchanged card token/URL, and be told that the destination owner must make a fresh claim. Reassignment shall invalidate prior claim codes and challenges and remove card-derived owner access from the former owner. The destination shall be able to claim the card with a fresh one-time code even if that profile already has another active or claimable card. Other cards and separate owner-access grants shall remain unchanged. Inactive or replaced cards shall remain ineligible. The audit entry shall identify the administrator and old and new profile assignments.
 
 ## User experience
 
@@ -330,6 +340,7 @@ The administrator card workflow should provide:
 - Assignment controls and package-code generation/invalidation for eligible cards.
 - Pending correction requests with requester profile, current assignment, and correction action.
 - Status: registered, claimable, active, inactive, replaced, correction-pending, or otherwise unavailable. Lost-card state follows in #196.
+- Reassignment of eligible active or claimable cards, with confirmation of the old and destination profiles, unchanged token/URL, and fresh-claim requirement.
 - QR preview and PNG/SVG download.
 - Relevant audit history.
 

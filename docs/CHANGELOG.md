@@ -13,6 +13,11 @@
 
 - Administrators can remove inactive or replaced cards from the main registry and restore them later without releasing their URLs or history. Visible inactive or replaced cards can be reactivated; issuing a fresh claim code remains a separate step. Profiles can have multiple active or claimable cards without changing sibling card state.
 
+## 2026-10-30 — Correct misassigned cards
+
+- Administrators can reassign an active or claimable card to the correct profile without changing its token or URL. Reassignment clears prior claim state and card-derived access for the former owner, requires a fresh claim, and records the old and new assignments in the audit log. Inactive and replaced cards remain ineligible.
+- The local-demo admin card verification map now covers the reassignment confirmation, stable card URL, destination profile, and audit entry. This browser journey does not verify physical NFC or QR hardware.
+
 ## 2026-10-28 — Expiring promo offers and separate referral codes
 
 - Checkout accepts one optional promo code and one optional referral code. A promo sets a fixed final price or applies a configured percentage to ₱799; a referral then takes 10% off the promo-adjusted price and earns 10% commission on that pre-referral amount.

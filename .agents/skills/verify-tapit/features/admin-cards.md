@@ -11,6 +11,7 @@ An administrator copies a card URL, registers an unassigned card, generates and 
 - `card-archive-restore-reactivate` archives inactive or replaced cards, restores their prior state, and reactivates eligible cards with a separate fresh claim code.
 - `card-audit` records registration and replacement in the audit log.
 - `card-qr` previews and downloads an on-demand QR generated from the card's saved URL.
+- `card-reassign` corrects an active or claimable card's profile assignment without replacing its URL.
 
 ## How to get to it (user POV)
 
@@ -36,9 +37,13 @@ Preconditions:
 - **Reject invalid published snapshots.** Run `.agents/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator cannot reactivate cards without valid published content" issue-187-invalid-published-userflow-2026-10-30`. The journey checks both an invalid content snapshot and a missing published snapshot; each failed attempt preserves the inactive card.
 - **Proof.** Retain the configured JSON result and trace, which contain the user actions and resulting route assertions.
 
+- **Reassign a misattached card.** Run `npm run test:e2e:demo -- --grep "administrator reassigns a misattached card without replacing it" --workers=1 --trace=on`. The local deterministic fixture includes `owner@example.test`, `profile-claimable`, and the unclaimed `claimable-card-demo`, plus Mara's active `mara-card-7f2q`. Sign in as the customer and publish `profile-claimable` through the normal customer UI, sign out, then sign in as the local demo administrator. Expand Mara's card and choose **Reassign card**. Confirm the **Reassign this card?** dialog identifies Mara Velasquez and Claimed profile, retains `/c/mara-card-7f2q`, and requires a fresh claim; confirm with **Reassign card**. The URL remains unavailable until the administrator generates a fresh code and the destination owner claims it. The same URL then resolves to Claimed profile, and `/admin/audit-log` shows the readable `Card reassigned to profile` entry and both assignments.
+- **Scope.** This journey uses only isolated local-demo browser state and the deterministic demo fixture. It does not prove hosted-demo, live/Preview/Production, NFC writing, QR scanning, or physical-device behavior.
+
 ## Gotchas
 
 - Card operations here affect only the isolated local demo browser context. Never run this journey against hosted demo or a deployment containing shared records.
 - An inactive former card must not resolve to the profile. Do not collapse the old and replacement URL checks into one.
 - Archiving only hides a card from the normal registry; its `/c/<token>` path remains inactive, and the token stays reserved.
+- Reassignment eligibility excludes inactive and replaced cards. Reassignment keeps the original URL, invalidates prior claim state, and requires a fresh destination claim.
 - This browser journey does not verify writing an NFC tag or reading a physical card.

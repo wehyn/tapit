@@ -1329,6 +1329,82 @@ test("administrator cannot reactivate cards without valid published content", as
   await expect(rowWithoutSnapshot).toContainText("inactive");
 });
 
+test("administrator reassigns a misattached card without replacing it", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await expect(
+    page.getByText("Profile published. Your active card paths now show this version."),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Account menu for owner@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login(?:\?.*)?$/);
+
+  await signInAsAdmin(page);
+  await page.getByRole("link", { name: "Cards", exact: true }).click();
+  const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await card.locator("summary").first().click();
+  await card.getByRole("button", { name: "Reassign card", exact: true }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Reassign this card?" });
+  await expect(dialog).toContainText("Mara Velasquez");
+  await expect(dialog).toContainText("Claimed profile");
+  await expect(dialog).toContainText("/c/mara-card-7f2q");
+  await expect(dialog).toContainText(/fresh claim/i);
+  await dialog.getByRole("button", { name: "Reassign card", exact: true }).click();
+  await expect(dialog).toBeHidden();
+
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page).toHaveURL(/\/c\/mara-card-7f2q$/);
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/admin/cards");
+  const reassignedCard = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await reassignedCard.locator("summary").first().click();
+  await reassignedCard.getByRole("button", { name: "Generate code", exact: true }).click();
+  const freshCode = (
+    await reassignedCard.getByLabel("Claim code for mara-card-7f2q").innerText()
+  ).trim();
+
+  await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("tapit-demo");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Set up your Tapit card" })).toBeVisible();
+  await page.getByLabel("Card code").fill(freshCode);
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+
+  await page.getByRole("button", { name: /^Account menu for owner@example\.test$/ }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByRole("heading", { name: "Claimed profile" })).toBeVisible();
+
+  await signInAsAdmin(page);
+  await page.goto("/admin/audit-log");
+  const reassignment = page
+    .locator("details")
+    .filter({ hasText: "Card reassigned to profile" })
+    .first();
+  await expect(reassignment).toBeVisible();
+  await reassignment.locator("summary").click();
+  await expect(reassignment).toContainText("mara-card-7f2q");
+  await expect(reassignment).toContainText("Mara Velasquez");
+  await expect(reassignment).toContainText("Claimed profile");
+});
+
 test("administrator moderation hides a profile and can restore it", async ({ page }) => {
   await signInAsAdmin(page);
   await page.getByRole("link", { name: "Profiles" }).click();

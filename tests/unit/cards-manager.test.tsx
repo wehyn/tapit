@@ -20,11 +20,13 @@ vi.mock("@/lib/qr", () => qrGenerators);
 
 import { CardsManager } from "@/components/admin/CardsManager";
 import { createDefaultDemoState } from "@/lib/demo/fixtures";
+import { getDemoState, resetDemoState, updateDemoState } from "@/lib/demo/store";
 import { generateQrSvg } from "@/lib/qr";
 
 const mutationHandlers = {
   register: vi.fn(),
   replace: vi.fn(),
+  reassign: vi.fn(),
   other: vi.fn(),
   generateToken: vi.fn(),
 };
@@ -96,6 +98,7 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
   mutationHandlers.register.mockReset().mockResolvedValue("cards:new-card");
   mutationHandlers.replace.mockReset().mockResolvedValue("cards:replacement-card");
+  mutationHandlers.reassign.mockReset().mockResolvedValue(null);
   mutationHandlers.other.mockReset().mockResolvedValue(undefined);
   mutationHandlers.generateToken.mockReset().mockResolvedValue("card-generated");
   qrGenerators.generateQrPng.mockReset().mockResolvedValue("data:image/png;base64,preview");
@@ -108,6 +111,8 @@ beforeEach(() => {
         return mutationHandlers.replace;
       case "cards:generateCardToken":
         return mutationHandlers.generateToken;
+      case "cards:reassign":
+        return mutationHandlers.reassign;
       default:
         return mutationHandlers.other;
     }
@@ -142,6 +147,225 @@ describe("live card URL mutations", () => {
     expect(screen.getByText(/already has an active or claimable card/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Correct assignment" })).toBeDisabled();
   });
+
+  it.each(["active", "claimable"] as const)(
+    "confirms and reassigns an assigned %s card, including to an already-carded profile",
+    async (status) => {
+      configureCardQueries([
+        {
+          _id: "cards:source-card",
+          _creationTime: 1,
+          cardUrl: "https://tapit.test/c/source-card",
+          token: "source-card",
+          status,
+          profileId: "profiles:source",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
+          _id: "cards:destination-card",
+          _creationTime: 2,
+          cardUrl: "https://tapit.test/c/destination-card",
+          token: "destination-card",
+          status: "active",
+          profileId: "profiles:destination",
+          createdAt: 2,
+          updatedAt: 2,
+        },
+      ]);
+      convexHooks.usePaginatedQuery.mockImplementation((query: unknown) => {
+        switch (functionName(query)) {
+          case "cards:adminListPaginated":
+            return {
+              results: [
+                {
+                  _id: "cards:source-card",
+                  _creationTime: 1,
+                  cardUrl: "https://tapit.test/c/source-card",
+                  token: "source-card",
+                  status,
+                  profileId: "profiles:source",
+                  createdAt: 1,
+                  updatedAt: 1,
+                },
+                {
+                  _id: "cards:destination-card",
+                  _creationTime: 2,
+                  cardUrl: "https://tapit.test/c/destination-card",
+                  token: "destination-card",
+                  status: "active",
+                  profileId: "profiles:destination",
+                  createdAt: 2,
+                  updatedAt: 2,
+                },
+              ],
+              status: "Exhausted",
+              loadMore: vi.fn(),
+            };
+          case "profiles:adminListPaginated":
+            return {
+              results: [
+                {
+                  _id: "profiles:source",
+                  slug: "source-profile",
+                  status: "published",
+                  ownerId: "users:source",
+                  draft: { name: "Source Owner" },
+                },
+                {
+                  _id: "profiles:destination",
+                  slug: "destination-profile",
+                  status: "published",
+                  ownerId: "users:destination",
+                  draft: { name: "Destination Owner" },
+                },
+              ],
+              status: "Exhausted",
+              loadMore: vi.fn(),
+            };
+          case "customers:list":
+            return { results: [], status: "Exhausted", loadMore: vi.fn() };
+          default:
+            throw new Error(`Unexpected paginated query: ${functionName(query)}`);
+        }
+      });
+
+      render(<CardsManager />);
+      fireEvent.click(screen.getByText("/c/source-card"));
+      const sourceRow = screen.getByText("/c/source-card").closest("article");
+      mutationHandlers.other.mockResolvedValueOnce({ code: "OLD-CLAIM-CODE", expiresAt: 123 });
+      fireEvent.click(within(sourceRow!).getByRole("button", { name: "Generate code" }));
+      expect(await screen.findByText("OLD-CLAIM-CODE")).toBeInTheDocument();
+      fireEvent.click(within(sourceRow!).getByRole("button", { name: "Reassign card" }));
+      const confirmation = screen.getByRole("dialog");
+      expect(confirmation).toHaveTextContent("Source Owner");
+      expect(confirmation).toHaveTextContent("Destination Owner");
+      expect(confirmation).toHaveTextContent("same card URL and token will be retained");
+      expect(confirmation).toHaveTextContent("https://tapit.test/c/source-card");
+      expect(confirmation).toHaveTextContent("prior claim state will be cleared");
+      expect(confirmation).toHaveTextContent("new owner needs a fresh claim code");
+      expect(confirmation).toHaveAccessibleName("Reassign this card?");
+      fireEvent.click(within(confirmation).getByRole("button", { name: "Reassign card" }));
+
+      await waitFor(() =>
+        expect(mutationHandlers.reassign).toHaveBeenCalledWith({
+          cardId: "cards:source-card",
+          expectedProfileId: "profiles:source",
+          expectedStatus: status,
+          profileId: "profiles:destination",
+        }),
+      );
+      expect(await screen.findByRole("status")).toHaveTextContent(
+        "was reassigned. The new owner needs a fresh claim code.",
+      );
+      expect(screen.queryByText("OLD-CLAIM-CODE")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps failed reassignment confirmation open and submits only once while pending", async () => {
+    let rejectReassignment!: (reason?: unknown) => void;
+    mutationHandlers.reassign.mockImplementationOnce(
+      () =>
+        new Promise<null>((_resolve, reject) => {
+          rejectReassignment = reject;
+        }),
+    );
+    configureCardQueries([
+      {
+        _id: "cards:source-card",
+        _creationTime: 1,
+        cardUrl: "https://tapit.test/c/source-card",
+        token: "source-card",
+        status: "active",
+        profileId: "profiles:source",
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    convexHooks.usePaginatedQuery.mockImplementation((query: unknown) => {
+      switch (functionName(query)) {
+        case "cards:adminListPaginated":
+          return {
+            results: [
+              {
+                _id: "cards:source-card",
+                _creationTime: 1,
+                cardUrl: "https://tapit.test/c/source-card",
+                token: "source-card",
+                status: "active",
+                profileId: "profiles:source",
+                createdAt: 1,
+                updatedAt: 1,
+              },
+            ],
+            status: "Exhausted",
+            loadMore: vi.fn(),
+          };
+        case "profiles:adminListPaginated":
+          return {
+            results: [
+              {
+                _id: "profiles:source",
+                slug: "source",
+                status: "published",
+                draft: { name: "Source" },
+              },
+              {
+                _id: "profiles:destination",
+                slug: "destination",
+                status: "draft",
+                draft: { name: "Destination" },
+              },
+            ],
+            status: "Exhausted",
+            loadMore: vi.fn(),
+          };
+        case "customers:list":
+          return { results: [], status: "Exhausted", loadMore: vi.fn() };
+        default:
+          throw new Error(`Unexpected paginated query: ${functionName(query)}`);
+      }
+    });
+
+    render(<CardsManager />);
+    fireEvent.click(screen.getByText("/c/source-card"));
+    fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
+    const confirmation = screen.getByRole("dialog");
+    const confirm = within(confirmation).getByRole("button", { name: "Reassign card" });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(confirm).toBeDisabled());
+    fireEvent.click(confirm);
+    expect(mutationHandlers.reassign).toHaveBeenCalledTimes(1);
+    rejectReassignment(new Error("Assignment changed."));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Assignment changed.");
+    expect(confirmation).toHaveTextContent("Source");
+    expect(confirmation).toHaveTextContent("Destination");
+    expect(screen.getByLabelText("Reassign source-card")).toHaveValue("profiles:destination");
+  });
+
+  it.each(["registered", "inactive", "replaced"] as const)(
+    "does not offer reassignment for a %s card",
+    (status) => {
+      configureCardQueries([
+        {
+          _id: "cards:ineligible-card",
+          _creationTime: 1,
+          cardUrl: "https://tapit.test/c/ineligible-card",
+          token: "ineligible-card",
+          status,
+          profileId: "profiles:source",
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ]);
+      render(<CardsManager />);
+      fireEvent.click(screen.getByText("/c/ineligible-card"));
+      expect(screen.queryByRole("button", { name: "Reassign card" })).not.toBeInTheDocument();
+      expect(mutationHandlers.reassign).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(["registered", "claimable", "active", "inactive", "replaced"] as const)(
     "copies the stored URL for a %s card",
@@ -991,5 +1215,144 @@ describe("admin card QR controls", () => {
     expect(qrGenerators.generateQrPng).toHaveBeenCalledWith(cardUrl);
     expect(within(row!).getByText(`Encodes ${cardUrl}`)).toBeInTheDocument();
     expect(JSON.stringify(localStorage)).toBe(stateBeforeQr);
+  });
+
+  it("reassigns an active card to an already-carded profile and clears only its old claim access", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    resetDemoState();
+    updateDemoState((current) => ({
+      ...current,
+      cards: [
+        ...current.cards.map((card) =>
+          card.id === "card-mara-active"
+            ? {
+                ...card,
+                claimCode: "SECRET-CLAIM-CODE",
+                claimCodeExpiresAt: 3,
+                claimCodeInvalidatedAt: 4,
+                claimChallenge: "secret-challenge",
+                claimChallengeExpiresAt: 5,
+              }
+            : card,
+        ),
+        {
+          id: "card-mara-other",
+          token: "mara-card-other",
+          cardUrl: "/c/mara-card-other",
+          status: "active",
+          profileId: "profile-mara",
+          claimedAt: 2,
+        },
+      ],
+      customers: current.customers.map((customer) =>
+        customer.id === "customer-mara"
+          ? {
+              ...customer,
+              claimedCardIds: ["card-mara-active", "card-mara-other"],
+              cardOwnerAccessOverride: true,
+            }
+          : customer,
+      ),
+    }));
+
+    render(<CardsManager />);
+    fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
+    fireEvent.change(screen.getByLabelText("Reassign mara-card-7f2q"), {
+      target: { value: "profile-claimable" },
+    });
+    const row = screen.getByText("/c/mara-card-7f2q").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent("fresh claim code");
+    const state = getDemoState();
+    const reassigned = state.cards.find((card) => card.id === "card-mara-active");
+    expect(reassigned).toMatchObject({
+      id: "card-mara-active",
+      token: "mara-card-7f2q",
+      cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q",
+      status: "active",
+      profileId: "profile-claimable",
+    });
+    expect(reassigned).toMatchObject({
+      claimCode: undefined,
+      claimCodeExpiresAt: undefined,
+      claimChallenge: undefined,
+      claimChallengeExpiresAt: undefined,
+      claimedAt: undefined,
+    });
+    expect(reassigned?.claimCodeInvalidatedAt).toEqual(expect.any(Number));
+    expect(state.customers.find((customer) => customer.id === "customer-mara")).toMatchObject({
+      claimedCardIds: ["card-mara-other"],
+      cardOwnerAccessOverride: true,
+    });
+    expect(state.audits[0]).toMatchObject({
+      actor: "admin@tapit.local",
+      action: "card.reassigned",
+    });
+    expect(state.audits[0]?.before).toContain("Mara Velasquez");
+    expect(state.audits[0]?.after).toContain("Claimed profile");
+    expect(state.audits[0]?.after).not.toContain("MARA2Q8K");
+
+    const siblingRow = screen.getByText("/c/mara-card-other").closest("article");
+    fireEvent.click(within(siblingRow!).getByRole("button", { name: "Reassign card" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
+  });
+
+  it("allows reassignment of a claimable card and preserves its status", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    resetDemoState();
+
+    render(<CardsManager />);
+    fireEvent.click(screen.getByText("/c/claimable-card-demo"));
+    const row = screen.getByText("/c/claimable-card-demo").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
+
+    await screen.findByRole("status");
+    expect(getDemoState().cards.find((card) => card.id === "card-claimable-demo")).toMatchObject({
+      status: "claimable",
+      profileId: "profile-mara",
+    });
+  });
+
+  it("rejects a stale local-demo reassignment without overwriting current card state", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "local");
+    resetDemoState();
+
+    render(<CardsManager />);
+    fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
+    const row = screen.getByText("/c/mara-card-7f2q").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
+    updateDemoState((current) => ({
+      ...current,
+      cards: current.cards.map((card) =>
+        card.id === "card-mara-active" ? { ...card, profileId: "profile-admin-demo" } : card,
+      ),
+    }));
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: "Reassign card" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The card or profile assignment changed. Review the current assignment and try again.",
+    );
+    expect(getDemoState().cards.find((card) => card.id === "card-mara-active")).toMatchObject({
+      profileId: "profile-admin-demo",
+      status: "active",
+      claimedAt: 1,
+    });
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 });

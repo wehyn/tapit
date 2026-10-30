@@ -50,6 +50,7 @@ const readableActions: Record<string, string> = {
   "card.replaced": "Card replaced",
   "card.restored": "Card restored",
   "card.reactivated": "Card reactivated",
+  "card.reassigned": "Card reassigned to profile",
   "customer.created": "Customer account created",
   "customer.card_owner_access_override_changed": "Customer owner access override changed",
   "customer.onboarding_completed": "Customer onboarding completed",
@@ -77,6 +78,7 @@ const readableActions: Record<string, string> = {
 const changeFieldLabels: Record<string, string> = {
   deletionStatus: "Deletion status",
   links: "Profile links",
+  profileName: "Profile",
   role: "Account role",
   slug: "Profile slug",
   status: "Account status",
