@@ -1935,7 +1935,6 @@ export function verifyDemoCardClaim(cardToken: string, code: string, email: stri
       ) ||
       card.claimedAt !== undefined ||
       !customer ||
-      customer.role !== "customer" ||
       customer.status !== "active" ||
       customer.deletionStatus !== "active" ||
       card.claimCode !== code ||
@@ -2049,12 +2048,11 @@ export function completeDemoCardClaim(cardToken: string, challenge: string, emai
       !card.claimCode ||
       card.claimChallengeCode !== card.claimCode ||
       card.claimCodeInvalidatedAt !== undefined ||
-      customer?.role !== "customer" ||
+      !customer ||
       customer.status !== "active" ||
       customer.deletionStatus !== "active" ||
       owner?.email !== email ||
       owner.id !== customer.id ||
-      owner.role !== "customer" ||
       owner?.status !== "active" ||
       owner.deletionStatus !== "active" ||
       !profile ||

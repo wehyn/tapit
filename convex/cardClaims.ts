@@ -53,12 +53,7 @@ export const verifyCode = mutation({
     const now = Date.now();
     if (card === null) return { ok: false as const };
     const customer = await customerForAuthUser(ctx, userId);
-    if (
-      !customer ||
-      !isActiveCustomer(customer) ||
-      customer.role !== "customer" ||
-      !sameScope(customer, card)
-    )
+    if (!customer || !isActiveCustomer(customer) || !sameScope(customer, card))
       return { ok: false as const };
     if (
       card.correctionRequestedAt !== undefined ||
@@ -106,7 +101,7 @@ export const complete = mutation({
     if (card === null) {
       throw new Error("The claim code is invalid or unavailable.");
     }
-    if (customer === null || !isActiveCustomer(customer) || customer.role !== "customer") {
+    if (customer === null || !isActiveCustomer(customer)) {
       throw new Error("The claim code is invalid or unavailable.");
     }
     if (

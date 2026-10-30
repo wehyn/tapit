@@ -114,6 +114,158 @@ async function reassignmentFixture(t: ReturnType<typeof convexTest>) {
 }
 
 describe("card claiming contracts", () => {
+  it("allows active admins and Demo customers to claim only their own assigned cards", async () => {
+    const t = convexTest(schema, modules);
+    rateLimiter.register(t);
+    const ids = await t.run(async (ctx) => {
+      const adminUserId = await ctx.db.insert("users", { email: "admin@example.com" });
+      const ownerUserId = await ctx.db.insert("users", { email: "owner@example.com" });
+      const demoAdminUserId = await ctx.db.insert("users", { email: "demo-admin@example.com" });
+      const demoUserId = await ctx.db.insert("users", { email: "demo@example.com" });
+      const adminId = await ctx.db.insert("customers", {
+        userId: adminUserId,
+        email: "admin@example.com",
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const ownerId = await ctx.db.insert("customers", {
+        userId: ownerUserId,
+        email: "owner@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.insert("customers", {
+        userId: demoAdminUserId,
+        role: "admin",
+        status: "active",
+        deletionStatus: "active",
+        scope: "demo",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const demoId = await ctx.db.insert("customers", {
+        userId: demoUserId,
+        email: "demo@example.com",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        isDemo: true,
+        scope: "demo",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const ownProfileId = await ctx.db.insert("profiles", {
+        ownerId: adminId,
+        slug: "admin-owner",
+        status: "draft",
+        draft: { name: "Admin", slug: "admin-owner", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const foreignProfileId = await ctx.db.insert("profiles", {
+        ownerId,
+        slug: "customer-owner",
+        status: "draft",
+        draft: { name: "Owner", slug: "customer-owner", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const demoProfileId = await ctx.db.insert("profiles", {
+        ownerId: demoId,
+        scope: "demo",
+        slug: "demo-owner",
+        status: "draft",
+        draft: { name: "Demo", slug: "demo-owner", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(adminId, { profileId: ownProfileId });
+      await ctx.db.patch(ownerId, { profileId: foreignProfileId });
+      await ctx.db.patch(demoId, { profileId: demoProfileId });
+      const ownCardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/admin-own",
+        token: "admin-own",
+        profileId: ownProfileId,
+        status: "claimable",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const foreignCardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/admin-foreign",
+        token: "admin-foreign",
+        profileId: foreignProfileId,
+        status: "claimable",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const demoCardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/demo-customer",
+        token: "demo-customer",
+        profileId: demoProfileId,
+        scope: "demo",
+        status: "claimable",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      return {
+        adminUserId,
+        demoAdminUserId,
+        demoUserId,
+        ownProfileId,
+        demoProfileId,
+        ownCardId,
+        foreignCardId,
+        demoCardId,
+      };
+    });
+    const admin = t.withIdentity(identity(ids.adminUserId));
+    const demoAdmin = t.withIdentity(identity(ids.demoAdminUserId));
+    const demoCustomer = t.withIdentity(identity(ids.demoUserId));
+    const ownCode = await admin.mutation(api.cards.generateClaimCode, { cardId: ids.ownCardId });
+    const ownVerification = await admin.mutation(api.cardClaims.verifyCode, {
+      token: "admin-own",
+      code: ownCode.code,
+    });
+    expect(ownVerification.ok).toBe(true);
+    if (!ownVerification.ok) throw new Error("Expected the admin's own card code to verify.");
+    await expect(
+      admin.mutation(api.cardClaims.complete, { challenge: ownVerification.challenge }),
+    ).resolves.toEqual({ cardId: ids.ownCardId, profileId: ids.ownProfileId });
+
+    const foreignCode = await admin.mutation(api.cards.generateClaimCode, {
+      cardId: ids.foreignCardId,
+    });
+    const foreignVerification = await admin.mutation(api.cardClaims.verifyCode, {
+      token: "admin-foreign",
+      code: foreignCode.code,
+    });
+    expect(foreignVerification.ok).toBe(true);
+    if (!foreignVerification.ok)
+      throw new Error("Expected the admin's foreign card code to verify.");
+    await expect(
+      admin.mutation(api.cardClaims.complete, { challenge: foreignVerification.challenge }),
+    ).rejects.toThrow();
+
+    const demoCode = await demoAdmin.mutation(api.cards.generateClaimCode, {
+      cardId: ids.demoCardId,
+    });
+    const demoVerification = await demoCustomer.mutation(api.cardClaims.verifyCode, {
+      token: "demo-customer",
+      code: demoCode.code,
+    });
+    expect(demoVerification.ok).toBe(true);
+    if (!demoVerification.ok) throw new Error("Expected the Demo customer's card code to verify.");
+    await expect(
+      demoCustomer.mutation(api.cardClaims.complete, { challenge: demoVerification.challenge }),
+    ).resolves.toEqual({ cardId: ids.demoCardId, profileId: ids.demoProfileId });
+  });
+
   it("reassigns a claimed active card in place and requires a fresh destination claim", async () => {
     const t = convexTest(schema, modules);
     rateLimiter.register(t);

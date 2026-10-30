@@ -161,4 +161,42 @@ describe("local demo card setup", () => {
       completeDemoCardClaim("unassigned-card-demo", challenge, "buyer@example.test"),
     ).not.toThrow();
   });
+
+  it("lets an active admin claim a card assigned to their own profile", async () => {
+    const state = createDefaultDemoState();
+    state.customers.find((customer) => customer.id === "customer-claimable")!.role = "admin";
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { completeDemoCardClaim, getDemoState, verifyDemoCardClaim } =
+      await import("../../src/lib/demo/store");
+    const challenge = verifyDemoCardClaim("claimable-card-demo", "MARA2Q8K", "owner@example.test");
+
+    expect(() =>
+      completeDemoCardClaim("claimable-card-demo", challenge, "owner@example.test"),
+    ).not.toThrow();
+    expect(
+      getDemoState().cards.find((card) => card.token === "claimable-card-demo")?.claimedAt,
+    ).toEqual(expect.any(Number));
+  });
+
+  it("does not let an admin claim a card assigned to another account's profile", async () => {
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(createDefaultDemoState()));
+    const { completeDemoCardClaim, verifyDemoCardClaim } = await import("../../src/lib/demo/store");
+    const challenge = verifyDemoCardClaim("claimable-card-demo", "MARA2Q8K", "admin@tapit.local");
+
+    expect(() =>
+      completeDemoCardClaim("claimable-card-demo", challenge, "admin@tapit.local"),
+    ).toThrow("The card claim is not available for this account.");
+  });
+
+  it("lets a Demo-flag customer claim an eligible card", async () => {
+    const state = createDefaultDemoState();
+    state.customers.find((customer) => customer.id === "customer-buyer-setup")!.isDemo = true;
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
+    const { completeDemoCardClaim, verifyDemoCardClaim } = await import("../../src/lib/demo/store");
+    const challenge = verifyDemoCardClaim("unassigned-card-demo", "DEMA29BC", "buyer@example.test");
+
+    expect(() =>
+      completeDemoCardClaim("unassigned-card-demo", challenge, "buyer@example.test"),
+    ).not.toThrow();
+  });
 });
