@@ -9,7 +9,6 @@ export function ConfirmDialog({
   confirmLabel = "Confirm",
   confirmDisabled = false,
   description,
-  confirmDisabled = false,
   onCancel,
   onConfirm,
   open,
@@ -19,7 +18,6 @@ export function ConfirmDialog({
   confirmLabel?: string;
   confirmDisabled?: boolean;
   description: string;
-  confirmDisabled?: boolean;
   onCancel: () => void;
   onConfirm: () => void;
   open: boolean;

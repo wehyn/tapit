@@ -20,7 +20,7 @@
 - tests/unit/demo-card-owner-access-override.test.ts — protect the local-demo behavior for other claimed cards and the independent owner-access override.
 - e2e/admin.spec.ts — add a local-demo admin journey that checks confirmation, preserved public URL, and the new audit entry.
 - .agents/skills/verify-tapit/features/admin-cards.md — document the new journey and proof command.
-- docs/spec.md — add the admin card-correction workflow and next functional requirement, FR-065.
+- docs/spec.md — add the admin card-correction workflow and next functional requirement, FR-079.
 - docs/CHANGELOG.md — add the user-visible behavior under the implementation date.
 
 src/lib/demo/fixtures.ts already defines claim, challenge, and claimed-card fields on DemoCard and DemoCustomer. Keep those types and the Convex schema unchanged.
@@ -48,14 +48,14 @@ In card-claiming.test.ts, seed an active administrator, a former owner with a pu
 
 Call the new mutation with the card's expected source assignment and status:
 
-~~~ts
+```ts
 await admin.mutation(api.cards.reassign, {
   cardId: ids.cardId,
   expectedProfileId: ids.formerProfileId,
   expectedStatus: "active",
   profileId: ids.destinationProfileId,
 });
-~~~
+```
 
 Assert the same card ID, token, URL, and active status remain; profileId now identifies the destination; the old claimCodeHash and claimCodeClaimedAt are absent; the former owner's currentAccess.hasCardOwnerFeatures is false; and the destination owner's access remains false until a fresh claim completes. Assert the destination may already have another card. Inspect the inserted card.reassigned audit row for the admin actor, card ID, and both old/new profile IDs in before/after; assert it contains no claim code.
 
@@ -71,9 +71,9 @@ Assert a customer cannot call api.cards.reassign. Assert reassignment rejects in
 
 Run:
 
-~~~bash
+```bash
 npm test -- convex/integration/card-claiming.test.ts
-~~~
+```
 
 Expected: the new cases fail because api.cards.reassign is not implemented; existing card-claiming cases remain unchanged.
 
@@ -92,7 +92,7 @@ Export reassign with arguments cardId, expectedProfileId, expectedStatus (active
 
 Patch the existing card without changing its ID, token, URL, or eligible status. Update its profile assignment and timestamps. Invalidate its previous code and completed claim in that same patch:
 
-~~~ts
+```ts
 await ctx.db.patch(card._id, {
   profileId: destination._id,
   assignedAt: now,
@@ -103,7 +103,7 @@ await ctx.db.patch(card._id, {
   claimCodeInvalidatedAt: now,
   claimCodeClaimedAt: undefined,
 });
-~~~
+```
 
 Changing the card's claim hash/state makes every pending challenge for the old code unusable when cardClaims.complete checks the current card. Keep the assignment patch, access-revoking claim reset, and card.reassigned audit insert inside this one Convex mutation so any failure rolls all three back. Record the old and new profile names/IDs in audit before and after; never put a code or hash in the audit row.
 
@@ -111,10 +111,10 @@ Changing the card's claim hash/state makes every pending challenge for the old c
 
 Run:
 
-~~~bash
+```bash
 npx convex codegen
 npm test -- convex/integration/card-claiming.test.ts
-~~~
+```
 
 Expected: codegen completes; the pending old challenge fails after reassignment; the fresh destination claim succeeds; prior owner access is removed; the new owner does not receive access before claiming; and all existing claim-flow assertions pass.
 
@@ -122,18 +122,18 @@ Expected: codegen completes; the pending old challenge fails after reassignment;
 
 Run:
 
-~~~bash
+```bash
 node scripts/verify-card-claim-model.mjs
-~~~
+```
 
 Expected: every explored sequence preserves single-use completion and invalidation-before-completion. If the model reports a counterexample, fix the mutation ordering and add the sequence to the integration coverage before proceeding.
 
 - [ ] **Step 5: Commit the backend slice**
 
-~~~bash
+```bash
 git add convex/cards.ts convex/integration/card-claiming.test.ts convex/_generated
 git commit -m "feat(cards): add admin reassignment mutation"
-~~~
+```
 
 ## Task 3: Add local-demo reassignment UI and state transition
 
@@ -151,7 +151,7 @@ After confirmation, read the demo state and assert the original card ID, token, 
 
 Use these assertions against the state returned by getDemoState:
 
-~~~ts
+```ts
 expect(reassignedCard).toMatchObject({
   id: "card-mara-active",
   token: "mara-card-7f2q",
@@ -161,11 +161,13 @@ expect(reassignedCard).toMatchObject({
 });
 expect(reassignedCard).not.toHaveProperty("claimedAt");
 expect(reassignedCard).not.toHaveProperty("claimChallenge");
-expect(resolveDemoSessionAccess(after, { email: "mara@example.test", role: "customer" })).toMatchObject({
+expect(
+  resolveDemoSessionAccess(after, { email: "mara@example.test", role: "customer" }),
+).toMatchObject({
   kind: "active",
   hasCardOwnerFeatures: false,
 });
-~~~
+```
 
 - [ ] **Step 2: Add stale-challenge and independent-access assertions**
 
@@ -175,9 +177,9 @@ Use the claimable-card-demo fixture with a pending challenge, reassign it, and a
 
 Run:
 
-~~~bash
+```bash
 npm test -- tests/unit/cards-manager.test.tsx tests/unit/demo-card-owner-access-override.test.ts
-~~~
+```
 
 Expected: the new UI case fails because an active card has no reassignment control.
 
@@ -187,7 +189,7 @@ In DemoCardsManager, add a destination selector scoped to the selected card and 
 
 Add a reassignDemoCard action. Re-read the card and destination immediately before updating. If the card or destination is missing, or the source/status changed, return the current state unchanged and show a review-again error. Otherwise update the card and remove only its ID from the former owner's claimedCardIds in the same updateDemoState call:
 
-~~~ts
+```ts
 cards: current.cards.map((candidate) =>
   candidate.id === card.id
     ? {
@@ -210,7 +212,7 @@ customers: current.customers.map((customer) =>
       }
     : customer,
 ),
-~~~
+```
 
 Keep the card's ID, token, cardUrl, and status. Add one card.reassigned audit entry with the current admin actor, card token, old and new profile labels/IDs, and timestamp. Preserve every unrelated card, challenge, customer field, and separate access override. Do not use transitionCard, which does not support same-status profile reassignment.
 
@@ -218,9 +220,9 @@ Keep the card's ID, token, cardUrl, and status. Add one card.reassigned audit en
 
 Run:
 
-~~~bash
+```bash
 npm test -- tests/unit/cards-manager.test.tsx tests/unit/demo-card-owner-access-override.test.ts
-~~~
+```
 
 Expected: local-demo manager tests pass; the old owner loses access only through the moved card; other-card and override access continue to work; and stale codes/challenges cannot complete.
 
@@ -241,7 +243,7 @@ Extend the existing query/mutation stubs in cards-manager.test.tsx with api.card
 
 The final mutation assertion must use the current card/profile identifiers from the fixture:
 
-~~~ts
+```ts
 await waitFor(() =>
   expect(mutationHandlers.reassign).toHaveBeenCalledWith({
     cardId: "cards:active-card",
@@ -250,15 +252,15 @@ await waitFor(() =>
     profileId: "profiles:destination",
   }),
 );
-~~~
+```
 
 - [ ] **Step 3: Run the focused live-mode test and observe the missing-control failure**
 
 Run:
 
-~~~bash
+```bash
 npm test -- tests/unit/cards-manager.test.tsx
-~~~
+```
 
 Expected: the new live-mode reassignment case fails because active/claimable cards have no reassignment control.
 
@@ -268,20 +270,22 @@ Add live reassignment state containing the card ID/token, expected source profil
 
 Use this eligibility check in LiveCardsManager:
 
-~~~ts
+```ts
 const canReassign =
   card.profileId !== undefined && (card.status === "active" || card.status === "claimable");
-~~~
+```
 
 Render the selected card action as:
 
-~~~tsx
-{canReassign ? (
-  <Button onClick={() => openReassignment(card)} type="button" variant="secondary">
-    Reassign card
-  </Button>
-) : null}
-~~~
+```tsx
+{
+  canReassign ? (
+    <Button onClick={() => openReassignment(card)} type="button" variant="secondary">
+      Reassign card
+    </Button>
+  ) : null;
+}
+```
 
 The confirmation must show current and destination profiles, state that the same card URL is retained, and state that old claim state is cleared and a fresh code is required. On confirmation, send the expected source/status to api.cards.reassign so the mutation rejects stale dialogs. Leave replacement, deactivation, and registered-card attachment controls unchanged.
 
@@ -297,20 +301,20 @@ In src/components/admin/AuditLog.tsx, map card.reassigned to Card reassigned to 
 
 Run:
 
-~~~bash
+```bash
 npm test -- tests/unit/cards-manager.test.tsx
 npm run typecheck
 npm run design:check
-~~~
+```
 
 Expected: both runtime-mode controls render for active/claimable cards only, confirmation contains both profiles, the live mutation receives its expected-source guard, and static checks pass.
 
 - [ ] **Step 8: Commit the UI slice**
 
-~~~bash
+```bash
 git add src/components/admin/CardsManager.tsx src/components/admin/AuditLog.tsx tests/unit/cards-manager.test.tsx tests/unit/demo-card-owner-access-override.test.ts
 git commit -m "feat(admin): reassign cards to profiles"
-~~~
+```
 
 ## Task 5: Add local-demo browser proof and product documentation
 
@@ -327,7 +331,7 @@ Add a dedicated test titled administrator reassigns a misattached card without r
 
 After signing in as the administrator and confirming the reassignment, verify the preserved path and audit result through the visible UI:
 
-~~~ts
+```ts
 await expect(reassignmentDialog).toContainText("Mara Velasquez");
 await expect(reassignmentDialog).toContainText("Claimed profile");
 await reassignmentDialog.getByRole("button", { name: "Reassign card" }).click();
@@ -335,7 +339,7 @@ await page.goto("/c/mara-card-7f2q");
 await expect(page.getByRole("heading", { name: "Claimed profile" })).toBeVisible();
 await page.goto("/admin/audit-log");
 await expect(page.getByText("Card reassigned to profile")).toBeVisible();
-~~~
+```
 
 - [ ] **Step 2: Document the exact proof recipe**
 
@@ -343,21 +347,21 @@ In .agents/skills/verify-tapit/features/admin-cards.md, add the journey title, i
 
 - [ ] **Step 3: Update product behavior and changelog**
 
-Add a numbered workflow to docs/spec.md stating that administrators can reassign active or claimable cards with an explicit old/new profile confirmation; the token and URL stay fixed; claim codes/challenges and the previous card-derived owner access are invalidated; a fresh claim is required; other cards and separate grants remain; and inactive/replaced cards remain ineligible. Add FR-065 for the same behavior and keep existing FR-028's inactive/replaced restriction. Add a 2026-10-30 entry to docs/CHANGELOG.md describing the admin correction and fresh-claim behavior.
+Add a numbered workflow to docs/spec.md stating that administrators can reassign active or claimable cards with an explicit old/new profile confirmation; the token and URL stay fixed; claim codes/challenges and the previous card-derived owner access are invalidated; a fresh claim is required; other cards and separate grants remain; and inactive/replaced cards remain ineligible. Add FR-079 for the same behavior and keep existing FR-028's inactive/replaced restriction. Add a 2026-10-30 entry to docs/CHANGELOG.md describing the admin correction and fresh-claim behavior.
 
 Use this requirement text:
 
-~~~md
-- **FR-065:** Administrators shall be able to reassign an active or claimable card to another profile without changing its token or URL. Reassignment shall require confirmation of the current and destination profiles, invalidate prior claim codes and challenges, remove card-derived access from the former profile owner, require a fresh claim by the destination profile owner, preserve access from other cards and separate grants, and record the administrator and both assignments in the audit log.
-~~~
+```md
+- **FR-079:** Administrators shall be able to reassign an active or claimable card to another profile without changing its token or URL. Reassignment shall require confirmation of the current and destination profiles, invalidate prior claim codes and challenges, remove card-derived access from the former profile owner, require a fresh claim by the destination profile owner, preserve access from other cards and separate grants, and record the administrator and both assignments in the audit log.
+```
 
 - [ ] **Step 4: Run the documented local-demo proof**
 
 Run the new journey through the verification helper, using its exact title and a new run ID:
 
-~~~bash
+```bash
 .claude/skills/verify-tapit/scripts/tapit-verify.sh prove "administrator reassigns a misattached card without replacing it" issue-191-card-reassignment
-~~~
+```
 
 Expected: the local-demo journey passes and retains report.json and trace.zip under test-results/verify-tapit/issue-191-card-reassignment/. Do not use hosted demo or any deployed environment.
 
@@ -369,11 +373,11 @@ Expected: the local-demo journey passes and retains report.json and trace.zip un
 
 Run:
 
-~~~bash
+```bash
 npm test -- tests/unit/cards-manager.test.tsx tests/unit/demo-card-owner-access-override.test.ts
 npm test -- convex/integration/card-claiming.test.ts convex/integration/remaining-operations.test.ts convex/integration/auth-ownership.test.ts
 node scripts/verify-card-claim-model.mjs
-~~~
+```
 
 Expected: all focused tests pass and the claim model has no counterexample.
 
@@ -381,9 +385,9 @@ Expected: all focused tests pass and the claim model has no counterexample.
 
 Run:
 
-~~~bash
+```bash
 npm run verify
-~~~
+```
 
 Expected: design check, format check, lint, typecheck, Vitest/Convex integration tests, and build all pass. Do not run live E2E, provisioning, admin repair, or demo seeding against Production.
 
@@ -391,10 +395,10 @@ Expected: design check, format check, lint, typecheck, Vitest/Convex integration
 
 Run git diff --check and git status --short --branch. Confirm there is no schema change, no edit to claim completion semantics outside this reassignment transition, no relaxation of initial attachment, and no public exposure of claim data. Then commit:
 
-~~~bash
+```bash
 git add e2e/admin.spec.ts .agents/skills/verify-tapit/features/admin-cards.md docs/spec.md docs/CHANGELOG.md
 git commit -m "test(admin): verify card reassignment flow"
-~~~
+```
 
 ## Acceptance coverage
 

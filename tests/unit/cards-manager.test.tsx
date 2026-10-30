@@ -232,10 +232,11 @@ describe("live card URL mutations", () => {
 
       render(<CardsManager />);
       fireEvent.click(screen.getByText("/c/source-card"));
+      const sourceRow = screen.getByText("/c/source-card").closest("article");
       mutationHandlers.other.mockResolvedValueOnce({ code: "OLD-CLAIM-CODE", expiresAt: 123 });
-      fireEvent.click(screen.getByRole("button", { name: "Generate claim code" }));
+      fireEvent.click(within(sourceRow!).getByRole("button", { name: "Generate code" }));
       expect(await screen.findByText("OLD-CLAIM-CODE")).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
+      fireEvent.click(within(sourceRow!).getByRole("button", { name: "Reassign card" }));
       const confirmation = screen.getByRole("dialog");
       expect(confirmation).toHaveTextContent("Source Owner");
       expect(confirmation).toHaveTextContent("Destination Owner");
@@ -1260,7 +1261,8 @@ describe("admin card QR controls", () => {
     fireEvent.change(screen.getByLabelText("Reassign mara-card-7f2q"), {
       target: { value: "profile-claimable" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
+    const row = screen.getByText("/c/mara-card-7f2q").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
     expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
     fireEvent.click(
@@ -1273,7 +1275,7 @@ describe("admin card QR controls", () => {
     expect(reassigned).toMatchObject({
       id: "card-mara-active",
       token: "mara-card-7f2q",
-      cardUrl: "/c/mara-card-7f2q",
+      cardUrl: "https://tapit-eosin.vercel.app/c/mara-card-7f2q",
       status: "active",
       profileId: "profile-claimable",
     });
@@ -1297,7 +1299,8 @@ describe("admin card QR controls", () => {
     expect(state.audits[0]?.after).toContain("Claimed profile");
     expect(state.audits[0]?.after).not.toContain("MARA2Q8K");
 
-    fireEvent.click(screen.getByRole("button", { name: "Reassign card" }));
+    const siblingRow = screen.getByText("/c/mara-card-other").closest("article");
+    fireEvent.click(within(siblingRow!).getByRole("button", { name: "Reassign card" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
   });
 
@@ -1308,7 +1311,8 @@ describe("admin card QR controls", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/claimable-card-demo"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
+    const row = screen.getByText("/c/claimable-card-demo").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Claimed profile");
     expect(screen.getByRole("dialog")).toHaveTextContent("Mara Velasquez");
     fireEvent.click(
@@ -1329,7 +1333,8 @@ describe("admin card QR controls", () => {
 
     render(<CardsManager />);
     fireEvent.click(screen.getByText("/c/mara-card-7f2q"));
-    fireEvent.click(screen.getAllByRole("button", { name: "Reassign card" })[0]!);
+    const row = screen.getByText("/c/mara-card-7f2q").closest("article");
+    fireEvent.click(within(row!).getByRole("button", { name: "Reassign card" }));
     updateDemoState((current) => ({
       ...current,
       cards: current.cards.map((card) =>

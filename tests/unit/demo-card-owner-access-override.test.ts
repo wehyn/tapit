@@ -98,7 +98,9 @@ it("removes access from the reassigned card while preserving other claimed-card 
     kind: "active",
     hasCardOwnerFeatures: true,
   });
-  expect(reassignedState.customers.find((customer) => customer.id === formerOwner.id)).toMatchObject({
+  expect(
+    reassignedState.customers.find((customer) => customer.id === formerOwner.id),
+  ).toMatchObject({
     claimedCardIds: ["card-mara-other"],
     cardOwnerAccessOverride: false,
   });
