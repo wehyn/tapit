@@ -1120,22 +1120,24 @@ test("active-card QR downloads remain available without page overflow", async ({
   await signInAsAdmin(page);
   await page.goto("/admin/cards");
 
-  await page.locator("details").filter({ hasText: "mara-card-7f2q" }).locator("summary").click();
-  const qrTitle = page.getByText("QR fallback", { exact: true }).first();
+  const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await card.locator("summary").first().click();
+  const qrTitle = card.getByText("QR fallback", { exact: true });
   await expect(qrTitle).toBeVisible();
+  await qrTitle.click();
   const qrPanel = qrTitle.locator("xpath=..");
   await expect
     .poll(() => qrPanel.evaluate((panel) => getComputedStyle(panel).backgroundColor))
     .toBe("rgb(240, 243, 249)");
-  const png = page.getByRole("link", { name: "Download PNG" }).first();
-  await expect(qrPanel).toContainText("/c/mara-card-7f2q?source=qr");
+  const png = card.getByRole("link", { name: "Download PNG" });
+  await expect(qrPanel).toContainText("https://tapit-eosin.vercel.app/c/mara-card-7f2q");
   await expect(png).toHaveAttribute("href", /^data:image\/png;base64,/);
   await expect(png).toHaveAttribute("download", /\.png$/);
-  await expect(page.getByRole("button", { name: "Download SVG" }).first()).toBeEnabled();
+  await expect(card.getByRole("button", { name: "Download SVG" })).toBeEnabled();
   await expect
     .poll(() => png.evaluate((anchor) => getComputedStyle(anchor).borderTopLeftRadius))
     .toBe("12px");
-  await expect(page.getByRole("img", { name: /QR code for/ }).first()).toBeVisible();
+  await expect(card.getByRole("img", { name: "QR code for mara-card-7f2q" })).toBeVisible();
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     await png.scrollIntoViewIfNeeded();

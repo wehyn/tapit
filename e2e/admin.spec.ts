@@ -268,8 +268,8 @@ test("administrator records and governance details stay readable on phones", asy
   await page.goto("/admin/cards");
   const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
   await expect(card).toBeVisible();
-  await expect(card.locator("summary")).toContainText("Mara Velasquez");
-  await expect(card.locator("summary")).toContainText("active");
+  await expect(card.locator("summary").first()).toContainText("Mara Velasquez");
+  await expect(card.locator("summary").first()).toContainText("active");
 });
 
 test("administrator analytics, audit, and settings keep their scoped feedback clear", async ({
@@ -325,7 +325,7 @@ test("administrator operations keep text statuses and primary controls readable 
 
     await page.goto("/admin/cards");
     const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
-    await expect(card.locator("summary")).toContainText("active");
+    await expect(card.locator("summary").first()).toContainText("active");
     await expect(page.getByLabel("Search cards")).toBeVisible();
 
     await page.goto("/admin/analytics");

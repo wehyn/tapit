@@ -113,7 +113,7 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     await expect(page.getByText(/is claimable and attached/)).toBeVisible();
 
     const card = page.locator("article").filter({ hasText: token }).first();
-    await card.locator("summary").click();
+    await card.locator("summary").first().click();
     await card.getByRole("button", { name: "Generate claim code" }).click();
     const claimCode = (await card.locator("code").textContent())?.trim();
     expect(claimCode).toMatch(/^[A-Z0-9]{8}$/);
