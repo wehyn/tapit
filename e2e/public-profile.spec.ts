@@ -947,7 +947,7 @@ test("a code-proven correction pauses the URL until an administrator corrects it
   const request = page.locator("section").filter({ hasText: "Assignment corrections" });
   await expect(request.getByText(/claimable-card-demo.*Buyer Setup/)).toBeVisible();
   const pendingCard = page.locator("article").filter({ hasText: "/c/claimable-card-demo" });
-  await pendingCard.locator("summary").click();
+  await pendingCard.locator("summary").first().click();
   await expect(pendingCard.getByRole("button", { name: "Generate code" })).toBeDisabled();
   await expect(pendingCard.getByText(/Resolve the pending assignment correction/)).toBeVisible();
   await request.getByRole("button", { name: "Correct assignment" }).click();

@@ -145,7 +145,7 @@ describe("card claiming contracts", () => {
       customer.mutation(api.cardClaims.complete, { challenge: freshVerification.challenge }),
     ).rejects.toThrow();
     const demoCardId = await demoAdmin.mutation(api.cards.register, {
-      cardUrl: "https://tapit.test/c/demo-scope",
+      cardUrl: "https://tapit-eosin.vercel.app/c/demo-scope",
       token: "demo-scope",
     });
     const demoCode = await demoAdmin.mutation(api.cards.generateClaimCode, { cardId: demoCardId });

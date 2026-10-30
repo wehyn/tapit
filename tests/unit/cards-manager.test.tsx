@@ -892,9 +892,7 @@ describe("local-demo card links", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy card URL for mara-card-7f2q" }));
 
     await waitFor(() =>
-      expect(writeText).toHaveBeenCalledWith(
-        "https://tapit-eosin.vercel.app/c/mara-card-7f2q",
-      ),
+      expect(writeText).toHaveBeenCalledWith("https://tapit-eosin.vercel.app/c/mara-card-7f2q"),
     );
   });
 

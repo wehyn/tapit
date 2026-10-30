@@ -765,7 +765,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   ).toBeVisible();
 });
 
-test("administrator registers, assigns, replaces, deactivates, and audits cards", async ({
+test("administrator registers unassigned cards, manages claim codes, replaces, deactivates, and audits cards", async ({
   page,
 }) => {
   await signInAsAdmin(page);
@@ -780,6 +780,7 @@ test("administrator registers, assigns, replaces, deactivates, and audits cards"
   await expect
     .poll(() => page.evaluate(() => navigator.clipboard.readText()))
     .toBe("https://tapit-eosin.vercel.app/c/mara-card-7f2q");
+  await activeCard.locator("summary").first().click();
 
   await page.getByLabel("Pre-encoded card URL").fill("/c/malformed/path");
   await page.getByRole("button", { name: "Register card" }).click();
@@ -847,7 +848,9 @@ test("administrator previews and downloads a permanent card QR without storing a
   await page.getByRole("link", { name: "Cards", exact: true }).click();
   await page.getByLabel("Pre-encoded card URL").fill(cardUrl);
   await page.getByRole("button", { name: "Register card" }).click();
-  await expect(page.getByText("Card e2e-card-qr registered and ready for assignment.")).toBeVisible();
+  await expect(
+    page.getByText("Card e2e-card-qr registered and ready for assignment."),
+  ).toBeVisible();
 
   const row = page.locator("article").filter({ hasText: "e2e-card-qr" }).first();
   await row.locator("summary").first().click();
@@ -855,6 +858,13 @@ test("administrator previews and downloads a permanent card QR without storing a
   await row.getByText("QR fallback", { exact: true }).click();
   await expect(row.getByText(`Encodes ${cardUrl}`, { exact: true })).toBeVisible();
   await expect(row.getByRole("img", { name: "QR code for e2e-card-qr" })).toBeVisible();
+  await row
+    .locator("details")
+    .last()
+    .screenshot({
+      path: testInfo.outputPath("permanent-card-qr.png"),
+      animations: "disabled",
+    });
 
   const downloadPromise = page.waitForEvent("download");
   await row.getByRole("button", { name: "Download SVG" }).click();

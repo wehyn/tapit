@@ -177,6 +177,7 @@ function CardTable({ children }: { children: ReactNode }) {
 }
 
 function CardRow({
+  cardUrl,
   children,
   onOpen,
   profileLabel,
@@ -184,6 +185,7 @@ function CardRow({
   status,
   token,
 }: {
+  cardUrl: string;
   children: ReactNode;
   onOpen: () => void;
   profileLabel: string;
@@ -224,6 +226,7 @@ function CardRow({
             {profileLabel} ({token})
           </p>
           {children}
+          <QrControls cardUrl={cardUrl} label={token} />
         </div>
       </details>
     </article>
@@ -285,10 +288,12 @@ function CopyCardLinkButton({
 }
 
 function CardDetail({
+  cardUrl,
   children,
   status,
   token,
 }: {
+  cardUrl: string;
   children: ReactNode;
   status: string;
   token: string;
@@ -442,8 +447,7 @@ function DemoCardsManager() {
   function validateCardUrl(value: string): string | null {
     const normalized = normalizeCardUrl(value);
     const token = normalized && cardTokenFromUrl(normalized);
-    if (!normalized || !token)
-      return "Enter a canonical card URL with a /c/<unique-token> path.";
+    if (!normalized || !token) return "Enter a canonical card URL with a /c/<unique-token> path.";
     if (state.cards.some((card) => cardUrlIdentity(card.cardUrl) === cardUrlIdentity(normalized)))
       return "That card URL is already registered.";
     if (state.cards.some((card) => card.token === token))
@@ -893,6 +897,7 @@ function DemoCardsManager() {
                 return (
                   <CardRow
                     key={card.id}
+                    cardUrl={card.cardUrl}
                     onOpen={() => setSelectedId(card.id)}
                     profileLabel={profileLabel}
                     selected={card.id === detailCard?.id}
@@ -1109,9 +1114,6 @@ function DemoCardsManager() {
                         </Button>
                       ) : null}
                     </div>
-                    {card.status === "active" ? (
-                      <QrControls cardUrl={card.cardUrl} label={card.token} />
-                    ) : null}
                   </CardRow>
                 );
               })}
@@ -1121,7 +1123,12 @@ function DemoCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
+            <CardDetail
+              cardUrl={detailCard.cardUrl}
+              key={detailCard.token}
+              status={detailCard.status}
+              token={detailCard.token}
+            >
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
               <DetailRow
@@ -1446,6 +1453,7 @@ function LiveCardsManager() {
                 return (
                   <CardRow
                     key={card._id}
+                    cardUrl={card.cardUrl}
                     onOpen={() => setSelectedId(card._id)}
                     profileLabel={profileLabel}
                     selected={card._id === detailCard?._id}
@@ -1657,7 +1665,12 @@ function LiveCardsManager() {
 
         <div className="flex min-w-0 flex-col gap-4">
           {detailCard ? (
-            <CardDetail key={detailCard.token} status={detailCard.status} token={detailCard.token}>
+            <CardDetail
+              cardUrl={detailCard.cardUrl}
+              key={detailCard.token}
+              status={detailCard.status}
+              token={detailCard.token}
+            >
               <DetailRow label="Owner" value={detailOwner?.email ?? "Unassigned"} />
               <DetailRow label="Profile" value={detailLabel} />
             </CardDetail>
