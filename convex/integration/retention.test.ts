@@ -10,6 +10,94 @@ const modules = import.meta.glob("../**/*.{ts,js}");
 const day = 24 * 60 * 60 * 1000;
 
 describe("retention cleanup", () => {
+  it("erases requester corrections in bounded passes and resumes routing after the last request", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await t.run(async (ctx) => {
+      const customerId = await ctx.db.insert("customers", {
+        email: "erased-requester@example.test",
+        role: "customer",
+        status: "deleted",
+        deletionStatus: "deleted",
+        deletionRequestedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.insert("deletionRequests", {
+        customerId,
+        requestedAt: 1,
+        status: "approved",
+      });
+      const ownerId = await ctx.db.insert("customers", {
+        email: "surviving-owner@example.test",
+        role: "customer",
+        status: "active",
+        deletionStatus: "active",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const profileId = await ctx.db.insert("profiles", {
+        ownerId,
+        slug: "surviving-profile",
+        status: "published",
+        draft: { name: "Surviving", slug: "surviving-profile", links: [] },
+        published: { name: "Surviving", slug: "surviving-profile", links: [], publishedAt: 1 },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      const cardId = await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/surviving-card",
+        token: "surviving-card",
+        profileId,
+        status: "active",
+        claimCodeClaimedAt: 1,
+        correctionRequestedAt: 1,
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      for (let index = 0; index < 26; index++)
+        await ctx.db.insert("cardCorrectionRequests", {
+          cardId,
+          requesterId: customerId,
+          profileId,
+          status: "open",
+          createdAt: index + 1,
+          updatedAt: index + 1,
+        });
+      return { customerId, cardId };
+    });
+
+    await t.mutation(internal.accountErasure.eraseAccountPass, { customerId: ids.customerId });
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.cardId)).toMatchObject({ correctionRequestedAt: 1 });
+      expect(
+        await ctx.db
+          .query("cardCorrectionRequests")
+          .withIndex("by_cardId_and_status", (q) => q.eq("cardId", ids.cardId).eq("status", "open"))
+          .collect(),
+      ).toHaveLength(1);
+    });
+    vi.useFakeTimers();
+    try {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+    } finally {
+      vi.useRealTimers();
+    }
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(ids.cardId)).toMatchObject({ status: "active" });
+      expect(await ctx.db.get(ids.cardId)).not.toHaveProperty("correctionRequestedAt");
+      expect(
+        await ctx.db
+          .query("cardCorrectionRequests")
+          .withIndex("by_cardId_and_status", (q) => q.eq("cardId", ids.cardId).eq("status", "open"))
+          .collect(),
+      ).toEqual([]);
+    });
+    await expect(t.query(api.cards.resolve, { token: "surviving-card" })).resolves.toMatchObject({
+      status: "active",
+      profile: { slug: "surviving-profile" },
+    });
+  });
+
   it("refreshes the overdue deletion warning when its supplied time crosses 30 days", async () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
@@ -813,7 +901,9 @@ describe("retention cleanup", () => {
     const t = convexTest(schema, modules);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "owner@example.com" });
       const customerId = await ctx.db.insert("customers", {
+        userId,
         email: "owner@example.com",
         role: "customer",
         status: "active",
@@ -839,6 +929,7 @@ describe("retention cleanup", () => {
       });
       const old = await ctx.db.insert("cardClaimChallenges", {
         cardId,
+        userId,
         claimCodeHash: "old",
         challengeHash: "old",
         expiresAt: now - 31 * day,
@@ -846,6 +937,7 @@ describe("retention cleanup", () => {
       });
       const current = await ctx.db.insert("cardClaimChallenges", {
         cardId,
+        userId,
         claimCodeHash: "new",
         challengeHash: "new",
         expiresAt: now + day,

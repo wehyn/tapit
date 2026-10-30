@@ -105,16 +105,10 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     const cardUrl = `/c/${token}`;
     await page.getByLabel("Pre-encoded card URL").fill(cardUrl);
     await page.getByRole("button", { name: "Register card" }).click();
-    await expect(page.getByRole("dialog", { name: "Confirm card attachment" })).toBeVisible();
-    await page
-      .getByRole("dialog", { name: "Confirm card attachment" })
-      .getByRole("button", { name: "Confirm attachment" })
-      .click();
-    await expect(page.getByText(/is claimable and attached/)).toBeVisible();
-
     const card = page.locator("article").filter({ hasText: token }).first();
-    await card.locator("summary").first().click();
-    await card.getByRole("button", { name: "Generate claim code" }).click();
+    await card.locator("summary").click();
+    await expect(card.getByText("Unassigned")).toBeVisible();
+    await card.getByRole("button", { name: "Generate code" }).click();
     const claimCode = (await card.locator("code").textContent())?.trim();
     expect(claimCode).toMatch(/^[A-Z0-9]{8}$/);
 
@@ -122,7 +116,7 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     // profile draft before authentication or claim completion.
     await customerPage.goto(cardUrl);
     await expect(
-      customerPage.getByRole("heading", { name: "This card is ready to set up" }),
+      customerPage.getByRole("heading", { name: "Sign in to set up your card" }),
     ).toBeVisible();
     await expect(customerPage.getByText("Hosted E2E owner")).toHaveCount(0);
     await expect(customerPage).toHaveURL(new RegExp(`/c/${token}$`));
@@ -134,14 +128,16 @@ test("hosted card claim publishes across two browser contexts", async ({ browser
     await expect(customerPage).toHaveURL(/\/app\/profile$/);
 
     await customerPage.goto(cardUrl);
-    await expect(customerPage.getByLabel("Claim code")).toBeVisible();
-    await customerPage.getByLabel("Claim code").fill("INVALID1");
-    await customerPage.getByRole("button", { name: "Claim this card" }).click();
+    await expect(customerPage.getByLabel("Card code")).toBeVisible();
+    await customerPage.getByLabel("Card code").fill("INVALID1");
+    await customerPage.getByRole("button", { name: "Verify code" }).click();
     await expect(
-      customerPage.getByText("That code is invalid, expired, used, or unavailable."),
+      customerPage.getByText("That code is invalid or unavailable. Check the code and try again."),
     ).toBeVisible();
-    await customerPage.getByLabel("Claim code").fill(claimCode as string);
-    await customerPage.getByRole("button", { name: "Claim this card" }).click();
+    await customerPage.getByLabel("Card code").fill(claimCode as string);
+    await customerPage.getByRole("button", { name: "Verify code" }).click();
+    await expect(customerPage.getByText(/Code verified/)).toBeVisible();
+    await customerPage.getByRole("button", { name: "Confirm and attach card" }).click();
     await expect(customerPage).toHaveURL(/\/app\/profile$/);
     await customerPage.getByRole("button", { name: "Publish" }).click();
     await expect(customerPage.getByText(/Profile published/)).toBeVisible();

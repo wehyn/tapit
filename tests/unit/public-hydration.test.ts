@@ -17,6 +17,9 @@ vi.mock("convex/react", () => ({
 vi.mock("@convex-dev/auth/react", () => ({
   useConvexAuth: () => ({ isAuthenticated: false, isLoading: false }),
 }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: resolverMocks.replace }),
+}));
 vi.mock("../../src/lib/demo/mode", () => ({
   isLocalDemoMode: () => resolverMocks.demoMode,
 }));
@@ -157,6 +160,23 @@ describe("live public profile analytics", () => {
     } finally {
       getItem.mockRestore();
     }
+  });
+});
+
+describe("claimed private card continuation", () => {
+  beforeEach(() => {
+    resolverMocks.demoMode = false;
+    resolverMocks.result = { status: "ownerSetup" };
+    resolverMocks.replace.mockReset();
+  });
+
+  it("routes the owner's claimed draft to their profile without asking for the consumed code", () => {
+    render(createElement(CardResolverClient, { cardToken: "card-live" }));
+
+    expect(screen.getByRole("heading", { name: "Finish setting up your card" })).toBeVisible();
+    expect(screen.queryByLabelText("Card code")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Review your profile" }));
+    expect(resolverMocks.replace).toHaveBeenCalledWith("/app/profile");
   });
 });
 

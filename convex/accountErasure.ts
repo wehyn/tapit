@@ -30,6 +30,34 @@ async function eraseProfilePass(
     .withIndex("by_profileId", (q) => q.eq("profileId", profileId))
     .first();
   if (card !== null) {
+    const openCorrections = await ctx.db
+      .query("cardCorrectionRequests")
+      .withIndex("by_cardId_and_status", (q) => q.eq("cardId", card._id).eq("status", "open"))
+      .take(BATCH);
+    const corrections =
+      openCorrections.length > 0
+        ? openCorrections
+        : await ctx.db
+            .query("cardCorrectionRequests")
+            .withIndex("by_cardId_and_status", (q) =>
+              q.eq("cardId", card._id).eq("status", "corrected"),
+            )
+            .take(BATCH);
+    if (corrections.length > 0) {
+      for (const request of corrections) await ctx.db.delete(request._id);
+      const remainingOpen =
+        openCorrections.length > 0
+          ? await ctx.db
+              .query("cardCorrectionRequests")
+              .withIndex("by_cardId_and_status", (q) =>
+                q.eq("cardId", card._id).eq("status", "open"),
+              )
+              .first()
+          : null;
+      if (openCorrections.length > 0 && remainingOpen === null && mode === "permanentDeletion")
+        await ctx.db.patch(card._id, { correctionRequestedAt: undefined });
+      return true;
+    }
     const challenges = await ctx.db
       .query("cardClaimChallenges")
       .withIndex("by_cardId", (q) => q.eq("cardId", card._id))
@@ -277,6 +305,30 @@ async function eraseAccountDataPass(
     .withIndex("by_ownerId", (q) => q.eq("ownerId", customerId))
     .first();
   if (profile !== null) return await eraseProfilePass(ctx, profile._id, mode);
+  const correctionRequests = await ctx.db
+    .query("cardCorrectionRequests")
+    .withIndex("by_requesterId", (q) => q.eq("requesterId", customerId))
+    .take(BATCH);
+  if (correctionRequests.length > 0) {
+    for (const request of correctionRequests) {
+      await ctx.db.delete(request._id);
+      if (request.status === "open") {
+        const card = await ctx.db.get(request.cardId);
+        const remainingOpen =
+          card === null
+            ? null
+            : await ctx.db
+                .query("cardCorrectionRequests")
+                .withIndex("by_cardId_and_status", (q) =>
+                  q.eq("cardId", card._id).eq("status", "open"),
+                )
+                .first();
+        if (card !== null && remainingOpen === null)
+          await ctx.db.patch(card._id, { correctionRequestedAt: undefined });
+      }
+    }
+    return true;
+  }
   if (await eraseAssetPass(ctx, customerId)) return true;
 
   const orders = await ctx.db

@@ -146,6 +146,16 @@ describe("Google OAuth login", () => {
     expect(signIn).toHaveBeenCalledWith("google", { redirectTo });
   });
 
+  it("preserves the complete card URL and query through Google OAuth", async () => {
+    const LoginForm = await loadLogin();
+    signIn.mockResolvedValue({ signingIn: false });
+    const nextPath = "/c/card-abc?source=qr&claim=1";
+    const user = userEvent.setup();
+    render(<LoginForm nextPath={nextPath} />);
+    await user.click(screen.getByRole("button", { name: "Continue with Google" }));
+    expect(signIn).toHaveBeenCalledWith("google", { redirectTo: nextPath });
+  });
+
   it("shows generic OAuth rejection copy and restores a retry action", async () => {
     const LoginForm = await loadLogin();
     signIn.mockRejectedValue(new Error("provider_secret=do-not-render"));
@@ -616,6 +626,28 @@ describe("state-aware live redirects", () => {
     );
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith(destination));
+  });
+});
+
+describe("buyer onboarding return path", () => {
+  it("sends pending accounts through profile onboarding before returning to the sanitized card path", async () => {
+    vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "true");
+    vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: false,
+      accountStatus: "pending",
+      role: null,
+    });
+    const LoginForm = await loadLogin();
+
+    render(<LoginForm nextPath="/c/card-abc?source=qr&claim=1" />);
+
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith(
+        "/onboarding?next=%2Fc%2Fcard-abc%3Fsource%3Dqr%26claim%3D1",
+      ),
+    );
   });
 });
 
@@ -1103,6 +1135,21 @@ describe("pending Google onboarding", () => {
     render(<OnboardingForm />);
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/app/profile"));
+  });
+
+  it("returns active accounts to a sanitized card path after OAuth onboarding", async () => {
+    useConvexAuth.mockReturnValue({ isAuthenticated: true, isLoading: false });
+    useQuery.mockReturnValue({
+      authenticated: true,
+      accountStatus: "active",
+      role: "customer",
+      accountId: "customer_1",
+      profileId: "profile_1",
+      onboardingName: "Existing Name",
+    });
+    const OnboardingForm = await loadOnboarding();
+    render(<OnboardingForm nextPath="/c/card-abc?source=qr&claim=1" />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/c/card-abc?source=qr&claim=1"));
   });
 
   it("prefills the server-provided name and completes private profile onboarding", async () => {

@@ -15,7 +15,9 @@ const CLAIMABLE_SLUG = "claimed-profile";
 const MARA_TOKEN = "mara-card-7f2q";
 const CLAIMABLE_TOKEN = "claimable-card-demo";
 const INACTIVE_TOKEN = "mara-card-retired";
+const UNASSIGNED_TOKEN = "unassigned-card-demo";
 const CLAIM_CODE = "MARA2Q8K";
+const UNASSIGNED_CODE = "DEMA29BC";
 const DAY = 24 * 60 * 60 * 1000;
 const DEMO_CLEANUP_BATCH = 25;
 
@@ -26,6 +28,7 @@ const initializedResultValidator = v.object({
   activeCardId: v.id("cards"),
   claimableCardId: v.id("cards"),
   inactiveCardId: v.id("cards"),
+  unassignedCardId: v.id("cards"),
   status: v.literal("initialized"),
 });
 const resetResultValidator = v.union(
@@ -289,7 +292,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     {
       claimCodeHash: claimHash,
       claimCodeGeneratedAt: now,
-      claimCodeExpiresAt: now + DAY,
+      claimCodeExpiresAt: undefined,
       claimCodeInvalidatedAt: undefined,
       claimCodeClaimedAt: undefined,
     },
@@ -301,6 +304,29 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     maraId,
     { deactivatedAt: now },
   );
+  const unassignedExisting = await ctx.db
+    .query("cards")
+    .withIndex("by_token", (q) => q.eq("token", UNASSIGNED_TOKEN))
+    .unique();
+  if (unassignedExisting !== null && unassignedExisting.scope !== DEMO_SCOPE)
+    throw new Error("The unassigned demo card token is already owned outside the demo scope.");
+  const unassignedCard = {
+    scope: DEMO_SCOPE,
+    cardUrl: `${CANONICAL_CARD_ORIGIN}/c/${UNASSIGNED_TOKEN}`,
+    token: UNASSIGNED_TOKEN,
+    status: "registered" as const,
+    profileId: undefined,
+    claimCodeHash: await digest(UNASSIGNED_CODE),
+    claimCodeGeneratedAt: now,
+    claimCodeExpiresAt: undefined,
+    claimCodeInvalidatedAt: undefined,
+    claimCodeClaimedAt: undefined,
+    createdAt: unassignedExisting?.createdAt ?? now,
+    updatedAt: now,
+  };
+  const unassignedCardId = unassignedExisting
+    ? (await ctx.db.patch(unassignedExisting._id, unassignedCard), unassignedExisting._id)
+    : await ctx.db.insert("cards", unassignedCard);
   const analytics = [
     [18, 11, 9, 2],
     [27, 17, 13, 8],
@@ -414,6 +440,7 @@ async function seed(ctx: MutationCtx, operatorUserId: Id<"users">) {
     activeCardId,
     claimableCardId,
     inactiveCardId,
+    unassignedCardId,
     status: "initialized" as const,
   };
 }
@@ -437,6 +464,39 @@ export const reset = internalMutation({
     };
     let cleaned = 0;
     while (cleaned < DEMO_CLEANUP_BATCH) {
+      const openCorrections = await ctx.db
+        .query("cardCorrectionRequests")
+        .withIndex("by_scope_and_status", (q) => q.eq("scope", DEMO_SCOPE).eq("status", "open"))
+        .take(DEMO_CLEANUP_BATCH - cleaned);
+      const corrections =
+        openCorrections.length > 0
+          ? openCorrections
+          : await ctx.db
+              .query("cardCorrectionRequests")
+              .withIndex("by_scope_and_status", (q) =>
+                q.eq("scope", DEMO_SCOPE).eq("status", "corrected"),
+              )
+              .take(DEMO_CLEANUP_BATCH - cleaned);
+      if (corrections.length > 0) {
+        const openCardIds = new Set<Id<"cards">>();
+        for (const request of corrections) {
+          if (request.status === "open") openCardIds.add(request.cardId);
+          await ctx.db.delete(request._id);
+        }
+        for (const cardId of openCardIds) {
+          const [card, remainingOpen] = await Promise.all([
+            ctx.db.get(cardId),
+            ctx.db
+              .query("cardCorrectionRequests")
+              .withIndex("by_cardId_and_status", (q) => q.eq("cardId", cardId).eq("status", "open"))
+              .first(),
+          ]);
+          if (card !== null && remainingOpen === null)
+            await ctx.db.patch(card._id, { correctionRequestedAt: undefined });
+        }
+        cleaned += corrections.length;
+        continue;
+      }
       const profile = await ctx.db
         .query("profiles")
         .withIndex("by_scope", (q) => q.eq("scope", DEMO_SCOPE))

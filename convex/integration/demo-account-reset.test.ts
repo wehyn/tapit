@@ -148,9 +148,19 @@ describe("Demo account reset", () => {
         status: "active",
         createdAt: 1,
         updatedAt: 1,
+        correctionRequestedAt: 1,
+      });
+      await ctx.db.insert("cardCorrectionRequests", {
+        cardId,
+        requesterId: customerId,
+        profileId,
+        status: "open",
+        createdAt: 1,
+        updatedAt: 1,
       });
       await ctx.db.insert("cardClaimChallenges", {
         cardId,
+        userId,
         claimCodeHash: "claim-hash",
         challengeHash: "challenge-hash",
         expiresAt: Date.now() + 60_000,
@@ -211,38 +221,51 @@ describe("Demo account reset", () => {
         customerId: ids.customerId,
       });
       waitingForUploadCleanup = await t.run(async (ctx) => {
-        const [profile, cards, links, analytics, images, mediaAssets, imageJobs, mediaJobs] =
-          await Promise.all([
-            ctx.db.get(ids.profileId),
-            ctx.db
-              .query("cards")
-              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("links")
-              .withIndex("by_profile_position", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("analytics")
-              .withIndex("by_profile_bucket", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("profileImages")
-              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("profileMediaAssets")
-              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("profileImageUploadJobs")
-              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-            ctx.db
-              .query("profileMediaUploadJobs")
-              .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
-              .collect(),
-          ]);
+        const [
+          profile,
+          cards,
+          links,
+          analytics,
+          images,
+          mediaAssets,
+          imageJobs,
+          mediaJobs,
+          corrections,
+        ] = await Promise.all([
+          ctx.db.get(ids.profileId),
+          ctx.db
+            .query("cards")
+            .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("links")
+            .withIndex("by_profile_position", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("analytics")
+            .withIndex("by_profile_bucket", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("profileImages")
+            .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("profileMediaAssets")
+            .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("profileImageUploadJobs")
+            .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("profileMediaUploadJobs")
+            .withIndex("by_profileId", (q) => q.eq("profileId", ids.profileId))
+            .collect(),
+          ctx.db
+            .query("cardCorrectionRequests")
+            .withIndex("by_requesterId", (q) => q.eq("requesterId", ids.customerId))
+            .collect(),
+        ]);
         return (
           profile !== null &&
           cards.length === 0 &&
@@ -251,7 +274,8 @@ describe("Demo account reset", () => {
           images.length === 0 &&
           mediaAssets.length === 0 &&
           imageJobs.length > 0 &&
-          mediaJobs.length > 0
+          mediaJobs.length > 0 &&
+          corrections.length === 0
         );
       });
       if (waitingForUploadCleanup) break;

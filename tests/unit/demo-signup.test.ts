@@ -79,6 +79,7 @@ describe("demo self-service signup", () => {
       [profiles[0]!.id]: "night",
       [profiles[1]!.id]: "moss",
       [profiles[2]!.id]: "paper",
+      [profiles[3]!.id]: "paper",
     });
     expect(localStorage.getItem("tapit:demo-state:v1")).toBe(storedBeforeReload);
   });

@@ -163,11 +163,18 @@ function isDemoCard(value: unknown): value is DemoState["cards"][number] {
     (value.createdAt === undefined || isFiniteNumber(value.createdAt)) &&
     (value.claimedAt === undefined || isFiniteNumber(value.claimedAt)) &&
     (value.claimCode === undefined || typeof value.claimCode === "string") &&
+    (value.claimCodeGeneration === undefined ||
+      (typeof value.claimCodeGeneration === "number" &&
+        Number.isSafeInteger(value.claimCodeGeneration) &&
+        value.claimCodeGeneration >= 0)) &&
     (value.claimCodeExpiresAt === undefined || isFiniteNumber(value.claimCodeExpiresAt)) &&
     (value.claimCodeInvalidatedAt === undefined || isFiniteNumber(value.claimCodeInvalidatedAt)) &&
+    (value.correctionRequestedAt === undefined || isFiniteNumber(value.correctionRequestedAt)) &&
     (value.claimChallenge === undefined || typeof value.claimChallenge === "string") &&
+    (value.claimChallengeCode === undefined || typeof value.claimChallengeCode === "string") &&
     (value.claimChallengeExpiresAt === undefined ||
       isFiniteNumber(value.claimChallengeExpiresAt)) &&
+    (value.claimChallengeEmail === undefined || typeof value.claimChallengeEmail === "string") &&
     typeof value.token === "string"
   );
 }
@@ -408,8 +415,24 @@ function normalizeStoredState(raw: string): StateStorageRead {
   );
   let migratedCardUrls = false;
   const cards = parsed.cards.map((card, index) => {
-    const legacyUrl = /^\/c\/[A-Za-z0-9_-]{1,160}(?:\?[^#]*)?$/.test(card.cardUrl);
-    const normalizedUrl = legacyUrl ? normalizeCardUrl(card.cardUrl) : null;
+    let legacyPath: string | null = /^\/c\/[A-Za-z0-9_-]{1,160}(?:\?[^#]*)?$/.test(card.cardUrl)
+      ? card.cardUrl
+      : null;
+    if (!legacyPath && typeof window !== "undefined") {
+      try {
+        const legacyUrl = new URL(card.cardUrl);
+        if (
+          legacyUrl.origin === window.location.origin &&
+          !legacyUrl.username &&
+          !legacyUrl.password &&
+          !legacyUrl.hash
+        )
+          legacyPath = `${legacyUrl.pathname}${legacyUrl.search}`;
+      } catch {
+        // Preserve malformed legacy values for explicit repair.
+      }
+    }
+    const normalizedUrl = legacyPath ? normalizeCardUrl(legacyPath) : null;
     const cardUrl =
       normalizedUrl && cardTokenFromUrl(normalizedUrl) === card.token
         ? normalizedUrl
@@ -758,7 +781,7 @@ export function refreshDemoAccessSnapshot(): DemoAccessRefresh {
   return { kind: "ready", snapshot: { state, session } };
 }
 
-function persist(nextState: DemoState, allowChangedStorage = false) {
+function persist(nextState: DemoState, allowChangedStorage = false, expectedRaw?: string | null) {
   if (typeof window === "undefined") return;
   if (!loaded) loadFromStorage();
   if (!allowChangedStorage && storageWriteBlock !== null) {
@@ -783,6 +806,8 @@ function persist(nextState: DemoState, allowChangedStorage = false) {
       if (installStoredState(currentRead)) notify();
       throw persistenceError(blockError(currentRead));
     }
+    if (expectedRaw !== undefined && previousRaw !== expectedRaw)
+      throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
     storageWriteBlock = null;
   }
   if (!allowChangedStorage && previousRaw !== persistedRaw) {
@@ -794,16 +819,14 @@ function persist(nextState: DemoState, allowChangedStorage = false) {
   } catch (error) {
     throw persistenceError(error);
   }
-  if (!allowChangedStorage) {
-    let currentRaw: string | null;
-    try {
-      currentRaw = storage.getItem(STORAGE_KEY);
-    } catch (error) {
-      throw persistenceError(error);
-    }
-    if (currentRaw !== previousRaw) {
-      throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
-    }
+  let currentRaw: string | null;
+  try {
+    currentRaw = storage.getItem(STORAGE_KEY);
+  } catch (error) {
+    throw persistenceError(error);
+  }
+  if (currentRaw !== previousRaw) {
+    throw persistenceError(new Error("Saved data changed in another tab. Reload before saving."));
   }
   try {
     storage.setItem(STORAGE_KEY, serialized);
@@ -1005,8 +1028,12 @@ export function useHydratedDemoState(): { hydrated: boolean; state: DemoState } 
 
 export function updateDemoState(updater: (current: DemoState) => DemoState): void {
   loadFromStorage();
-  const nextState = updater(state);
-  persist(nextState);
+  const latest = readStoredState();
+  const changedStorage = latest.kind === "supported" && latest.raw !== persistedRaw;
+  const current = changedStorage ? latest.state : state;
+  const nextState = updater(current);
+  if (changedStorage && nextState === current) return;
+  persist(nextState, changedStorage, changedStorage ? latest.raw : undefined);
   state = nextState;
   notify();
 }
@@ -1886,72 +1913,175 @@ export function recordLinkClick(
   }
 }
 
-export function verifyDemoCardClaim(cardToken: string, code: string): string {
-  const card = getDemoState().cards.find((candidate) => candidate.token === cardToken);
-  if (
-    (card?.status !== "claimable" && card?.status !== "active") ||
-    card.claimCode !== code ||
-    card.claimCodeInvalidatedAt !== undefined ||
-    (card.claimCodeExpiresAt !== undefined && card.claimCodeExpiresAt <= Date.now())
-  ) {
-    throw new Error("That code is invalid or expired.");
-  }
+export function verifyDemoCardClaim(cardToken: string, code: string, email: string): string {
   const challenge = crypto.randomUUID();
-  updateDemoState((current) => ({
-    ...current,
-    cards: current.cards.map((candidate) =>
-      candidate.id === card.id
-        ? {
-            ...candidate,
-            claimChallenge: challenge,
-            claimChallengeExpiresAt: Date.now() + 10 * 60 * 1000,
-          }
-        : candidate,
-    ),
-  }));
+  updateDemoState((current) => {
+    const card = current.cards.find((candidate) => candidate.token === cardToken);
+    const customer = current.customers.find((candidate) => candidate.email === email);
+    if (
+      !card ||
+      (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||
+      card.correctionRequestedAt !== undefined ||
+      (current.cardCorrectionRequests ?? []).some(
+        (request) => request.token === cardToken && request.status === "pending",
+      ) ||
+      card.claimedAt !== undefined ||
+      !customer ||
+      customer.role !== "customer" ||
+      customer.status !== "active" ||
+      customer.deletionStatus !== "active" ||
+      card.claimCode !== code ||
+      card.claimCodeInvalidatedAt !== undefined
+    )
+      throw new Error("That code is invalid or unavailable.");
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? {
+              ...candidate,
+              claimChallenge: challenge,
+              claimChallengeCode: code,
+              claimChallengeExpiresAt: Date.now() + 10 * 60 * 1000,
+              claimChallengeEmail: email,
+            }
+          : candidate,
+      ),
+    };
+  });
   return challenge;
+}
+
+export function requestDemoCardCorrection(token: string, challenge: string, email: string): void {
+  updateDemoState((current) => {
+    const card = current.cards.find((candidate) => candidate.token === token);
+    const requester = current.customers.find((candidate) => candidate.email === email);
+    const profile = requester?.profileId
+      ? getDemoProfileById(current, requester.profileId)
+      : undefined;
+    if (
+      !card ||
+      (card.status !== "active" && card.status !== "claimable") ||
+      card.claimedAt !== undefined ||
+      !challenge ||
+      !email ||
+      !profile ||
+      requester?.role !== "customer" ||
+      requester.status !== "active" ||
+      requester.deletionStatus !== "active" ||
+      !card.claimCode ||
+      card.claimCodeInvalidatedAt !== undefined ||
+      card.correctionRequestedAt !== undefined ||
+      card.claimChallengeCode !== card.claimCode ||
+      card.claimChallenge !== challenge ||
+      card.claimChallengeEmail !== email ||
+      (current.cardCorrectionRequests ?? []).some(
+        (request) => request.token === token && request.status === "pending",
+      ) ||
+      (card.claimChallengeExpiresAt !== undefined && card.claimChallengeExpiresAt <= Date.now()) ||
+      requester.id !== profile.ownerId
+    )
+      throw new Error("This card is not available for correction.");
+    const request = {
+      id: crypto.randomUUID(),
+      token,
+      challenge,
+      profileId: profile.id,
+      requestedBy: email,
+      requestedAt: Date.now(),
+      status: "pending" as const,
+    };
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? {
+              ...candidate,
+              claimChallenge: undefined,
+              claimChallengeCode: undefined,
+              claimChallengeExpiresAt: undefined,
+              claimChallengeEmail: undefined,
+            }
+          : candidate,
+      ),
+      cardCorrectionRequests: [...(current.cardCorrectionRequests ?? []), request],
+    };
+  });
 }
 
 export function completeDemoCardClaim(cardToken: string, challenge: string, email: string): void {
   if (!challenge || !email) throw new Error("The card claim is invalid.");
-  const card = getDemoState().cards.find((candidate) => candidate.token === cardToken);
-  const profile =
-    card === undefined ? undefined : getDemoProfileById(getDemoState(), card.profileId);
-  const owner =
-    profile === undefined
-      ? undefined
-      : getDemoState().customers.find((candidate) => candidate.id === profile.ownerId);
-  if (
-    (card?.status !== "claimable" && card?.status !== "active") ||
-    card.claimedAt !== undefined ||
-    owner?.email !== email ||
-    card.claimChallenge !== challenge ||
-    (card.claimChallengeExpiresAt !== undefined && card.claimChallengeExpiresAt <= Date.now())
-  )
-    throw new Error("The card claim is not available for this account.");
-  const claimedAt = Date.now();
-  updateDemoState((current) => ({
-    ...current,
-    cards: current.cards.map((candidate) =>
-      candidate.id === card.id
-        ? {
-            ...candidate,
-            claimCode: undefined,
-            claimCodeExpiresAt: undefined,
-            claimCodeInvalidatedAt: undefined,
-            claimChallenge: undefined,
-            claimChallengeExpiresAt: undefined,
-            claimedAt,
-            status: profile?.status === "published" ? "active" : "claimable",
-          }
-        : candidate,
-    ),
-    customers: current.customers.map((candidate) =>
-      candidate.id === owner.id
-        ? { ...candidate, claimedCardIds: [...(candidate.claimedCardIds ?? []), card.id] }
-        : candidate,
-    ),
-  }));
+  updateDemoState((current) => {
+    const card = current.cards.find((candidate) => candidate.token === cardToken);
+    const customer = current.customers.find((candidate) => candidate.email === email);
+    const profile = customer?.profileId
+      ? getDemoProfileById(current, customer.profileId)
+      : undefined;
+    const owner = profile
+      ? current.customers.find((candidate) => candidate.id === profile.ownerId)
+      : undefined;
+    const otherLiveCard = profile
+      ? current.cards.some(
+          (candidate) =>
+            candidate.id !== card?.id &&
+            candidate.profileId === profile.id &&
+            (candidate.status === "active" || candidate.status === "claimable"),
+        )
+      : false;
+    if (
+      !card ||
+      (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||
+      card.correctionRequestedAt !== undefined ||
+      (current.cardCorrectionRequests ?? []).some(
+        (request) => request.token === cardToken && request.status === "pending",
+      ) ||
+      card.claimedAt !== undefined ||
+      card.claimChallengeEmail !== email ||
+      !card.claimCode ||
+      card.claimChallengeCode !== card.claimCode ||
+      card.claimCodeInvalidatedAt !== undefined ||
+      customer?.role !== "customer" ||
+      customer.status !== "active" ||
+      customer.deletionStatus !== "active" ||
+      owner?.email !== email ||
+      owner.id !== customer.id ||
+      owner.role !== "customer" ||
+      owner?.status !== "active" ||
+      owner.deletionStatus !== "active" ||
+      !profile ||
+      (card.profileId !== undefined && card.profileId !== profile.id) ||
+      otherLiveCard ||
+      card.claimChallenge !== challenge ||
+      (card.claimChallengeExpiresAt !== undefined && card.claimChallengeExpiresAt <= Date.now())
+    )
+      throw new Error("The card claim is not available for this account.");
+    const claimedAt = Date.now();
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? {
+              ...candidate,
+              claimCode: undefined,
+              claimCodeExpiresAt: undefined,
+              claimCodeInvalidatedAt: undefined,
+              claimChallenge: undefined,
+              claimChallengeCode: undefined,
+              claimChallengeExpiresAt: undefined,
+              claimChallengeEmail: undefined,
+              claimedAt,
+              profileId: profile.id,
+              status: profile.status === "published" ? "active" : "claimable",
+            }
+          : candidate,
+      ),
+      customers: current.customers.map((candidate) =>
+        candidate.id === owner.id
+          ? { ...candidate, claimedCardIds: [...(candidate.claimedCardIds ?? []), card.id] }
+          : candidate,
+      ),
+    };
+  });
 }
 
 export type AnalyticsRange = "lifetime" | "7d" | "30d" | "90d";

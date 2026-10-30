@@ -61,6 +61,11 @@ describe("demo storage store", () => {
       ...state.cards[1]!,
       cardUrl: "https://cards.example.test/c/claimable-card-demo?source=existing",
     };
+    const localCard = state.cards.find((card) => card.token === "active-unclaimed-card-demo")!;
+    localCard.cardUrl = new URL(
+      "/c/active-unclaimed-card-demo?source=local&claim=1",
+      window.location.origin,
+    ).toString();
     localStorage.setItem(STORAGE_KEY, serializeDemoState(state));
     const { getDemoState } = await import("../../src/lib/demo/store");
 
@@ -80,6 +85,9 @@ describe("demo storage store", () => {
       "https://cards.example.test/c/claimable-card-demo?source=existing",
     );
     expect(getDemoState().cards[2]?.cardUrl).toBe("/c/not-the-card?campaign=spring");
+    expect(
+      getDemoState().cards.find((card) => card.token === "active-unclaimed-card-demo")?.cardUrl,
+    ).toBe("https://tapit-eosin.vercel.app/c/active-unclaimed-card-demo?source=local&claim=1");
     expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "{}").cards[1]?.cardUrl).toBe(
       "https://cards.example.test/c/claimable-card-demo?source=existing",
     );

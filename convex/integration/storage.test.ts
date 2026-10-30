@@ -89,6 +89,7 @@ async function seed(t: ReturnType<typeof convexTest>) {
       token: "owner-image-card",
       profileId: ownerProfileId,
       status: "active",
+      claimCodeClaimedAt: 1,
       createdAt: 1,
       updatedAt: 1,
       assignedAt: 1,

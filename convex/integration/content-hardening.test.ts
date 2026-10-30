@@ -563,6 +563,14 @@ describe("content hardening", () => {
         "/c/<token> format",
       );
     }
+    const queryUrl = "https://tapit-eosin.vercel.app/c/token?x=1";
+    const queryCardId = await admin.mutation(api.cards.register, {
+      cardUrl: queryUrl,
+      token: "token",
+    });
+    await expect(t.run((ctx) => ctx.db.get(queryCardId))).resolves.toMatchObject({
+      cardUrl: queryUrl,
+    });
     await expect(
       admin.mutation(api.cards.register, {
         cardUrl: "https://tapit-eosin.vercel.app/c/other-token",

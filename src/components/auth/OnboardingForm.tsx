@@ -14,6 +14,7 @@ import { Field, TextareaField } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Tile } from "@/components/ui/Tile";
+import { sanitizeReturnPath } from "@/lib/auth/return-path";
 
 type OnboardingProfileDetails = {
   name: string;
@@ -21,7 +22,7 @@ type OnboardingProfileDetails = {
   website: string;
 };
 
-export function OnboardingForm() {
+export function OnboardingForm({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
   const { signOut } = useAuthActions();
   const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
@@ -40,13 +41,14 @@ export function OnboardingForm() {
   const [profileCreatedDialogOpen, setProfileCreatedDialogOpen] = useState(false);
   const initializedName = useRef(false);
   const completingOnboarding = useRef(false);
+  const safeNextPath = sanitizeReturnPath(nextPath);
 
   const closeProfileCreatedDialog = useCallback(() => {
     setProfileCreatedDialogOpen(false);
   }, []);
   const continueToCustomization = useCallback(() => {
-    router.replace("/app/profile");
-  }, [router]);
+    router.replace(safeNextPath || "/app/profile");
+  }, [router, safeNextPath]);
 
   useEffect(() => {
     if (access !== undefined && !initializedName.current) {
@@ -57,8 +59,8 @@ export function OnboardingForm() {
 
   useEffect(() => {
     if (access?.accountStatus === "active" && !completingOnboarding.current)
-      router.replace("/app/profile");
-  }, [access?.accountStatus, router]);
+      router.replace(safeNextPath || "/app/profile");
+  }, [access?.accountStatus, router, safeNextPath]);
 
   async function complete(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -311,6 +313,22 @@ export function OnboardingForm() {
           </div>
         </div>
       </div>
+      {slug && safeNextPath?.startsWith("/c/") ? (
+        <section className="mx-auto w-full max-w-xl rounded-card bg-tapit-accent-soft p-4">
+          <h2 className="font-semibold text-tapit-ink">Your profile is ready</h2>
+          <p className="mt-1 text-sm text-tapit-muted">
+            Attach this card to your new profile now, or skip and come back later.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Button onClick={() => router.replace(safeNextPath)} type="button">
+              Attach this card
+            </Button>
+            <Button onClick={() => router.replace("/app/profile")} type="button" variant="quiet">
+              Skip for now
+            </Button>
+          </div>
+        </section>
+      ) : null}
       <ConfirmDialog
         cancelLabel="Continue later"
         confirmLabel="Customize your profile"
