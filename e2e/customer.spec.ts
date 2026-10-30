@@ -3609,9 +3609,9 @@ test("Demo customer resets linked data and onboards again with the same identity
   await page.getByRole("button", { name: "Create your profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
   const publishGuidance = page.getByRole("dialog", { name: "Before you publish" });
-  if (await publishGuidance.isVisible()) {
-    await publishGuidance.getByRole("button", { name: "Maybe later" }).click();
-  }
+  await expect(publishGuidance).toBeVisible();
+  await publishGuidance.getByRole("button", { name: "Maybe later" }).click();
+  await expect(publishGuidance).toBeHidden();
   await page.getByLabel("Bio or role").fill("This profile data should be removed.");
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Draft saved")).toBeVisible();
