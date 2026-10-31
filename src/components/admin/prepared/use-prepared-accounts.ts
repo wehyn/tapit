@@ -259,11 +259,7 @@ export function useConvexPreparedAccounts(): Result {
     await ownerAccessMutation({ customerId: row.id as Id<"customers">, enabled });
   }
   function valuesFor(customerId: string): PreparedProfileInput | null {
-    const all = [waitingResult, draftResult, activeResult, legacyResult].flatMap((result) =>
-      result.results,
-    );
-    const row = all.find((item) => item._id === customerId);
-    return row?.profileDraft ?? null;
+    return rows.find((row) => row.id === customerId)?.profileDraft ?? null;
   }
   return {
     rows,

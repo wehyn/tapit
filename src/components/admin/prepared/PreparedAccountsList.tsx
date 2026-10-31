@@ -106,6 +106,9 @@ export function PreparedAccountsList({
         <Notice>Loading customer handoffs…</Notice>
       ) : (
         <div className="flex flex-col gap-3">
+          {search.trim() !== "" && hasMore ? (
+            <Notice>Search covers loaded pages only. Load more to continue searching.</Notice>
+          ) : null}
           {rows.length ? (
             rows.map((row) => (
               <PreparedCustomerRow
@@ -126,11 +129,7 @@ export function PreparedAccountsList({
               />
             ))
           ) : (
-            <Notice>
-              {search.trim() !== "" && hasMore
-                ? "No matching customers in the loaded pages. Load more to continue searching."
-                : "No customer accounts match this search."}
-            </Notice>
+            <Notice>No customer accounts match this search.</Notice>
           )}
           {hasMore ? (
             <Button
