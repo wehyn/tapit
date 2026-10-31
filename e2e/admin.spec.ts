@@ -708,7 +708,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   ).toHaveCount(0);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: `Account menu for ${email}` }).click();
@@ -780,7 +780,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   await expect(page).toHaveURL(/\/app\/profile$/);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
 });
 

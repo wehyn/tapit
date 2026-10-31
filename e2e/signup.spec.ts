@@ -197,7 +197,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Analytics", exact: true })).toHaveCount(0);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
   await page.goto("/app/links");
   await expect(labels.nth(0)).toHaveValue("Portfolio");

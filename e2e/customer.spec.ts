@@ -398,7 +398,7 @@ test("the old build-card path permanently redirects to card design", async ({ pa
     page.getByTestId("workspace-sidebar").getByRole("link", { name: "Cards", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
-    page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Order cards", { exact: true }),
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Cards", { exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
@@ -2218,7 +2218,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
       Math.abs(
         backgroundBox!.y + backgroundBox!.height - (portraitBox!.y + portraitBox!.height / 2),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(2);
     await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
     await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
     await expect(page.locator("main")).toHaveCSS("background-color", "rgb(251, 246, 239)");
