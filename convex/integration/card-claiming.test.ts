@@ -215,6 +215,7 @@ describe("card claiming contracts", () => {
       });
       return {
         adminUserId,
+        adminId,
         demoAdminUserId,
         demoUserId,
         ownProfileId,
@@ -237,6 +238,21 @@ describe("card claiming contracts", () => {
     await expect(
       admin.mutation(api.cardClaims.complete, { challenge: ownVerification.challenge }),
     ).resolves.toEqual({ cardId: ids.ownCardId, profileId: ids.ownProfileId });
+    await expect(admin.query(api.cards.resolve, { token: "admin-own" })).resolves.toEqual({
+      status: "ownerSetup",
+    });
+    await t.run((ctx) => ctx.db.patch(ids.adminId, { scope: "demo" }));
+    await expect(admin.query(api.cards.resolve, { token: "admin-own" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run((ctx) => ctx.db.patch(ids.adminId, { scope: undefined }));
+    await t.run((ctx) =>
+      ctx.db.patch(ids.adminId, { status: "deleted", deletionStatus: "deleted" }),
+    );
+    await expect(admin.query(api.cards.resolve, { token: "admin-own" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run((ctx) => ctx.db.patch(ids.adminId, { status: "active", deletionStatus: "active" }));
 
     const foreignCode = await admin.mutation(api.cards.generateClaimCode, {
       cardId: ids.foreignCardId,
@@ -691,6 +707,15 @@ describe("card claiming contracts", () => {
         createdAt: 1,
         updatedAt: 1,
       });
+      const adminProfileId = await ctx.db.insert("profiles", {
+        ownerId: adminId,
+        slug: "admin",
+        status: "draft",
+        draft: { name: "Admin", slug: "admin", links: [] },
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.patch(adminId, { profileId: adminProfileId });
       await ctx.db.patch(ownerId, { profileId });
       const cardId = await ctx.db.insert("cards", {
         cardUrl: "https://tapit.test/c/card-1",
@@ -788,9 +813,17 @@ describe("card claiming contracts", () => {
     await expect(owner.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
       status: "ownerSetup",
     });
+    await expect(admin.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
     await expect(unrelated.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
       status: "unavailable",
     });
+    await t.run((ctx) => ctx.db.patch(ids.profileId, { scope: "demo" }));
+    await expect(owner.query(api.cards.resolve, { token: "card-1" })).resolves.toEqual({
+      status: "unavailable",
+    });
+    await t.run((ctx) => ctx.db.patch(ids.profileId, { scope: undefined }));
     await expect(
       owner.mutation(api.profiles.publish, { profileId: ids.profileId }),
     ).resolves.toMatchObject({ slug: "owner" });

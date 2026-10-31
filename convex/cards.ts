@@ -85,7 +85,6 @@ export const resolve = query({
       if (
         !customer ||
         !isActiveCustomer(customer) ||
-        customer.role !== "customer" ||
         customer.profileId !== card.profileId ||
         !sameScope(customer, card) ||
         profile === null ||
