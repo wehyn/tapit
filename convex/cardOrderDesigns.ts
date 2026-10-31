@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import {
@@ -49,7 +49,7 @@ async function assertStorageWasNotCreatedBeforeIntent(
 ) {
   const metadata = await ctx.db.system.get("_storage", storageId);
   if (metadata === null || metadata._creationTime < intentCreatedAt) {
-    throw new Error("This upload was not created for the current upload request.");
+    throw new ConvexError("This upload was not created for the current upload request.");
   }
 }
 
@@ -60,7 +60,7 @@ export const createUploadIntent = internalMutation({
     const userId = args.userId;
     const customer = await customerForAuthUser(ctx, userId);
     if (customer === null || !isActiveCustomer(customer)) {
-      throw new Error("Active account required.");
+      throw new ConvexError("Active account required.");
     }
 
     const now = Date.now();
@@ -71,7 +71,7 @@ export const createUploadIntent = internalMutation({
       )
       .take(2);
     if (previousIntents.some((intent) => now - intent.createdAt < PENDING_INTENT_TTL_MS)) {
-      throw new Error("A card design upload is already being processed.");
+      throw new ConvexError("A card design upload is already being processed.");
     }
     for (const intent of previousIntents) await ctx.db.delete(intent._id);
 
@@ -85,10 +85,10 @@ export const createUploadIntent = internalMutation({
       processingIntent !== null &&
       now - (processingIntent.processingAt ?? processingIntent.createdAt) < PROCESSING_INTENT_TTL_MS
     ) {
-      throw new Error("A card design upload is already being processed.");
+      throw new ConvexError("A card design upload is already being processed.");
     }
     if (processingIntent !== null)
-      throw new Error("A previous card design upload is still being cleaned up.");
+      throw new ConvexError("A previous card design upload is still being cleaned up.");
 
     const uploadId = await ctx.db.insert("cardOrderDesignUploads", {
       ownerId: customer._id,
@@ -120,14 +120,14 @@ export const prepareUpload = internalMutation({
       intent.status !== "pending" ||
       !sameScope(customer, intent)
     ) {
-      throw new Error("Start a new card design upload.");
+      throw new ConvexError("Start a new card design upload.");
     }
     if (Date.now() - intent.createdAt >= PENDING_INTENT_TTL_MS) {
-      throw new Error("This upload request expired. Start a new upload.");
+      throw new ConvexError("This upload request expired. Start a new upload.");
     }
     await assertStorageWasNotCreatedBeforeIntent(ctx, args.storageId, intent.createdAt);
     if (!(await storageIsUnreferenced(ctx, args.storageId))) {
-      throw new Error("This file is already in use.");
+      throw new ConvexError("This file is already in use.");
     }
     const fileName = args.fileName.trim().slice(0, 255);
     if (!fileName) throw new Error("The file name is required.");
@@ -171,11 +171,11 @@ export const register = internalMutation({
       intent.storageId === undefined ||
       Date.now() - intent.processingAt >= PROCESSING_INTENT_TTL_MS
     ) {
-      throw new Error("This upload request is no longer available.");
+      throw new ConvexError("This upload request is no longer available.");
     }
     await assertStorageWasNotCreatedBeforeIntent(ctx, intent.storageId, intent.createdAt);
     if (!(await storageIsUnreferenced(ctx, intent.storageId, intent._id))) {
-      throw new Error("This file is already in use.");
+      throw new ConvexError("This file is already in use.");
     }
 
     await ctx.db.patch(intent._id, {

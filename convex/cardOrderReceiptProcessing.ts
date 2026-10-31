@@ -1,11 +1,12 @@
 "use node";
 
 import sharp from "sharp";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { runUploadCleanup, safeUploadError, withUploadStorage } from "./uploadErrors";
 
 const MAX_BYTES_EXCLUSIVE = 5 * 1024 * 1024;
 
@@ -18,7 +19,9 @@ export const process = internalAction({
         uploadId,
       });
       if (upload === null) throw new Error("This upload request is no longer available.");
-      const file = await ctx.storage.get(upload.storageId);
+      const file = await withUploadStorage("card order receipt processing get", () =>
+        ctx.storage.get(upload.storageId),
+      );
       if (file === null || file.size >= MAX_BYTES_EXCLUSIVE)
         throw new Error("Choose a receipt under 5 MB.");
       const bytes = await file.arrayBuffer();
@@ -72,9 +75,12 @@ export const process = internalAction({
         byteSize: bytes.byteLength,
       });
     } catch (error) {
-      await ctx
-        .runMutation(internal.cardOrderReceipts.cleanupFailedUpload, { uploadId })
-        .catch(() => null);
+      await runUploadCleanup("card order receipt processing", () =>
+        ctx.runMutation(internal.cardOrderReceipts.cleanupFailedUpload, { uploadId }),
+      );
+      const safeError = safeUploadError(error);
+      if (safeError !== null && safeError.code !== "STORAGE_UNAVAILABLE")
+        throw new ConvexError(safeError.message);
       throw error;
     }
   },

@@ -1,24 +1,28 @@
 "use node";
 
 import sharp from "sharp";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { CARD_ORDER_PAYMENT_QR_POLICY } from "./uploadPolicies";
+import { runUploadCleanup, safeUploadError, withUploadStorage } from "./uploadErrors";
 
 export const process = internalAction({
   args: { uploadId: v.id("cardOrderQrUploads") },
   returns: v.id("cardOrderQrUploads"),
   handler: async (ctx, { uploadId }): Promise<Id<"cardOrderQrUploads">> => {
-    const upload = await ctx.runQuery(internal.cardOrderPaymentQr.getProcessingUpload, {
-      uploadId,
-    });
-    if (upload === null || upload.storageId === undefined)
-      throw new Error("The uploaded QR image was not found.");
     try {
-      const file = await ctx.storage.get(upload.storageId);
+      const upload = await ctx.runQuery(internal.cardOrderPaymentQr.getProcessingUpload, {
+        uploadId,
+      });
+      if (upload === null || upload.storageId === undefined)
+        throw new Error("The uploaded QR image was not found.");
+      const storageId = upload.storageId;
+      const file = await withUploadStorage("card order payment QR processing get", () =>
+        ctx.storage.get(storageId),
+      );
       if (file === null || file.size >= CARD_ORDER_PAYMENT_QR_POLICY.maxBytesExclusive)
         throw new Error("Choose an image under 5 MB.");
       const bytes = await file.arrayBuffer();
@@ -52,9 +56,12 @@ export const process = internalAction({
         byteSize: bytes.byteLength,
       });
     } catch (error) {
-      await ctx
-        .runMutation(internal.cardOrderPaymentQr.cleanupFailedUpload, { uploadId })
-        .catch(() => null);
+      await runUploadCleanup("card order payment QR processing", () =>
+        ctx.runMutation(internal.cardOrderPaymentQr.cleanupFailedUpload, { uploadId }),
+      );
+      const safeError = safeUploadError(error);
+      if (safeError !== null && safeError.code !== "STORAGE_UNAVAILABLE")
+        throw new ConvexError(safeError.message);
       throw error;
     }
   },

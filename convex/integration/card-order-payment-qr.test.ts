@@ -1,8 +1,11 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import { httpRouter } from "convex/server";
 import type { FunctionArgs } from "convex/server";
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
+import { ConvexError, v } from "convex/values";
+import { httpAction, internalAction, internalMutation, type ActionCtx } from "../_generated/server";
 
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
@@ -97,6 +100,242 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("card order payment QR", () => {
+  it("maps QR storage store failures safely and removes the upload intent", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    try {
+      const uploadLoader = modules["../cardOrderPaymentQrUploadHttp.ts"];
+      expect(uploadLoader).toBeDefined();
+      const realUpload = ((await uploadLoader!()) as { upload: unknown }).upload as {
+        _handler: (ctx: ActionCtx, request: Request) => Promise<Response>;
+      };
+      const uploadWithFailedStorageStore = httpAction((ctx, request) =>
+        realUpload._handler(
+          {
+            ...ctx,
+            storage: {
+              ...ctx.storage,
+              store: async () => {
+                throw new Error("QR store sentinel");
+              },
+            },
+          },
+          request,
+        ),
+      );
+      const router = httpRouter();
+      router.route({
+        path: "/card-order-payment-qr-upload",
+        method: "POST",
+        handler: uploadWithFailedStorageStore,
+      });
+      const t = convexTest(schema, {
+        ...modules,
+        "../http.ts": async () => ({ default: router }),
+      });
+      const ids = await seed(t);
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await t
+        .withIdentity(identity(ids.adminUserId))
+        .fetch("/card-order-payment-qr-upload", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "image/png",
+            "X-File-Name": "payment-qr.png",
+          },
+          body: png,
+        });
+      expect(response.status).toBe(503);
+      const body = await response.text();
+      expect(body).toBe("Upload failed. Please try again.");
+      expect(body).not.toContain("sentinel");
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("cardOrderQrUploads").collect()).toHaveLength(0);
+        expect(await ctx.db.system.query("_storage").collect()).toHaveLength(0);
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("logs unknown processor errors with the QR route path", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const modulesWithUnknownProcessor = {
+        ...modules,
+        "../cardOrderPaymentQrProcessing.ts": async () => ({
+          process: internalAction({
+            args: { uploadId: v.id("cardOrderQrUploads") },
+            returns: v.id("cardOrderQrUploads"),
+            handler: async () => {
+              throw new Error("QR processor sentinel");
+            },
+          }),
+        }),
+      };
+      const t = convexTest(schema, modulesWithUnknownProcessor);
+      const ids = await seed(t);
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await t
+        .withIdentity(identity(ids.adminUserId))
+        .fetch("/card-order-payment-qr-upload", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "image/png",
+            "X-File-Name": "payment-qr.png",
+          },
+          body: png,
+        });
+      expect(response.status).toBe(422);
+      const body = await response.text();
+      expect(body).toBe("Upload failed. Please try again.");
+      expect(body).not.toContain("sentinel");
+      expect(errorLog).toHaveBeenCalledWith(
+        "Unexpected upload failure at /card-order-payment-qr-upload",
+        expect.objectContaining({ message: "QR processor sentinel" }),
+      );
+    } finally {
+      errorLog.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("preserves the original safe error when upload compensation fails", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const qrModuleLoader = modules["../cardOrderPaymentQr.ts"];
+      expect(qrModuleLoader).toBeDefined();
+      const qrModule = (await qrModuleLoader!()) as Record<string, unknown>;
+      const modulesWithFailures = {
+        ...modules,
+        "../cardOrderPaymentQr.ts": async () => ({
+          ...qrModule,
+          cleanupFailedUpload: internalMutation({
+            args: { uploadId: v.id("cardOrderQrUploads"), storageId: v.optional(v.id("_storage")) },
+            returns: v.null(),
+            handler: async () => {
+              throw new Error("cleanup sentinel");
+            },
+          }),
+        }),
+        "../cardOrderPaymentQrProcessing.ts": async () => ({
+          process: internalAction({
+            args: { uploadId: v.id("cardOrderQrUploads") },
+            returns: v.id("cardOrderQrUploads"),
+            handler: async () => {
+              throw new ConvexError("Upload a valid JPEG or PNG image matching its file type.");
+            },
+          }),
+        }),
+      };
+      const t = convexTest(schema, modulesWithFailures);
+      const ids = await seed(t);
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await t
+        .withIdentity(identity(ids.adminUserId))
+        .fetch("/card-order-payment-qr-upload", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "image/png",
+            "X-File-Name": "payment-qr.png",
+          },
+          body: png,
+        });
+      expect(response.status).toBe(422);
+      expect(await response.text()).toBe(
+        "Upload a valid JPEG or PNG image matching its file type.",
+      );
+      expect(errorLog).toHaveBeenCalledWith(
+        "Upload cleanup failed: card order payment QR upload",
+        expect.objectContaining({ message: "cleanup sentinel" }),
+      );
+    } finally {
+      errorLog.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("keeps structured storage failures safe across the processing action boundary", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    try {
+      const processLoader = modules["../cardOrderPaymentQrProcessing.ts"];
+      expect(processLoader).toBeDefined();
+      const realProcess = ((await processLoader!()) as { process: unknown }).process as {
+        _handler: (
+          ctx: ActionCtx,
+          args: { uploadId: Id<"cardOrderQrUploads"> },
+        ) => Promise<Id<"cardOrderQrUploads">>;
+      };
+      const processWithFailedStorageGet = internalAction({
+        args: { uploadId: v.id("cardOrderQrUploads") },
+        returns: v.id("cardOrderQrUploads"),
+        handler: (ctx, args) =>
+          realProcess._handler(
+            {
+              ...ctx,
+              storage: {
+                ...ctx.storage,
+                get: async () => {
+                  throw new Error("private storage sentinel");
+                },
+              },
+            },
+            args,
+          ),
+      });
+      const overriddenModules = {
+        ...modules,
+        "../cardOrderPaymentQrProcessing.ts": async () => ({
+          process: processWithFailedStorageGet,
+        }),
+      };
+      const t = convexTest(schema, overriddenModules);
+      const ids = await seed(t);
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await t
+        .withIdentity(identity(ids.adminUserId))
+        .fetch("/card-order-payment-qr-upload", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "image/png",
+            "X-File-Name": "payment-qr.png",
+          },
+          body: png,
+        });
+      expect(response.status).toBe(503);
+      const body = await response.text();
+      expect(body).toBe("Upload failed. Please try again.");
+      expect(body).not.toContain("private storage sentinel");
+      await t.run(async (ctx) => {
+        expect(await ctx.db.query("cardOrderQrUploads").collect()).toHaveLength(0);
+        expect(await ctx.db.system.query("_storage").collect()).toHaveLength(0);
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("keeps the placed order's QR snapshot when the active payment QR changes or is removed", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -294,11 +533,21 @@ describe("card order payment QR", () => {
         expect((await ctx.db.get(uploadId))?.status).toBe("attached");
       });
 
-      expect((await send(ids.ownerUserId, png)).status).toBe(403);
+      const forbidden = await send(ids.ownerUserId, png);
+      expect(forbidden.status).toBe(403);
+      expect(await forbidden.text()).toBe("Administrator permission required.");
       expect((await send(ids.adminUserId, png, "image/gif")).status).toBe(415);
-      expect((await send(ids.adminUserId, new Uint8Array([1, 2, 3, 4]))).status).toBe(400);
-      expect((await send(ids.adminUserId, png, "image/jpeg")).status).toBe(400);
-      expect((await send(ids.adminUserId, new Uint8Array(5 * 1024 * 1024))).status).toBe(413);
+      const malformed = await send(ids.adminUserId, new Uint8Array([1, 2, 3, 4]));
+      expect(malformed.status).toBe(422);
+      expect(await malformed.text()).toBe("Upload failed. Please try again.");
+      const mismatch = await send(ids.adminUserId, png, "image/jpeg");
+      expect(mismatch.status).toBe(422);
+      expect(await mismatch.text()).toBe(
+        "Upload a valid JPEG or PNG image matching its file type.",
+      );
+      const oversized = await send(ids.adminUserId, new Uint8Array(5 * 1024 * 1024));
+      expect(oversized.status).toBe(413);
+      expect(await oversized.text()).toBe("Choose an image under 5 MB.");
       const oversizedPixels = new Uint8Array(
         await sharp({ create: { width: 3000, height: 2001, channels: 4, background: "white" } })
           .png()
@@ -309,8 +558,14 @@ describe("card order payment QR", () => {
           .png()
           .toBuffer(),
       );
-      expect((await send(ids.adminUserId, oversizedPixels)).status).toBe(400);
-      expect((await send(ids.adminUserId, oversizedEdge)).status).toBe(400);
+      const pixelLimit = await send(ids.adminUserId, oversizedPixels);
+      expect(pixelLimit.status).toBe(422);
+      expect(await pixelLimit.text()).toBe("Upload failed. Please try again.");
+      const edgeLimit = await send(ids.adminUserId, oversizedEdge);
+      expect(edgeLimit.status).toBe(422);
+      expect(await edgeLimit.text()).toBe(
+        "Choose an image with 6 megapixels or fewer and no side over 12,000 pixels.",
+      );
     } finally {
       vi.unstubAllEnvs();
     }

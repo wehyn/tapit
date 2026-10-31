@@ -4,6 +4,7 @@ import type { ActionCtx } from "./_generated/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { runUploadCleanup, uploadErrorResponse, withUploadStorage } from "./uploadErrors";
 
 const MAX_BYTES_EXCLUSIVE = 5 * 1024 * 1024;
 const MAX_BLOB_PART_BYTES = 1024 * 1024;
@@ -82,7 +83,7 @@ async function storeBody(
   if (currentBytes > 0) parts.push(new Blob(current));
   const body = new Blob(parts, { type: contentType });
   if (body.size !== total) throw new Error("The upload body could not be read.");
-  return await ctx.storage.store(body);
+  return await withUploadStorage("card order receipt upload store", () => ctx.storage.store(body));
 }
 
 async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response> {
@@ -91,7 +92,12 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers });
-  const userId = await getAuthUserId(ctx);
+  let userId: Id<"users"> | null;
+  try {
+    userId = await getAuthUserId(ctx);
+  } catch (error) {
+    return uploadErrorResponse(error, "/card-order-receipt-upload", headers);
+  }
   if (userId === null) return new Response("Authentication required.", { status: 401, headers });
 
   const contentType = request.headers.get("Content-Type");
@@ -132,15 +138,14 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (error) {
-    await ctx
-      .runMutation(internal.cardOrderReceipts.cleanupFailedUpload, {
+    await runUploadCleanup("card order receipt upload", () =>
+      ctx.runMutation(internal.cardOrderReceipts.cleanupFailedUpload, {
         uploadId,
         userId,
         ...(storageId === undefined ? {} : { storageId }),
-      })
-      .catch(() => null);
-    const message = error instanceof Error ? error.message : "Receipt upload failed.";
-    return new Response(message, { status: message === TOO_LARGE ? 413 : 400, headers });
+      }),
+    );
+    return uploadErrorResponse(error, "/card-order-receipt-upload", headers);
   }
 }
 

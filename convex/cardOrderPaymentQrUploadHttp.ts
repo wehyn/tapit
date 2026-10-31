@@ -5,6 +5,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { CARD_ORDER_PAYMENT_QR_POLICY } from "./uploadPolicies";
+import { runUploadCleanup, uploadErrorResponse, withUploadStorage } from "./uploadErrors";
 
 const TOO_LARGE = "Choose an image under 5 MB.";
 const MAX_BLOB_PART_BYTES = 1024 * 1024;
@@ -80,7 +81,9 @@ async function store(
   if (currentBytes > 0) parts.push(new Blob(current));
   const blob = new Blob(parts, { type: contentType });
   if (blob.size !== total) throw new Error("The upload body could not be read.");
-  return await ctx.storage.store(blob);
+  return await withUploadStorage("card order payment QR upload store", () =>
+    ctx.storage.store(blob),
+  );
 }
 
 async function handle(ctx: ActionCtx, request: Request): Promise<Response> {
@@ -89,13 +92,13 @@ async function handle(ctx: ActionCtx, request: Request): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers });
-  const userId = await getAuthUserId(ctx);
-  if (userId === null) return new Response("Authentication required.", { status: 401, headers });
+  let userId: Id<"users"> | null;
   try {
-    await ctx.runMutation(internal.cardOrderPaymentQr.assertAdministrator, { userId });
-  } catch {
-    return new Response("Administrator permission required.", { status: 403, headers });
+    userId = await getAuthUserId(ctx);
+  } catch (error) {
+    return uploadErrorResponse(error, "/card-order-payment-qr-upload", headers);
   }
+  if (userId === null) return new Response("Authentication required.", { status: 401, headers });
   const contentType = request.headers.get("Content-Type");
   if (
     contentType === null ||
@@ -116,6 +119,7 @@ async function handle(ctx: ActionCtx, request: Request): Promise<Response> {
   let uploadId: Id<"cardOrderQrUploads"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
+    await ctx.runMutation(internal.cardOrderPaymentQr.assertAdministrator, { userId });
     uploadId = await ctx.runMutation(internal.cardOrderPaymentQr.createUploadIntent, { userId });
     storageId = await store(ctx, request, contentType);
     await ctx.runMutation(internal.cardOrderPaymentQr.prepareUpload, {
@@ -129,15 +133,15 @@ async function handle(ctx: ActionCtx, request: Request): Promise<Response> {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (error) {
-    if (uploadId !== undefined)
-      await ctx
-        .runMutation(internal.cardOrderPaymentQr.cleanupFailedUpload, {
-          uploadId,
+    const failedUploadId = uploadId;
+    if (failedUploadId !== undefined)
+      await runUploadCleanup("card order payment QR upload", () =>
+        ctx.runMutation(internal.cardOrderPaymentQr.cleanupFailedUpload, {
+          uploadId: failedUploadId,
           ...(storageId === undefined ? {} : { storageId }),
-        })
-        .catch(() => null);
-    const message = error instanceof Error ? error.message : "QR upload failed.";
-    return new Response(message, { status: message === TOO_LARGE ? 413 : 400, headers });
+        }),
+      );
+    return uploadErrorResponse(error, "/card-order-payment-qr-upload", headers);
   }
 }
 
