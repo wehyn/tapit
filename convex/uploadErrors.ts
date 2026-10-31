@@ -98,6 +98,7 @@ const SAFE_UPLOAD_MESSAGES: Record<string, UploadErrorCode> = {
   "Too many profile media upload jobs are assigned to this profile.": "QUOTA_EXCEEDED",
   "Too many profile media assets are assigned to this profile.": "QUOTA_EXCEEDED",
   "Media changed elsewhere. Reload and try again.": "CONFLICT",
+  "Order is not awaiting payment.": "CONFLICT",
   "Photo changed elsewhere. Reload and try again.": "CONFLICT",
   "The profile draft changed while you were editing. Refresh and try again.": "CONFLICT",
   "Photo upload in progress. Wait for it to finish and try again.": "CONFLICT",

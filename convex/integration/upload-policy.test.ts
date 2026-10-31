@@ -95,6 +95,7 @@ describe("generic upload policy foundation", () => {
     ["Too many profile media upload jobs are assigned to this profile.", "QUOTA_EXCEEDED", 429],
     ["Too many upload attempts. Try again later.", "RATE_LIMITED", 429],
     ["Media changed elsewhere. Reload and try again.", "CONFLICT", 409],
+    ["Order is not awaiting payment.", "CONFLICT", 409],
     ["A card design upload is already being processed.", "CONFLICT", 409],
     ["A previous card design upload is still being cleaned up.", "CONFLICT", 409],
     ["This file is already in use.", "CONFLICT", 409],
