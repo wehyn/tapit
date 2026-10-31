@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
   action,
@@ -17,6 +17,7 @@ import {
 } from "./profileImages";
 import schema from "./schema";
 import { isActiveCustomer, sameScope } from "./admin";
+import { withUploadStorage } from "./uploadErrors";
 
 type UploadAccessMode = "owner" | "admin";
 
@@ -126,7 +127,7 @@ export const attach = internalMutation({
   handler: async (ctx, args) => {
     const profile = await ctx.db.get(args.profileId);
     if (profile === null || profile.ownerId !== args.ownerId)
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     const owner = await ctx.db.get(args.ownerId);
     const job = args.uploadJobId === undefined ? null : await ctx.db.get(args.uploadJobId);
     const actorUserId = args.uploadJobId === undefined ? args.actorUserId : job?.actorUserId;
@@ -143,17 +144,17 @@ export const attach = internalMutation({
       !sameScope(owner, profile) ||
       !canUploadForProfile(actor, actorUserId, accessMode, owner, profile)
     )
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     const currentRevision = profile.imageRevision ?? 0;
     const currentDraftRevision = profile.draftRevision ?? 0;
     const expectedDraftRevision = job?.expectedDraftRevision ?? args.expectedDraftRevision;
     if (expectedDraftRevision !== undefined && expectedDraftRevision !== currentDraftRevision)
-      throw new Error(DRAFT_REVISION_CONFLICT);
+      throw new ConvexError(DRAFT_REVISION_CONFLICT);
     if (args.expectedImageRevision !== undefined && args.expectedImageRevision !== currentRevision)
-      throw new Error(IMAGE_REVISION_CONFLICT);
+      throw new ConvexError(IMAGE_REVISION_CONFLICT);
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (metadata === null || metadata.size !== args.size)
-      throw new Error("The uploaded image was not found.");
+      throw new ConvexError("The uploaded image was not found.");
     if (args.smallStorageId !== undefined) {
       if (args.smallStorageId === args.storageId)
         throw new Error("The derivative must be a separate image.");
@@ -174,7 +175,7 @@ export const attach = internalMutation({
       existing !== null &&
       (existing.profileId !== args.profileId || existing.ownerId !== args.ownerId)
     )
-      throw new Error("This image does not belong to this profile.");
+      throw new ConvexError("This image does not belong to this profile.");
     if (existing !== null && existing.smallStorageId !== args.smallStorageId)
       throw new Error("This image set has different variants.");
     if (args.uploadJobId !== undefined) {
@@ -186,7 +187,7 @@ export const attach = internalMutation({
         job.largeStorageId !== args.storageId ||
         job.smallStorageId !== args.smallStorageId
       )
-        throw new Error("Upload job does not match this image set.");
+        throw new ConvexError("Upload job does not match this image set.");
     }
     if (existing === null)
       await ctx.db.insert("profileImages", {
@@ -225,8 +226,10 @@ export const attach = internalMutation({
       profile.published?.imageStorageId !== oldStorageId
     )
       await removeIfUnreferenced(ctx, oldStorageId, profile._id);
-    const imageUrl = await ctx.storage.getUrl(args.storageId);
-    if (imageUrl === null) throw new Error("The uploaded image was not found.");
+    const imageUrl = await withUploadStorage("profile image attach getUrl", () =>
+      ctx.storage.getUrl(args.storageId),
+    );
+    if (imageUrl === null) throw new ConvexError("The uploaded image was not found.");
     if (args.uploadJobId !== undefined)
       await ctx.db.patch(args.uploadJobId, { status: "attached" });
     return { imageUrl, imageRevision: currentRevision + 1, draftRevision };
@@ -244,8 +247,8 @@ export const markUploadJob = internalMutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
-    if (job === null) throw new Error("Upload job not found.");
-    if (job.status !== "pending") throw new Error("Upload job is no longer pending.");
+    if (job === null) throw new ConvexError("Upload job not found.");
+    if (job.status !== "pending") throw new ConvexError("Upload job is no longer pending.");
     if (
       args.largeStorageId !== undefined &&
       job.largeStorageId !== undefined &&
@@ -288,7 +291,7 @@ export const createUploadJob = internalMutation({
       profile.ownerId !== args.ownerId ||
       !sameScope(owner, profile)
     )
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     const actor =
       args.actorUserId === undefined
         ? null
@@ -297,12 +300,12 @@ export const createUploadJob = internalMutation({
             .withIndex("by_userId", (query) => query.eq("userId", args.actorUserId!))
             .unique();
     if (!canUploadForProfile(actor, args.actorUserId, args.accessMode, owner, profile))
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     if (args.expectedImageRevision !== (profile.imageRevision ?? 0))
-      throw new Error(IMAGE_REVISION_CONFLICT);
+      throw new ConvexError(IMAGE_REVISION_CONFLICT);
     const expectedDraftRevision = args.expectedDraftRevision ?? profile.draftRevision ?? 0;
     if (expectedDraftRevision !== (profile.draftRevision ?? 0))
-      throw new Error(DRAFT_REVISION_CONFLICT);
+      throw new ConvexError(DRAFT_REVISION_CONFLICT);
     const now = Date.now();
     return await ctx.db.insert("profileImageUploadJobs", {
       profileId: args.profileId,

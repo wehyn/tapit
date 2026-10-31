@@ -3,6 +3,7 @@ import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { readBoundedRequestBody } from "./profileUploadBody";
+import { runUploadCleanup, uploadErrorResponse, withUploadStorage } from "./uploadErrors";
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -30,8 +31,6 @@ async function handleUpload(
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (request.method !== "POST")
     return new Response("Method not allowed", { status: 405, headers: cors });
-  if ((await ctx.auth.getUserIdentity()) === null)
-    return new Response("Authentication required.", { status: 401, headers: cors });
   const profileId = request.headers.get("X-Profile-Id");
   const rawRevision = request.headers.get("X-Media-Revision");
   const target = request.headers.get("X-Media-Target");
@@ -52,6 +51,8 @@ async function handleUpload(
   let jobId: Id<"profileMediaUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
+    if ((await ctx.auth.getUserIdentity()) === null)
+      return new Response("Authentication required.", { status: 401, headers: cors });
     const accessArgs = { profileId: profileId as Id<"profiles"> };
     const access = adminOnly
       ? await ctx.runQuery(internal.profileMedia.getAdminAccess, accessArgs)
@@ -85,7 +86,9 @@ async function handleUpload(
       expectedMediaRevision: revision,
       target,
     });
-    storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
+    storageId = await withUploadStorage("profile media upload store", () =>
+      ctx.storage.store(new Blob([body], { type: contentType })),
+    );
     await ctx.runMutation(internal.profileMedia.markUploadJob, { jobId, storageId });
     const result = await ctx.runAction(internal.profileMediaProcessing.process, { jobId });
     return new Response(JSON.stringify(result), {
@@ -94,16 +97,14 @@ async function handleUpload(
     });
   } catch (error) {
     if (jobId !== undefined)
-      await ctx.runMutation(internal.profileMedia.compensateUpload, { jobId, storageId });
-    const message = error instanceof Error ? error.message : "Media upload failed.";
-    const status =
-      message.toLowerCase().includes("access denied") ||
-      message.toLowerCase().includes("administrator permission required")
-        ? 403
-        : message.includes("changed elsewhere") || message.includes("Upload job")
-          ? 409
-          : 400;
-    return new Response(message, { status, headers: cors });
+      await runUploadCleanup("profile media upload compensation", () =>
+        ctx.runMutation(internal.profileMedia.compensateUpload, { jobId: jobId!, storageId }),
+      );
+    return uploadErrorResponse(
+      error,
+      adminOnly ? "/admin-profile-media-upload" : "/profile-media-upload",
+      cors,
+    );
   }
 }
 

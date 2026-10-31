@@ -1,13 +1,26 @@
 import { convexTest } from "convex-test";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
 import { createHash } from "node:crypto";
+import { ConvexError, v } from "convex/values";
+import { internalAction, internalMutation } from "../_generated/server";
+import { UPLOAD_FAILURE_MESSAGE, uploadError } from "../uploadErrors";
+import type * as profileImageProcessingExports from "../profileImageProcessing";
+import type * as storageExports from "../storage";
 
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
+
+function callTestHandler<TArgs, TReturn>(fn: unknown, ctx: unknown, args: TArgs): Promise<TReturn> {
+  return (fn as { _handler: (ctx: unknown, args: TArgs) => Promise<TReturn> })._handler(ctx, args);
+}
 
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
@@ -113,6 +126,230 @@ async function seed(t: ReturnType<typeof convexTest>) {
 }
 
 describe("profile image storage", () => {
+  it("sanitizes unexpected and structured storage failures on customer and admin routes", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const image = new Uint8Array([1, 2, 3]);
+    const failure = new ConvexError(uploadError("STORAGE_UNAVAILABLE", "private-image-sentinel"));
+    {
+      const overrides = {
+        ...modules,
+        "../profileImageProcessing.ts": async () => ({
+          process: internalAction({
+            args: { jobId: v.id("profileImageUploadJobs") },
+            returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
+            handler: async () => {
+              throw failure;
+            },
+          }),
+        }),
+      };
+      const t = convexTest(schema, overrides);
+      const data = await seed(t);
+      const routes = [
+        { path: "/profile-image-upload", userId: data.ownerUserId },
+        { path: "/admin-profile-image-upload", userId: data.adminUserId },
+      ];
+      for (const route of routes) {
+        const response = await t.withIdentity(identity(route.userId)).fetch(route.path, {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "X-Profile-Id": data.ownerProfileId,
+            "X-Image-Revision": "0",
+            "X-Draft-Revision": "0",
+            "Content-Type": "image/png",
+          },
+          body: image,
+        });
+        expect(response.status).toBe(503);
+        const body = await response.text();
+        expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+        expect(body).not.toContain("private-image-sentinel");
+      }
+    }
+    const storageGetFailure = new Error("private-storage-get-sentinel");
+    const processingModule = (await modules[
+      "../profileImageProcessing.ts"
+    ]!()) as typeof profileImageProcessingExports;
+    const storageFailureTest = convexTest(schema, {
+      ...modules,
+      "../profileImageProcessing.ts": async () => ({
+        ...processingModule,
+        process: internalAction({
+          args: { jobId: v.id("profileImageUploadJobs") },
+          returns: v.object({ imageRevision: v.number(), draftRevision: v.number() }),
+          handler: (ctx, args) =>
+            callTestHandler<typeof args, { imageRevision: number; draftRevision: number }>(
+              processingModule.process,
+              {
+                ...ctx,
+                storage: {
+                  ...ctx.storage,
+                  get: async () => {
+                    throw storageGetFailure;
+                  },
+                },
+              },
+              args,
+            ),
+        }),
+      }),
+    });
+    const storageGetData = await seed(storageFailureTest);
+    for (const route of [
+      { path: "/profile-image-upload", userId: storageGetData.ownerUserId },
+      { path: "/admin-profile-image-upload", userId: storageGetData.adminUserId },
+    ]) {
+      const response = await storageFailureTest
+        .withIdentity(identity(route.userId))
+        .fetch(route.path, {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "X-Profile-Id": storageGetData.ownerProfileId,
+            "X-Image-Revision": "0",
+            "X-Draft-Revision": "0",
+            "Content-Type": "image/png",
+          },
+          body: new Uint8Array([1, 2, 3]),
+        });
+      expect(response.status).toBe(503);
+      const body = await response.text();
+      expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+      expect(body).not.toContain("private-storage-get-sentinel");
+      expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+        "Upload storage failure: profile image processing get",
+        storageGetFailure,
+      );
+    }
+    const getUrlFailure = new Error("private-image-getUrl-sentinel");
+    const attachStorageModule = (await modules["../storage.ts"]!()) as typeof storageExports;
+    const getUrlTest = convexTest(schema, {
+      ...modules,
+      "../storage.ts": async () => ({
+        ...attachStorageModule,
+        attach: internalMutation({
+          args: {
+            profileId: v.id("profiles"),
+            ownerId: v.id("customers"),
+            storageId: v.id("_storage"),
+            contentType: v.union(
+              v.literal("image/jpeg"),
+              v.literal("image/png"),
+              v.literal("image/webp"),
+            ),
+            size: v.number(),
+            smallStorageId: v.optional(v.id("_storage")),
+            expectedImageRevision: v.optional(v.number()),
+            expectedDraftRevision: v.optional(v.number()),
+            uploadJobId: v.optional(v.id("profileImageUploadJobs")),
+            actorUserId: v.optional(v.id("users")),
+            accessMode: v.optional(v.union(v.literal("owner"), v.literal("admin"))),
+          },
+          returns: v.object({
+            imageUrl: v.string(),
+            imageRevision: v.number(),
+            draftRevision: v.number(),
+          }),
+          handler: (ctx, args) =>
+            callTestHandler<
+              typeof args,
+              {
+                imageUrl: string;
+                imageRevision: number;
+                draftRevision: number;
+              }
+            >(
+              attachStorageModule.attach,
+              {
+                ...ctx,
+                storage: {
+                  ...ctx.storage,
+                  getUrl: async () => {
+                    throw getUrlFailure;
+                  },
+                },
+              },
+              args,
+            ),
+        }),
+      }),
+    });
+    const getUrlData = await seed(getUrlTest);
+    const validImage = await sharp({
+      create: { width: 384, height: 384, channels: 4, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+    const getUrlResponse = await getUrlTest
+      .withIdentity(identity(getUrlData.ownerUserId))
+      .fetch("/profile-image-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "X-Profile-Id": getUrlData.ownerProfileId,
+          "X-Image-Revision": "0",
+          "X-Draft-Revision": "0",
+          "Content-Type": "image/png",
+        },
+        body: new Uint8Array(validImage),
+      });
+    expect(getUrlResponse.status).toBe(503);
+    expect(await getUrlResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      "Upload storage failure: profile image attach getUrl",
+      getUrlFailure,
+    );
+    const storageModule = (await modules["../storage.ts"]!()) as typeof storageExports;
+    const t = convexTest(schema, {
+      ...modules,
+      "../storage.ts": async () => ({
+        ...storageModule,
+        compensateUpload: internalMutation({
+          args: {
+            jobId: v.id("profileImageUploadJobs"),
+            unregisteredLargeStorageId: v.optional(v.id("_storage")),
+            unregisteredSmallStorageId: v.optional(v.id("_storage")),
+          },
+          returns: v.null(),
+          handler: async () => {
+            throw new Error("private-cleanup-sentinel");
+          },
+        }),
+      }),
+    });
+    const data = await seed(t);
+    for (const route of [
+      { path: "/profile-image-upload", userId: data.ownerUserId },
+      { path: "/admin-profile-image-upload", userId: data.adminUserId },
+    ]) {
+      const response = await t.withIdentity(identity(route.userId)).fetch(route.path, {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "X-Profile-Id": data.ownerProfileId,
+          "X-Image-Revision": "0",
+          "X-Draft-Revision": "0",
+          "Content-Type": "image/png",
+        },
+        body: new Uint8Array([1, 2, 3]),
+      });
+      expect(response.status).toBe(422);
+      const body = await response.text();
+      expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+      expect(body).not.toContain("private-cleanup-sentinel");
+      expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+        expect.stringContaining(route.path),
+        expect.anything(),
+      );
+    }
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      expect.stringContaining("profile image upload compensation"),
+      expect.anything(),
+    );
+    vi.unstubAllEnvs();
+  });
   it("enforces the streamed request cap and validates Content-Length", async () => {
     const { readBoundedRequestBody } = await import("../profileUploadBody");
     const makeRequest = (size: number, length?: string) => {
@@ -237,11 +474,11 @@ describe("profile image storage", () => {
       });
 
     const wrongSize = await send(await image(128), "image/png");
-    expect(wrongSize.status).toBe(400);
+    expect(wrongSize.status).toBe(422);
     expect(await wrongSize.text()).toContain("384 by 384");
     expect(wrongSize.headers.get("Access-Control-Allow-Origin")).toBe("http://localhost:3000");
     const mismatch = await send(await image(384), "image/jpeg");
-    expect(mismatch.status).toBe(400);
+    expect(mismatch.status).toBe(422);
     expect(await mismatch.text()).toContain("Content-Type");
 
     const success = await send(await image(384), "image/png");
@@ -315,11 +552,13 @@ describe("profile image storage", () => {
       .withIdentity(identity(data.adminUserId))
       .fetch("/profile-image-upload", request(data.ownerProfileId));
     expect(adminOnCustomerPath.status).toBe(403);
+    expect(await adminOnCustomerPath.text()).toBe("Profile access denied.");
 
     const customerOnAdminPath = await t
       .withIdentity(identity(data.ownerUserId))
       .fetch("/admin-profile-image-upload", request(data.ownerProfileId));
     expect(customerOnAdminPath.status).toBe(403);
+    expect(await customerOnAdminPath.text()).toBe("Administrator permission required.");
 
     const crossScopeAdminUpload = await t
       .withIdentity(identity(data.adminUserId))

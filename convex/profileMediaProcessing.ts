@@ -1,10 +1,11 @@
 "use node";
 
 import sharp from "sharp";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { runUploadCleanup, safeUploadError, withUploadStorage } from "./uploadErrors";
 
 export const MAX_PROFILE_MEDIA_DIMENSION = 12_000;
 export const MAX_PROFILE_MEDIA_PIXELS = 40_000_000;
@@ -38,11 +39,13 @@ export const process = internalAction({
       args,
     );
     if (job === null || job.storageId === undefined)
-      throw new Error("The uploaded media was not found.");
+      throw new ConvexError("The uploaded media was not found.");
     const storageId = job.storageId;
     let previewStorageId: Id<"_storage"> | undefined;
     try {
-      const source = await ctx.storage.get(job.storageId);
+      const source = await withUploadStorage("profile media processing get", () =>
+        ctx.storage.get(job.storageId!),
+      );
       if (source === null || source.size > 5 * 1024 * 1024)
         throw new Error("Media must be 5 MB or smaller.");
       const bytes = new Uint8Array(await source.arrayBuffer());
@@ -92,7 +95,9 @@ export const process = internalAction({
         jobId: args.jobId,
         previewSha256,
       });
-      previewStorageId = await ctx.storage.store(new Blob([previewBytes], { type: contentType }));
+      previewStorageId = await withUploadStorage("profile media processing store", () =>
+        ctx.storage.store(new Blob([previewBytes], { type: contentType })),
+      );
       await ctx.runMutation(internal.profileMedia.markUploadJob, {
         jobId: args.jobId,
         previewStorageId,
@@ -113,17 +118,17 @@ export const process = internalAction({
         height: metadata.height,
       });
     } catch (error) {
-      await ctx.runMutation(internal.profileMedia.compensateUpload, {
-        jobId: args.jobId,
-        storageId,
-        previewStorageId,
-      });
-      if (
-        error instanceof Error &&
-        /^(Media|The uploaded|Upload job|Media changed)/.test(error.message)
-      )
-        throw error;
-      throw new Error("The uploaded media could not be decoded or attached.");
+      await runUploadCleanup("profile media processing compensation", () =>
+        ctx.runMutation(internal.profileMedia.compensateUpload, {
+          jobId: args.jobId,
+          storageId,
+          previewStorageId,
+        }),
+      );
+      const safeError = safeUploadError(error);
+      if (safeError?.code === "STORAGE_UNAVAILABLE") throw error;
+      if (safeError !== null) throw new ConvexError(safeError);
+      throw error;
     }
   },
 });

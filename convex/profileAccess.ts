@@ -1,7 +1,8 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
+import { safeUploadError } from "./uploadErrors";
 import {
   hasCardOwnerFeaturesForProfile,
   isActiveCustomer,
@@ -12,9 +13,19 @@ import {
 
 type DbContext = QueryCtx | MutationCtx;
 
+async function preserveSafeAccessError<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const safeError = safeUploadError(error);
+    if (safeError !== null) throw new ConvexError(safeError);
+    throw error;
+  }
+}
+
 /** Resolves the authenticated account and verifies access to one profile. */
 export async function profileAccess(ctx: DbContext, profileId: Id<"profiles">) {
-  const userId = await requireUser(ctx);
+  const userId = await preserveSafeAccessError(() => requireUser(ctx));
   const account = await ctx.db
     .query("customers")
     .withIndex("by_userId", (query) => query.eq("userId", userId))
@@ -27,7 +38,7 @@ export async function profileAccess(ctx: DbContext, profileId: Id<"profiles">) {
     !sameScope(account, profile) ||
     (profile.ownerId !== account._id && account.role !== "admin")
   ) {
-    throw new Error("Profile access denied.");
+    throw new ConvexError("Profile access denied.");
   }
   return {
     account,
@@ -39,7 +50,7 @@ export async function profileAccess(ctx: DbContext, profileId: Id<"profiles">) {
 
 /** Resolves an active profile owner; customer photo operations must use this boundary. */
 export async function profileOwnerAccess(ctx: DbContext, profileId: Id<"profiles">) {
-  const userId = await requireUser(ctx);
+  const userId = await preserveSafeAccessError(() => requireUser(ctx));
   const account = await ctx.db
     .query("customers")
     .withIndex("by_userId", (query) => query.eq("userId", userId))
@@ -52,7 +63,7 @@ export async function profileOwnerAccess(ctx: DbContext, profileId: Id<"profiles
     !sameScope(account, profile) ||
     profile.ownerId !== account._id
   ) {
-    throw new Error("Profile access denied.");
+    throw new ConvexError("Profile access denied.");
   }
   return {
     account,
@@ -64,7 +75,7 @@ export async function profileOwnerAccess(ctx: DbContext, profileId: Id<"profiles
 
 /** Resolves an active administrator and a profile within that administrator's scope. */
 export async function profileAdministratorAccess(ctx: DbContext, profileId: Id<"profiles">) {
-  const { userId, account } = await requireAdministrator(ctx);
+  const { userId, account } = await preserveSafeAccessError(() => requireAdministrator(ctx));
   const profile = await ctx.db.get(profileId);
   const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
   if (
@@ -74,7 +85,7 @@ export async function profileAdministratorAccess(ctx: DbContext, profileId: Id<"
     !sameScope(account, owner) ||
     !sameScope(owner, profile)
   ) {
-    throw new Error("Profile access denied.");
+    throw new ConvexError("Profile access denied.");
   }
   return { account, profile, userId };
 }

@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalQuery, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { inspectProfileStorage } from "./profileStorageReferences";
+import { withUploadStorage } from "./uploadErrors";
 
 export const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -127,7 +128,8 @@ export async function releaseProfileImageMapping(
     );
   await ctx.db.delete(mapping._id);
   for (const [storageId, inspection] of inspections)
-    if (inspection.kind === "unreferenced") await ctx.storage.delete(storageId);
+    if (inspection.kind === "unreferenced")
+      await withUploadStorage("profile image release delete", () => ctx.storage.delete(storageId));
 }
 
 export const getMapping = internalQuery({

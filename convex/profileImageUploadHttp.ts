@@ -3,6 +3,7 @@ import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { readBoundedRequestBody } from "./profileUploadBody";
+import { runUploadCleanup, uploadErrorResponse, withUploadStorage } from "./uploadErrors";
 
 const MAX_UPLOAD_SIZE = 5 * 1024 * 1024;
 
@@ -33,8 +34,6 @@ async function handleUpload(
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST") return errorResponse("Method not allowed", 405, headers);
 
-  const identity = await ctx.auth.getUserIdentity();
-  if (identity === null) return errorResponse("Authentication required.", 401, headers);
   const profileId = request.headers.get("X-Profile-Id");
   if (profileId === null) return errorResponse("X-Profile-Id is required.", 400, headers);
   const rawRevision = request.headers.get("X-Image-Revision");
@@ -59,6 +58,8 @@ async function handleUpload(
   let jobId: Id<"profileImageUploadJobs"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity === null) return errorResponse("Authentication required.", 401, headers);
     const access = await ctx.runQuery(
       adminOnly ? internal.profileAccess.getAdminAccess : internal.profileAccess.getOwnerAccess,
       {
@@ -86,13 +87,17 @@ async function handleUpload(
       expectedImageRevision,
       expectedDraftRevision,
     });
-    storageId = await ctx.storage.store(new Blob([body], { type: contentType }));
+    storageId = await withUploadStorage("profile image upload store", () =>
+      ctx.storage.store(new Blob([body], { type: contentType })),
+    );
     await ctx.runMutation(internal.storage.markUploadJob, {
       jobId,
       largeStorageId: storageId,
     });
     const committed = await ctx.runAction(internal.profileImageProcessing.process, { jobId });
-    const imageUrl = await ctx.storage.getUrl(storageId);
+    const imageUrl = await withUploadStorage("profile image upload getUrl", () =>
+      ctx.storage.getUrl(storageId!),
+    );
     if (imageUrl === null) throw new Error("The uploaded image was not found.");
     return new Response(
       JSON.stringify({
@@ -105,22 +110,17 @@ async function handleUpload(
     );
   } catch (error) {
     if (jobId !== undefined)
-      await ctx.runMutation(internal.storage.compensateUpload, {
-        jobId,
-        ...(storageId === undefined ? {} : { unregisteredLargeStorageId: storageId }),
-      });
-    const message = error instanceof Error ? error.message : "Image upload failed.";
-    const status = message.includes("Authentication required")
-      ? 401
-      : message.includes("Profile access denied") ||
-          message.includes("Administrator permission required")
-        ? 403
-        : message.includes("changed while you were editing") ||
-            message.includes("Photo changed elsewhere") ||
-            message.includes("Upload job")
-          ? 409
-          : 400;
-    return errorResponse(message, status, headers);
+      await runUploadCleanup("profile image upload compensation", () =>
+        ctx.runMutation(internal.storage.compensateUpload, {
+          jobId: jobId!,
+          ...(storageId === undefined ? {} : { unregisteredLargeStorageId: storageId }),
+        }),
+      );
+    return uploadErrorResponse(
+      error,
+      adminOnly ? "/admin-profile-image-upload" : "/profile-image-upload",
+      headers,
+    );
   }
 }
 

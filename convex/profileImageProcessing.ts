@@ -2,9 +2,10 @@
 
 import sharp from "sharp";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
+import { runUploadCleanup, safeUploadError, withUploadStorage } from "./uploadErrors";
 
 const MAX_IMAGE_SET_SIZE = 5 * 1024 * 1024;
 
@@ -21,12 +22,15 @@ export const process = internalAction({
       internal.storage.getUploadJob,
       args,
     );
-    if (job === null) throw new Error("Upload job not found.");
-    if (job.largeStorageId === undefined) throw new Error("The uploaded image was not found.");
+    if (job === null) throw new ConvexError("Upload job not found.");
+    if (job.largeStorageId === undefined)
+      throw new ConvexError("The uploaded image was not found.");
     const largeStorageId = job.largeStorageId;
     let smallStorageId: Id<"_storage"> | undefined;
     try {
-      const source = await ctx.storage.get(largeStorageId);
+      const source = await withUploadStorage("profile image processing get", () =>
+        ctx.storage.get(largeStorageId),
+      );
       if (source === null) throw new Error("The uploaded image was not found.");
       const sourceBytes = new Uint8Array(await source.arrayBuffer());
       const image = sharp(Buffer.from(sourceBytes), { failOn: "error" });
@@ -45,8 +49,10 @@ export const process = internalAction({
         throw new Error("The image set must be 5 MB or smaller.");
       const smallSha256 = await sha256(smallBytes);
       await ctx.runMutation(internal.storage.markUploadJob, { jobId: args.jobId, smallSha256 });
-      smallStorageId = await ctx.storage.store(
-        new Blob([smallBytes], { type: format === "png" ? "image/png" : "image/jpeg" }),
+      smallStorageId = await withUploadStorage("profile image processing store", () =>
+        ctx.storage.store(
+          new Blob([smallBytes], { type: format === "png" ? "image/png" : "image/jpeg" }),
+        ),
       );
       await ctx.runMutation(internal.storage.markUploadJob, {
         jobId: args.jobId,
@@ -69,18 +75,16 @@ export const process = internalAction({
         draftRevision: committed.draftRevision,
       };
     } catch (error) {
-      await ctx.runMutation(internal.storage.compensateUpload, {
-        jobId: args.jobId,
-        ...(smallStorageId === undefined ? {} : { unregisteredSmallStorageId: smallStorageId }),
-      });
-      if (
-        error instanceof Error &&
-        /^(Profile images|Image Content-Type|The image set|Photo changed elsewhere|The profile draft changed|Upload job)/.test(
-          error.message,
-        )
-      )
-        throw error;
-      throw new Error("The uploaded image could not be decoded or attached.");
+      await runUploadCleanup("profile image processing compensation", () =>
+        ctx.runMutation(internal.storage.compensateUpload, {
+          jobId: args.jobId,
+          ...(smallStorageId === undefined ? {} : { unregisteredSmallStorageId: smallStorageId }),
+        }),
+      );
+      const safeError = safeUploadError(error);
+      if (safeError?.code === "STORAGE_UNAVAILABLE") throw error;
+      if (safeError !== null) throw new ConvexError(safeError);
+      throw error;
     }
   },
 });
