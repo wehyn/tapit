@@ -91,6 +91,9 @@ export default defineSchema({
     role: v.union(v.literal("customer"), v.literal("admin")),
     isDemo: v.optional(v.boolean()),
     demoResetInProgress: v.optional(v.boolean()),
+    setupState: v.optional(
+      v.union(v.null(), v.literal("waiting"), v.literal("draft"), v.literal("active")),
+    ),
     status: v.union(
       v.literal("pending"),
       v.literal("invited"),
@@ -109,6 +112,7 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_role", ["role"])
     .index("by_scope", ["scope"])
+    .index("by_scope_and_setupState", ["scope", "setupState"])
     .index("by_scope_and_role", ["scope", "role"])
     .index("by_scope_and_status", ["scope", "status"])
     .index("by_deletionStatus_and_deletionRequestedAt", ["deletionStatus", "deletionRequestedAt"]),

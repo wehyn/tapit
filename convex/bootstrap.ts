@@ -48,6 +48,7 @@ export const promoteUser = internalMutation({
         userId: args.userId,
         role: "admin",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         updatedAt: now,
       });
@@ -59,6 +60,7 @@ export const promoteUser = internalMutation({
       email,
       role: "admin",
       status: "active",
+      setupState: "active",
       deletionStatus: "active",
       createdAt: now,
       updatedAt: now,
@@ -145,6 +147,7 @@ export const bootstrap = internalMutation({
         email: adminEmail,
         role: "admin",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         createdAt: now,
         updatedAt: now,
@@ -155,6 +158,7 @@ export const bootstrap = internalMutation({
         userId: args.adminUserId,
         role: "admin",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         updatedAt: now,
       });
@@ -181,6 +185,7 @@ export const bootstrap = internalMutation({
         email: customerEmail,
         role: "customer",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         createdAt: now,
         updatedAt: now,
@@ -190,6 +195,7 @@ export const bootstrap = internalMutation({
         userId: args.customerUserId,
         role: "customer",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         updatedAt: now,
       });

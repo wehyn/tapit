@@ -3,6 +3,8 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { requireAdministrator, sameScope } from "./admin";
+import { internal } from "./_generated/api";
+import { deriveSetupState } from "./preparedSetup";
 
 export const status = query({
   args: { tokenHash: v.string() },
@@ -85,6 +87,22 @@ export const revoke = mutation({
     if (invitation.invalidatedAt === undefined) {
       const now = Date.now();
       await ctx.db.patch(invitation._id, { invalidatedAt: now });
+      if (invitation.kind === "prepared_setup") {
+        const customer = await ctx.db.get(invitation.customerId);
+        if (customer !== null) {
+          const invitations = await ctx.db
+            .query("invitations")
+            .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
+            .take(1000);
+          const setupState = deriveSetupState(
+            customer,
+            invitations.map((row) => row._id === invitation._id ? { ...row, invalidatedAt: now } : row)
+              .filter((row) => sameScope(customer, row)),
+            now,
+          );
+          await ctx.db.patch(customer._id, { setupState, updatedAt: now });
+        }
+      }
       await ctx.db.insert("auditLogs", {
         scope: invitation.scope,
         actorUserId: userId,
@@ -199,6 +217,11 @@ export const generate = mutation({
       createdByUserId: userId,
       createdAt: now,
     });
+    await ctx.db.patch(customer._id, { setupState: "waiting", updatedAt: now });
+    await ctx.scheduler.runAt(expiresAt, internal.customers.expirePreparedSetup, {
+      customerId: customer._id,
+      invitationId,
+    });
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: userId,
@@ -304,6 +327,7 @@ export const claim = mutation({
       userId,
       email,
       status: "active",
+      setupState: "active",
       updatedAt: now,
     });
     await ctx.db.patch(invitation._id, { usedAt: now });

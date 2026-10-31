@@ -42,9 +42,17 @@ async function seedAdmin(t: ReturnType<typeof testConvex>, scope?: "demo") {
       email: "admin@example.com",
       role: "admin",
       status: "active",
+      setupState: "active",
       deletionStatus: "active",
       createdAt: 1,
       updatedAt: 1,
+    });
+    await ctx.db.insert("settings", {
+      ...(scope === undefined ? {} : { scope }),
+      key: "customerSetupStateBackfill",
+      value: "completed",
+      updatedAt: 1,
+      updatedByUserId: userId,
     });
     return { userId, customerId };
   });
@@ -84,6 +92,7 @@ describe("prepared customer setup", () => {
           email: `legacy-${index}@example.com`,
           role: "customer",
           status: "invited",
+          setupState: null,
           deletionStatus: "active",
           createdAt: index,
           updatedAt: index,
@@ -126,6 +135,7 @@ describe("prepared customer setup", () => {
             email: `legacy-${index}@example.com`,
             role: "customer",
             status,
+            setupState: null,
             deletionStatus: status === "deleted" ? "deleted" : "active",
             createdAt: index,
             updatedAt: index,
@@ -138,6 +148,7 @@ describe("prepared customer setup", () => {
         email: "active@example.com",
         role: "customer",
         status: "active",
+        setupState: "active",
         deletionStatus: "active",
         createdAt: 4,
         updatedAt: 4,
