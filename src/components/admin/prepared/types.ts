@@ -35,6 +35,7 @@ type CustomerRowBase = {
   profileName: string;
   profileSlug: string;
   linkExpiresAt: number | null;
+  profileDraft?: PreparedProfileInput | null;
   invitationId?: string;
   invitationStatus?: "pending" | "accepted" | "revoked";
 };

@@ -16,6 +16,9 @@ export function PreparedAccountsList({
   filter,
   search,
   loading,
+  hasMore,
+  loadingMore,
+  onLoadMore,
   notice,
   onFilter,
   onSearch,
@@ -36,6 +39,9 @@ export function PreparedAccountsList({
   filter: PreparedFilter;
   search: string;
   loading: boolean;
+  hasMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
   notice: { tone: "success" | "error"; text: string } | null;
   onFilter: (filter: PreparedFilter) => void;
   onSearch: (search: string) => void;
@@ -120,8 +126,23 @@ export function PreparedAccountsList({
               />
             ))
           ) : (
-            <Notice>No customer accounts match this search.</Notice>
+            <Notice>
+              {search.trim() !== "" && hasMore
+                ? "No matching customers in the loaded pages. Load more to continue searching."
+                : "No customer accounts match this search."}
+            </Notice>
           )}
+          {hasMore ? (
+            <Button
+              className="self-start"
+              disabled={loadingMore}
+              onClick={onLoadMore}
+              type="button"
+              variant="secondary"
+            >
+              {loadingMore ? "Loading more customers…" : "Load more customers"}
+            </Button>
+          ) : null}
         </div>
       )}
     </div>
