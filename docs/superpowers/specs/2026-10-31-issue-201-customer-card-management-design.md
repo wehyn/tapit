@@ -1,6 +1,6 @@
 # Issue #201: Customer Card Management
 
-**Status:** Design approved; spec ready for user review
+**Status:** Revised draft for user review
 **Date:** 2026-10-31
 **Issue:** [#201 — Let customers view and control their assigned cards](https://github.com/wehyn/tapit/issues/201)
 **Related:** [#187 — Card archive, restore, and reactivation](https://github.com/wehyn/tapit/issues/187), [#193 — Permanent card URLs](https://github.com/wehyn/tapit/issues/193), [#195 — Multiple cards per profile](https://github.com/wehyn/tapit/issues/195), [#196 — Lost-card return page](https://github.com/wehyn/tapit/issues/196)
@@ -11,7 +11,7 @@ Give signed-in customers a clear list of every card assigned to their own profil
 
 ## Current behavior
 
-- Customers have no Cards area. `/app/card` is the existing card design experience.
+- `/app/card` currently opens the card design experience. `/app/card/order-card` is the printed-card order form.
 - The admin registry supports multiple cards per profile, archives inactive or replaced cards without deleting their assignment, and lets administrators deactivate, mark lost, restore, or reactivate cards.
 - A lost card currently resolves to the configured shared return instructions. Inactive and replaced cards resolve to the neutral unavailable page.
 - Reactivating an inactive, replaced, or lost card is administrator-only. It clears the prior claim, after which an administrator generates a fresh one-time code and the customer claims the card again.
@@ -19,13 +19,29 @@ Give signed-in customers a clear list of every card assigned to their own profil
 
 ## Customer Cards area
 
-- Add a customer-facing Cards page and navigation entry. Keep `/app/card` for card design and ordering.
+- Make the existing `/app/card` route the customer's assigned-card list. Keep its current navigation entry and label it **Cards**.
+- Move the current `BuildCardExperience` view from `/app/card` to `/app/card/order`. The Cards page's **Order more cards** action opens that view; its existing action continues to `/app/card/order-card`, which remains the printed-card order form.
 - Show the Cards entry to every active customer, including customers with no assigned cards. Show a clear empty state when the profile has no assigned cards.
+- Let the empty state and populated list open the same order flow. Do not gate `/app/card` or `/app/card/order` on existing card-owner features.
 - List all cards assigned to the signed-in customer's profile, including admin-assigned cards that have not been claimed and archived cards that remain assigned. Do not list unassigned inventory or another customer's cards.
 - Show each card's permanent URL and current status. Show archive state separately where applicable, and explain that an archived card must be restored by an administrator before reactivation. A lost card also shows whether its URL currently uses the shared return instructions or the neutral inactive page.
 - Do not return or display claim codes, claim-code hashes, claim challenges, or other claim secrets. The permanent card URL remains visible because it is the requested card destination.
 - Derive the customer and profile from the authenticated session. Do not accept a client-supplied profile ID as the authority for list or mutation access. Every card mutation must verify that the selected card remains assigned to that profile and in the same scope.
-- Do not gate the Cards page on existing card-owner features; customers must be able to see an assigned card before its first claim.
+
+## Customer and admin card capabilities
+
+| Capability | Customer | Admin |
+| --- | --- | --- |
+| View cards | See all cards assigned to their own profile, including unclaimed and archived cards. Cannot see unassigned inventory or another customer's cards. | See cards in the administrator's scope, including unassigned inventory and archived records. |
+| View URL and status | See the permanent URL and status for assigned cards; see the selected public page for lost cards. No claim codes, hashes, or challenges. | Manage the in-scope registry, assignments, status, and permanent URLs. Claim hashes remain private. |
+| Order more cards | Use **Order more cards** at `/app/card/order`; continue through the existing `/app/card/order-card` order form. | Can use the same order flow for their own account and manage fulfillment through the admin Orders area. |
+| Register, assign, or reassign | Cannot register cards, change assignments, or reassign a card. | Can register, assign, and reassign cards within their scope. |
+| Claim and claim codes | Complete the existing one-time-code claim flow for an eligible card. Cannot generate or retrieve claim codes from the Cards page. | Generate or invalidate one-time codes and share the generated code through the existing admin workflow. |
+| Disable | Disable only an active card with a successful current claim, assigned to their profile. | Deactivate an active card in their scope. |
+| Mark lost and choose public page | Mark a currently claimed card assigned to their profile as lost. Choose return instructions or inactive page; may change the page for any assigned lost card, including an unclaimed admin-marked card. | Mark eligible cards lost, recover cards, and manage the shared return instructions and support fallback. |
+| Reactivate | Start reactivation only for a card they disabled. An admin must issue a fresh code, which the owner claims before profile content returns. | Restore archived cards, reactivate inactive/replaced/lost cards, and generate the fresh code. |
+| Archive and restore | View archived cards that remain assigned; cannot archive or restore them. | Archive or restore eligible records. |
+| Audit | Customer actions are recorded; customers do not get the admin audit-log view. | Review in-scope audit events, including customer card changes. |
 
 ## Customer card actions
 
@@ -70,33 +86,36 @@ Give signed-in customers a clear list of every card assigned to their own profil
 
 ## Customer and public flows
 
-1. A customer opens Cards and sees all cards assigned to their profile, including unclaimed cards. A customer with none sees the empty state.
-2. A customer disables an active, currently claimed card. That card's URL becomes neutral and its siblings continue to resolve as before.
-3. A customer marks a currently claimed assigned card lost and chooses return instructions or inactive page. The URL changes only for that card, while its lost status remains available to administrators.
-4. An administrator marks an unclaimed assigned card lost. The customer may change that card's public page because it is assigned to their profile, but cannot mark it lost themselves until it has been claimed.
-5. A customer starts reactivation for a card they disabled. The prior claim cannot be reused. An administrator issues a fresh code, and the customer claims it before the card URL serves the profile again.
-6. An administrator continues to register, assign, reassign, archive, restore, mark lost, reactivate, and generate codes through the existing admin workflows.
+1. A customer opens `/app/card` and sees all cards assigned to their profile, including unclaimed cards. A customer with none sees the empty state and can continue to `/app/card/order`.
+2. A customer chooses **Order more cards** from `/app/card`; the existing design view opens at `/app/card/order` and its order action continues to `/app/card/order-card`.
+3. A customer disables an active, currently claimed card. That card's URL becomes neutral and its siblings continue to resolve as before.
+4. A customer marks a currently claimed assigned card lost and chooses return instructions or inactive page. The URL changes only for that card, while its lost status remains available to administrators.
+5. An administrator marks an unclaimed assigned card lost. The customer may change that card's public page because it is assigned to their profile, but cannot mark it lost themselves until it has been claimed.
+6. A customer starts reactivation for a card they disabled. The prior claim cannot be reused. An administrator issues a fresh code, and the customer claims it before the card URL serves the profile again.
+7. An administrator continues to register, assign, reassign, archive, restore, mark lost, reactivate, and generate codes through the existing admin workflows.
 
 ## Acceptance criteria
 
-1. Every active customer can open Cards; the page lists every card assigned to their own profile, including unclaimed and archived assigned cards, and shows an empty state when there are none.
-2. A customer cannot list another customer's cards or unassigned inventory. Customer queries and actions derive profile ownership from the authenticated session.
-3. The customer view exposes card ID as needed for actions, permanent URL, status, archive state where applicable, and lost-page choice, but no claim code, claim-code hash, challenge, or other claim secret.
-4. Only an active, currently claimed card can be customer-disabled. Its own status and public resolution change to inactive; its URL, assignment, and claim history stay intact, and every sibling remains unchanged.
-5. A customer can mark a card lost only while it has a successful current claim and only when no correction is pending. The action changes only that card, records the chosen public page, and retains its URL, token, assignment, and archive state.
-6. A customer may set the public page for any lost card assigned to their profile, including an admin-marked lost card the customer has not claimed. The default is shared return instructions; selecting inactive uses the existing neutral page.
-7. A lost URL in either display mode reveals no profile, owner, or account data. Return mode uses the existing scoped public instructions and generic support fallback.
-8. A customer can start reactivation only for a card marked as customer-disabled. The old claim and challenges cannot be reused; a fresh admin-generated code and successful owner claim are required before profile content returns.
-9. A customer cannot reactivate an admin-disabled, archived, or lost card through the customer flow. Existing admin restore and recovery actions continue to work.
-10. Every successful customer action records the actor, card, time, and before/after state. Failed or stale actions leave card state unchanged.
-11. Local demo and Convex match for the customer list, action eligibility, authorization, audit events, lost-page resolution, fresh-claim reactivation, and sibling-card independence.
-12. Existing admin assignment, claim-code generation, archive/restore, deactivation, lost-card, and recovery flows continue to work.
+1. Every active customer can open `/app/card`; the page lists every card assigned to their own profile, including unclaimed and archived assigned cards, and shows an empty state when there are none.
+2. The existing card design experience is available at `/app/card/order`, and its existing printed-card form remains at `/app/card/order-card`. Customers can reach the design and order flow from the Cards page even before a card has been claimed.
+3. A customer cannot list another customer's cards or unassigned inventory. Customer queries and actions derive profile ownership from the authenticated session.
+4. The customer view exposes card ID as needed for actions, permanent URL, status, archive state where applicable, and lost-page choice, but no claim code, claim-code hash, challenge, or other claim secret.
+5. Only an active, currently claimed card can be customer-disabled. Its own status and public resolution change to inactive; its URL, assignment, and claim history stay intact, and every sibling remains unchanged.
+6. A customer can mark a card lost only while it has a successful current claim and only when no correction is pending. The action changes only that card, records the chosen public page, and retains its URL, token, assignment, and archive state.
+7. A customer may set the public page for any lost card assigned to their profile, including an admin-marked lost card the customer has not claimed. The default is shared return instructions; selecting inactive uses the existing neutral page.
+8. A lost URL in either display mode reveals no profile, owner, or account data. Return mode uses the existing scoped public instructions and generic support fallback.
+9. A customer can start reactivation only for a card marked as customer-disabled. The old claim and challenges cannot be reused; a fresh admin-generated code and successful owner claim are required before profile content returns.
+10. A customer cannot reactivate an admin-disabled, archived, or lost card through the customer flow. Existing admin restore and recovery actions continue to work.
+11. Every successful customer action records the actor, card, time, and before/after state. Failed or stale actions leave card state unchanged.
+12. Local demo and Convex match for the customer list, action eligibility, authorization, audit events, lost-page resolution, fresh-claim reactivation, and sibling-card independence.
+13. Existing admin assignment, claim-code generation, archive/restore, deactivation, lost-card, and recovery flows continue to work.
 
 ## Data and implementation touchpoints
 
 - Add optional `lostCardResolution` state, defaulting missing values to return instructions, and an optional `ownerDisabledAt` marker. Extend the Convex card schema/validator, shared card record, demo fixture, and persisted-state validation. Existing records need no migration.
 - Add customer-scoped Convex list and mutation functions in `convex/cards.ts`. Use the existing card index and pagination so the customer can reach all assigned cards.
-- Add the customer Cards route and workspace navigation entry. Keep the existing `/app/card` design/order experience separate.
+- Change the existing `/app/card` page and navigation label to the customer Cards list. Move `BuildCardExperience` to `/app/card/order`; keep `OrderCardExperience` at `/app/card/order-card`.
+- Update `WorkspaceShell` so the Cards list and card-ordering design view remain available without card-owner features; keep the existing analytics access gate.
 - Add matching local-demo list and actions using the signed-in demo session.
 - Update `cards.resolve` and `CardResolverClient` so a lost card with inactive-page preference returns the existing inactive result; otherwise preserve the current lost response.
 - Add readable audit labels for customer actions. Preserve existing administrator controls and code-generation rules.
