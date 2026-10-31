@@ -1,7 +1,7 @@
 # Ignore Environment-Specific `.env` Files
 
 Date: 2026-10-31
-Status: Design approved; written-spec review pending
+Status: Approved
 
 ## Goal
 
