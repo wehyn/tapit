@@ -235,7 +235,7 @@ function DemoWorkspaceShell({
       }}
       showAudienceSwitch={isAdminAccount}
     >
-      {!hasCardOwnerFeatures && (pathname === "/app/analytics" || pathname === "/app/card") ? (
+      {!hasCardOwnerFeatures && pathname === "/app/analytics" ? (
         <CardOwnerAccessNotice />
       ) : (
         children
@@ -322,7 +322,7 @@ function LiveWorkspaceShell({
       }}
       showAudienceSwitch={access.role === "admin"}
     >
-      {!hasCardOwnerFeatures && (pathname === "/app/analytics" || pathname === "/app/card") ? (
+      {!hasCardOwnerFeatures && pathname === "/app/analytics" ? (
         <CardOwnerAccessNotice />
       ) : (
         children
@@ -338,15 +338,14 @@ function CardOwnerAccessNotice() {
       className="max-w-2xl rounded-card bg-tapit-surface p-6 shadow-card"
     >
       <h1 className="text-xl font-semibold text-tapit-ink" id="card-owner-access-heading">
-        Claim a card to unlock owner tools
+        Claim a card to unlock analytics
       </h1>
       <p className="mt-3 text-sm text-tapit-muted">
-        Order a card, then scan or open its URL and enter the one-time claim code to unlock
-        analytics and card-owner tools.
+        Claim a card with its one-time code to unlock analytics.
       </p>
       <Link
         className="mt-4 inline-flex min-h-11 items-center rounded-control bg-tapit-accent px-4 text-sm font-semibold text-white"
-        href="/app/card/order-card"
+        href="/app/card/order"
       >
         Order a card
       </Link>

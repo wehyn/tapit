@@ -11,7 +11,7 @@ describe("workspace navigation model", () => {
     ]);
     expect(navItemsFor("customer", "more").map((item) => item.label)).toEqual([
       "Customize",
-      "Card",
+      "Cards",
       "Account",
       "Help",
     ]);
@@ -25,7 +25,7 @@ describe("workspace navigation model", () => {
       ]),
     ).toEqual([
       ["Your profile", ["Profile", "Links", "Customize"]],
-      ["Share & grow", ["Card", "Analytics"]],
+      ["Share & grow", ["Cards", "Analytics"]],
       ["Account & help", ["Account", "Help"]],
     ]);
   });
@@ -38,7 +38,7 @@ describe("workspace navigation model", () => {
       ]),
     ).toEqual([
       ["Your profile", ["Profile", "Links", "Customize"]],
-      ["Share & grow", ["Card"]],
+      ["Share & grow", ["Cards"]],
       ["Account & help", ["Account", "Help"]],
     ]);
     expect(navItemsFor("customer", "tabs", false).map((item) => item.label)).toEqual([
@@ -64,7 +64,7 @@ describe("workspace navigation model", () => {
   });
 
   it("matches the most specific prefix and honours exact rules", () => {
-    expect(activeNavItemFor("customer", "/app/card")?.label).toBe("Card");
+    expect(activeNavItemFor("customer", "/app/card")?.label).toBe("Cards");
     expect(activeNavItemFor("customer", "/app/account/settings")?.label).toBe("Account");
     expect(activeNavItemFor("customer", "/app/cardigan")).toBeUndefined();
     expect(activeNavItemFor("customer", "/app/accounts")).toBeUndefined();

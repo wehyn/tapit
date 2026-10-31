@@ -365,6 +365,8 @@ export default defineSchema({
     createdAt: v.number(),
     updatedAt: v.number(),
     archivedAt: v.optional(v.number()),
+    lostCardResolution: v.optional(v.union(v.literal("return"), v.literal("inactive"))),
+    ownerDisabledAt: v.optional(v.number()),
     assignedAt: v.optional(v.number()),
     deactivatedAt: v.optional(v.number()),
     claimCodeHash: v.optional(v.string()),

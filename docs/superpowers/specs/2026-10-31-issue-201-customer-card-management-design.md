@@ -1,6 +1,6 @@
 # Issue #201: Customer Card Management
 
-**Status:** Revised draft for user review
+**Status:** Approved for implementation
 **Date:** 2026-10-31
 **Issue:** [#201 — Let customers view and control their assigned cards](https://github.com/wehyn/tapit/issues/201)
 **Related:** [#187 — Card archive, restore, and reactivation](https://github.com/wehyn/tapit/issues/187), [#193 — Permanent card URLs](https://github.com/wehyn/tapit/issues/193), [#195 — Multiple cards per profile](https://github.com/wehyn/tapit/issues/195), [#196 — Lost-card return page](https://github.com/wehyn/tapit/issues/196)
@@ -30,18 +30,18 @@ Give signed-in customers a clear list of every card assigned to their own profil
 
 ## Customer and admin card capabilities
 
-| Capability | Customer | Admin |
-| --- | --- | --- |
-| View cards | See all cards assigned to their own profile, including unclaimed and archived cards. Cannot see unassigned inventory or another customer's cards. | See cards in the administrator's scope, including unassigned inventory and archived records. |
-| View URL and status | See the permanent URL and status for assigned cards; see the selected public page for lost cards. No claim codes, hashes, or challenges. | Manage the in-scope registry, assignments, status, and permanent URLs. Claim hashes remain private. |
-| Order more cards | Use **Order more cards** at `/app/card/order`; continue through the existing `/app/card/order-card` order form. | Can use the same order flow for their own account and manage fulfillment through the admin Orders area. |
-| Register, assign, or reassign | Cannot register cards, change assignments, or reassign a card. | Can register, assign, and reassign cards within their scope. |
-| Claim and claim codes | Complete the existing one-time-code claim flow for an eligible card. Cannot generate or retrieve claim codes from the Cards page. | Generate or invalidate one-time codes and share the generated code through the existing admin workflow. |
-| Disable | Disable only an active card with a successful current claim, assigned to their profile. | Deactivate an active card in their scope. |
+| Capability                       | Customer                                                                                                                                                                                                | Admin                                                                                                    |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| View cards                       | See all cards assigned to their own profile, including unclaimed and archived cards. Cannot see unassigned inventory or another customer's cards.                                                       | See cards in the administrator's scope, including unassigned inventory and archived records.             |
+| View URL and status              | See the permanent URL and status for assigned cards; see the selected public page for lost cards. No claim codes, hashes, or challenges.                                                                | Manage the in-scope registry, assignments, status, and permanent URLs. Claim hashes remain private.      |
+| Order more cards                 | Use **Order more cards** at `/app/card/order`; continue through the existing `/app/card/order-card` order form.                                                                                         | Can use the same order flow for their own account and manage fulfillment through the admin Orders area.  |
+| Register, assign, or reassign    | Cannot register cards, change assignments, or reassign a card.                                                                                                                                          | Can register, assign, and reassign cards within their scope.                                             |
+| Claim and claim codes            | Complete the existing one-time-code claim flow for an eligible card. Cannot generate or retrieve claim codes from the Cards page.                                                                       | Generate or invalidate one-time codes and share the generated code through the existing admin workflow.  |
+| Disable                          | Disable only an active card with a successful current claim, assigned to their profile.                                                                                                                 | Deactivate an active card in their scope.                                                                |
 | Mark lost and choose public page | Mark a currently claimed card assigned to their profile as lost. Choose return instructions or inactive page; may change the page for any assigned lost card, including an unclaimed admin-marked card. | Mark eligible cards lost, recover cards, and manage the shared return instructions and support fallback. |
-| Reactivate | Start reactivation only for a card they disabled. An admin must issue a fresh code, which the owner claims before profile content returns. | Restore archived cards, reactivate inactive/replaced/lost cards, and generate the fresh code. |
-| Archive and restore | View archived cards that remain assigned; cannot archive or restore them. | Archive or restore eligible records. |
-| Audit | Customer actions are recorded; customers do not get the admin audit-log view. | Review in-scope audit events, including customer card changes. |
+| Reactivate                       | Start reactivation only for a card they disabled. An admin must issue a fresh code, which the owner claims before profile content returns.                                                              | Restore archived cards, reactivate inactive/replaced/lost cards, and generate the fresh code.            |
+| Archive and restore              | View archived cards that remain assigned; cannot archive or restore them.                                                                                                                               | Archive or restore eligible records.                                                                     |
+| Audit                            | Customer actions are recorded; customers do not get the admin audit-log view.                                                                                                                           | Review in-scope audit events, including customer card changes.                                           |
 
 ## Customer card actions
 

@@ -42,7 +42,8 @@ const customerRoutes: readonly RouteCapture[] = [
   { name: "profile", path: "/app/profile", heading: "Your profile" },
   { name: "links", path: "/app/links", heading: "Links" },
   { name: "customize", path: "/app/customize", heading: "Customize your profile" },
-  { name: "card", path: "/app/card", heading: "Bring your card to life" },
+  { name: "cards", path: "/app/card", heading: "Cards" },
+  { name: "card-order", path: "/app/card/order", heading: "Bring your card to life" },
   { name: "analytics", path: "/app/analytics", heading: "Profile analytics" },
   { name: "account", path: "/app/account", heading: "Account" },
 ];
@@ -114,7 +115,7 @@ test("capture the mobile More sheet", async ({ page }) => {
   await tabBar.getByRole("button", { name: "More", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "More", exact: true });
   await expect(sheet).toBeVisible();
-  for (const label of ["Customize", "Card", "Account", "Help"]) {
+  for (const label of ["Customize", "Cards", "Account", "Help"]) {
     await expect(sheet.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(sheet.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();

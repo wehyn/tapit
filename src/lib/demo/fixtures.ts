@@ -23,6 +23,8 @@ export type DemoCard = CardRecord & {
   claimChallengeExpiresAt?: number;
   claimChallengeEmail?: string;
   claimedAt?: number;
+  lostCardResolution?: "return" | "inactive";
+  ownerDisabledAt?: number;
 };
 
 export type DemoCardCorrectionRequest = {
@@ -81,6 +83,9 @@ export type DemoAuditEvent = {
   occurredAt: string;
   before?: string;
   after?: string;
+  actorId?: string;
+  cardId?: string;
+  profileId?: string;
 };
 
 export type DemoCardOrderPaymentMethod = {

@@ -34,7 +34,7 @@ test("mobile More stays open and explains when a draft save blocks navigation", 
     .getByRole("button", { name: "More", exact: true })
     .click();
   const sheet = page.getByRole("dialog", { name: "More", exact: true });
-  await sheet.getByRole("link", { name: "Card", exact: true }).click();
+  await sheet.getByRole("link", { name: "Cards", exact: true }).click();
 
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(sheet).toBeVisible();

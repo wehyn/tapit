@@ -1,5 +1,5 @@
-import { BuildCardExperience } from "@/components/card-builder/BuildCardExperience";
+import { CustomerCardsExperience } from "@/components/card-management/CustomerCardsExperience";
 
-export default function CustomerBuildCardPage() {
-  return <BuildCardExperience embedded />;
+export default function CustomerCardsPage() {
+  return <CustomerCardsExperience />;
 }

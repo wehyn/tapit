@@ -6,6 +6,7 @@ import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
 import { cardTokenFromUrl, normalizeCardUrl } from "../card-url";
 import { isValidReferralFixedPriceCentavos, manilaStartOfDayTimestamp } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
+import { validateProfileContent } from "../../../convex/validators";
 import {
   createDefaultDemoState,
   type AnalyticsBucket,
@@ -13,6 +14,7 @@ import {
   type DemoCardOrderOffer,
   type DemoCardOrderPaymentMethod,
   type DemoCardOrderReferralCode,
+  type DemoCard,
   type DemoCustomer,
   type DemoSetupInvitation,
   type DemoSetupState,
@@ -164,6 +166,10 @@ function isDemoCard(value: unknown): value is DemoState["cards"][number] {
     (value.profileId === undefined || typeof value.profileId === "string") &&
     (value.replacedByCardId === undefined || typeof value.replacedByCardId === "string") &&
     (value.archivedAt === undefined || isFiniteNumber(value.archivedAt)) &&
+    (value.lostCardResolution === undefined ||
+      value.lostCardResolution === "return" ||
+      value.lostCardResolution === "inactive") &&
+    (value.ownerDisabledAt === undefined || isFiniteNumber(value.ownerDisabledAt)) &&
     (value.createdAt === undefined || isFiniteNumber(value.createdAt)) &&
     (value.claimedAt === undefined || isFiniteNumber(value.claimedAt)) &&
     (value.claimCode === undefined || typeof value.claimCode === "string") &&
@@ -1845,6 +1851,263 @@ export function useDemoSession(): DemoSession | null {
     () => session,
     () => null,
   );
+}
+
+export type MyDemoCard = Pick<
+  DemoState["cards"][number],
+  "id" | "cardUrl" | "status" | "replacedByCardId" | "archivedAt" | "lostCardResolution"
+> & { canReactivate: boolean };
+
+function requireMyDemoOwner(current: DemoState): {
+  account: DemoCustomer & { role: "customer" };
+  profile: DemoProfile;
+};
+function requireMyDemoOwner(
+  current: DemoState,
+  cardId: string,
+): {
+  account: DemoCustomer & { role: "customer" };
+  profile: DemoProfile;
+  card: DemoCard;
+};
+function requireMyDemoOwner(current: DemoState, cardId?: string) {
+  const access = resolveDemoSessionAccess(current, getDemoSession());
+  if (access.kind !== "active" || access.account.role !== "customer")
+    throw new Error("Customer card access denied.");
+  if (!access.profile || access.profile.ownerId !== access.account.id)
+    throw new Error("Customer card access denied.");
+  if (cardId !== undefined) {
+    const card = current.cards.find((candidate) => candidate.id === cardId);
+    if (!card || card.profileId !== access.profile.id)
+      throw new Error("This card is not assigned to your profile.");
+    return { account: access.account, profile: access.profile, card };
+  }
+  return { account: access.account, profile: access.profile };
+}
+
+function hasPendingDemoCorrection(current: DemoState, card: DemoCard): boolean {
+  return (
+    card.correctionRequestedAt !== undefined ||
+    (current.cardCorrectionRequests ?? []).some(
+      (request) => request.token === card.token && request.status === "pending",
+    )
+  );
+}
+
+export function getMyDemoCards(): MyDemoCard[] {
+  const current = getDemoState();
+  const { profile } = requireMyDemoOwner(current);
+  return current.cards
+    .filter((card) => card.profileId === profile.id)
+    .map((card) => ({
+      id: card.id,
+      cardUrl: card.cardUrl,
+      status: card.status,
+      replacedByCardId: card.replacedByCardId,
+      archivedAt: card.archivedAt,
+      lostCardResolution: card.lostCardResolution,
+      canReactivate:
+        card.status === "inactive" &&
+        card.ownerDisabledAt !== undefined &&
+        card.archivedAt === undefined &&
+        !hasPendingDemoCorrection(current, card) &&
+        (profile.status !== "published" ||
+          (profile.published !== null && validateProfileContent(profile.published).length === 0)),
+    }));
+}
+
+type OwnerCardAction =
+  | "card.owner_disabled"
+  | "card.owner_marked_lost"
+  | "card.lost_resolution_changed"
+  | "card.owner_reactivation_started";
+function ownerCardAudit(
+  action: OwnerCardAction,
+  actorId: string,
+  card: DemoCard,
+  profileId: string,
+  before: string,
+  after: string,
+  now: number,
+): DemoState["audits"][number] {
+  return {
+    id: `audit-${now}-${card.id}-${action}`,
+    actor: actorId,
+    actorId,
+    action,
+    target: card.token,
+    cardId: card.id,
+    profileId,
+    occurredAt: new Date(now).toISOString(),
+    before,
+    after,
+  };
+}
+
+export function disableMyDemoCard(cardId: string): void {
+  updateDemoState((current) => {
+    const { account, profile, card } = requireMyDemoOwner(current, cardId);
+    if (
+      card.status !== "active" ||
+      card.archivedAt !== undefined ||
+      card.claimedAt === undefined ||
+      card.claimCodeInvalidatedAt !== undefined ||
+      hasPendingDemoCorrection(current, card)
+    )
+      throw new Error("This card cannot be disabled.");
+    const now = Date.now();
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? { ...candidate, status: "inactive", ownerDisabledAt: now }
+          : candidate,
+      ),
+      audits: [
+        ownerCardAudit(
+          "card.owner_disabled",
+          account.id,
+          card,
+          profile.id,
+          "active",
+          "inactive",
+          now,
+        ),
+        ...current.audits,
+      ],
+    };
+  });
+}
+
+export function markMyDemoCardLost(
+  cardId: string,
+  resolution: "return" | "inactive" = "return",
+): void {
+  if (resolution !== "return" && resolution !== "inactive")
+    throw new Error("Invalid lost card resolution.");
+  updateDemoState((current) => {
+    const { account, profile, card } = requireMyDemoOwner(current, cardId);
+    if (
+      card.status === "lost" ||
+      card.claimedAt === undefined ||
+      card.claimCodeInvalidatedAt !== undefined ||
+      hasPendingDemoCorrection(current, card)
+    )
+      throw new Error("This card cannot be marked lost.");
+    const now = Date.now();
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? {
+              ...candidate,
+              status: "lost",
+              ownerDisabledAt: undefined,
+              lostCardResolution: resolution,
+            }
+          : candidate,
+      ),
+      audits: [
+        ownerCardAudit(
+          "card.owner_marked_lost",
+          account.id,
+          card,
+          profile.id,
+          `${card.status}:${card.lostCardResolution ?? "return"}`,
+          `lost:${resolution}`,
+          now,
+        ),
+        ...current.audits,
+      ],
+    };
+  });
+}
+
+export function setMyLostDemoCardResolution(
+  cardId: string,
+  resolution: "return" | "inactive",
+): void {
+  if (resolution !== "return" && resolution !== "inactive")
+    throw new Error("Invalid lost card resolution.");
+  updateDemoState((current) => {
+    const { account, profile, card } = requireMyDemoOwner(current, cardId);
+    if (card.status !== "lost" || hasPendingDemoCorrection(current, card))
+      throw new Error("The lost card resolution cannot be changed.");
+    const before = card.lostCardResolution ?? "return";
+    if (before === resolution) return current;
+    const now = Date.now();
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id ? { ...candidate, lostCardResolution: resolution } : candidate,
+      ),
+      audits: [
+        ownerCardAudit(
+          "card.lost_resolution_changed",
+          account.id,
+          card,
+          profile.id,
+          before,
+          resolution,
+          now,
+        ),
+        ...current.audits,
+      ],
+    };
+  });
+}
+
+export function startMyDemoCardReactivation(cardId: string): void {
+  updateDemoState((current) => {
+    const { account, profile, card } = requireMyDemoOwner(current, cardId);
+    if (
+      card.status !== "inactive" ||
+      card.ownerDisabledAt === undefined ||
+      card.archivedAt !== undefined ||
+      hasPendingDemoCorrection(current, card) ||
+      (profile.status === "published" &&
+        (profile.published === null || validateProfileContent(profile.published).length > 0))
+    )
+      throw new Error("This card cannot be reactivated.");
+    const now = Date.now();
+    return {
+      ...current,
+      cards: current.cards.map((candidate) =>
+        candidate.id === card.id
+          ? {
+              ...candidate,
+              status: profile.status === "published" ? "active" : "claimable",
+              claimCode: undefined,
+              claimCodeExpiresAt: undefined,
+              claimCodeInvalidatedAt: now,
+              claimChallenge: undefined,
+              claimChallengeCode: undefined,
+              claimChallengeExpiresAt: undefined,
+              claimChallengeEmail: undefined,
+              claimedAt: undefined,
+              ownerDisabledAt: undefined,
+            }
+          : candidate,
+      ),
+      customers: current.customers.map((customer) =>
+        customer.id === account.id
+          ? { ...customer, claimedCardIds: customer.claimedCardIds?.filter((id) => id !== card.id) }
+          : customer,
+      ),
+      audits: [
+        ownerCardAudit(
+          "card.owner_reactivation_started",
+          account.id,
+          card,
+          profile.id,
+          "inactive",
+          profile.status === "published" ? "active" : "claimable",
+          now,
+        ),
+        ...current.audits,
+      ],
+    };
+  });
 }
 
 function todayBucket(): number {

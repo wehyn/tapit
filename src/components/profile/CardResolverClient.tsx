@@ -50,6 +50,8 @@ function DemoCardResolver({
     return <CardResolverLoading />;
   }
   if (card === undefined) return <UnavailableProfilePage supportUrl={state.supportUrl} />;
+  if (card.status === "lost" && card.lostCardResolution === "inactive")
+    return <UnavailableProfilePage supportUrl={state.supportUrl} />;
   if (card.status === "lost")
     return (
       <LostCardPage instructions={state.lostCardReturnInstructions} supportUrl={state.supportUrl} />

@@ -110,7 +110,7 @@ describe("workspace navigation draft handling", () => {
 
     render(<TestShell>Content</TestShell>);
 
-    expect(screen.getByRole("link", { name: "Card" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: "Cards" })).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Analytics" })).not.toHaveAttribute(
       "aria-current",
       "page",

@@ -1,5 +1,10 @@
 # Change log
 
+## 2026-10-31 — Customer card management
+
+- Customers can view cards assigned to their profile, including unclaimed and archived cards, and can disable eligible claimed cards, report eligible cards lost, choose the public lost-card page, and start reactivation with a fresh administrator-issued claim code.
+- `/app/card` is the assigned Cards workspace; the designer moved to `/app/card/order`, while `/app/card/order-card` remains the printed-card form. The old account builder path redirects to the designer.
+
 ## 2026-10-30 — Multiple cards and lost-card return flow
 
 - A profile can use multiple independently managed cards. **Add replacement** creates a separate card with its own code and claim while leaving the existing card usable until an administrator separately deactivates or marks it lost.
@@ -60,7 +65,7 @@
 
 - Customer and admin workspaces share one shell built from a typed navigation registry. Desktop uses a 248px labelled sidebar with a Customer / Admin switch for administrators. Mobile uses a bottom tab bar and a More sheet; administrators keep their own tabs.
 - Every workspace page has a top bar with breadcrumbs, a ⌘K search button that has no behaviour yet, and a save-state pill driven by the draft save context.
-- Build card moved from `/app/account/build-card` to `/app/card`. The old path redirects permanently.
+- Build card moved from `/app/account/build-card` to `/app/card/order`. The old path redirects permanently. `/app/card` is now the assigned Cards workspace; public `/build-card` remains unchanged.
 - The first-visit navigation tour is removed. The Profile page shows a "Finish your profile" checklist derived from profile data until every step is done.
 
 Validation for this change:

@@ -16,6 +16,7 @@ export const cardStatusValidator = v.union(
   v.literal("replaced"),
   v.literal("lost"),
 );
+export const lostCardResolutionValidator = v.union(v.literal("return"), v.literal("inactive"));
 export const analyticsSourceValidator = v.union(
   v.literal("nfc"),
   v.literal("qr"),

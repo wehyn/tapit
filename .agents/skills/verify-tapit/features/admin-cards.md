@@ -2,6 +2,10 @@
 
 An administrator copies a card URL, registers an unassigned card, manages claim codes, adds an independent replacement card, and manages lost-card return instructions. Each card keeps its own URL, status, and claim state.
 
+The administrator's customer workspace exposes a Cards order entry at `/app/card` without loading customer card rows or owner actions; the entry opens `/app/card/order`.
+
+- **Open card ordering from the administrator workspace.** Run `npm run test:e2e:demo -- e2e/admin.spec.ts --grep "administrator Cards workspace links to card ordering without customer controls" --workers=1`. The journey confirms `/app/card` shows the order entry and no assigned-card rows, then follows it to `/app/card/order`.
+
 ## Sub-features
 
 - `card-register` validates and registers a new pre-encoded card URL.

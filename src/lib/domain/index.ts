@@ -117,6 +117,8 @@ export interface CardRecord {
   profileId?: string;
   replacedByCardId?: string;
   archivedAt?: number;
+  lostCardResolution?: "return" | "inactive";
+  ownerDisabledAt?: number;
 }
 
 export interface DeletionAuditPayload {
