@@ -116,7 +116,10 @@ describe("generic upload policy foundation", () => {
       message: "Profile access denied.",
     });
     expect(safeUploadError(new ConvexError("secret-storage-detail"))).toBeNull();
-    const safeProcessingError = uploadError("PROCESSING_FAILED", "The uploaded design was not found.");
+    const safeProcessingError = uploadError(
+      "PROCESSING_FAILED",
+      "The uploaded design was not found.",
+    );
     expect(safeUploadError(new ConvexError(safeProcessingError))).toMatchObject({
       code: "PROCESSING_FAILED",
       message: "The uploaded design was not found.",
