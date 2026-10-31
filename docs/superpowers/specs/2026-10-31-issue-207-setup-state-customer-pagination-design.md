@@ -39,6 +39,8 @@ For setup-state requests, `customers.list` will filter by the new index and call
 
 After the database selects a page, the query may load profile and invitation details for those page rows only. Preserve current authorization, scope checks, and profile ownership checks.
 
+Return the row fields the prepared screen needs from that page projection, including profile fields used to edit prepared accounts and invitation IDs/status used for row actions. Remove the prepared screen's separate `profiles.adminList` and `invitations.listForAdmin` subscriptions so they do not load records outside the customer pages.
+
 ### Load more in the admin screen
 
 Use one paginated query and cursor per setup state, starting with 50 rows per state. Keep the current state filters. **Load more** advances the selected state's cursor; under **All**, it advances each of the four cursors. Show the control while any relevant cursor has another page.
