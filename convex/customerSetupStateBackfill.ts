@@ -97,6 +97,22 @@ export const runBatch = internalMutation({
         .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
         .take(1000);
       const safeInvitations = invitations.filter((invitation) => sameScope(customer, invitation));
+      for (const invitation of safeInvitations) {
+        if (
+          invitation.kind === "prepared_setup" &&
+          invitation.scope === customer.scope &&
+          invitation.usedAt === undefined &&
+          invitation.acceptedAt === undefined &&
+          invitation.invalidatedAt === undefined &&
+          invitation.expiresAt !== undefined &&
+          invitation.expiresAt > now
+        ) {
+          await ctx.scheduler.runAt(invitation.expiresAt, internal.customers.expirePreparedSetup, {
+            customerId: customer._id,
+            invitationId: invitation._id,
+          });
+        }
+      }
       await ctx.db.patch(customer._id, {
         setupState: deriveSetupState(customer, safeInvitations, now),
       });
