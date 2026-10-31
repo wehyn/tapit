@@ -459,6 +459,9 @@ async function eraseAccountDataPass(
       deletionRequestedAt: undefined,
       demoResetInProgress: undefined,
       status: "pending",
+      setupState: null,
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       updatedAt: Date.now(),
     });
     await ctx.db.insert("auditLogs", {

@@ -107,6 +107,8 @@ export async function ensureGoogleApplicationAccount(
         email,
         status: "pending",
         setupState: null,
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         updatedAt: now,
         ...(existing.onboardingName === undefined && displayName

@@ -34,6 +34,7 @@ import type * as cardOrders from "../cardOrders.js";
 import type * as cards from "../cards.js";
 import type * as components_ from "../components.js";
 import type * as crons from "../crons.js";
+import type * as customerSetupStateBackfill from "../customerSetupStateBackfill.js";
 import type * as customers from "../customers.js";
 import type * as demo from "../demo.js";
 import type * as http from "../http.js";
@@ -93,6 +94,7 @@ declare const fullApi: ApiFromModules<{
   cards: typeof cards;
   components: typeof components_;
   crons: typeof crons;
+  customerSetupStateBackfill: typeof customerSetupStateBackfill;
   customers: typeof customers;
   demo: typeof demo;
   http: typeof http;

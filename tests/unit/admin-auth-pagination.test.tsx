@@ -43,15 +43,14 @@ function mockOwnerOverride(updateOverride: ReturnType<typeof vi.fn>) {
 }
 
 function mockActiveCustomer(cardOwnerAccessOverride: boolean, isDemo = false) {
-  convexHooks.useQuery_experimental.mockImplementation(
-    (options: { query: unknown; args: { setupState?: string } }) => ({
-      status: "success",
-      data: {
-        page:
-          queryName(options.query) === "customers:list" && options.args.setupState === "active"
-            ? [{ ...customer, cardOwnerAccessOverride, isDemo }]
-            : [],
-      },
+  convexHooks.usePaginatedQuery.mockImplementation(
+    (query: unknown, args: { setupState?: string }) => ({
+      status: "Exhausted",
+      loadMore: vi.fn(),
+      results:
+        queryName(query) === "customers:list" && args?.setupState === "active"
+          ? [{ ...customer, setupState: "active", cardOwnerAccessOverride, isDemo }]
+          : [],
     }),
   );
 }
@@ -60,26 +59,30 @@ beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "false");
   vi.stubEnv("NEXT_PUBLIC_DEMO_STORAGE", "convex");
   convexHooks.useMutation.mockReset().mockReturnValue(vi.fn());
-  convexHooks.useQuery.mockReset();
+  convexHooks.useQuery
+    .mockReset()
+    .mockImplementation((query: unknown) =>
+      queryName(query) === "customerSetupStateBackfill:status" ? { state: "ready" } : undefined,
+    );
   convexHooks.useQuery_experimental.mockReset().mockReturnValue({ status: "success", data: false });
-  convexHooks.usePaginatedQuery.mockReset();
+  convexHooks.usePaginatedQuery.mockReset().mockReturnValue({
+    results: [],
+    status: "Exhausted",
+    loadMore: vi.fn(),
+  });
 });
 
 describe("paginated administrator account lists", () => {
   it("includes active customer accounts in the one searchable customer list", async () => {
-    convexHooks.useQuery_experimental.mockImplementation(
-      (options: { query: unknown; args: { setupState?: string } }) => {
-        if (queryName(options.query) === "customers:list") {
-          return {
-            status: "success",
-            data: {
-              page:
-                options.args.setupState === "active" ? [{ ...customer, setupState: "active" }] : [],
-            },
-          };
-        }
-        return { status: "success", data: { page: [] } };
-      },
+    convexHooks.usePaginatedQuery.mockImplementation(
+      (query: unknown, args: { setupState?: string }) => ({
+        status: "Exhausted",
+        loadMore: vi.fn(),
+        results:
+          queryName(query) === "customers:list" && args?.setupState === "active"
+            ? [{ ...customer, setupState: "active" }]
+            : [],
+      }),
     );
 
     render(<CustomersManager />);
@@ -91,39 +94,15 @@ describe("paginated administrator account lists", () => {
   });
 
   it("shows the server-provided profile name and slug in its single legacy invite row", () => {
-    convexHooks.useQuery_experimental.mockImplementation(
-      (options: { query: unknown; args: { setupState?: string } }) => {
-        if (queryName(options.query) === "customers:list") {
-          return {
-            status: "success",
-            data: {
-              page:
-                options.args.setupState === "draft"
-                  ? [{ ...customer, status: "invited", setupState: "draft" }]
-                  : [],
-            },
-          };
-        }
-        if (queryName(options.query) === "invitations:listForAdmin")
-          return {
-            status: "success",
-            data: {
-              page: [
-                {
-                  invitationId: "invitations:1",
-                  customerId: "customers:1",
-                  email: "first@example.test",
-                  profileName: "First Example",
-                  slug: "first-example-2",
-                  expiresAt: null,
-                  acceptedAt: null,
-                  invalidatedAt: null,
-                },
-              ],
-            },
-          };
-        return { status: "success", data: { page: [] } };
-      },
+    convexHooks.usePaginatedQuery.mockImplementation(
+      (query: unknown, args: { setupState?: string | null }) => ({
+        status: "Exhausted",
+        loadMore: vi.fn(),
+        results:
+          queryName(query) === "customers:list" && args?.setupState === null
+            ? [{ ...customer, status: "invited", setupState: null, legacyInvitationActive: false }]
+            : [],
+      }),
     );
 
     render(<CustomersManager />);

@@ -3,7 +3,16 @@ import { convexTest } from "convex-test";
 import rateLimiter from "@convex-dev/rate-limiter/test";
 import { describe, expect, it } from "vitest";
 
-import { api } from "../_generated/api";
+/* Regression failures covered below:
+ * - A failed backfill can stay "running" forever if staleness exists only in query time.
+ * - A customer with over 1,000 invitations can exceed one transaction or hide its newest live link.
+ * - A link can expire after one batch sees it live but before backfill finalizes the customer.
+ * - A newer expired or wrong-scope link must not hide an older scoped live link.
+ * - Expired-only prepared history must remain Draft; reset/revoke changes between batches must win.
+ * - Revoking a setup invitation must not demote an active customer.
+ * - An accepted legacy link can report both no action ID and an active action.
+ */
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -80,6 +89,82 @@ async function seedGoogleUser(t: ReturnType<typeof testConvex>, email: string) {
     });
     return userId;
   });
+}
+
+async function seedBatchedBackfillCase(
+  t: ReturnType<typeof testConvex>,
+  adminUserId: Id<"users">,
+  email: string,
+) {
+  const result = await t.run(async (ctx) => {
+    const marker = await ctx.db
+      .query("settings")
+      .withIndex("by_scope_and_key", (q) =>
+        q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+      )
+      .unique();
+    await ctx.db.patch(marker!._id, { value: "running" });
+    const customerId = await ctx.db.insert("customers", {
+      email,
+      role: "customer",
+      status: "invited",
+      setupState: "waiting",
+      deletionStatus: "active",
+      createdAt: 2,
+      updatedAt: 2,
+    });
+    const now = Date.now();
+    const liveExpiresAt = now + 24 * 60 * 60 * 1000;
+    let liveInvitationId: Id<"invitations"> | undefined;
+    for (let index = 0; index < 101; index += 1) {
+      const invitationId = await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: String(index + 3000).padStart(64, "0"),
+        expiresAt: index === 0 ? liveExpiresAt : now - 1,
+        setupExpiryScheduled: index === 0,
+        createdByUserId: adminUserId,
+        createdAt: index + 1,
+      });
+      if (index === 0) liveInvitationId = invitationId;
+    }
+    await ctx.db.patch(customerId, {
+      setupExpiryInvitationId: liveInvitationId!,
+      setupExpiresAt: liveExpiresAt,
+    });
+    return {
+      customerId,
+      liveInvitationId: liveInvitationId!,
+      liveExpiresAt,
+    };
+  });
+  const firstCustomerPage = await t.run((ctx) =>
+    ctx.db
+      .query("customers")
+      .withIndex("by_scope", (q) => q.eq("scope", undefined))
+      .paginate({ cursor: null, numItems: 1 }),
+  );
+  const customerPage = await t.run((ctx) =>
+    ctx.db
+      .query("customers")
+      .withIndex("by_scope", (q) => q.eq("scope", undefined))
+      .paginate({ cursor: firstCustomerPage.continueCursor, numItems: 1 }),
+  );
+  const invitationPage = await t.run((ctx) =>
+    ctx.db
+      .query("invitations")
+      .withIndex("by_customerId_and_kind", (q) =>
+        q.eq("customerId", result.customerId).eq("kind", "prepared_setup"),
+      )
+      .paginate({ cursor: null, numItems: 100 }),
+  );
+  return {
+    ...result,
+    customerCursor: firstCustomerPage.continueCursor,
+    cursorAfterCustomer: customerPage.continueCursor,
+    isLastCustomer: customerPage.isDone,
+    invitationCursor: invitationPage.continueCursor,
+  };
 }
 
 describe("prepared customer setup", () => {
@@ -595,5 +680,554 @@ describe("prepared customer setup", () => {
       email: "self-service@example.com",
       status: "active",
     });
+  });
+
+  it("materializes stalled backfill state and can restart it", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const marker = await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(row!._id, { value: "running", updatedAt: 1 });
+      return row!._id;
+    });
+
+    await expect(
+      t.withIdentity(identity(admin.userId)).query(api.customerSetupStateBackfill.status, {}),
+    ).resolves.toEqual({ state: "running" });
+    await t.mutation(internal.customerSetupStateBackfill.markStalled, {
+      expectedUpdatedAt: 1,
+    });
+    await expect(
+      t.withIdentity(identity(admin.userId)).query(api.customerSetupStateBackfill.status, {}),
+    ).resolves.toEqual({ state: "stalled" });
+
+    await t.withIdentity(identity(admin.userId)).mutation(api.customerSetupStateBackfill.start, {});
+    await t.finishAllScheduledFunctions(() => {});
+    expect(await t.run((ctx) => ctx.db.get(marker))).toMatchObject({ value: "completed" });
+  });
+
+  it("backfills a current prepared link after more than 1,000 expired historical links", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const { customerId, invitationId } = await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(marker!._id, { value: "stalled" });
+      const customerId = await ctx.db.insert("customers", {
+        email: "long-history@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const now = Date.now();
+      let invitationId: Id<"invitations"> | undefined;
+      for (let index = 0; index < 1001; index += 1) {
+        const createdAt = index + 1;
+        invitationId = await ctx.db.insert("invitations", {
+          customerId,
+          kind: "prepared_setup",
+          tokenHash: String(index).padStart(64, "0"),
+          expiresAt: index === 1000 ? now + 24 * 60 * 60 * 1000 : now - 1,
+          createdByUserId: admin.userId,
+          createdAt,
+        });
+      }
+      return { customerId, invitationId: invitationId! };
+    });
+
+    await t.withIdentity(identity(admin.userId)).mutation(api.customerSetupStateBackfill.start, {});
+    await t.finishAllScheduledFunctions(() => {});
+    const result = await t.run(async (ctx) => ({
+      customer: await ctx.db.get(customerId),
+      invitation: await ctx.db.get(invitationId),
+    }));
+    expect(result.customer?.setupState).toBe("waiting");
+    expect(result.invitation?.setupExpiryScheduled).toBe(true);
+    const page = await t.withIdentity(identity(admin.userId)).query(api.customers.list, {
+      setupState: "waiting",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(page.page).toContainEqual(
+      expect.objectContaining({
+        _id: customerId,
+        invitationId,
+        linkExpiresAt: result.invitation?.expiresAt,
+      }),
+    );
+  });
+
+  it("restarts a deleted customer's invitation backfill at its saved customer cursor", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const setup = await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(marker!._id, { value: "running" });
+      const firstCustomerId = await ctx.db.insert("customers", {
+        email: "deleted-during-backfill@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const nextCustomerId = await ctx.db.insert("customers", {
+        email: "next-after-deleted@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 3,
+        updatedAt: 3,
+      });
+      for (let index = 0; index < 101; index += 1) {
+        await ctx.db.insert("invitations", {
+          customerId: firstCustomerId,
+          kind: "prepared_setup",
+          tokenHash: String(index + 100).padStart(64, "0"),
+          expiresAt: Date.now() - 1,
+          createdByUserId: admin.userId,
+          createdAt: index + 1,
+        });
+      }
+      return {
+        firstCustomerId,
+        nextCustomerId,
+      };
+    });
+    const adminPage = await t.run((ctx) =>
+      ctx.db
+        .query("customers")
+        .withIndex("by_scope", (q) => q.eq("scope", undefined))
+        .paginate({ cursor: null, numItems: 1 }),
+    );
+
+    await t.mutation(internal.customerSetupStateBackfill.runBatch, {
+      cursor: adminPage.continueCursor,
+    });
+    await t.run((ctx) => ctx.db.delete(setup.firstCustomerId));
+    await t.finishAllScheduledFunctions(() => {});
+
+    const result = await t.run(async (ctx) => ({
+      customer: await ctx.db.get(setup.nextCustomerId),
+      marker: await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique(),
+    }));
+    expect(result.customer?.setupState).toBe(null);
+    expect(result.marker?.value).toBe("completed");
+  });
+
+  it("keeps expired-only scoped prepared history in Draft", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const customerId = await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(marker!._id, { value: "stalled" });
+      const customerId = await ctx.db.insert("customers", {
+        email: "expired-only@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("j"),
+        expiresAt: Date.now() - 1,
+        createdByUserId: admin.userId,
+        createdAt: 2,
+      });
+      return customerId;
+    });
+
+    await t.withIdentity(identity(admin.userId)).mutation(api.customerSetupStateBackfill.start, {});
+    await t.finishAllScheduledFunctions(() => {});
+    const customer = await t.run((ctx) => ctx.db.get(customerId));
+    expect(customer).toMatchObject({ setupState: "draft" });
+    expect(customer?.setupExpiryInvitationId).toBeUndefined();
+    expect(customer?.setupExpiresAt).toBeUndefined();
+  });
+
+  it("keeps an older scoped live link when newer links are expired or out of scope", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const now = Date.now();
+    const { customerId, liveInvitationId, liveExpiresAt } = await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(marker!._id, { value: "stalled" });
+      const customerId = await ctx.db.insert("customers", {
+        email: "older-live@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const liveExpiresAt = now + 24 * 60 * 60 * 1000;
+      const liveInvitationId = await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("g"),
+        expiresAt: liveExpiresAt,
+        createdByUserId: admin.userId,
+        createdAt: 1,
+      });
+      await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("h"),
+        expiresAt: now - 1,
+        createdByUserId: admin.userId,
+        createdAt: 2,
+      });
+      await ctx.db.insert("invitations", {
+        scope: "demo",
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("i"),
+        expiresAt: now + 3 * 24 * 60 * 60 * 1000,
+        createdByUserId: admin.userId,
+        createdAt: 3,
+      });
+      return { customerId, liveInvitationId, liveExpiresAt };
+    });
+
+    await t.withIdentity(identity(admin.userId)).mutation(api.customerSetupStateBackfill.start, {});
+    await t.finishAllScheduledFunctions(() => {});
+    expect(await t.run((ctx) => ctx.db.get(customerId))).toMatchObject({
+      setupState: "waiting",
+      setupExpiryInvitationId: liveInvitationId,
+      setupExpiresAt: liveExpiresAt,
+    });
+    const page = await t.withIdentity(identity(admin.userId)).query(api.customers.list, {
+      setupState: "waiting",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(page.page).toContainEqual(
+      expect.objectContaining({
+        _id: customerId,
+        invitationId: liveInvitationId,
+        linkExpiresAt: liveExpiresAt,
+      }),
+    );
+  });
+
+  it("does not finalize Waiting from an invitation that expired between batches", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const setup = await t.run(async (ctx) => {
+      const marker = await ctx.db
+        .query("settings")
+        .withIndex("by_scope_and_key", (q) =>
+          q.eq("scope", undefined).eq("key", "customerSetupStateBackfill"),
+        )
+        .unique();
+      await ctx.db.patch(marker!._id, { value: "running" });
+      const customerId = await ctx.db.insert("customers", {
+        email: "expires-between-batches@example.com",
+        role: "customer",
+        status: "invited",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const now = Date.now();
+      let currentInvitationId: Id<"invitations"> | undefined;
+      for (let index = 0; index < 101; index += 1) {
+        currentInvitationId = await ctx.db.insert("invitations", {
+          customerId,
+          kind: "prepared_setup",
+          tokenHash: String(index + 2000).padStart(64, "0"),
+          expiresAt: index === 100 ? now + 60_000 : now - 1,
+          setupExpiryScheduled: index === 100,
+          createdByUserId: admin.userId,
+          createdAt: index + 1,
+        });
+      }
+      return {
+        customerId,
+        currentInvitationId: currentInvitationId!,
+      };
+    });
+    const customerPage = await t.run((ctx) =>
+      ctx.db
+        .query("customers")
+        .withIndex("by_scope", (q) => q.eq("scope", undefined))
+        .paginate({ cursor: null, numItems: 1 }),
+    );
+    const targetPage = await t.run((ctx) =>
+      ctx.db
+        .query("customers")
+        .withIndex("by_scope", (q) => q.eq("scope", undefined))
+        .paginate({ cursor: customerPage.continueCursor, numItems: 1 }),
+    );
+    const invitationPage = await t.run((ctx) =>
+      ctx.db
+        .query("invitations")
+        .withIndex("by_customerId_and_kind", (q) =>
+          q.eq("customerId", setup.customerId).eq("kind", "prepared_setup"),
+        )
+        .paginate({ cursor: null, numItems: 100 }),
+    );
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: targetPage.continueCursor,
+      isLastCustomer: targetPage.isDone,
+      invitationCursor: null,
+      hasPreparedSetup: false,
+    });
+    const originalInvitation = await t.run((ctx) => ctx.db.get(setup.currentInvitationId));
+    await t.run(async (ctx) =>
+      ctx.db.patch(setup.currentInvitationId, { expiresAt: Date.now() - 1 }),
+    );
+    await t.mutation(internal.customers.expirePreparedSetup, {
+      customerId: setup.customerId,
+      invitationId: setup.currentInvitationId,
+    });
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: targetPage.continueCursor,
+      isLastCustomer: targetPage.isDone,
+      invitationCursor: invitationPage.continueCursor,
+      hasPreparedSetup: true,
+      latestLiveInvitationId: setup.currentInvitationId,
+      latestLiveExpiresAt: originalInvitation!.expiresAt,
+      hasCustomerSnapshot: true,
+    });
+
+    expect(await t.run((ctx) => ctx.db.get(setup.customerId))).toMatchObject({
+      setupState: "draft",
+    });
+  });
+
+  it("keeps a reset customer out of prepared states through backfill and reset finalization", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const setup = await seedBatchedBackfillCase(t, admin.userId, "reset@example.com");
+    await t.run(async (ctx) => {
+      await ctx.db.patch(setup.customerId, { isDemo: true });
+    });
+
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: setup.cursorAfterCustomer,
+      isLastCustomer: setup.isLastCustomer,
+      invitationCursor: null,
+      hasPreparedSetup: false,
+    });
+    await t.run(async (ctx) =>
+      ctx.db.patch(setup.customerId, {
+        demoResetInProgress: true,
+        setupState: null,
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
+      }),
+    );
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: setup.cursorAfterCustomer,
+      isLastCustomer: setup.isLastCustomer,
+      invitationCursor: setup.invitationCursor,
+      hasPreparedSetup: true,
+      latestLiveInvitationId: setup.liveInvitationId,
+      latestLiveExpiresAt: setup.liveExpiresAt,
+      hasCustomerSnapshot: true,
+      snapshotSetupState: "waiting",
+      snapshotSetupExpiryInvitationId: setup.liveInvitationId,
+      snapshotSetupExpiresAt: setup.liveExpiresAt,
+    });
+    expect(await t.run((ctx) => ctx.db.get(setup.customerId))).toMatchObject({
+      setupState: null,
+      demoResetInProgress: true,
+    });
+
+    await t.mutation(internal.accountErasure.resetDemoAccountPass, {
+      customerId: setup.customerId,
+    });
+    await t.finishAllScheduledFunctions(() => {});
+    const resetCustomer = await t.run((ctx) => ctx.db.get(setup.customerId));
+    expect(resetCustomer).toMatchObject({ status: "pending", setupState: null });
+    expect(resetCustomer?.demoResetInProgress).toBeUndefined();
+  });
+
+  it("preserves a revoke committed between invitation backfill batches", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const setup = await seedBatchedBackfillCase(
+      t,
+      admin.userId,
+      "revoke-between-batches@example.com",
+    );
+
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: setup.cursorAfterCustomer,
+      isLastCustomer: setup.isLastCustomer,
+      invitationCursor: null,
+      hasPreparedSetup: false,
+    });
+    await t.withIdentity(identity(admin.userId)).mutation(api.invitations.revoke, {
+      invitationId: setup.liveInvitationId,
+    });
+    await t.mutation(internal.customerSetupStateBackfill.processInvitationBatch, {
+      customerId: setup.customerId,
+      cursorAfterCustomer: setup.cursorAfterCustomer,
+      isLastCustomer: setup.isLastCustomer,
+      invitationCursor: setup.invitationCursor,
+      hasPreparedSetup: true,
+      latestLiveInvitationId: setup.liveInvitationId,
+      latestLiveExpiresAt: setup.liveExpiresAt,
+      hasCustomerSnapshot: true,
+      snapshotSetupState: "waiting",
+      snapshotSetupExpiryInvitationId: setup.liveInvitationId,
+      snapshotSetupExpiresAt: setup.liveExpiresAt,
+    });
+
+    const customer = await t.run((ctx) => ctx.db.get(setup.customerId));
+    expect(customer).toMatchObject({ setupState: "draft" });
+    expect(customer?.setupExpiryInvitationId).toBeUndefined();
+    expect(customer?.setupExpiresAt).toBeUndefined();
+  });
+
+  it("expires Waiting setup for a non-active customer with an existing user", async () => {
+    const t = testConvex();
+    const { customerId, invitationId } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "pending-user@example.com" });
+      const expiresAt = Date.now() - 1;
+      const customerId = await ctx.db.insert("customers", {
+        userId,
+        email: "pending-user@example.com",
+        role: "customer",
+        status: "pending",
+        setupState: "waiting",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const invitationId = await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("m"),
+        expiresAt,
+        createdByUserId: userId,
+        createdAt: 2,
+      });
+      await ctx.db.patch(customerId, {
+        setupExpiryInvitationId: invitationId,
+        setupExpiresAt: expiresAt,
+      });
+      return { customerId, invitationId };
+    });
+
+    await t.mutation(internal.customers.expirePreparedSetup, { customerId, invitationId });
+
+    const customer = await t.run((ctx) => ctx.db.get(customerId));
+    expect(customer).toMatchObject({ status: "pending", setupState: "draft" });
+    expect(customer?.setupExpiryInvitationId).toBeUndefined();
+    expect(customer?.setupExpiresAt).toBeUndefined();
+  });
+
+  it("keeps an active customer Active when revoking a prepared setup link", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const { customerId, invitationId } = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "active-prepared@example.com" });
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+      const customerId = await ctx.db.insert("customers", {
+        userId,
+        email: "active-prepared@example.com",
+        role: "customer",
+        status: "active",
+        setupState: "active",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      const invitationId = await ctx.db.insert("invitations", {
+        customerId,
+        kind: "prepared_setup",
+        tokenHash: hash("k"),
+        expiresAt,
+        setupExpiryScheduled: true,
+        createdByUserId: admin.userId,
+        createdAt: 2,
+      });
+      return { customerId, invitationId };
+    });
+
+    await t.withIdentity(identity(admin.userId)).mutation(api.invitations.revoke, { invitationId });
+    const customer = await t.run((ctx) => ctx.db.get(customerId));
+    expect(customer).toMatchObject({ setupState: "active" });
+    expect(customer?.setupExpiryInvitationId).toBeUndefined();
+    expect(customer?.setupExpiresAt).toBeUndefined();
+  });
+
+  it("reports an accepted legacy invitation as inactive when it has no action ID", async () => {
+    const t = testConvex();
+    const admin = await seedAdmin(t);
+    const customerId = await t.run(async (ctx) => {
+      const userId = await ctx.db.insert("users", { email: "accepted@example.com" });
+      const customerId = await ctx.db.insert("customers", {
+        userId,
+        email: "accepted@example.com",
+        role: "customer",
+        status: "active",
+        setupState: "active",
+        deletionStatus: "active",
+        createdAt: 2,
+        updatedAt: 2,
+      });
+      await ctx.db.insert("invitations", {
+        customerId,
+        tokenHash: hash("f"),
+        acceptedAt: 3,
+        createdByUserId: admin.userId,
+        createdAt: 2,
+      });
+      return customerId;
+    });
+
+    const listed = await t.withIdentity(identity(admin.userId)).query(api.customers.list, {
+      setupState: "active",
+      paginationOpts: { numItems: 10, cursor: null },
+    });
+    expect(listed.page).toContainEqual(
+      expect.objectContaining({
+        _id: customerId,
+        invitationId: null,
+        invitationStatus: "accepted",
+        legacyInvitationActive: false,
+      }),
+    );
   });
 });

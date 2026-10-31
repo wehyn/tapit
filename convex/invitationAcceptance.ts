@@ -129,6 +129,8 @@ export const finishAcceptance = internalMutation({
       userId: args.userId,
       status: "active",
       setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       updatedAt: now,
     });
     if (invitation.acceptedAt === undefined)

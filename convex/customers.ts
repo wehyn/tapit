@@ -11,7 +11,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   isActiveCustomer,
   isHostedDemo,
@@ -69,11 +69,40 @@ const customerSetupListRowValidator = schema.doc("customers").extend({
   profileStatus: v.union(v.string(), v.null()),
   profileDraft: v.union(v.null(), preparedProfileDraftProjectionValidator),
   invitationId: v.union(v.id("invitations"), v.null()),
-  invitationStatus: v.union(v.literal("pending"), v.literal("accepted"), v.literal("revoked"), v.null()),
+  invitationStatus: v.union(
+    v.literal("pending"),
+    v.literal("accepted"),
+    v.literal("revoked"),
+    v.null(),
+  ),
   legacyInvitationActive: v.boolean(),
 });
 
 const CUSTOMER_SETUP_STATE_BACKFILL_KEY = "customerSetupStateBackfill";
+
+async function latestLivePreparedSetupInvitation(
+  ctx: MutationCtx,
+  customer: Doc<"customers">,
+  now: number,
+) {
+  const invitation = await ctx.db
+    .query("invitations")
+    .withIndex(
+      "by_customerId_and_kind_and_scope_and_invalidatedAt_and_acceptedAt_and_usedAt_and_expiresAt",
+      (q) =>
+        q
+          .eq("customerId", customer._id)
+          .eq("kind", "prepared_setup")
+          .eq("scope", customer.scope)
+          .eq("invalidatedAt", undefined)
+          .eq("acceptedAt", undefined)
+          .eq("usedAt", undefined)
+          .gt("expiresAt", now),
+    )
+    .order("desc")
+    .first();
+  return invitation !== null && sameScope(customer, invitation) ? invitation : null;
+}
 
 function prepareProfile(profile: {
   name: string;
@@ -136,23 +165,39 @@ export const expirePreparedSetup = internalMutation({
       invitation.kind !== "prepared_setup" ||
       !sameScope(customer, invitation) ||
       invitation.expiresAt === undefined ||
-      invitation.expiresAt > now ||
       invitation.usedAt !== undefined ||
       invitation.acceptedAt !== undefined ||
       invitation.invalidatedAt !== undefined ||
-      customer.setupState !== "waiting" ||
-      customer.userId !== undefined ||
-      customer.status !== "invited"
+      (customer.userId !== undefined && customer.status === "active") ||
+      customer.setupState !== "waiting"
     )
       return null;
-
-    const invitations = await ctx.db
-      .query("invitations")
-      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
-      .take(1000);
-    const safeInvitations = invitations.filter((row) => sameScope(customer, row));
-    if (deriveSetupState(customer, safeInvitations, now) !== "draft") return null;
-    await ctx.db.patch(customer._id, { setupState: "draft", updatedAt: now });
+    if (
+      customer.setupExpiryInvitationId !== invitation._id ||
+      customer.setupExpiresAt !== invitation.expiresAt
+    ) {
+      if (
+        customer.setupExpiryInvitationId === undefined &&
+        (customer.setupState === undefined || customer.setupState === "waiting") &&
+        invitation.expiresAt > now
+      )
+        await ctx.scheduler.runAt(
+          invitation.expiresAt,
+          internal.customers.expirePreparedSetup,
+          args,
+        );
+      return null;
+    }
+    if (invitation.expiresAt > now) {
+      await ctx.scheduler.runAt(invitation.expiresAt, internal.customers.expirePreparedSetup, args);
+      return null;
+    }
+    await ctx.db.patch(customer._id, {
+      setupState: "draft",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
+      updatedAt: now,
+    });
     return null;
   },
 });
@@ -306,8 +351,13 @@ export const createPrepared = mutation({
       kind: "prepared_setup",
       tokenHash: args.tokenHash,
       expiresAt,
+      setupExpiryScheduled: true,
       createdByUserId: userId,
       createdAt: now,
+    });
+    await ctx.db.patch(customerId, {
+      setupExpiryInvitationId: invitationId,
+      setupExpiresAt: expiresAt,
     });
     await ctx.scheduler.runAt(expiresAt, internal.customers.expirePreparedSetup, {
       customerId,
@@ -603,6 +653,8 @@ export const completeSelfServiceOnboarding = mutation({
       profileId,
       status: "active",
       setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       onboardingName: name,
       updatedAt: now,
     });
@@ -635,6 +687,8 @@ export const deletePendingAccount = mutation({
     await ctx.db.patch(customer._id, {
       status: "deleted",
       setupState: null,
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       deletionStatus: "deleted",
       updatedAt: now,
     });
@@ -777,6 +831,8 @@ export const resetDemoAccount = mutation({
     await ctx.db.patch(customer._id, {
       status: "pending",
       setupState: null,
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       demoResetInProgress: true,
       updatedAt: now,
     });
@@ -924,6 +980,8 @@ export const completeSetup = mutation({
       scope: invitation.scope,
       status: "active",
       setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       updatedAt: now,
     });
     if (shouldRecordAcceptance) {
@@ -981,9 +1039,7 @@ export const list = query({
     ),
     paginationOpts: paginationOptsValidator,
   },
-  returns: paginationResultValidator(
-    customerSetupListRowValidator,
-  ),
+  returns: paginationResultValidator(customerSetupListRowValidator),
   handler: async (ctx, args) => {
     const { account } = await requireAdministrator(ctx);
     const search = args.search?.trim().toLowerCase();
@@ -999,7 +1055,9 @@ export const list = query({
     }
     const customerQuery =
       args.setupState === undefined
-        ? ctx.db.query("customers").withIndex("by_scope", (query) => query.eq("scope", account.scope))
+        ? ctx.db
+            .query("customers")
+            .withIndex("by_scope", (query) => query.eq("scope", account.scope))
         : ctx.db
             .query("customers")
             .withIndex("by_scope_and_setupState", (query) =>
@@ -1009,27 +1067,63 @@ export const list = query({
     const now = Date.now();
     const annotated = await Promise.all(
       customers.page.map(async (customer) => {
-        const [profile, invitations] = await Promise.all([
-          customer.profileId === undefined ? null : ctx.db.get(customer.profileId),
-          ctx.db
-            .query("invitations")
-            .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
-            .take(1000),
-        ]);
-        const safeInvitations = invitations
-          .filter((invitation) => sameScope(customer, invitation))
-          .sort((left, right) => right.createdAt - left.createdAt);
+        const [profile, preparedInvitation, legacyInvitation, setupExpiryInvitation] =
+          await Promise.all([
+            customer.profileId === undefined ? null : ctx.db.get(customer.profileId),
+            ctx.db
+              .query("invitations")
+              .withIndex("by_customerId_and_kind_and_scope", (q) =>
+                q
+                  .eq("customerId", customer._id)
+                  .eq("kind", "prepared_setup")
+                  .eq("scope", customer.scope),
+              )
+              .order("desc")
+              .first(),
+            ctx.db
+              .query("invitations")
+              .withIndex("by_customerId_and_kind_and_scope", (q) =>
+                q.eq("customerId", customer._id).eq("kind", undefined).eq("scope", customer.scope),
+              )
+              .order("desc")
+              .first(),
+            customer.setupExpiryInvitationId === undefined
+              ? null
+              : ctx.db.get(customer.setupExpiryInvitationId),
+          ]);
+        const safePreparedInvitation =
+          preparedInvitation !== null && sameScope(customer, preparedInvitation)
+            ? preparedInvitation
+            : null;
+        const safeLegacyInvitation =
+          legacyInvitation !== null && sameScope(customer, legacyInvitation)
+            ? legacyInvitation
+            : null;
+        const safeSetupExpiryInvitation =
+          setupExpiryInvitation !== null && sameScope(customer, setupExpiryInvitation)
+            ? setupExpiryInvitation
+            : null;
+        const safeInvitations = [safePreparedInvitation, safeLegacyInvitation].filter(
+          (invitation): invitation is NonNullable<typeof invitation> => invitation !== null,
+        );
+        const setupState =
+          args.setupState === undefined && customer.setupState === undefined
+            ? deriveSetupState(customer, safeInvitations, now)
+            : (customer.setupState ?? null);
         const safeProfile =
           profile !== null && profile.ownerId === customer._id && sameScope(customer, profile)
             ? profile
             : null;
         return {
           ...customer,
-          setupState:
-            args.setupState === undefined
-              ? deriveSetupState(customer, safeInvitations, now)
-              : customer.setupState ?? null,
-          linkExpiresAt: latestSetupExpiry(customer, safeInvitations, now),
+          setupState,
+          linkExpiresAt:
+            customer.setupExpiresAt ??
+            latestSetupExpiry(
+              customer,
+              safePreparedInvitation === null ? [] : [safePreparedInvitation],
+              now,
+            ),
           profileName: safeProfile?.draft.name ?? null,
           profileSlug: safeProfile?.slug ?? null,
           profileStatus: safeProfile?.status ?? null,
@@ -1041,44 +1135,54 @@ export const list = query({
                 email: safeProfile.draft.email,
                 phone: safeProfile.draft.phone,
                 website: safeProfile.draft.website,
-                links: safeProfile.draft.links.map(({ label, destination }) => ({ label, destination })),
+                links: safeProfile.draft.links.map(({ label, destination }) => ({
+                  label,
+                  destination,
+                })),
               }
             : null,
-          invitationId: (() => {
-            const legacy = safeInvitations.filter((invitation) => invitation.kind !== "prepared_setup");
-            const prepared = safeInvitations.find((invitation) => invitation.kind === "prepared_setup");
-            const activeLegacy = legacy.find(
-              (invitation) => invitation.invalidatedAt === undefined && invitation.acceptedAt === undefined,
-            );
-            if (customer.setupState === "waiting" || customer.setupState === "draft")
-              return prepared?._id ?? legacy[0]?._id ?? null;
-            if (customer.setupState === null) return legacy[0]?._id ?? null;
-            return activeLegacy?._id ?? null;
-          })(),
-          invitationStatus: (() => {
-            const latestLegacy = safeInvitations.find((invitation) => invitation.kind !== "prepared_setup");
-            if (!latestLegacy) return null;
-            if (latestLegacy.invalidatedAt !== undefined) return "revoked" as const;
-            if (latestLegacy.acceptedAt !== undefined || latestLegacy.usedAt !== undefined)
-              return "accepted" as const;
-            return "pending" as const;
-          })(),
-          legacyInvitationActive: safeInvitations.some(
-            (invitation) =>
-              invitation.kind !== "prepared_setup" &&
-              invitation.invalidatedAt === undefined,
-          ),
+          invitationId:
+            setupState === "waiting"
+              ? (safeSetupExpiryInvitation?._id ??
+                safePreparedInvitation?._id ??
+                safeLegacyInvitation?._id ??
+                null)
+              : setupState === "draft"
+                ? (safePreparedInvitation?._id ?? safeLegacyInvitation?._id ?? null)
+                : setupState === null
+                  ? (safeLegacyInvitation?._id ?? null)
+                  : safeLegacyInvitation !== null &&
+                      safeLegacyInvitation.invalidatedAt === undefined &&
+                      safeLegacyInvitation.acceptedAt === undefined &&
+                      safeLegacyInvitation.usedAt === undefined
+                    ? safeLegacyInvitation._id
+                    : null,
+          invitationStatus: ((): "pending" | "accepted" | "revoked" | null =>
+            safeLegacyInvitation === null
+              ? null
+              : safeLegacyInvitation.invalidatedAt !== undefined
+                ? "revoked"
+                : safeLegacyInvitation.acceptedAt !== undefined ||
+                    safeLegacyInvitation.usedAt !== undefined
+                  ? "accepted"
+                  : "pending")(),
+          legacyInvitationActive:
+            safeLegacyInvitation !== null &&
+            safeLegacyInvitation.invalidatedAt === undefined &&
+            safeLegacyInvitation.acceptedAt === undefined &&
+            safeLegacyInvitation.usedAt === undefined,
         };
       }),
     );
     return {
       ...customers,
-      page: annotated.filter((customer) =>
-        search === undefined ||
-        search.length === 0 ||
-        (customer.email?.toLowerCase().includes(search) ?? false) ||
-        (customer.profileName?.toLowerCase().includes(search) ?? false) ||
-        (customer.profileSlug?.includes(search) ?? false),
+      page: annotated.filter(
+        (customer) =>
+          search === undefined ||
+          search.length === 0 ||
+          (customer.email?.toLowerCase().includes(search) ?? false) ||
+          (customer.profileName?.toLowerCase().includes(search) ?? false) ||
+          (customer.profileSlug?.includes(search) ?? false),
       ),
     };
   },
@@ -1216,15 +1320,15 @@ export const approveDeletion = mutation({
       throw new Error("Customer profile not found.");
 
     const now = Date.now();
-    const invitations = await ctx.db
+    const preparedInvitation = await ctx.db
       .query("invitations")
-      .withIndex("by_customerId", (q) => q.eq("customerId", customer._id))
-      .take(1000);
-    const setupState = deriveSetupState(
-      { ...customer, status: "deleted" },
-      invitations.filter((invitation) => sameScope(customer, invitation)),
-      now,
-    );
+      .withIndex("by_customerId_and_kind_and_scope", (q) =>
+        q.eq("customerId", customer._id).eq("kind", "prepared_setup").eq("scope", customer.scope),
+      )
+      .first();
+    const hasPreparedSetup = preparedInvitation !== null && sameScope(customer, preparedInvitation);
+    const liveInvitation = await latestLivePreparedSetupInvitation(ctx, customer, now);
+    const setupState = hasPreparedSetup ? (liveInvitation === null ? "draft" : "waiting") : null;
     await ctx.db.patch(request._id, {
       status: "approved",
       processedAt: now,
@@ -1233,9 +1337,22 @@ export const approveDeletion = mutation({
     await ctx.db.patch(customer._id, {
       status: "deleted",
       setupState,
+      setupExpiryInvitationId: setupState === "waiting" ? liveInvitation?._id : undefined,
+      setupExpiresAt: setupState === "waiting" ? liveInvitation?.expiresAt : undefined,
       deletionStatus: "deleted",
       updatedAt: now,
     });
+    if (
+      setupState === "waiting" &&
+      liveInvitation !== null &&
+      liveInvitation.setupExpiryScheduled !== true
+    ) {
+      await ctx.db.patch(liveInvitation._id, { setupExpiryScheduled: true });
+      await ctx.scheduler.runAt(liveInvitation.expiresAt!, internal.customers.expirePreparedSetup, {
+        customerId: customer._id,
+        invitationId: liveInvitation._id,
+      });
+    }
     await ctx.db.patch(profile._id, {
       status: "unpublished",
       unpublishedAt: profile.unpublishedAt ?? now,

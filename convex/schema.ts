@@ -94,6 +94,8 @@ export default defineSchema({
     setupState: v.optional(
       v.union(v.null(), v.literal("waiting"), v.literal("draft"), v.literal("active")),
     ),
+    setupExpiryInvitationId: v.optional(v.id("invitations")),
+    setupExpiresAt: v.optional(v.number()),
     status: v.union(
       v.literal("pending"),
       v.literal("invited"),
@@ -489,11 +491,18 @@ export default defineSchema({
     usedAt: v.optional(v.number()),
     acceptedAt: v.optional(v.number()),
     invalidatedAt: v.optional(v.number()),
+    setupExpiryScheduled: v.optional(v.boolean()),
     createdByUserId: v.id("users"),
     createdAt: v.number(),
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_customerId", ["customerId"])
+    .index("by_customerId_and_kind", ["customerId", "kind"])
+    .index("by_customerId_and_kind_and_scope", ["customerId", "kind", "scope"])
+    .index(
+      "by_customerId_and_kind_and_scope_and_invalidatedAt_and_acceptedAt_and_usedAt_and_expiresAt",
+      ["customerId", "kind", "scope", "invalidatedAt", "acceptedAt", "usedAt", "expiresAt"],
+    )
     .index("by_expiresAt", ["expiresAt"])
     .index("by_acceptedAt", ["acceptedAt"])
     .index("by_invalidatedAt", ["invalidatedAt"])

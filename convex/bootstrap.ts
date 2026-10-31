@@ -49,6 +49,8 @@ export const promoteUser = internalMutation({
         role: "admin",
         status: "active",
         setupState: "active",
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         updatedAt: now,
       });
@@ -148,6 +150,8 @@ export const bootstrap = internalMutation({
         role: "admin",
         status: "active",
         setupState: "active",
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         createdAt: now,
         updatedAt: now,
@@ -159,6 +163,8 @@ export const bootstrap = internalMutation({
         role: "admin",
         status: "active",
         setupState: "active",
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         updatedAt: now,
       });
@@ -196,6 +202,8 @@ export const bootstrap = internalMutation({
         role: "customer",
         status: "active",
         setupState: "active",
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         updatedAt: now,
       });

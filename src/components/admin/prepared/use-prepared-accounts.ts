@@ -156,7 +156,9 @@ export function useConvexPreparedAccounts(): Result {
         ...base,
         setupState: "active",
         kind: "active",
-        invitationId: customer.legacyInvitationActive ? customer.invitationId ?? undefined : undefined,
+        invitationId: customer.legacyInvitationActive
+          ? (customer.invitationId ?? undefined)
+          : undefined,
         role: customer.role,
         status: customer.status,
         deletionStatus: customer.deletionStatus,

@@ -91,6 +91,8 @@ async function operator(ctx: MutationCtx, userId: Id<"users">) {
       role: "admin",
       status: "active",
       setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       deletionStatus: "active",
       updatedAt: now,
     });
