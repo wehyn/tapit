@@ -50,6 +50,7 @@ export const UPLOAD_FAILURE_MESSAGE = "Upload failed. Please try again.";
 
 const SAFE_UPLOAD_MESSAGES: Record<string, UploadErrorCode> = {
   "Authentication required.": "UNAUTHENTICATED",
+  "Active account required.": "FORBIDDEN",
   "Administrator permission required.": "FORBIDDEN",
   "Profile access denied.": "FORBIDDEN",
   "This image does not belong to this profile.": "FORBIDDEN",
@@ -101,6 +102,10 @@ const SAFE_UPLOAD_MESSAGES: Record<string, UploadErrorCode> = {
   "The profile draft changed while you were editing. Refresh and try again.": "CONFLICT",
   "Photo upload in progress. Wait for it to finish and try again.": "CONFLICT",
   "Upload job does not match this media set.": "CONFLICT",
+  "A card design upload is already being processed.": "CONFLICT",
+  "A previous card design upload is still being cleaned up.": "CONFLICT",
+  "This file is already in use.": "CONFLICT",
+  "Upload job does not match this image set.": "CONFLICT",
   "Upload job not found.": "CONFLICT",
   [UPLOAD_FAILURE_MESSAGE]: "PROCESSING_FAILED",
   "Authentication is required.": "UNAUTHENTICATED",
@@ -122,9 +127,10 @@ function normalizedUploadError(value: unknown): UploadError | null {
   if (!isUploadError(value)) return null;
   const code = value.code;
   const message =
-    code === "STORAGE_UNAVAILABLE" || code === "PROCESSING_FAILED"
+    code === "STORAGE_UNAVAILABLE" ||
+    (code === "PROCESSING_FAILED" && SAFE_UPLOAD_MESSAGES[value.message] !== code)
       ? UPLOAD_FAILURE_MESSAGE
-      : SAFE_UPLOAD_MESSAGES[value.message] === value.code
+      : SAFE_UPLOAD_MESSAGES[value.message] === code
         ? value.message
         : DEFAULT_MESSAGES[code];
   return { code, message, retryable: RETRYABLE_CODES.has(code) };

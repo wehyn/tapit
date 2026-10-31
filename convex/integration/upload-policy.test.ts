@@ -86,6 +86,7 @@ describe("generic upload policy foundation", () => {
 
   it.each([
     ["Authentication required.", "UNAUTHENTICATED", 401],
+    ["Active account required.", "FORBIDDEN", 403],
     ["Profile access denied.", "FORBIDDEN", 403],
     ["Administrator permission required.", "FORBIDDEN", 403],
     ["This upload request is no longer available.", "UPLOAD_EXPIRED", 410],
@@ -94,6 +95,10 @@ describe("generic upload policy foundation", () => {
     ["Too many profile media upload jobs are assigned to this profile.", "QUOTA_EXCEEDED", 429],
     ["Too many upload attempts. Try again later.", "RATE_LIMITED", 429],
     ["Media changed elsewhere. Reload and try again.", "CONFLICT", 409],
+    ["A card design upload is already being processed.", "CONFLICT", 409],
+    ["A previous card design upload is still being cleaned up.", "CONFLICT", 409],
+    ["This file is already in use.", "CONFLICT", 409],
+    ["Upload job does not match this image set.", "CONFLICT", 409],
     ["Upload a valid JPEG or PNG image.", "INVALID_IMAGE", 422],
     ["Upload a valid PDF receipt matching its file type.", "INVALID_SIGNATURE", 422],
   ] as const)("allows only classified safe message %s", (message, code, status) => {
@@ -105,6 +110,14 @@ describe("generic upload policy foundation", () => {
     const error = uploadError("STORAGE_UNAVAILABLE", UPLOAD_FAILURE_MESSAGE);
     expect(safeUploadError(error)).toEqual(error);
     expect(safeUploadError(new ConvexError(error))).toEqual(error);
+    const safeProcessingError = uploadError("PROCESSING_FAILED", "The uploaded design was not found.");
+    expect(safeUploadError(new ConvexError(safeProcessingError))).toMatchObject({
+      code: "PROCESSING_FAILED",
+      message: "The uploaded design was not found.",
+    });
+    expect(
+      safeUploadError(new ConvexError(uploadError("PROCESSING_FAILED", "private internal detail"))),
+    ).toMatchObject({ code: "PROCESSING_FAILED", message: UPLOAD_FAILURE_MESSAGE });
     expect(safeUploadError(new Error("private internal detail"))).toBeNull();
   });
 
