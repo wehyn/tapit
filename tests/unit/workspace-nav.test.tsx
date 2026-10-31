@@ -80,7 +80,7 @@ describe("WorkspaceChrome sidebar", () => {
     expect(within(navigation).getByRole("heading", { name: "Your profile" })).toBeInTheDocument();
     expect(within(navigation).getByRole("heading", { name: "Share & grow" })).toBeInTheDocument();
     expect(within(navigation).getByRole("heading", { name: "Account & help" })).toBeInTheDocument();
-    for (const name of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+    for (const name of ["Profile", "Links", "Customize", "Cards", "Analytics"]) {
       expect(within(navigation).getByRole("link", { name })).toBeInTheDocument();
     }
     for (const name of ["Account", "Help"]) {
@@ -104,7 +104,7 @@ describe("WorkspaceChrome sidebar", () => {
     const sidebar = screen.getByTestId("workspace-sidebar");
     const navigation = within(sidebar).getByRole("navigation", { name: "Customer navigation" });
     expect(within(navigation).getByRole("heading", { name: "Share & grow" })).toBeInTheDocument();
-    expect(within(navigation).getByRole("link", { name: "Card" })).toHaveAttribute(
+    expect(within(navigation).getByRole("link", { name: "Cards" })).toHaveAttribute(
       "href",
       "/app/card",
     );
@@ -145,13 +145,13 @@ describe("WorkspaceChrome sidebar", () => {
     renderChrome();
 
     const sidebar = screen.getByTestId("workspace-sidebar");
-    expect(within(sidebar).getByRole("link", { name: "Card" })).toHaveAttribute(
+    expect(within(sidebar).getByRole("link", { name: "Cards" })).toHaveAttribute(
       "aria-current",
       "page",
     );
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(within(breadcrumb).getByRole("link", { name: "Workspace" })).toBeInTheDocument();
-    expect(within(breadcrumb).getByText("Card")).toHaveAttribute("aria-current", "page");
+    expect(within(breadcrumb).getByText("Cards")).toHaveAttribute("aria-current", "page");
   });
 
   it("shows the audience switch only when the viewer is an admin", () => {
@@ -213,7 +213,7 @@ describe("WorkspaceChrome mobile navigation", () => {
 
     fireEvent.click(more);
     const dialog = screen.getByRole("dialog", { name: "More" });
-    for (const name of ["Customize", "Card", "Account", "Help"]) {
+    for (const name of ["Customize", "Cards", "Account", "Help"]) {
       expect(within(dialog).getByRole("link", { name })).toBeInTheDocument();
     }
     expect(within(dialog).getByRole("button", { name: "Sign out" })).toBeInTheDocument();

@@ -68,8 +68,7 @@ To open the dev server from another device, use the machine's LAN or Tailscale U
   `/privacy`, `/terms`.
 - **Auth:** `/login` (`?mode=signup` for self-service signup), `/setup/[token]` (invitation setup),
   `/onboarding`.
-- **Customer workspace (`/app`):** Profile, Links, Customize, Card (design and order a card), Analytics,
-  Account. Card registration, replacement, and claim-code issuance remain administrator-only.
+- **Customer workspace (`/app`):** Profile, Links, Customize, Cards (`/app/card`, assigned cards), card designer (`/app/card/order`), printed order form (`/app/card/order-card`), Analytics, and Account. The legacy `/app/account/build-card` path permanently redirects to the designer. Public `/build-card` remains unchanged. Card registration, assignment, and claim-code issuance remain administrator-only.
 - **Admin workspace (`/admin`):** Customers, Profiles, Cards, Orders, Codes, Analytics, Audit log, Settings.
 - **API:** `/api/auth` (Convex Auth) and `/api/live-contract` (non-production live-target check).
 

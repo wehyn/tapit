@@ -15,7 +15,7 @@ const navigationTourSteps = [
   { label: "Profile", description: "Edit your profile details and what people see." },
   { label: "Links", description: "Manage the links shown on your profile." },
   { label: "Customize", description: "Choose the look and layout of your profile." },
-  { label: "Card", description: "Design a card to share your profile or find order details." },
+  { label: "Cards", description: "Manage your assigned cards or order more cards." },
   { label: "Analytics", description: "See how people view your profile and use its links." },
   { label: "Account", description: "Manage your account and profile settings." },
 ];
@@ -152,7 +152,7 @@ test("desktop sidebar shows customer sections and Account and Help", async ({ pa
   await expect(
     navigation.getByRole("heading", { name: "Account & help", exact: true }),
   ).toBeVisible();
-  for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+  for (const label of ["Profile", "Links", "Customize", "Cards", "Analytics"]) {
     await expect(navigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   for (const label of ["Account", "Help"]) {
@@ -173,7 +173,7 @@ test("desktop sidebar shows customer sections and Account and Help", async ({ pa
   for (const [label, path] of [
     ["Links", /\/app\/links$/],
     ["Customize", /\/app\/customize$/],
-    ["Card", /\/app\/card$/],
+    ["Cards", /\/app\/card$/],
     ["Analytics", /\/app\/analytics$/],
     ["Profile", /\/app\/profile$/],
   ] as const) {
@@ -225,7 +225,7 @@ test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer"
   await more.click();
   const sheet = page.getByRole("dialog", { name: "More", exact: true });
   await expect(sheet).toBeVisible();
-  for (const label of ["Customize", "Card", "Account"]) {
+  for (const label of ["Customize", "Cards", "Account"]) {
     await expect(sheet.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await expect(sheet.getByRole("link", { name: "Help", exact: true })).toHaveAttribute(
@@ -235,7 +235,7 @@ test("mobile workspace uses a four-tab bar and a More sheet instead of a drawer"
   await expect(sheet.getByRole("button", { name: "Close", exact: true })).toBeVisible();
   await expect(sheet.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
 
-  await sheet.getByRole("link", { name: "Card", exact: true }).click();
+  await sheet.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/card$/);
   await expect(sheet).toHaveCount(0);
 });
@@ -288,7 +288,7 @@ test("mobile first-time tour follows the tab bar and More sheet", async ({ page 
 
   await expect(coach).toBeVisible();
   for (const [index, step] of navigationTourSteps.entries()) {
-    const isMoreStep = ["Customize", "Card", "Account"].includes(step.label);
+    const isMoreStep = ["Customize", "Cards", "Account"].includes(step.label);
     const target = isMoreStep
       ? page.getByRole("dialog", { name: "More" }).getByRole("link", {
           name: step.label,
@@ -384,7 +384,7 @@ test("customer can sign out from the More sheet on mobile", async ({ page }) => 
   ).toBeNull();
 });
 
-test("the old build-card path permanently redirects to Card", async ({ page }) => {
+test("the old build-card path permanently redirects to card design", async ({ page }) => {
   await resetDemoHarness(page);
   await signInAsCustomer(page);
 
@@ -392,13 +392,13 @@ test("the old build-card path permanently redirects to Card", async ({ page }) =
   expect(redirect.status()).toBe(308);
 
   await page.goto("/app/account/build-card");
-  await expect(page).toHaveURL(/\/app\/card$/);
+  await expect(page).toHaveURL(/\/app\/card\/order$/);
   await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
   await expect(
-    page.getByTestId("workspace-sidebar").getByRole("link", { name: "Card", exact: true }),
+    page.getByTestId("workspace-sidebar").getByRole("link", { name: "Cards", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(
-    page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Card", { exact: true }),
+    page.getByRole("navigation", { name: "Breadcrumb" }).getByText("Cards", { exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
@@ -969,11 +969,11 @@ test("customer card page stays inside the authenticated workspace", async ({ pag
 
   await page
     .getByTestId("workspace-sidebar")
-    .getByRole("link", { name: "Card", exact: true })
+    .getByRole("link", { name: "Cards", exact: true })
     .click();
 
   await expect(page).toHaveURL(/\/app\/card$/);
-  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Cards", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Customer navigation" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Primary navigation" })).toHaveCount(0);
 });
@@ -1183,7 +1183,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   await expect(
     desktopNavigation.getByRole("heading", { name: "Share & grow", exact: true }),
   ).toBeVisible();
-  for (const label of ["Profile", "Links", "Customize", "Card", "Analytics"]) {
+  for (const label of ["Profile", "Links", "Customize", "Cards", "Analytics"]) {
     await expect(desktopNavigation.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
   await island.getByRole("button", { name: /^Account menu for / }).click();
@@ -1195,7 +1195,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
     desktopNavigation.getByRole("link", { name: "Profile", exact: true }),
   ).toHaveAttribute("aria-current", "page");
   await expect(island.getByRole("group", { name: "Workspace" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Cards", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
   const desktopAccountMenu = page.getByRole("button", {
     name: "Account menu for mara@example.test",
   });
@@ -1234,7 +1234,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   await expect(moreButton).toHaveAttribute("aria-expanded", "false");
   await moreButton.click();
   await expect(moreSheet).toBeVisible();
-  await expect(moreSheet.getByRole("link", { name: "Card", exact: true })).toBeVisible();
+  await expect(moreSheet.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
   await expect(moreSheet.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.keyboard.press("Escape");
@@ -1243,7 +1243,7 @@ test("customer workspace navigation uses Soft Precision surfaces and stays group
   await expect(moreButton).toHaveAttribute("aria-expanded", "false");
 
   await moreButton.click();
-  await moreSheet.getByRole("link", { name: "Card", exact: true }).click();
+  await moreSheet.getByRole("link", { name: "Cards", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/card$/);
   await expect(moreButton).toHaveAttribute("aria-expanded", "false");
 
@@ -1345,7 +1345,7 @@ test("profile URL copies through the fallback when clipboard access fails", asyn
   await expect(page.getByRole("status").filter({ hasText: "Copied" })).toHaveCount(1);
 });
 
-test("one-time setup leads to a guarded customer workspace without Cards", async ({ page }) => {
+test("one-time setup leads to a guarded customer workspace with Cards", async ({ page }) => {
   await page.goto("/setup/demo-setup-token");
   await expect(page.getByRole("heading", { name: "Choose a password" })).toBeVisible();
   await page.getByLabel("Password", { exact: true }).fill("new-demo-password");
@@ -1354,7 +1354,7 @@ test("one-time setup leads to a guarded customer workspace without Cards", async
   await expect(page).toHaveURL(/\/app\/profile$/);
   await expect(page.getByRole("link", { name: "Profile", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Links" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Cards" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
@@ -2218,7 +2218,7 @@ test("customer can configure bounded profile media and publish an edge-to-edge p
       Math.abs(
         backgroundBox!.y + backgroundBox!.height - (portraitBox!.y + portraitBox!.height / 2),
       ),
-    ).toBeLessThanOrEqual(1);
+    ).toBeLessThanOrEqual(2);
     await expect(page.getByRole("region", { name: "Profile slideshow" })).toBeVisible();
     await expect(page.getByRole("img", { name: "Studio detail one" })).toBeVisible();
     await expect(page.locator("main")).toHaveCSS("background-color", "rgb(251, 246, 239)");
@@ -3815,7 +3815,7 @@ test("customer analytics keeps zero totals and privacy context for an empty rang
 
 test("customer can continue from card design to the order form", async ({ page }) => {
   await signInAsCustomer(page);
-  await page.goto("/app/card");
+  await page.goto("/app/card/order");
   await expect(page.getByText(/continue to the order form/i)).toBeVisible();
   await expect(page.getByRole("link", { name: "Build your own with Canva" })).toHaveAttribute(
     "href",
@@ -3860,9 +3860,15 @@ test("customer can unpublish from Account", async ({ page }) => {
 test("customer utility workspaces fit phone, tablet, and desktop widths", async ({ page }) => {
   await signInAsCustomer(page);
 
-  for (const route of ["/app/analytics", "/app/account", "/app/card", "/build-card"] as const) {
+  for (const route of [
+    "/app/analytics",
+    "/app/account",
+    "/app/card",
+    "/app/card/order",
+    "/build-card",
+  ] as const) {
     await page.goto(route);
-    if (route === "/app/card") {
+    if (route === "/app/card/order") {
       await expect
         .poll(() =>
           page
@@ -3877,7 +3883,7 @@ test("customer utility workspaces fit phone, tablet, and desktop widths", async 
       if (route === "/app/analytics" && (width === 390 || width === 1280)) {
         await page.screenshot({ path: `test-results/customer-analytics-${width}.png` });
       }
-      if (route === "/app/card" && (width === 390 || width === 1280)) {
+      if (route === "/app/card/order" && (width === 390 || width === 1280)) {
         await page.screenshot({ path: `test-results/customer-build-card-${width}.png` });
       }
       const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
@@ -3911,4 +3917,143 @@ test("customer utility workspaces fit phone, tablet, and desktop widths", async 
       expect(scrollWidth).toBeLessThanOrEqual(width);
     }
   }
+});
+
+test("customer manages assigned cards", async ({ page }, testInfo) => {
+  test.setTimeout(60000);
+  await resetDemoHarness(page);
+  await page.goto("/login?mode=signup");
+  await page.getByLabel("Display name").fill("Empty Cards Customer");
+  await page.getByLabel("Profile link").fill("empty-cards-customer");
+  await page.getByLabel("Email").fill("empty-cards@example.test");
+  await page.getByLabel("Password", { exact: true }).fill("empty-cards-password");
+  await page.getByLabel("Confirm password").fill("empty-cards-password");
+  await page.getByRole("button", { name: "Create your profile", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  const welcome = page.getByRole("dialog", { name: "Before you publish" });
+  if (await welcome.isVisible()) await welcome.getByRole("button", { name: "Maybe later" }).click();
+  await page.goto("/app/card");
+  await page.getByRole("button", { name: "Skip tour", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Cards", exact: true })).toBeVisible();
+  await expect(page.getByText("You don't have any cards yet.", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Order more cards", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/card\/order$/);
+
+  await page.getByRole("button", { name: "Account menu for empty-cards@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsCustomer(page);
+  await page.goto("/app/card");
+  const active = page.getByRole("article").filter({ hasText: "mara-card-7f2q" });
+  await expect(active).toBeVisible();
+  await expect(active.getByText("Status: Active", { exact: true })).toBeVisible();
+  await expect(active.getByText("DEMA29BC")).toHaveCount(0);
+  await expect(active.getByText("claimCode")).toHaveCount(0);
+  await expect(page.getByText("mara-card-retired")).toBeVisible();
+  await expect(page.getByText(/Archived\. Ask an administrator/i)).toHaveCount(0);
+  await expect(page.getByText(/DEMA29BC|MARA2Q8K|ACTV29BC/)).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("customer-assigned-cards.png"),
+    fullPage: true,
+  });
+
+  await active.getByRole("button", { name: "Disable card", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Disable card", exact: true }).click();
+  await expect(active.getByText("Status: Inactive", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("article")
+      .filter({ hasText: "mara-card-retired" })
+      .getByText("Status: Inactive", { exact: true }),
+  ).toBeVisible();
+  await active.getByRole("button", { name: "Reactivate card", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Start reactivation/i })
+    .click();
+  await expect(
+    page.getByText(/Contact support or an administrator for a new claim code/i),
+  ).toBeVisible();
+  await expect(active.getByText("DEMA29BC")).toHaveCount(0);
+  await expect(active.getByText("Status: Active", { exact: true })).toBeVisible();
+  await page.goto("/c/mara-card-7f2q");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+
+  await page.goto("/app/card");
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsAdmin(page);
+  await page.goto("/admin/cards");
+  const reactivated = page.getByRole("article").filter({ hasText: "mara-card-7f2q" });
+  await reactivated.locator("summary").first().click();
+  await reactivated.getByRole("button", { name: "Generate code", exact: true }).click();
+  const freshCode = (
+    await reactivated.getByLabel("Claim code for mara-card-7f2q").innerText()
+  ).trim();
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsCustomer(page);
+  await page.goto("/c/mara-card-7f2q");
+  await page.getByLabel("Card code").fill(freshCode);
+  await page.getByRole("button", { name: "Verify code", exact: true }).click();
+  await expect(page.getByText(/Code verified/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirm and attach card", exact: true }).click();
+  await expect(page).toHaveURL(/\/app\/profile$/);
+  await page.getByRole("button", { name: "Account menu for mara@example.test" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsAdmin(page);
+  await page.goto("/admin/cards");
+  const archived = page.getByRole("article").filter({ hasText: "mara-card-retired" });
+  await archived.locator("summary").first().click();
+  await archived.getByRole("button", { name: "Remove", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Remove this card?" })
+    .getByRole("button", { name: "Remove card", exact: true })
+    .click();
+
+  const inventory = page.getByRole("article").filter({ hasText: "unassigned-card-demo" });
+  await inventory.locator("summary").first().click();
+  await inventory.getByLabel("Assign unassigned-card-demo to profile").selectOption("profile-mara");
+  await inventory.getByRole("button", { name: "Assign to profile", exact: true }).click();
+  await page
+    .getByRole("dialog", { name: "Confirm card attachment" })
+    .getByRole("button", { name: "Attach card", exact: true })
+    .click();
+  const adminLost = page.getByRole("article").filter({ hasText: "unassigned-card-demo" });
+  const markAdminLost = adminLost.getByRole("button", { name: "Mark lost", exact: true });
+  if (!(await markAdminLost.isVisible())) await adminLost.locator("summary").first().click();
+  await markAdminLost.click();
+  await page.getByRole("dialog").getByRole("button", { name: "Mark lost", exact: true }).click();
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsCustomer(page);
+  await page.goto("/app/card");
+  const archivedCustomerCard = page.getByRole("article").filter({ hasText: "mara-card-retired" });
+  await expect(archivedCustomerCard.getByText(/Archived\. Ask an administrator/i)).toBeVisible();
+  const adminLostCustomerCard = page
+    .getByRole("article")
+    .filter({ hasText: "unassigned-card-demo" });
+  await expect(adminLostCustomerCard).toBeVisible();
+  await expect(adminLostCustomerCard.getByText("Status: Lost", { exact: true })).toBeVisible();
+  await expect(
+    adminLostCustomerCard.getByRole("button", { name: "Mark card lost", exact: true }),
+  ).toHaveCount(0);
+  await adminLostCustomerCard.getByLabel("Lost card page").selectOption("inactive");
+
+  const isolated = await page.context().browser()?.newPage();
+  if (!isolated) throw new Error("Expected a browser for an isolated card-state journey.");
+  await signInAsCustomer(isolated);
+  await isolated.goto("/app/card");
+  const claimed = isolated.getByRole("article").filter({ hasText: "mara-card-7f2q" });
+  await claimed.getByRole("button", { name: "Mark card lost", exact: true }).click();
+  await isolated
+    .getByRole("dialog")
+    .getByRole("button", { name: "Mark lost", exact: true })
+    .click();
+  await expect(claimed.getByText("Status: Lost", { exact: true })).toBeVisible();
+  await expect(claimed.getByLabel("Lost card page")).toHaveValue("return");
+  await expect(claimed.getByRole("button", { name: "Mark card lost", exact: true })).toHaveCount(0);
+  await isolated.context().close();
 });

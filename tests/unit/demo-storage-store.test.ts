@@ -124,6 +124,29 @@ describe("demo storage store", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBe(invalidRaw);
   });
 
+  it("accepts legacy cards without owner fields and rejects unsupported owner values", async () => {
+    const legacy = createDefaultDemoState();
+    localStorage.setItem(STORAGE_KEY, serializeDemoState(legacy));
+    const oldStore = await import("../../src/lib/demo/store");
+    expect(oldStore.getDemoState().cards[0]?.lostCardResolution).toBeUndefined();
+
+    for (const [field, value] of [
+      ["lostCardResolution", "profile"],
+      ["ownerDisabledAt", "soon"],
+    ] as const) {
+      vi.resetModules();
+      const malformed = JSON.parse(serializeDemoState(createDefaultDemoState())) as {
+        cards: Record<string, unknown>[];
+      };
+      malformed.cards[0]![field] = value;
+      const raw = JSON.stringify(malformed);
+      localStorage.setItem(STORAGE_KEY, raw);
+      const store = await import("../../src/lib/demo/store");
+      expect(store.getDemoState().cards[0]?.lostCardResolution).toBeUndefined();
+      expect(localStorage.getItem(STORAGE_KEY)).toBe(raw);
+    }
+  });
+
   it("normalizes only the exact FOUNDING aliases and preserves other legacy code limits", async () => {
     const state = createDefaultDemoState();
     state.cardOrderReferralCodes = [

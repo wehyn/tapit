@@ -134,6 +134,18 @@ describe("card archive, restore, and reactivation", () => {
     );
     expect(events.map(({ action }) => action)).toContain("card.archived");
     expect(events.map(({ action }) => action)).toContain("card.restored");
+    await t.run((ctx) =>
+      ctx.db.patch(inactiveCardId, {
+        status: "lost",
+        lostCardResolution: "inactive",
+        ownerDisabledAt: 3,
+      }),
+    );
+    await admin.mutation(api.cards.reactivate, { cardId: inactiveCardId });
+    const recovered = await t.run((ctx) => ctx.db.get(inactiveCardId));
+    expect(recovered).toMatchObject({ status: "claimable" });
+    expect(recovered).not.toHaveProperty("lostCardResolution");
+    expect(recovered).not.toHaveProperty("ownerDisabledAt");
   });
 
   it("reactivates with stale claims invalidated and fresh claims usable", async () => {
@@ -207,6 +219,7 @@ describe("card archive, restore, and reactivation", () => {
       token: "reactivate-card",
     });
     await admin.mutation(api.cards.attach, { cardId, profileId: ids.profileId });
+    await t.run((ctx) => ctx.db.patch(cardId, { ownerDisabledAt: 3 }));
     await expect(t.mutation(api.cards.reactivate, { cardId })).rejects.toThrow(
       "Authentication required.",
     );
@@ -223,6 +236,7 @@ describe("card archive, restore, and reactivation", () => {
         .take(10),
     );
     await admin.mutation(api.cards.deactivate, { cardId });
+    expect(await t.run((ctx) => ctx.db.get(cardId))).not.toHaveProperty("ownerDisabledAt");
     await admin.mutation(api.cards.reactivate, { cardId });
     const reactivatedCard = await t.run((ctx) => ctx.db.get(cardId));
     expect(reactivatedCard).toMatchObject({

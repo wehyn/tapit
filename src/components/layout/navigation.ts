@@ -78,8 +78,8 @@ export const navItems: readonly NavItem[] = [
   },
   {
     href: "/app/card",
-    label: "Card",
-    tourDescription: "Design a card to share your profile or find order details.",
+    label: "Cards",
+    tourDescription: "Manage your assigned cards or order more cards.",
     icon: "card",
     audience: "customer",
     section: "share-and-grow",

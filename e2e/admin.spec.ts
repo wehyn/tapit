@@ -564,7 +564,7 @@ test("administrator publishes only after editing their own draft", async ({ page
   await page.goto("/admin-tapit");
   await expect(page.getByRole("heading", { name: "Admin Personal Profile" })).toBeVisible();
 
-  await page.goto("/app/card");
+  await page.goto("/app/card/order");
   await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
   await page.goto("/app/analytics");
   await expect(page.getByRole("heading", { name: "Profile analytics" })).toBeVisible();
@@ -577,6 +577,25 @@ test("administrator publishes only after editing their own draft", async ({ page
   await expect(page.getByLabel("Name")).toHaveValue("Mara Velasquez");
   await page.goto("/admin/customers");
   await expect(page).toHaveURL(/\/app\/profile$/);
+});
+
+test("administrator Cards workspace links to card ordering without customer controls", async ({
+  page,
+}, testInfo) => {
+  await signInAsAdmin(page);
+  await page.goto("/app/card");
+
+  await expect(page.getByRole("heading", { name: "Cards", exact: true })).toBeVisible();
+  await expect(page.getByRole("article")).toHaveCount(0);
+  const orderLink = page.getByRole("link", { name: "Order cards", exact: true });
+  await expect(orderLink).toHaveAttribute("href", "/app/card/order");
+  await page.screenshot({
+    path: testInfo.outputPath("admin-cards-order-entry.png"),
+    fullPage: true,
+  });
+  await orderLink.click();
+  await expect(page).toHaveURL(/\/app\/card\/order$/);
+  await expect(page.getByRole("heading", { name: "Bring your card to life" })).toBeVisible();
 });
 
 test("administrator can create and inspect a customer invitation", async ({ page }) => {
@@ -689,7 +708,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   ).toHaveCount(0);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: `Account menu for ${email}` }).click();
@@ -761,7 +780,7 @@ test("administrator grants and revokes card-owner access for a cardless customer
   await expect(page).toHaveURL(/\/app\/profile$/);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
 });
 

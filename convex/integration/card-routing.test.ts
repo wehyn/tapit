@@ -110,4 +110,31 @@ describe("card routing", () => {
       status: "unavailable",
     });
   });
+
+  it("uses the inactive result for lost cards that opt out of return instructions", async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/lost-inactive",
+        token: "lost-inactive",
+        status: "lost",
+        lostCardResolution: "inactive",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+      await ctx.db.insert("cards", {
+        cardUrl: "https://tapit.test/c/lost-default",
+        token: "lost-default",
+        status: "lost",
+        createdAt: 1,
+        updatedAt: 1,
+      });
+    });
+    await expect(t.query(api.cards.resolve, { token: "lost-inactive" })).resolves.toEqual({
+      status: "inactive",
+    });
+    const legacy = await t.query(api.cards.resolve, { token: "lost-default" });
+    expect(legacy).toMatchObject({ status: "lost" });
+    expect(JSON.stringify(legacy)).not.toMatch(/profile|owner|account/i);
+  });
 });

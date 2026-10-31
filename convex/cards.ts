@@ -2,10 +2,16 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { RateLimiter, HOUR } from "@convex-dev/rate-limiter";
 import { customerForAuthUser, isActiveCustomer, requireAdministrator, sameScope } from "./admin";
-import { cardStatusValidator, publicProfileValidator, validateProfileContent } from "./validators";
+import {
+  cardStatusValidator,
+  lostCardResolutionValidator,
+  publicProfileValidator,
+  validateProfileContent,
+} from "./validators";
 import { projectPublicProfile, resolvePublishedRedirectDestination } from "./profileProjection";
 import { components } from "./components";
 import schema from "./schema";
@@ -43,6 +49,7 @@ export const resolve = query({
     if (card === null) return { status: "missing" as const };
     if (card.correctionRequestedAt !== undefined) return { status: "unavailable" as const };
     if (card.status === "lost") {
+      if (card.lostCardResolution === "inactive") return { status: "inactive" as const };
       const instructionRows = await ctx.db
         .query("settings")
         .withIndex("by_scope_and_key", (query) =>
@@ -103,6 +110,258 @@ export const resolve = query({
       profile: projection,
       ...(redirectDestination === undefined ? {} : { redirectDestination }),
     };
+  },
+});
+
+const myCardValidator = v.object({
+  _id: v.id("cards"),
+  cardUrl: v.string(),
+  status: cardStatusValidator,
+  archivedAt: v.optional(v.number()),
+  lostCardResolution: lostCardResolutionValidator,
+  canDisable: v.boolean(),
+  canMarkLost: v.boolean(),
+  canSetLostResolution: v.boolean(),
+  canReactivate: v.boolean(),
+});
+
+async function ownerContext(ctx: QueryCtx | MutationCtx) {
+  const userId = await getAuthUserId(ctx);
+  const customer = userId === null ? null : await customerForAuthUser(ctx, userId);
+  if (
+    !customer ||
+    !isActiveCustomer(customer) ||
+    customer.role !== "customer" ||
+    customer.profileId === undefined
+  )
+    throw new Error("Active customer profile required.");
+  const profile = await ctx.db.get(customer.profileId);
+  if (!profile || profile.ownerId !== customer._id || !sameScope(customer, profile))
+    throw new Error("Owned profile not found.");
+  return { userId: userId!, customer, profile };
+}
+
+function correctionPending(card: { correctionRequestedAt?: number }) {
+  return card.correctionRequestedAt !== undefined;
+}
+
+async function hasOpenCorrection(ctx: QueryCtx | MutationCtx, cardId: Id<"cards">) {
+  return (
+    (await ctx.db
+      .query("cardCorrectionRequests")
+      .withIndex("by_cardId_and_status", (q) => q.eq("cardId", cardId).eq("status", "open"))
+      .first()) !== null
+  );
+}
+
+export const myCards = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(myCardValidator),
+  handler: async (ctx, args) => {
+    const { customer, profile } = await ownerContext(ctx);
+    const result = await ctx.db
+      .query("cards")
+      .withIndex("by_profileId", (q) => q.eq("profileId", profile._id))
+      .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: await Promise.all(
+        result.page
+          .filter((card) => sameScope(customer, card))
+          .map(async (card) => {
+            const pending = correctionPending(card) || (await hasOpenCorrection(ctx, card._id));
+            return {
+              _id: card._id,
+              cardUrl: card.cardUrl,
+              status: card.status,
+              ...(card.archivedAt === undefined ? {} : { archivedAt: card.archivedAt }),
+              lostCardResolution: card.lostCardResolution ?? ("return" as const),
+              canDisable:
+                card.status === "active" &&
+                card.archivedAt === undefined &&
+                card.claimCodeClaimedAt !== undefined &&
+                card.claimCodeInvalidatedAt === undefined &&
+                !pending,
+              canMarkLost:
+                card.status !== "lost" &&
+                card.claimCodeClaimedAt !== undefined &&
+                card.claimCodeInvalidatedAt === undefined &&
+                !pending,
+              canSetLostResolution: card.status === "lost" && !pending,
+              canReactivate:
+                card.status === "inactive" &&
+                card.ownerDisabledAt !== undefined &&
+                card.archivedAt === undefined &&
+                !pending &&
+                (profile.status !== "published" ||
+                  (profile.published !== undefined &&
+                    validateProfileContent(profile.published).length === 0)),
+            };
+          }),
+      ),
+    };
+  },
+});
+
+export const ownerDisable = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, customer, profile } = await ownerContext(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.profileId !== profile._id || !sameScope(customer, card))
+      throw new Error("Card not found.");
+    if (
+      card.status !== "active" ||
+      card.archivedAt !== undefined ||
+      card.claimCodeClaimedAt === undefined ||
+      card.claimCodeInvalidatedAt !== undefined
+    )
+      throw new Error("Only a currently claimed, visible active card can be disabled.");
+    if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
+      throw new Error("Resolve the pending assignment correction before changing this card.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, { status: "inactive", ownerDisabledAt: now, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email ?? "Customer",
+      action: "card.owner_disabled",
+      accountId: customer._id,
+      profileId: profile._id,
+      cardId: card._id,
+      occurredAt: now,
+      before: "active",
+      after: "inactive",
+    });
+    return null;
+  },
+});
+
+export const ownerMarkLost = mutation({
+  args: { cardId: v.id("cards"), lostCardResolution: lostCardResolutionValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, customer, profile } = await ownerContext(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.profileId !== profile._id || !sameScope(customer, card))
+      throw new Error("Card not found.");
+    if (
+      card.status === "lost" ||
+      card.claimCodeClaimedAt === undefined ||
+      card.claimCodeInvalidatedAt !== undefined
+    )
+      throw new Error("Only a currently claimed, non-lost card can be marked lost.");
+    if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
+      throw new Error("Resolve the pending assignment correction before marking this card lost.");
+    const now = Date.now();
+    await ctx.db.patch(card._id, {
+      status: "lost",
+      lostCardResolution: args.lostCardResolution,
+      ownerDisabledAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email ?? "Customer",
+      action: "card.owner_marked_lost",
+      accountId: customer._id,
+      profileId: profile._id,
+      cardId: card._id,
+      occurredAt: now,
+      before: card.status,
+      after: `lost:${args.lostCardResolution}`,
+    });
+    return null;
+  },
+});
+
+export const ownerSetLostResolution = mutation({
+  args: { cardId: v.id("cards"), lostCardResolution: lostCardResolutionValidator },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const { userId, customer, profile } = await ownerContext(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.profileId !== profile._id || !sameScope(customer, card))
+      throw new Error("Card not found.");
+    if (card.status !== "lost") throw new Error("Only a lost card's public page can be changed.");
+    if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
+      throw new Error("Resolve the pending assignment correction before changing this card.");
+    const before = card.lostCardResolution ?? "return";
+    if (before === args.lostCardResolution) return null;
+    const now = Date.now();
+    await ctx.db.patch(card._id, { lostCardResolution: args.lostCardResolution, updatedAt: now });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email ?? "Customer",
+      action: "card.lost_resolution_changed",
+      accountId: customer._id,
+      profileId: profile._id,
+      cardId: card._id,
+      occurredAt: now,
+      before,
+      after: args.lostCardResolution,
+    });
+    return null;
+  },
+});
+
+export const ownerReactivate = mutation({
+  args: { cardId: v.id("cards") },
+  returns: v.object({ status: v.union(v.literal("claimable"), v.literal("active")) }),
+  handler: async (ctx, args) => {
+    const { userId, customer, profile } = await ownerContext(ctx);
+    const card = await ctx.db.get(args.cardId);
+    if (!card || card.profileId !== profile._id || !sameScope(customer, card))
+      throw new Error("Card not found.");
+    if (
+      card.status !== "inactive" ||
+      card.ownerDisabledAt === undefined ||
+      card.archivedAt !== undefined
+    )
+      throw new Error("Only a customer-disabled, visible inactive card can be reactivated.");
+    if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
+      throw new Error("Resolve the pending assignment correction before reactivating this card.");
+    const owner = await ctx.db.get(profile.ownerId);
+    if (
+      !owner ||
+      !sameScope(customer, owner) ||
+      !sameScope(owner, profile) ||
+      !isActiveCustomer(owner)
+    )
+      throw new Error("The profile owner account is not active.");
+    if (
+      profile.status === "published" &&
+      (profile.published === undefined || validateProfileContent(profile.published).length > 0)
+    )
+      throw new Error("A valid published profile is required.");
+    const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
+    const now = Date.now();
+    await ctx.db.patch(card._id, {
+      status,
+      claimCodeHash: undefined,
+      claimCodeGeneratedAt: undefined,
+      claimCodeExpiresAt: undefined,
+      claimCodeInvalidatedAt: now,
+      claimCodeClaimedAt: undefined,
+      ownerDisabledAt: undefined,
+      updatedAt: now,
+    });
+    await ctx.db.insert("auditLogs", {
+      scope: customer.scope,
+      actorUserId: userId,
+      actorLabel: customer.email ?? "Customer",
+      action: "card.owner_reactivation_started",
+      accountId: customer._id,
+      profileId: profile._id,
+      cardId: card._id,
+      occurredAt: now,
+      before: "inactive",
+      after: status,
+    });
+    return { status };
   },
 });
 
@@ -632,6 +891,8 @@ export const reactivate = mutation({
         claimCodeExpiresAt: undefined,
         claimCodeClaimedAt: undefined,
         claimCodeInvalidatedAt: now,
+        ownerDisabledAt: undefined,
+        ...(card.status === "lost" ? { lostCardResolution: undefined } : {}),
         updatedAt: now,
       });
       await ctx.db.insert("auditLogs", {
@@ -668,6 +929,8 @@ export const reactivate = mutation({
       status,
       claimCodeInvalidatedAt: now,
       claimCodeClaimedAt: undefined,
+      ownerDisabledAt: undefined,
+      ...(card.status === "lost" ? { lostCardResolution: undefined } : {}),
       updatedAt: now,
     });
     await ctx.db.insert("auditLogs", {
@@ -697,7 +960,12 @@ export const deactivate = mutation({
     if (card.correctionRequestedAt !== undefined)
       throw new Error("Resolve the pending assignment correction before deactivating this card.");
     const now = Date.now();
-    await ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now });
+    await ctx.db.patch(card._id, {
+      status: "inactive",
+      deactivatedAt: now,
+      ownerDisabledAt: undefined,
+      updatedAt: now,
+    });
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,
@@ -800,7 +1068,7 @@ export const markLost = mutation({
     if (openCorrection !== null)
       throw new Error("Resolve the pending assignment correction before marking this card lost.");
     const now = Date.now();
-    await ctx.db.patch(card._id, { status: "lost", updatedAt: now });
+    await ctx.db.patch(card._id, { status: "lost", ownerDisabledAt: undefined, updatedAt: now });
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,

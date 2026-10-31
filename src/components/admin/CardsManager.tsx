@@ -767,7 +767,9 @@ function DemoCardsManager() {
       return {
         ...current,
         cards: current.cards.map((candidate) =>
-          candidate.id === currentCard.id ? { ...candidate, ...nextCard } : candidate,
+          candidate.id === currentCard.id
+            ? { ...candidate, ...nextCard, ownerDisabledAt: undefined }
+            : candidate,
         ),
         audits: [
           {
@@ -1003,6 +1005,8 @@ function DemoCardsManager() {
                 ? {
                     ...candidate,
                     status: "registered",
+                    ownerDisabledAt: undefined,
+                    lostCardResolution: undefined,
                     updatedAt: now,
                     claimCode: undefined,
                     claimCodeExpiresAt: undefined,
@@ -1048,6 +1052,9 @@ function DemoCardsManager() {
               ? {
                   ...candidate,
                   status,
+                  ownerDisabledAt: undefined,
+                  lostCardResolution:
+                    currentCard.status === "lost" ? undefined : currentCard.lostCardResolution,
                   claimCode: undefined,
                   claimCodeExpiresAt: undefined,
                   claimCodeInvalidatedAt: now,
@@ -1114,7 +1121,9 @@ function DemoCardsManager() {
         return {
           ...current,
           cards: current.cards.map((candidate) =>
-            candidate.id === card.id ? { ...candidate, status: "lost" } : candidate,
+            candidate.id === card.id
+              ? { ...candidate, status: "lost", ownerDisabledAt: undefined }
+              : candidate,
           ),
           audits: [
             {

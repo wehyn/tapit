@@ -138,6 +138,20 @@ describe("published demo profile paths", () => {
     ).toBeVisible();
   });
 
+  it("shows the unavailable page when a lost card opts out of return instructions", () => {
+    const state = pathMocks.state;
+    const card = state?.cards.find((candidate) => candidate.token === "mara-card-7f2q");
+    if (!card) throw new Error("The demo card fixture is missing.");
+    card.status = "lost";
+    card.lostCardResolution = "inactive";
+
+    render(<CardResolverClient cardToken={card.token} />);
+
+    expect(
+      screen.getByRole("heading", { name: "This profile is currently unavailable" }),
+    ).toBeVisible();
+  });
+
   it("does not record profile-link analytics for contact actions on either path", () => {
     for (const path of ["direct", "card"] as const) {
       const view = renderPublishedPath(path);

@@ -116,7 +116,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
   const customerNavigation = page.getByRole("navigation", { name: "Customer navigation" });
   await expect(customerNavigation.getByRole("heading", { name: "Share & grow" })).toBeVisible();
   await expect(customerNavigation.getByRole("heading", { name: "Account & help" })).toBeVisible();
-  await expect(customerNavigation.getByRole("link", { name: "Card", exact: true })).toBeVisible();
+  await expect(customerNavigation.getByRole("link", { name: "Cards", exact: true })).toBeVisible();
   await expect(
     customerNavigation.getByRole("link", { name: "Analytics", exact: true }),
   ).toHaveCount(0);
@@ -124,13 +124,12 @@ test("customer signup starts from the public login page", async ({ page }) => {
     customerNavigation.getByRole("link", { name: "Account", exact: true }),
   ).toBeVisible();
   await expect(customerNavigation.getByRole("link", { name: "Help", exact: true })).toBeVisible();
-  await customerNavigation.getByRole("link", { name: "Card", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Order a card" })).toHaveAttribute(
+  await customerNavigation.getByRole("link", { name: "Cards", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Cards", exact: true })).toBeVisible();
+  await expect(page.getByText("You don't have any cards yet.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Order more cards", exact: true })).toHaveAttribute(
     "href",
-    "/app/card/order-card",
+    "/app/card/order",
   );
   await customerNavigation.getByRole("link", { name: "Profile", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/profile$/);
@@ -198,7 +197,7 @@ test("customer signup starts from the public login page", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Analytics", exact: true })).toHaveCount(0);
   await page.goto("/app/analytics");
   await expect(
-    page.getByRole("heading", { name: "Claim a card to unlock owner tools" }),
+    page.getByRole("heading", { name: "Claim a card to unlock analytics" }),
   ).toBeVisible();
   await page.goto("/app/links");
   await expect(labels.nth(0)).toHaveValue("Portfolio");

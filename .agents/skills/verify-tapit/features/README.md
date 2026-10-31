@@ -1,6 +1,6 @@
 # Tapit verification map
 
-This is the maintained map for priority journeys in Tapit's local demo. Read this index, then the matching feature file before driving. The map currently covers the public profile and card resolver, customer profile publication, customer links, administrator profile publication, administrator card lifecycle, and administrator customer access. It does not claim coverage for every customer utility, hosted demo, live deployment, or physical device.
+This is the maintained map for priority journeys in Tapit's local demo. Read this index, then the matching feature file before driving. The map currently covers the public profile and card resolver, customer profile publication, customer links, customer card management, administrator profile publication, administrator card lifecycle, and administrator customer access. It does not claim coverage for every customer utility, hosted demo, live deployment, or physical device.
 
 ## Baseline preconditions
 
@@ -24,6 +24,7 @@ This is the maintained map for priority journeys in Tapit's local demo. Read thi
 - [Public profile and card paths](./public-profile.md) covers slug URLs, active card URLs, visitor actions, and narrow layouts.
 - [Customer profile and publication](./customer-profile.md) covers private drafts and the user-controlled publish step.
 - [Customer links](./customer-links.md) covers guided link entry, saved drafts, ordering, and published links.
+- [Customer cards](./customer-cards.md) covers the empty and populated assigned-card workspace, owner controls, fresh-code reactivation, and public lost-card privacy.
 - [Administrator profile operations](./admin-profiles.md) covers editing, publishing, and checking the public result.
 - [Administrator card registry](./admin-cards.md) covers registration, assignment, replacement, deactivation, audit visibility, and permanent card QR downloads.
 - [Administrator customer access](./admin-customers.md) covers granting and revoking owner-feature access for a cardless customer and checking the audit and customer-visible access state.

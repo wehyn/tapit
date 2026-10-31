@@ -287,6 +287,39 @@ test("public profile identity stays centered across screen widths", async ({ pag
   await expect(bio).toHaveCSS("text-align", "center");
 });
 
+test("lost card selection renders public page without profile data", async ({ page }) => {
+  await resetDemoHarness(page);
+  await signInAsAdmin(page);
+  await page.goto("/admin/cards");
+  const card = page.locator("article").filter({ hasText: "mara-card-7f2q" }).first();
+  await card.locator("summary").first().click();
+  await card.getByRole("button", { name: /Mark lost/i }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: /Mark lost/i })
+    .click();
+  await expect(page.getByText(/mara-card-7f2q is lost/i)).toBeVisible();
+
+  await page.goto("/c/mara-card-7f2q");
+  await expect(page.getByText(/If you found this card/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mara Velasquez", exact: true })).toHaveCount(0);
+  await expect(page.getByText("mara@example.test")).toHaveCount(0);
+
+  await page.goto("/admin/cards");
+  await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await signInAsCustomer(page);
+  await page.goto("/app/card");
+  const customerCard = page.getByRole("article").filter({ hasText: "mara-card-7f2q" });
+  await customerCard.getByLabel("Lost card page").selectOption("inactive");
+  await page.goto("/c/mara-card-7f2q");
+  await expect(
+    page.getByRole("heading", { name: "This profile is currently unavailable" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Mara Velasquez", exact: true })).toHaveCount(0);
+  await expect(page.getByText("mara@example.test")).toHaveCount(0);
+});
+
 test("desktop public profiles keep a phone-width layout and settle under reduced motion", async ({
   page,
 }) => {

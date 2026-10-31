@@ -33,7 +33,7 @@ The following are explicitly outside the MVP:
 
 - Government-ID replacement, official identity verification, visitor authentication, or access control.
 - Physical card manufacturing, sourcing, inventory management, encoding operations, and shipping.
-- Customer-controlled card transfer, arbitrary reassignment, or a customer Cards screen. Buyers may attach an eligible card to their own profile through the protected setup flow; mistaken assignments require administrator review.
+- Customer-controlled card transfer, arbitrary reassignment, inventory registration, or claim-code issuance. Customers may view cards assigned to their own profile and control eligible owner card states; buyers may attach an eligible card through the protected setup flow.
 - Native iOS or Android applications.
 - Custom domains, custom CSS, advanced layouts, and complex page builders.
 - Uploading a custom `.ico` logo or picture for an individual link icon; links currently use built-in presets.
@@ -238,7 +238,7 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-045:** The system shall record administrator actions for card assignment, deactivation, replacement, lost status and recovery, profile changes including slug changes, suspension, and deletion handling.
 - **FR-046:** Audit entries shall include the administrator, action, affected account/card/profile, timestamp, and relevant before-and-after status.
 - **FR-047:** Customers shall be able to view their account email, request account deletion, and access support. Live and hosted-demo authentication is managed by Google.
-- **FR-048:** Customers shall not have a Cards screen or arbitrary card assignment controls. Buyers may attach a code-proven card to their own profile through the public setup flow.
+- **FR-048:** Customers shall have a Cards screen listing only cards assigned to their own profile, including unclaimed and archived assigned cards. They shall not access unassigned inventory or register, assign, or reassign cards; buyers may attach an eligible code-proven card through the public setup flow.
 - **FR-049:** Customers shall be able to copy and share their current public profile URL from the Profile area.
 - **FR-050:** Deleted or unpublished profiles shall not expose unpublished profile information.
 - **FR-051:** A visitor shall be able to begin customer onboarding through Google OAuth, including from a card setup return path.
@@ -263,8 +263,8 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-070:** A customer may request correction of a mistaken assignment only after proving the package code through a current challenge; requesting correction shall not consume the code.
 - **FR-071:** A correction-pending card shall resolve to a neutral unavailable page without profile data until an administrator resolves it.
 - **FR-072:** Administrator correction shall assign only to the requester’s server-owned profile and preserve the card record, token, full URL, and unused code. A second live card is blocked and remains an admin-visible conflict.
-- **FR-073:** The resolver shall route a registered unassigned card to setup, an eligible unclaimed card to claim, a claimed active card to its current published profile, inactive, replaced, correction-pending, or missing cards to a neutral unavailable page, and a lost card to its dedicated return page.
-- **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or data for unavailable or lost cards; lost-card responses may include only the finder message, global return instructions, and the support fallback when needed.
+- **FR-073:** The resolver shall route a registered unassigned card to setup, an eligible unclaimed card to claim, and a claimed active card to its current published profile. Inactive, replaced, correction-pending, and missing cards shall use a neutral unavailable page. A lost card shall use its selected public page: shared return instructions by default, or the neutral inactive page.
+- **FR-074:** No public resolver response shall expose private drafts, unpublished or suspended profiles, foreign profiles, or profile, owner, or account data for unavailable or lost cards. Lost-card return mode may include only the finder message, global return instructions, and support fallback when needed.
 - **FR-075:** NFC and QR shall preserve and use the full stored URL, including query strings. Query values never authorize ownership; package codes never appear in URLs or QR.
 - **FR-076:** Administrators shall be able to mark an individual card lost unless it is already lost or has an open correction request. The action shall preserve its record, token, URL, assignment, and claim history; preserve any archive state; audit the administrator, event time, and before/after status; and change only that card's public resolution. A lost card's resolver response shall include its return instructions and, only when those instructions are empty, its support fallback. It shall not load or return profile data, and no return settings shall be included in other resolver responses. Lost status shall not revoke owner features still available through a completed claim or separate access override.
 - **FR-077:** Administrators shall archive inactive or replaced cards without deleting their record, token, assignment, claim history, or audit history. Restoring an archived lost card shall clear the archive timestamp while preserving its lost status; it remains unavailable for recovery until restored.
@@ -273,6 +273,13 @@ An administrator can view and edit customer profile content, publish or unpublis
 - **FR-080:** Administrators shall be able to manage one scoped, global lost-card return-instructions setting in Admin Settings. It shall be plain text and public to anyone scanning a lost card. If empty, the finder page shall use the site-wide support destination, defaulting to `mailto:officialntap.it@gmail.com`; if no support destination is available, it shall show a neutral direction to return the card to its issuing organization. A configured support destination overrides the default.
 - **FR-081:** Recovering an assigned lost card shall use the existing reactivation flow, invalidate its previous claim state and pending challenges, and require a fresh code and claim. An unassigned lost card shall return to `registered` and have its old package code invalidated; it must be assigned and issued a fresh code before it can be claimed. An archived lost card must be restored before recovery.
 - **FR-082:** Marking a card lost shall be blocked while it has an open correction request. Resolving that request shall leave the card's neutral correction page in place until an administrator separately changes its status.
+
+- **FR-083:** The Cards workspace shall be available to every active customer at `/app/card`, including customers with no assigned cards. It shall list only the signed-in customer's assigned cards, including unclaimed and archived assignments, show permanent URL and status, disclose archive state separately, and provide an order link. Claim codes, hashes, challenges, and other claim secrets shall never appear in the customer projection or UI.
+- **FR-084:** Customers may disable only an unarchived active card with a successful current claim, or mark an assigned card lost only with a successful current claim and no pending correction. Each action shall affect only the selected card and be audited; siblings and their access state shall remain unchanged.
+- **FR-085:** A customer marking a card lost shall choose shared return instructions or the neutral inactive page, with return instructions selected initially. The customer may change the page choice for any assigned lost card, including an unclaimed card marked lost by an administrator. Both public results shall reveal no profile, owner, or account data. Missing preference data shall resolve as return instructions.
+- **FR-086:** A customer may start reactivation only for an unarchived card they disabled. Reactivation shall invalidate prior claim eligibility; the card shall not show profile content until an administrator issues a fresh one-time code and the owner successfully claims it. Archived cards require administrator restoration; administrator-disabled and lost cards remain administrator-controlled.
+- **FR-087:** Customer card queries and actions shall derive the active customer and owned profile from authenticated identity, recheck current assignment and eligibility at mutation time, and audit each successful state or display-choice change with actor, card, profile, time, and before/after values. Failed or stale actions shall not change state.
+- **FR-088:** Customer card listing, owner actions, lost-page resolution, fresh-claim reactivation, audit, and sibling isolation shall behave equivalently in local demo and Convex. `/app/card/order` shall host the existing designer, `/app/card/order-card` shall remain the printed order form, and `/app/account/build-card` shall permanently redirect to `/app/card/order`; public `/build-card` shall remain unchanged.
 
 ## User experience
 
@@ -560,10 +567,11 @@ Recommendation: use Next.js + Convex + Vercel for the MVP, but confirm productio
 | Manage own links and theme | Yes | Yes |
 | View own analytics | Yes | Yes |
 | View all customer analytics | No | Yes |
-| View assigned card details | No Cards screen in MVP | Yes |
+| View assigned card details | Yes, own assigned cards only | Yes |
 | Register card URLs | No | Yes |
 | Attach an eligible card to own profile through setup | Yes | N/A; admins use assignment controls |
 | Arbitrary assign/reassign cards | No | Yes |
+| Disable an active, currently claimed own card; mark a currently claimed own card lost and choose its public page; start reactivation only for a card the customer disabled | Yes, eligible cards only | Yes |
 | Deactivate or replace cards | No | Yes |
 | Suspend another profile | No | Yes |
 | View audit log | No | Yes |
@@ -681,7 +689,7 @@ The MVP is complete in scope when it provides:
 - **AC-018:** Given an administrator generates a QR code for a registered card, when they preview or download it, then both PNG and SVG encode the exact stored URL, including its query string.
 - **AC-019:** Given a card is inactive, replaced, correction-pending, or missing, when a visitor opens its URL, then a neutral unavailable-card page appears without former or private profile data; a lost card opens its dedicated finder page without profile data.
 - **AC-020:** Given an administrator chooses **Add replacement**, when the new card is assigned to the same profile, then the old card keeps its status, token, URL, and claim history, and the new card requires an independent code and claim.
-- **AC-021:** Given a customer uses the workspace, when they look for card management, then no Cards screen or arbitrary reassignment control is available; a code-proven buyer may attach only through the public setup flow.
+- **AC-021:** Given an active customer uses the workspace, when they open Cards, then they see only cards assigned to their own profile, including unclaimed or archived assignments, with an empty state when none exist; they cannot view inventory or change assignments, and card attachment remains in the protected setup flow.
 
 ### Public profile and vCard
 
@@ -746,6 +754,13 @@ The MVP is complete in scope when it provides:
 - **AC-074:** Given an unassigned lost card is recovered, when recovery succeeds, then it returns to `registered` and its old package code is invalidated. It must be assigned and issued a fresh code before claim.
 - **AC-075:** Given an archived card is marked lost, when its lost status is set, then it remains archived while its URL shows the lost-card finder page. To recover it, the administrator must restore it first; restoring preserves its lost status until recovery is completed.
 
+- **AC-076:** Given any active customer, when they open `/app/card`, then only their assigned cards appear (including unclaimed and archived cards), with permanent URLs, status, distinct archive state, no claim secrets, and an empty state plus order link when there are no cards.
+- **AC-077:** Given a card is active and currently claimed, when its owner disables it, then only that card becomes inactive and its public URL becomes neutral; unclaimed, archived, stale, correction-pending, or sibling cards cannot be changed by that action.
+- **AC-078:** Given an assigned card is currently claimed and has no pending correction, when its owner marks it lost, then they must choose return instructions or inactive page (return selected by default), only that card changes, and the action is audited. An unclaimed assigned card marked lost by an administrator permits page selection but not owner lost-marking.
+- **AC-079:** Given a lost URL uses either supported page choice, when a visitor opens it, then no profile, owner, or account data is loaded or returned. Missing preference uses shared return instructions.
+- **AC-080:** Given the owner starts reactivation for a card they disabled, when the old claim is invalidated, then profile content remains unavailable until an administrator issues a fresh code and the owner claims it. The owner cannot reactivate administrator-disabled, lost, or archived cards.
+- **AC-081:** Given any successful customer card action occurs, when its audit record is written, then it identifies actor, card, profile, time, and before/after values; failed or stale actions leave state unchanged and sibling cards remain unchanged. Local demo and Convex match for listing, eligibility, actions, public resolution, audit, and claim behavior.
+
 ## Open questions and decisions
 
 ### Confirmed decisions
@@ -755,7 +770,7 @@ The MVP is complete in scope when it provides:
 - Primary problem: updateable contact information and fast in-person sharing, with multiple useful links as the core content.
 - Primary usage: networking, client meetings, events, and business introductions.
 - Onboarding: new customers start with Google OAuth and complete profile onboarding; invited customers use a manually shared invitation link and matching Google identity.
-- Customer dashboard: Profile, Links, Analytics, and Account. No customer Cards screen.
+- Customer dashboard: Profile, Links, Cards, Analytics when available, and Account. Cards lists the customer's assigned cards; design and printed ordering remain available without a claim.
 - Administrator dashboard: Customers, Profiles, Cards, Analytics, Audit log, and Settings.
 - Authentication implementation: Convex Auth with Google OAuth for live and hosted-demo environments; local deterministic demo authentication remains separate.
 - Preferred application stack: Next.js, Convex, and Vercel, subject to production validation.
