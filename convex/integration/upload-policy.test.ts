@@ -111,6 +111,11 @@ describe("generic upload policy foundation", () => {
     const error = uploadError("STORAGE_UNAVAILABLE", UPLOAD_FAILURE_MESSAGE);
     expect(safeUploadError(error)).toEqual(error);
     expect(safeUploadError(new ConvexError(error))).toEqual(error);
+    expect(safeUploadError(new ConvexError("Profile access denied."))).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Profile access denied.",
+    });
+    expect(safeUploadError(new ConvexError("secret-storage-detail"))).toBeNull();
     const safeProcessingError = uploadError("PROCESSING_FAILED", "The uploaded design was not found.");
     expect(safeUploadError(new ConvexError(safeProcessingError))).toMatchObject({
       code: "PROCESSING_FAILED",
@@ -140,6 +145,9 @@ describe("generic upload policy foundation", () => {
     const unknownResponse = uploadErrorResponse(secret, "/test-upload", {});
     expect(unknownResponse.status).toBe(422);
     expect(await unknownResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    const unknownConvexResponse = uploadErrorResponse(new ConvexError(secret), "/test-upload", {});
+    expect(unknownConvexResponse.status).toBe(422);
+    expect(await unknownConvexResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
     expect(log).toHaveBeenCalledWith(expect.stringContaining("/test-upload"), expect.any(Error));
   });
 

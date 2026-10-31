@@ -143,10 +143,15 @@ export function safeUploadError(error: unknown): UploadError | null {
   if (error instanceof ConvexError) {
     const structured = normalizedUploadError(error.data);
     if (structured) return structured;
+    if (typeof error.data === "string") {
+      if (!Object.hasOwn(SAFE_UPLOAD_MESSAGES, error.data)) return null;
+      const code = SAFE_UPLOAD_MESSAGES[error.data];
+      if (code !== undefined) return uploadError(code, error.data);
+    }
   }
   if (error instanceof Error && Object.hasOwn(SAFE_UPLOAD_MESSAGES, error.message)) {
     const code = SAFE_UPLOAD_MESSAGES[error.message];
-    return uploadError(code, error.message);
+    if (code !== undefined) return uploadError(code, error.message);
   }
   return null;
 }
