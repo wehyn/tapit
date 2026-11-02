@@ -1,12 +1,25 @@
 import { convexTest } from "convex-test";
 import sharp from "sharp";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { ConvexError, v } from "convex/values";
 
 import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import schema from "../schema";
+import { internalAction, internalMutation } from "../_generated/server";
+import { UPLOAD_FAILURE_MESSAGE, uploadError } from "../uploadErrors";
+import type * as profileMediaProcessingExports from "../profileMediaProcessing";
+import type * as profileMediaExports from "../profileMedia";
 
 const modules = import.meta.glob("../**/*.{ts,js}");
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllEnvs();
+});
+
+function callTestHandler<TArgs, TReturn>(fn: unknown, ctx: unknown, args: TArgs): Promise<TReturn> {
+  return (fn as { _handler: (ctx: unknown, args: TArgs) => Promise<TReturn> })._handler(ctx, args);
+}
 const identity = (userId: Id<"users">) => ({
   issuer: "https://tapit.test",
   subject: userId,
@@ -171,6 +184,252 @@ const mediaWithBackground = (assetId: Id<"profileMediaAssets">) => ({
 });
 
 describe("profile media hardening", () => {
+  it("sanitizes unexpected and structured storage failures on customer and admin routes", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const failure = new ConvexError(uploadError("STORAGE_UNAVAILABLE", "private-media-sentinel"));
+    {
+      const overrides = {
+        ...modules,
+        "../profileMediaProcessing.ts": async () => ({
+          process: internalAction({
+            args: { jobId: v.id("profileMediaUploadJobs") },
+            returns: v.object({
+              assetId: v.id("profileMediaAssets"),
+              url: v.string(),
+              previewUrl: v.string(),
+              mediaRevision: v.number(),
+              target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
+            }),
+            handler: async () => {
+              throw failure;
+            },
+          }),
+        }),
+      };
+      const t = convexTest(schema, overrides);
+      const ids = await seed(t);
+      const routes = [
+        { path: "/profile-media-upload", userId: ids.ownerUserId },
+        { path: "/admin-profile-media-upload", userId: ids.adminUserId },
+      ];
+      for (const route of routes) {
+        const response = await t.withIdentity(identity(route.userId)).fetch(route.path, {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "X-Profile-Id": ids.ownerProfileId,
+            "X-Media-Revision": "0",
+            "X-Media-Target": "background",
+            "Content-Type": "image/png",
+          },
+          body: new Uint8Array([1, 2, 3]),
+        });
+        expect(response.status).toBe(503);
+        const body = await response.text();
+        expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+        expect(body).not.toContain("private-media-sentinel");
+      }
+    }
+    const storageGetFailure = new Error("private-storage-get-sentinel");
+    const processingModule = (await modules[
+      "../profileMediaProcessing.ts"
+    ]!()) as typeof profileMediaProcessingExports;
+    const storageFailureTest = convexTest(schema, {
+      ...modules,
+      "../profileMediaProcessing.ts": async () => ({
+        ...processingModule,
+        process: internalAction({
+          args: { jobId: v.id("profileMediaUploadJobs") },
+          returns: v.object({
+            assetId: v.id("profileMediaAssets"),
+            url: v.string(),
+            previewUrl: v.string(),
+            mediaRevision: v.number(),
+            target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
+          }),
+          handler: (ctx, args) =>
+            callTestHandler<
+              typeof args,
+              {
+                assetId: Id<"profileMediaAssets">;
+                url: string;
+                previewUrl: string;
+                mediaRevision: number;
+                target?: "background" | "slideshow";
+              }
+            >(
+              processingModule.process,
+              {
+                ...ctx,
+                storage: {
+                  ...ctx.storage,
+                  get: async () => {
+                    throw storageGetFailure;
+                  },
+                },
+              },
+              args,
+            ),
+        }),
+      }),
+    });
+    const storageGetIds = await seed(storageFailureTest);
+    for (const route of [
+      { path: "/profile-media-upload", userId: storageGetIds.ownerUserId },
+      { path: "/admin-profile-media-upload", userId: storageGetIds.adminUserId },
+    ]) {
+      const response = await storageFailureTest
+        .withIdentity(identity(route.userId))
+        .fetch(route.path, {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "X-Profile-Id": storageGetIds.ownerProfileId,
+            "X-Media-Revision": "0",
+            "X-Media-Target": "background",
+            "Content-Type": "image/png",
+          },
+          body: new Uint8Array([1, 2, 3]),
+        });
+      expect(response.status).toBe(503);
+      const body = await response.text();
+      expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+      expect(body).not.toContain("private-storage-get-sentinel");
+      expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+        "Upload storage failure: profile media processing get",
+        storageGetFailure,
+      );
+    }
+    const getUrlFailure = new Error("private-media-getUrl-sentinel");
+    const attachMediaModule = (await modules[
+      "../profileMedia.ts"
+    ]!()) as typeof profileMediaExports;
+    const getUrlTest = convexTest(schema, {
+      ...modules,
+      "../profileMedia.ts": async () => ({
+        ...attachMediaModule,
+        attach: internalMutation({
+          args: {
+            jobId: v.id("profileMediaUploadJobs"),
+            storageId: v.id("_storage"),
+            previewStorageId: v.id("_storage"),
+            contentType: v.union(
+              v.literal("image/jpeg"),
+              v.literal("image/png"),
+              v.literal("image/webp"),
+            ),
+            size: v.number(),
+            width: v.number(),
+            height: v.number(),
+          },
+          returns: v.object({
+            assetId: v.id("profileMediaAssets"),
+            url: v.string(),
+            previewUrl: v.string(),
+            mediaRevision: v.number(),
+            target: v.optional(v.union(v.literal("background"), v.literal("slideshow"))),
+          }),
+          handler: (ctx, args) =>
+            callTestHandler<
+              typeof args,
+              {
+                assetId: Id<"profileMediaAssets">;
+                url: string;
+                previewUrl: string;
+                mediaRevision: number;
+                target?: "background" | "slideshow";
+              }
+            >(
+              attachMediaModule.attach,
+              {
+                ...ctx,
+                storage: {
+                  ...ctx.storage,
+                  getUrl: async () => {
+                    throw getUrlFailure;
+                  },
+                },
+              },
+              args,
+            ),
+        }),
+      }),
+    });
+    const getUrlIds = await seed(getUrlTest);
+    const validImage = await sharp({
+      create: { width: 32, height: 32, channels: 4, background: "#ffffff" },
+    })
+      .png()
+      .toBuffer();
+    const getUrlResponse = await getUrlTest
+      .withIdentity(identity(getUrlIds.ownerUserId))
+      .fetch("/profile-media-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "X-Profile-Id": getUrlIds.ownerProfileId,
+          "X-Media-Revision": "0",
+          "X-Media-Target": "background",
+          "Content-Type": "image/png",
+        },
+        body: new Uint8Array(validImage),
+      });
+    expect(getUrlResponse.status).toBe(503);
+    expect(await getUrlResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      "Upload storage failure: profile media attach getUrl",
+      getUrlFailure,
+    );
+    const mediaModule = (await modules["../profileMedia.ts"]!()) as typeof profileMediaExports;
+    const t = convexTest(schema, {
+      ...modules,
+      "../profileMedia.ts": async () => ({
+        ...mediaModule,
+        compensateUpload: internalMutation({
+          args: {
+            jobId: v.id("profileMediaUploadJobs"),
+            storageId: v.optional(v.id("_storage")),
+            previewStorageId: v.optional(v.id("_storage")),
+          },
+          returns: v.null(),
+          handler: async () => {
+            throw new Error("private-cleanup-sentinel");
+          },
+        }),
+      }),
+    });
+    const ids = await seed(t);
+    for (const route of [
+      { path: "/profile-media-upload", userId: ids.ownerUserId },
+      { path: "/admin-profile-media-upload", userId: ids.adminUserId },
+    ]) {
+      const response = await t.withIdentity(identity(route.userId)).fetch(route.path, {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "X-Profile-Id": ids.ownerProfileId,
+          "X-Media-Revision": "0",
+          "X-Media-Target": "background",
+          "Content-Type": "image/png",
+        },
+        body: new Uint8Array([1, 2, 3]),
+      });
+      expect(response.status).toBe(422);
+      const body = await response.text();
+      expect(body).toBe(UPLOAD_FAILURE_MESSAGE);
+      expect(body).not.toContain("private-cleanup-sentinel");
+      expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+        expect.stringContaining(route.path),
+        expect.anything(),
+      );
+    }
+    expect(vi.mocked(console.error)).toHaveBeenCalledWith(
+      expect.stringContaining("profile media upload compensation"),
+      expect.anything(),
+    );
+    vi.unstubAllEnvs();
+  });
   it("preserves over-limit media on rejection and cleans up only after explicit trimming", async () => {
     const t = convexTest(schema, modules);
     const ids = await seed(t);
@@ -350,7 +609,7 @@ describe("profile media hardening", () => {
       .withIdentity(identity(ids.adminUserId))
       .fetch("/profile-media-upload", request);
     expect(adminResponse.status).toBe(403);
-    expect(await adminResponse.text()).toContain("Profile access denied");
+    expect(await adminResponse.text()).toBe("Profile access denied.");
 
     const ownerResponse = await t
       .withIdentity(identity(ids.ownerUserId))
@@ -409,6 +668,7 @@ describe("profile media hardening", () => {
       .withIdentity(identity(ids.ownerUserId))
       .fetch("/admin-profile-media-upload", request(ids.ownerProfileId));
     expect(customerResponse.status).toBe(403);
+    expect(await customerResponse.text()).toBe("Administrator permission required.");
 
     const crossScopeResponse = await t
       .withIdentity(identity(ids.adminUserId))
@@ -729,7 +989,7 @@ describe("profile media hardening", () => {
         },
         body: new Uint8Array(image),
       });
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(422);
     expect(await response.text()).toContain("dimensions exceed");
     vi.unstubAllEnvs();
   });

@@ -1,9 +1,12 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import { httpRouter } from "convex/server";
+import { ConvexError, v } from "convex/values";
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
+import { httpAction, internalAction, type ActionCtx } from "../_generated/server";
 
-import { api } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import schema from "../schema";
 
@@ -79,6 +82,264 @@ async function order(
 }
 
 describe("card order receipts", () => {
+  it.each([
+    ["recognized conflict", "conflict", 409, "Order is not awaiting payment."],
+    ["storage failure", "storage", 503, "Upload failed. Please try again."],
+  ] as const)(
+    "maps %s across the receipt processing action boundary",
+    async (_label, failure, status, body) => {
+      vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+      try {
+        const processLoader = modules["../cardOrderReceiptProcessing.ts"];
+        expect(processLoader).toBeDefined();
+        const realProcess = ((await processLoader!()) as { process: unknown }).process as {
+          _handler: (
+            ctx: ActionCtx,
+            args: { uploadId: Id<"cardOrderReceiptUploads"> },
+          ) => Promise<Id<"cardOrderReceiptUploads">>;
+        };
+        const process = internalAction({
+          args: { uploadId: v.id("cardOrderReceiptUploads") },
+          returns: v.id("cardOrderReceiptUploads"),
+          handler:
+            failure === "conflict"
+              ? async () => {
+                  throw new ConvexError("Order is not awaiting payment.");
+                }
+              : (ctx, args) =>
+                  realProcess._handler(
+                    {
+                      ...ctx,
+                      storage: {
+                        ...ctx.storage,
+                        get: async () => {
+                          throw new Error("private receipt storage sentinel");
+                        },
+                      },
+                    },
+                    args,
+                  ),
+        });
+        const overriddenModules = {
+          ...modules,
+          "../cardOrderReceiptProcessing.ts": async () => ({ process }),
+        };
+        const t = convexTest(schema, overriddenModules);
+        const ids = await seed(t);
+        const orderId = await order(t, ids.ownerId, ids.adminUserId);
+        const owner = t.withIdentity(identity(ids.ownerUserId));
+        const uploadId = await owner.mutation(api.cardOrderReceipts.createUploadIntent, {
+          orderId,
+        });
+        const png = new Uint8Array(
+          await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+            .png()
+            .toBuffer(),
+        );
+        const response = await owner.fetch("/card-order-receipt-upload", {
+          method: "POST",
+          headers: {
+            Origin: "http://localhost:3000",
+            "Content-Type": "image/png",
+            "X-File-Name": "receipt.png",
+            "X-Upload-Id": uploadId,
+          },
+          body: png,
+        });
+        expect(response.status).toBe(status);
+        const responseBody = await response.text();
+        expect(responseBody).toBe(body);
+        expect(responseBody).not.toContain("sentinel");
+        if (failure === "storage") {
+          await t.run(async (ctx) => {
+            const uploads = await ctx.db.query("cardOrderReceiptUploads").collect();
+            expect(uploads).toHaveLength(1);
+            expect(uploads[0]?.status).toBe("failed");
+            expect(uploads[0]).not.toHaveProperty("storageId");
+            expect(await ctx.db.system.query("_storage").collect()).toHaveLength(0);
+          });
+        }
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    },
+  );
+
+  it("maps receipt storage store failures safely and leaves the intent retryable", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    try {
+      const uploadLoader = modules["../cardOrderReceiptUploadHttp.ts"];
+      expect(uploadLoader).toBeDefined();
+      const realUpload = ((await uploadLoader!()) as { upload: unknown }).upload as {
+        _handler: (ctx: ActionCtx, request: Request) => Promise<Response>;
+      };
+      const uploadWithFailedStorageStore = httpAction((ctx, request) =>
+        realUpload._handler(
+          {
+            ...ctx,
+            storage: {
+              ...ctx.storage,
+              store: async () => {
+                throw new Error("receipt store sentinel");
+              },
+            },
+          },
+          request,
+        ),
+      );
+      const router = httpRouter();
+      router.route({
+        path: "/card-order-receipt-upload",
+        method: "POST",
+        handler: uploadWithFailedStorageStore,
+      });
+      const t = convexTest(schema, {
+        ...modules,
+        "../http.ts": async () => ({ default: router }),
+      });
+      const ids = await seed(t);
+      const orderId = await order(t, ids.ownerId, ids.adminUserId);
+      const owner = t.withIdentity(identity(ids.ownerUserId));
+      const uploadId = await owner.mutation(api.cardOrderReceipts.createUploadIntent, { orderId });
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await owner.fetch("/card-order-receipt-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "Content-Type": "image/png",
+          "X-File-Name": "receipt.png",
+          "X-Upload-Id": uploadId,
+        },
+        body: png,
+      });
+      expect(response.status).toBe(503);
+      const body = await response.text();
+      expect(body).toBe("Upload failed. Please try again.");
+      expect(body).not.toContain("sentinel");
+      await t.run(async (ctx) => {
+        const upload = await ctx.db.get(uploadId);
+        expect(upload?.status).toBe("pending");
+        expect(upload).not.toHaveProperty("storageId");
+        expect(await ctx.db.system.query("_storage").collect()).toHaveLength(0);
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("logs unknown processor errors with the receipt route path", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const modulesWithUnknownProcessor = {
+        ...modules,
+        "../cardOrderReceiptProcessing.ts": async () => ({
+          process: internalAction({
+            args: { uploadId: v.id("cardOrderReceiptUploads") },
+            returns: v.id("cardOrderReceiptUploads"),
+            handler: async () => {
+              throw new Error("receipt processor sentinel");
+            },
+          }),
+        }),
+      };
+      const t = convexTest(schema, modulesWithUnknownProcessor);
+      const ids = await seed(t);
+      const orderId = await order(t, ids.ownerId, ids.adminUserId);
+      const owner = t.withIdentity(identity(ids.ownerUserId));
+      const uploadId = await owner.mutation(api.cardOrderReceipts.createUploadIntent, {
+        orderId,
+      });
+      const png = new Uint8Array(
+        await sharp({ create: { width: 8, height: 8, channels: 4, background: "white" } })
+          .png()
+          .toBuffer(),
+      );
+      const response = await owner.fetch("/card-order-receipt-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "Content-Type": "image/png",
+          "X-File-Name": "receipt.png",
+          "X-Upload-Id": uploadId,
+        },
+        body: png,
+      });
+      expect(response.status).toBe(422);
+      const body = await response.text();
+      expect(body).toBe("Upload failed. Please try again.");
+      expect(body).not.toContain("sentinel");
+      expect(errorLog).toHaveBeenCalledWith(
+        "Unexpected upload failure at /card-order-receipt-upload",
+        expect.objectContaining({ message: "receipt processor sentinel" }),
+      );
+    } finally {
+      errorLog.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("returns the safe receipt signature message and status", async () => {
+    vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
+    try {
+      const t = convexTest(schema, modules);
+      const ids = await seed(t);
+      const orderId = await order(t, ids.ownerId, ids.adminUserId);
+      const owner = t.withIdentity(identity(ids.ownerUserId));
+      const uploadId = await owner.mutation(api.cardOrderReceipts.createUploadIntent, {
+        orderId,
+      });
+      const response = await owner.fetch("/card-order-receipt-upload", {
+        method: "POST",
+        headers: {
+          Origin: "http://localhost:3000",
+          "Content-Type": "application/pdf",
+          "X-File-Name": "receipt.pdf",
+          "X-Upload-Id": uploadId,
+        },
+        body: new TextEncoder().encode("not a PDF document"),
+      });
+      expect(response.status).toBe(422);
+      expect(await response.text()).toBe("Upload a valid PDF receipt matching its file type.");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("register throws the safe order conflict as ConvexError data", async () => {
+    const t = convexTest(schema, modules);
+    const ids = await seed(t);
+    const orderId = await order(t, ids.ownerId, ids.adminUserId);
+    const uploadId = await t
+      .withIdentity(identity(ids.ownerUserId))
+      .mutation(api.cardOrderReceipts.createUploadIntent, { orderId });
+    const storageId = await t.run(async (ctx) => {
+      const storageId = await ctx.storage.store(new Blob(["receipt"]));
+      await ctx.db.patch(uploadId, {
+        status: "processing",
+        storageId,
+        fileName: "receipt.png",
+        declaredContentType: "image/png",
+        processingAt: Date.now(),
+      });
+      await ctx.db.patch(orderId, { fulfillmentStatus: "cancelled" });
+      return storageId;
+    });
+
+    await expect(
+      t.mutation(internal.cardOrderReceipts.register, {
+        uploadId,
+        contentType: "image/png",
+        byteSize: 7,
+      }),
+    ).rejects.toMatchObject({ data: "Order is not awaiting payment." });
+    await t.run((ctx) => ctx.storage.delete(storageId));
+  });
+
   it("lets the owner upload and replace a receipt without changing order state", async () => {
     vi.stubEnv("TAPIT_ALLOWED_ORIGINS", "http://localhost:3000");
     try {
@@ -127,6 +388,8 @@ describe("card order receipts", () => {
         body: png,
       });
       expect(unauthorizedUpload.ok).toBe(false);
+      expect(unauthorizedUpload.status).toBe(410);
+      expect(await unauthorizedUpload.text()).toBe("This upload request is no longer available.");
       await owner.mutation(api.cardOrderReceipts.attach, { orderId, uploadId: firstUploadId });
       await t.run(async (ctx) => {
         const saved = await ctx.db.get(orderId);
@@ -147,6 +410,8 @@ describe("card order receipts", () => {
         body: new TextEncoder().encode("not a PNG image"),
       });
       expect(failedReplacement.ok).toBe(false);
+      expect(failedReplacement.status).toBe(422);
+      expect(await failedReplacement.text()).toBe("Upload failed. Please try again.");
       await t.run(async (ctx) => {
         const saved = await ctx.db.get(orderId);
         expect(saved?.receiptUploadId).toBe(firstUploadId);

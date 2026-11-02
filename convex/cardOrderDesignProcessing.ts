@@ -1,7 +1,7 @@
 "use node";
 
 import sharp from "sharp";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
@@ -11,19 +11,21 @@ import {
   CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE,
   CARD_ORDER_DESIGN_POLICY,
 } from "./uploadPolicies";
+import { runUploadCleanup, safeUploadError, withUploadStorage } from "./uploadErrors";
 
 export const process = internalAction({
   args: { uploadId: v.id("cardOrderDesignUploads") },
   returns: v.id("cardOrderDesignUploads"),
   handler: async (ctx, args): Promise<Id<"cardOrderDesignUploads">> => {
-    const upload = await ctx.runQuery(internal.cardOrderDesigns.getProcessingUpload, args);
-    if (upload === null || upload.storageId === undefined || upload.fileName === undefined) {
-      throw new Error("The uploaded design was not found.");
-    }
-    const storageId = upload.storageId;
-
     try {
-      let file = await ctx.storage.get(storageId);
+      const upload = await ctx.runQuery(internal.cardOrderDesigns.getProcessingUpload, args);
+      if (upload === null || upload.storageId === undefined || upload.fileName === undefined) {
+        throw new Error("The uploaded design was not found.");
+      }
+      const storageId = upload.storageId;
+      let file = await withUploadStorage("card order design processing get", () =>
+        ctx.storage.get(storageId),
+      );
       if (file === null) throw new Error("The uploaded design was not found.");
       if (file.size >= CARD_ORDER_DESIGN_POLICY.maxBytesExclusive)
         throw new Error(CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE);
@@ -69,9 +71,12 @@ export const process = internalAction({
         byteSize: bytes.byteLength,
       });
     } catch (error) {
-      await ctx
-        .runMutation(internal.cardOrderDesigns.cleanupFailedUpload, { uploadId: args.uploadId })
-        .catch(() => null);
+      await runUploadCleanup("card order design processing compensation", () =>
+        ctx.runMutation(internal.cardOrderDesigns.cleanupFailedUpload, { uploadId: args.uploadId }),
+      );
+      const safeError = safeUploadError(error);
+      if (safeError !== null && safeError.code !== "STORAGE_UNAVAILABLE")
+        throw new ConvexError(safeError.message);
       throw error;
     }
   },

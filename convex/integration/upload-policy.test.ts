@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { ConvexError } from "convex/values";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { convexTest } from "convex-test";
 import schema from "../schema";
@@ -12,9 +13,16 @@ import {
 import {
   httpStatusForUploadError,
   isUploadError,
+  runUploadCleanup,
+  safeUploadError,
+  UPLOAD_FAILURE_MESSAGE,
   UPLOAD_ERROR_CODES,
+  uploadErrorResponse,
   uploadError,
+  withUploadStorage,
 } from "../uploadErrors";
+
+afterEach(() => vi.restoreAllMocks());
 
 const modules = import.meta.glob("../**/*.{ts,js}");
 
@@ -74,6 +82,101 @@ describe("generic upload policy foundation", () => {
     expect(isUploadError(error)).toBe(true);
     expect(isUploadError({ code: "not-a-code" })).toBe(false);
     expect(httpStatusForUploadError(error)).toBe(413);
+  });
+
+  it.each([
+    ["Authentication required.", "UNAUTHENTICATED", 401],
+    ["Active account required.", "FORBIDDEN", 403],
+    ["Profile access denied.", "FORBIDDEN", 403],
+    ["Administrator permission required.", "FORBIDDEN", 403],
+    ["This upload request is no longer available.", "UPLOAD_EXPIRED", 410],
+    ["Choose a receipt under 5 MB.", "FILE_TOO_LARGE", 413],
+    ["Upload a JPEG, PNG, or PDF receipt.", "UNSUPPORTED_TYPE", 415],
+    ["Too many profile media upload jobs are assigned to this profile.", "QUOTA_EXCEEDED", 429],
+    ["Too many upload attempts. Try again later.", "RATE_LIMITED", 429],
+    ["Media changed elsewhere. Reload and try again.", "CONFLICT", 409],
+    ["Order is not awaiting payment.", "CONFLICT", 409],
+    ["A card design upload is already being processed.", "CONFLICT", 409],
+    ["A previous card design upload is still being cleaned up.", "CONFLICT", 409],
+    ["This file is already in use.", "CONFLICT", 409],
+    ["Upload job does not match this image set.", "CONFLICT", 409],
+    ["Upload a valid JPEG or PNG image.", "INVALID_IMAGE", 422],
+    ["Upload a valid PDF receipt matching its file type.", "INVALID_SIGNATURE", 422],
+  ] as const)("allows only classified safe message %s", (message, code, status) => {
+    expect(safeUploadError(new Error(message))).toMatchObject({ code, message });
+    expect(httpStatusForUploadError(safeUploadError(new Error(message))!)).toBe(status);
+  });
+
+  it("recovers direct and ConvexError structured upload errors", () => {
+    const error = uploadError("STORAGE_UNAVAILABLE", UPLOAD_FAILURE_MESSAGE);
+    expect(safeUploadError(error)).toEqual(error);
+    expect(safeUploadError(new ConvexError(error))).toEqual(error);
+    expect(safeUploadError(new ConvexError("Profile access denied."))).toMatchObject({
+      code: "FORBIDDEN",
+      message: "Profile access denied.",
+    });
+    expect(safeUploadError(new ConvexError("secret-storage-detail"))).toBeNull();
+    const safeProcessingError = uploadError(
+      "PROCESSING_FAILED",
+      "The uploaded design was not found.",
+    );
+    expect(safeUploadError(new ConvexError(safeProcessingError))).toMatchObject({
+      code: "PROCESSING_FAILED",
+      message: "The uploaded design was not found.",
+    });
+    expect(
+      safeUploadError(new ConvexError(uploadError("PROCESSING_FAILED", "private internal detail"))),
+    ).toMatchObject({ code: "PROCESSING_FAILED", message: UPLOAD_FAILURE_MESSAGE });
+    expect(safeUploadError(new Error("private internal detail"))).toBeNull();
+  });
+
+  it("returns safe plain-text responses and logs unexpected failures", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const secret = "secret-storage-detail";
+    const response = uploadErrorResponse(new Error(secret), "/test-upload", { "X-Test": "yes" });
+    expect(response.status).toBe(422);
+    expect(response.headers.get("X-Test")).toBe("yes");
+    expect(response.headers.get("Content-Type")).toContain("text/plain");
+    expect(await response.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    const storageResponse = uploadErrorResponse(
+      new ConvexError(uploadError("STORAGE_UNAVAILABLE", secret)),
+      "/test-upload",
+      {},
+    );
+    expect(storageResponse.status).toBe(503);
+    expect(await storageResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    const unknownResponse = uploadErrorResponse(secret, "/test-upload", {});
+    expect(unknownResponse.status).toBe(422);
+    expect(await unknownResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    const unknownConvexResponse = uploadErrorResponse(new ConvexError(secret), "/test-upload", {});
+    expect(unknownConvexResponse.status).toBe(422);
+    expect(await unknownConvexResponse.text()).toBe(UPLOAD_FAILURE_MESSAGE);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("/test-upload"), expect.any(Error));
+  });
+
+  it("tags storage failures and leaves cleanup best-effort", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const storageFailure = new Error("secret-storage-detail");
+    await expect(
+      withUploadStorage("store profile image", async () => {
+        throw storageFailure;
+      }),
+    ).rejects.toMatchObject({
+      data: { code: "STORAGE_UNAVAILABLE", message: UPLOAD_FAILURE_MESSAGE },
+    });
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("store profile image"),
+      storageFailure,
+    );
+    await expect(
+      runUploadCleanup("remove failed upload", async () => {
+        throw storageFailure;
+      }),
+    ).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledWith(
+      expect.stringContaining("remove failed upload"),
+      storageFailure,
+    );
   });
 
   it("creates separate generic asset, variant, reference, and card-design records", async () => {

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -23,7 +23,7 @@ export const assertAdministrator = internalMutation({
   handler: async (ctx, { userId }) => {
     const account = await customerForAuthUser(ctx, userId);
     if (account === null || account.role !== "admin" || !isActiveCustomer(account))
-      throw new Error("Administrator permission required.");
+      throw new ConvexError("Administrator permission required.");
     return null;
   },
 });
@@ -54,7 +54,7 @@ export const createUploadIntent = internalMutation({
   handler: async (ctx, { userId }) => {
     const account = await customerForAuthUser(ctx, userId);
     if (account === null || account.role !== "admin" || !isActiveCustomer(account))
-      throw new Error("Administrator permission required.");
+      throw new ConvexError("Administrator permission required.");
     const now = Date.now();
     const uploadId = await ctx.db.insert("cardOrderQrUploads", {
       ownerId: account._id,
@@ -83,10 +83,10 @@ export const prepareUpload = internalMutation({
       !sameScope(owner, upload) ||
       Date.now() - upload.createdAt >= INTENT_TTL_MS
     )
-      throw new Error("This upload request is no longer available.");
+      throw new ConvexError("This upload request is no longer available.");
     const metadata = await ctx.db.system.get("_storage", args.storageId);
     if (metadata === null || metadata._creationTime < upload.createdAt)
-      throw new Error("This file was not created for this upload request.");
+      throw new ConvexError("This file was not created for this upload request.");
     await ctx.db.patch(upload._id, {
       status: "processing",
       processingAt: Date.now(),
@@ -135,7 +135,7 @@ export const register = internalMutation({
       upload.processingAt === undefined ||
       Date.now() - upload.processingAt >= PROCESSING_TTL_MS
     )
-      throw new Error("This upload request is no longer available.");
+      throw new ConvexError("This upload request is no longer available.");
     await ctx.db.patch(upload._id, {
       status: "available",
       contentType: args.contentType,

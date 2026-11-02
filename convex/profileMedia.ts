@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
   internalMutation,
@@ -17,6 +17,7 @@ import {
 } from "./admin";
 import { inspectProfileStorage, profileMediaAssetIds } from "./profileStorageReferences";
 import { profileMediaValidator } from "./validators";
+import { safeUploadError, withUploadStorage } from "./uploadErrors";
 
 export { profileMediaAssetIds } from "./profileStorageReferences";
 
@@ -34,6 +35,16 @@ export const mediaContentTypeValidator = v.union(
 type DbContext = Pick<QueryCtx | MutationCtx, "db" | "storage">;
 type Media = Doc<"profiles">["draft"]["media"];
 type UploadAccessMode = "owner" | "admin";
+
+async function preserveSafeUploadAccessError<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const safeError = safeUploadError(error);
+    if (safeError !== null) throw new ConvexError(safeError);
+    throw error;
+  }
+}
 
 export function assertSlideshowAccess(
   media: Media,
@@ -68,7 +79,7 @@ function canUploadMediaForProfile(
 
 /** Resolves the authenticated account and verifies ownership of one profile. */
 export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId: Id<"profiles">) {
-  const userId = await requireUser(ctx);
+  const userId = await preserveSafeUploadAccessError(() => requireUser(ctx));
   const account = await ctx.db
     .query("customers")
     .withIndex("by_userId", (query) => query.eq("userId", userId))
@@ -81,7 +92,7 @@ export async function profileOwnerAccess(ctx: QueryCtx | MutationCtx, profileId:
     !sameScope(account, profile) ||
     profile.ownerId !== account._id
   ) {
-    throw new Error("Profile access denied.");
+    throw new ConvexError("Profile access denied.");
   }
   return {
     account,
@@ -116,7 +127,9 @@ export const getAdminAccess = internalQuery({
     hasCardOwnerFeatures: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    const { account, userId } = await requireAdministrator(ctx);
+    const { account, userId } = await preserveSafeUploadAccessError(() =>
+      requireAdministrator(ctx),
+    );
     const profile = await ctx.db.get(args.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (
@@ -126,7 +139,7 @@ export const getAdminAccess = internalQuery({
       owner.scope !== account.scope ||
       !isActiveCustomer(owner)
     ) {
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     }
     return {
       profileId: profile._id,
@@ -436,7 +449,7 @@ export const createUploadJob = internalMutation({
       profile.ownerId !== args.ownerId ||
       !sameScope(owner, profile)
     )
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     const actor =
       args.actorUserId === undefined
         ? null
@@ -445,13 +458,13 @@ export const createUploadJob = internalMutation({
             .withIndex("by_userId", (query) => query.eq("userId", args.actorUserId!))
             .unique();
     if (!canUploadMediaForProfile(actor, args.actorUserId, args.accessMode, owner, profile))
-      throw new Error("Profile access denied.");
+      throw new ConvexError("Profile access denied.");
     if (args.target === "slideshow" && args.accessMode === "owner" && actor?._id === owner._id) {
       if (!(await hasCardOwnerFeaturesForProfile(ctx, owner, profile._id)))
-        throw new Error("Slideshow uploads require a claimed card.");
+        throw new ConvexError("Slideshow uploads require a claimed card.");
     }
     if (args.expectedMediaRevision !== (profile.mediaRevision ?? 0))
-      throw new Error(MEDIA_REVISION_CONFLICT);
+      throw new ConvexError(MEDIA_REVISION_CONFLICT);
     const now = Date.now();
     return await ctx.db.insert("profileMediaUploadJobs", {
       ...args,
@@ -504,7 +517,7 @@ export const markUploadJob = internalMutation({
   handler: async (ctx, args) => {
     const job = await ctx.db.get(args.jobId);
     if (job === null || job.status !== "pending")
-      throw new Error("Upload job is no longer pending.");
+      throw new ConvexError("Upload job is no longer pending.");
     await ctx.db.patch(args.jobId, {
       ...(args.storageId === undefined ? {} : { storageId: args.storageId }),
       ...(args.previewSha256 === undefined ? {} : { previewSha256: args.previewSha256 }),
@@ -546,7 +559,7 @@ export const attach = internalMutation({
       profile.ownerId !== job.ownerId ||
       !sameScope(owner, profile)
     )
-      throw new Error("Upload job does not match this media set.");
+      throw new ConvexError("Upload job does not match this media set.");
     const actorUserId = job.actorUserId;
     const actor =
       actorUserId === undefined
@@ -556,17 +569,17 @@ export const attach = internalMutation({
             .withIndex("by_userId", (query) => query.eq("userId", actorUserId))
             .unique();
     if (!canUploadMediaForProfile(actor, actorUserId, job.accessMode, owner, profile))
-      throw new Error("Upload job does not match this media set.");
+      throw new ConvexError("Upload job does not match this media set.");
     if (job.target === "slideshow" && job.accessMode === "owner") {
       if (!(await hasCardOwnerFeaturesForProfile(ctx, owner, profile._id)))
-        throw new Error("Slideshow uploads require a claimed card.");
+        throw new ConvexError("Slideshow uploads require a claimed card.");
     }
     if ((profile.mediaRevision ?? 0) !== job.expectedMediaRevision)
-      throw new Error(MEDIA_REVISION_CONFLICT);
+      throw new ConvexError(MEDIA_REVISION_CONFLICT);
     const source = await ctx.db.system.get("_storage", args.storageId);
     const preview = await ctx.db.system.get("_storage", args.previewStorageId);
     if (source === null || preview === null || source.size !== args.size)
-      throw new Error("The uploaded media was not found.");
+      throw new ConvexError("The uploaded media was not found.");
     const assetId = await ctx.db.insert("profileMediaAssets", {
       scope: profile.scope,
       storageId: args.storageId,
@@ -595,9 +608,14 @@ export const attach = internalMutation({
         occurredAt: Date.now(),
       });
     await ctx.db.patch(job._id, { status: "attached" });
-    const url = await ctx.storage.getUrl(args.storageId);
-    const previewUrl = await ctx.storage.getUrl(args.previewStorageId);
-    if (url === null || previewUrl === null) throw new Error("The uploaded media was not found.");
+    const url = await withUploadStorage("profile media attach getUrl", () =>
+      ctx.storage.getUrl(args.storageId),
+    );
+    const previewUrl = await withUploadStorage("profile media attach preview getUrl", () =>
+      ctx.storage.getUrl(args.previewStorageId),
+    );
+    if (url === null || previewUrl === null)
+      throw new ConvexError("The uploaded media was not found.");
     return {
       assetId,
       url,

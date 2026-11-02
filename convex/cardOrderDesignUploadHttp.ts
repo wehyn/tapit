@@ -8,6 +8,7 @@ import {
   CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE,
   CARD_ORDER_DESIGN_POLICY,
 } from "./uploadPolicies";
+import { runUploadCleanup, uploadErrorResponse, withUploadStorage } from "./uploadErrors";
 
 function corsHeaders(origin: string | null): Record<string, string> {
   const allowed = (process.env.TAPIT_ALLOWED_ORIGINS ?? "").split(",").map((value) => value.trim());
@@ -100,7 +101,7 @@ async function storeRequestBody(
   if (body.size !== totalBytes) {
     throw new Error("The upload body could not be read.");
   }
-  return await ctx.storage.store(body);
+  return await withUploadStorage("card order design upload store", () => ctx.storage.store(body));
 }
 
 async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response> {
@@ -108,9 +109,6 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
   if (Object.keys(headers).length === 0) return new Response("Origin not allowed", { status: 403 });
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers });
   if (request.method !== "POST") return errorResponse("Method not allowed", 405, headers);
-
-  const userId = await getAuthUserId(ctx);
-  if (userId === null) return errorResponse("Authentication required.", 401, headers);
 
   const contentType = request.headers.get("Content-Type");
   if (
@@ -135,6 +133,8 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
   let uploadId: Id<"cardOrderDesignUploads"> | undefined;
   let storageId: Id<"_storage"> | undefined;
   try {
+    const userId = await getAuthUserId(ctx);
+    if (userId === null) throw new Error("Authentication required.");
     uploadId = await ctx.runMutation(internal.cardOrderDesigns.createUploadIntent, { userId });
     storageId = await storeRequestBody(ctx, request, contentType);
     await ctx.runMutation(internal.cardOrderDesigns.prepareUpload, {
@@ -149,26 +149,15 @@ async function handleUpload(ctx: ActionCtx, request: Request): Promise<Response>
     });
   } catch (error) {
     if (uploadId !== undefined) {
-      await ctx
-        .runMutation(internal.cardOrderDesigns.cleanupFailedUpload, {
-          uploadId,
+      const failedUploadId = uploadId;
+      await runUploadCleanup("card order design upload compensation", () =>
+        ctx.runMutation(internal.cardOrderDesigns.cleanupFailedUpload, {
+          uploadId: failedUploadId,
           ...(storageId === undefined ? {} : { storageId }),
-        })
-        .catch(() => null);
+        }),
+      );
     }
-    const message = error instanceof Error ? error.message : "Design upload failed.";
-    const status =
-      message === "Authentication required."
-        ? 401
-        : message.includes("Active account required")
-          ? 403
-          : message.includes("already being processed") ||
-              message.includes("still being cleaned up")
-            ? 409
-            : message === CARD_ORDER_DESIGN_FILE_TOO_LARGE_MESSAGE
-              ? 413
-              : 400;
-    return errorResponse(message, status, headers);
+    return uploadErrorResponse(error, "/card-order-design-upload", headers);
   }
 }
 

@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 
 import { internal } from "./_generated/api";
 import {
@@ -202,7 +202,7 @@ export const prepareUpload = internalMutation({
       metadata === null ||
       metadata._creationTime < upload.createdAt
     )
-      throw new Error("This upload request is no longer available.");
+      throw new ConvexError("This upload request is no longer available.");
     await ctx.db.patch(upload._id, {
       status: "processing",
       processingAt: Date.now(),
@@ -237,7 +237,7 @@ export const checkUploadIntent = internalQuery({
       !awaitingPayment(order) ||
       Date.now() - upload.createdAt >= INTENT_TTL_MS
     )
-      throw new Error("This upload request is no longer available.");
+      throw new ConvexError("This upload request is no longer available.");
     return null;
   },
 });
@@ -298,7 +298,7 @@ export const register = internalMutation({
       Date.now() - upload.processingAt >= PROCESSING_TTL_MS ||
       !awaitingPayment(order)
     )
-      throw new Error("Order is not awaiting payment.");
+      throw new ConvexError("Order is not awaiting payment.");
     await ctx.db.patch(upload._id, {
       status: "available",
       contentType: args.contentType,
