@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import { useMutation, useQuery, useQuery_experimental } from "convex/react";
+import { useEffect, useMemo } from "react";
+import { useMutation, usePaginatedQuery, useQuery, useQuery_experimental } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import {
@@ -25,10 +25,14 @@ import {
 } from "@/lib/demo/card-order-assets";
 import type { PreparedProfileInput } from "@/lib/demo/store";
 import type { ActiveCustomerRow, PreparedRow } from "./types";
+import type { PreparedFilter } from "./selectors";
 
 type Result = {
   rows: PreparedRow[];
   loading: boolean;
+  hasMore: (filter: PreparedFilter) => boolean;
+  loadingMore: (filter: PreparedFilter) => boolean;
+  loadMore: (filter: PreparedFilter) => void;
   create: (profile: PreparedProfileInput) => Promise<{ customerId: string; token: string }>;
   update: (customerId: string, profile: PreparedProfileInput) => Promise<void>;
   generate: (
@@ -48,34 +52,41 @@ type Result = {
 
 export type PreparedAccounts = Result;
 
-const pageArgs = { paginationOpts: { numItems: 1000, cursor: null } };
+const initialNumItems = 50;
+const auxiliaryPageArgs = { paginationOpts: { numItems: 1000, cursor: null } };
 
 export function useConvexPreparedAccounts(): Result {
-  const waitingResult = useQuery_experimental({
-    query: api.customers.list,
-    args: { ...pageArgs, setupState: "waiting" },
-  });
-  const draftResult = useQuery_experimental({
-    query: api.customers.list,
-    args: { ...pageArgs, setupState: "draft" },
-  });
-  const activeResult = useQuery_experimental({
-    query: api.customers.list,
-    args: { ...pageArgs, setupState: "active" },
-  });
-  const legacyResult = useQuery_experimental({
-    query: api.customers.list,
-    args: { ...pageArgs, setupState: null },
-  });
-  const invitesResult = useQuery_experimental({
-    query: api.invitations.listForAdmin,
-    args: pageArgs,
-  });
+  const backfillStatus = useQuery(api.customerSetupStateBackfill.status, {});
+  const startBackfill = useMutation(api.customerSetupStateBackfill.start);
+  useEffect(() => {
+    if (backfillStatus?.state === "not_started" || backfillStatus?.state === "stalled")
+      void startBackfill({});
+  }, [backfillStatus?.state, startBackfill]);
+  const stateIndexReady = backfillStatus?.state === "ready";
+  const waitingResult = usePaginatedQuery(
+    api.customers.list,
+    stateIndexReady ? { setupState: "waiting" } : "skip",
+    { initialNumItems },
+  );
+  const draftResult = usePaginatedQuery(
+    api.customers.list,
+    stateIndexReady ? { setupState: "draft" } : "skip",
+    { initialNumItems },
+  );
+  const activeResult = usePaginatedQuery(
+    api.customers.list,
+    stateIndexReady ? { setupState: "active" } : "skip",
+    { initialNumItems },
+  );
+  const legacyResult = usePaginatedQuery(
+    api.customers.list,
+    stateIndexReady ? { setupState: null } : "skip",
+    { initialNumItems },
+  );
   const deletionsResult = useQuery_experimental({
     query: api.customers.listDeletionRequests,
-    args: pageArgs,
+    args: auxiliaryPageArgs,
   });
-  const profiles = useQuery(api.profiles.adminList, {});
   const cards = useQuery(api.cards.adminList, {});
   const createMutation = useMutation(api.customers.createPrepared);
   const updateMutation = useMutation(api.customers.updatePrepared);
@@ -90,41 +101,37 @@ export function useConvexPreparedAccounts(): Result {
 
   const rows = useMemo<PreparedRow[]>(() => {
     const resultPages = [waitingResult, draftResult, activeResult, legacyResult];
-    const page = (result: typeof waitingResult) =>
-      result.status === "success" && Array.isArray(result.data.page) ? result.data.page : [];
-    if (
-      resultPages.some((result) => result.status !== "success" || !Array.isArray(result.data.page))
-    )
+    if (!stateIndexReady || resultPages.some((result) => result.status === "LoadingFirstPage"))
       return [];
-    const all = resultPages.flatMap(page);
-    const invites =
-      invitesResult.status === "success" && Array.isArray(invitesResult.data?.page)
-        ? invitesResult.data.page
-        : [];
+    const all = resultPages.flatMap((result) => result.results);
     const requests =
       deletionsResult.status === "success" && Array.isArray(deletionsResult.data?.page)
         ? deletionsResult.data.page
         : [];
     return all.map((customer): PreparedRow => {
-      const profile = profiles?.find((candidate) => candidate._id === customer.profileId);
-      const customerInvites = invites.filter((item) => item.customerId === customer._id);
-      const invitation = customerInvites.find(
-        (item) => item.email === null && item.invalidatedAt === null && item.acceptedAt === null,
-      );
-      const legacyInvitation = customerInvites.find(
-        (item) => item.email !== null && item.invalidatedAt === null,
-      );
-      const latestLegacyInvitation = customerInvites.find((item) => item.email !== null);
       const base = {
         id: customer._id,
         email: customer.email ?? "",
-        profileName: customer.profileName ?? profile?.draft.name ?? "Prepared account",
-        profileSlug: customer.profileSlug ?? profile?.slug ?? "",
+        profileName: customer.profileName ?? "Prepared account",
+        profileSlug: customer.profileSlug ?? "",
         linkExpiresAt: customer.linkExpiresAt,
-        invitationId:
-          legacyInvitation?.invitationId ??
-          invitation?.invitationId ??
-          latestLegacyInvitation?.invitationId,
+        profileStatus: customer.profileStatus,
+        profileDraft: customer.profileDraft
+          ? {
+              name: customer.profileDraft.name,
+              slug: customer.profileDraft.slug,
+              bio: customer.profileDraft.bio,
+              contactEmail: customer.profileDraft.email,
+              phone: customer.profileDraft.phone,
+              website: customer.profileDraft.website,
+              links: customer.profileDraft.links.map(({ label, destination }) => ({
+                label,
+                url: destination,
+              })),
+            }
+          : null,
+        invitationId: customer.invitationId ?? undefined,
+        invitationStatus: customer.invitationStatus ?? undefined,
       };
       if (customer.setupState === "waiting")
         return { ...base, setupState: "waiting", kind: "prepared" };
@@ -142,40 +149,28 @@ export function useConvexPreparedAccounts(): Result {
           role: customer.role,
           status: customer.status,
           deletionStatus: customer.deletionStatus,
-          profileStatus: profile?.status ?? null,
+          profileStatus: customer.profileStatus,
           cardCount: cards?.filter((card) => card.profileId === customer.profileId).length ?? 0,
-          invitationStatus: latestLegacyInvitation
-            ? latestLegacyInvitation.invalidatedAt !== null
-              ? "revoked"
-              : latestLegacyInvitation.acceptedAt !== null
-                ? "accepted"
-                : "pending"
-            : undefined,
         };
       const active: ActiveCustomerRow = {
         ...base,
         setupState: "active",
         kind: "active",
-        invitationId: legacyInvitation?.invitationId,
+        invitationId: customer.legacyInvitationActive
+          ? (customer.invitationId ?? undefined)
+          : undefined,
         role: customer.role,
         status: customer.status,
         deletionStatus: customer.deletionStatus,
-        profileStatus: profile?.status ?? null,
+        profileStatus: customer.profileStatus,
         cardCount: cards?.filter((card) => card.profileId === customer.profileId).length ?? 0,
         hasDeletionRequest: requests.some(
           ({ request }) => request.customerId === customer._id && request.status === "requested",
         ),
         cardOwnerAccessOverride: customer.cardOwnerAccessOverride === true,
         isDemo: customer.isDemo === true,
-        ownsProfile: profile !== undefined,
-        legacyInvitationActive: legacyInvitation !== undefined,
-        invitationStatus: latestLegacyInvitation
-          ? latestLegacyInvitation.invalidatedAt !== null
-            ? "revoked"
-            : latestLegacyInvitation.acceptedAt !== null
-              ? "accepted"
-              : "pending"
-          : undefined,
+        ownsProfile: customer.profileStatus !== null,
+        legacyInvitationActive: customer.legacyInvitationActive,
       };
       return active;
     });
@@ -184,11 +179,33 @@ export function useConvexPreparedAccounts(): Result {
     draftResult,
     activeResult,
     legacyResult,
-    invitesResult,
     deletionsResult,
-    profiles,
     cards,
+    stateIndexReady,
   ]);
+
+  const statuses = {
+    all: [waitingResult.status, draftResult.status, activeResult.status, legacyResult.status],
+    waiting: [waitingResult.status],
+    drafts: [draftResult.status],
+    active: [activeResult.status],
+  };
+  function hasMore(filter: PreparedFilter) {
+    return statuses[filter].some((status) => status === "CanLoadMore" || status === "LoadingMore");
+  }
+  function loadingMore(filter: PreparedFilter) {
+    return statuses[filter].some((status) => status === "LoadingMore");
+  }
+  function loadMore(filter: PreparedFilter) {
+    if ((filter === "all" || filter === "waiting") && waitingResult.status === "CanLoadMore")
+      waitingResult.loadMore(initialNumItems);
+    if ((filter === "all" || filter === "drafts") && draftResult.status === "CanLoadMore")
+      draftResult.loadMore(initialNumItems);
+    if ((filter === "all" || filter === "active") && activeResult.status === "CanLoadMore")
+      activeResult.loadMore(initialNumItems);
+    if (filter === "all" && legacyResult.status === "CanLoadMore")
+      legacyResult.loadMore(initialNumItems);
+  }
 
   async function create(profile: PreparedProfileInput) {
     const token = createSetupToken();
@@ -244,27 +261,18 @@ export function useConvexPreparedAccounts(): Result {
     await ownerAccessMutation({ customerId: row.id as Id<"customers">, enabled });
   }
   function valuesFor(customerId: string): PreparedProfileInput | null {
-    const all = [waitingResult, draftResult, activeResult, legacyResult].flatMap((result) =>
-      result.status === "success" && Array.isArray(result.data?.page) ? result.data.page : [],
-    );
-    const row = all.find((item) => item._id === customerId);
-    const profile = profiles?.find((item) => item._id === row?.profileId);
-    if (!profile) return null;
-    return {
-      name: profile.draft.name,
-      slug: profile.draft.slug,
-      bio: profile.draft.bio,
-      contactEmail: profile.draft.email,
-      phone: profile.draft.phone,
-      website: profile.draft.website,
-      links: profile.draft.links.map(({ label, destination }) => ({ label, url: destination })),
-    };
+    return rows.find((row) => row.id === customerId)?.profileDraft ?? null;
   }
   return {
     rows,
-    loading: [waitingResult, draftResult, activeResult, legacyResult].some(
-      (result) => result.status !== "success",
-    ),
+    loading:
+      !stateIndexReady ||
+      [waitingResult, draftResult, activeResult, legacyResult].some(
+        (result) => result.status === "LoadingFirstPage",
+      ),
+    hasMore,
+    loadingMore,
+    loadMore,
     create,
     update,
     generate,
@@ -346,6 +354,9 @@ export function useDemoPreparedAccounts(): Result {
   return {
     rows,
     loading: !hydrated,
+    hasMore: () => false,
+    loadingMore: () => false,
+    loadMore: () => {},
     create: createDemo,
     update: async (id, profile) => updateDemo(id, profile),
     generate: async (id, current) => ({

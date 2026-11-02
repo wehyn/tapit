@@ -70,6 +70,9 @@ function createPreparedAccounts(overrides: Partial<PreparedAccounts> = {}): Prep
   return {
     rows: records,
     loading: false,
+    hasMore: () => false,
+    loadingMore: () => false,
+    loadMore: vi.fn(),
     create: createPrepared,
     update: vi.fn(),
     generate: vi.fn(),
@@ -216,6 +219,9 @@ describe("prepared admin interactions", () => {
     const data: PreparedAccounts = {
       rows: [],
       loading: false,
+      hasMore: () => false,
+      loadingMore: () => false,
+      loadMore: vi.fn(),
       create: createPrepared,
       update: vi.fn(),
       generate: vi.fn(),

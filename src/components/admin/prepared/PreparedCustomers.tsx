@@ -196,6 +196,9 @@ export function PreparedWorkspace({ data }: { data: PreparedAccounts }) {
         filter={filter}
         search={search}
         loading={data.loading}
+        hasMore={data.hasMore(filter)}
+        loadingMore={data.loadingMore(filter)}
+        onLoadMore={() => data.loadMore(filter)}
         notice={notice}
         onFilter={setFilter}
         onSearch={setSearch}

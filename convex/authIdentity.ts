@@ -106,6 +106,9 @@ export async function ensureGoogleApplicationAccount(
       await ctx.db.patch(existing._id, {
         email,
         status: "pending",
+        setupState: null,
+        setupExpiryInvitationId: undefined,
+        setupExpiresAt: undefined,
         deletionStatus: "active",
         updatedAt: now,
         ...(existing.onboardingName === undefined && displayName
@@ -161,6 +164,7 @@ export async function ensureGoogleApplicationAccount(
     email,
     role: isAdmin ? "admin" : "customer",
     status: isAdmin ? "active" : "pending",
+    setupState: isAdmin ? "active" : null,
     deletionStatus: "active",
     ...(!isAdmin && displayName ? { onboardingName: displayName } : {}),
     createdAt: now,

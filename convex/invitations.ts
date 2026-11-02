@@ -1,8 +1,34 @@
 import { v } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { requireAdministrator, sameScope } from "./admin";
+import { internal } from "./_generated/api";
+
+async function latestLivePreparedInvitation(
+  ctx: MutationCtx,
+  customer: { _id: Id<"customers">; scope?: "demo" },
+  now: number,
+) {
+  const invitation = await ctx.db
+    .query("invitations")
+    .withIndex(
+      "by_customerId_and_kind_and_scope_and_invalidatedAt_and_acceptedAt_and_usedAt_and_expiresAt",
+      (q) =>
+        q
+          .eq("customerId", customer._id)
+          .eq("kind", "prepared_setup")
+          .eq("scope", customer.scope)
+          .eq("invalidatedAt", undefined)
+          .eq("acceptedAt", undefined)
+          .eq("usedAt", undefined)
+          .gt("expiresAt", now),
+    )
+    .order("desc")
+    .first();
+  return invitation !== null && sameScope(customer, invitation) ? invitation : null;
+}
 
 export const status = query({
   args: { tokenHash: v.string() },
@@ -85,6 +111,38 @@ export const revoke = mutation({
     if (invitation.invalidatedAt === undefined) {
       const now = Date.now();
       await ctx.db.patch(invitation._id, { invalidatedAt: now });
+      if (invitation.kind === "prepared_setup") {
+        const customer = await ctx.db.get(invitation.customerId);
+        if (customer !== null) {
+          if (customer.userId !== undefined && customer.status === "active") {
+            await ctx.db.patch(customer._id, {
+              setupState: "active",
+              setupExpiryInvitationId: undefined,
+              setupExpiresAt: undefined,
+              updatedAt: now,
+            });
+          } else {
+            const nextLive = await latestLivePreparedInvitation(ctx, customer, now);
+            await ctx.db.patch(customer._id, {
+              setupState: nextLive === null ? "draft" : "waiting",
+              setupExpiryInvitationId: nextLive?._id,
+              setupExpiresAt: nextLive?.expiresAt,
+              updatedAt: now,
+            });
+            if (nextLive !== null && nextLive.setupExpiryScheduled !== true) {
+              await ctx.db.patch(nextLive._id, { setupExpiryScheduled: true });
+              await ctx.scheduler.runAt(
+                nextLive.expiresAt!,
+                internal.customers.expirePreparedSetup,
+                {
+                  customerId: customer._id,
+                  invitationId: nextLive._id,
+                },
+              );
+            }
+          }
+        }
+      }
       await ctx.db.insert("auditLogs", {
         scope: invitation.scope,
         actorUserId: userId,
@@ -196,8 +254,19 @@ export const generate = mutation({
       kind: "prepared_setup",
       tokenHash: args.tokenHash,
       expiresAt,
+      setupExpiryScheduled: true,
       createdByUserId: userId,
       createdAt: now,
+    });
+    await ctx.db.patch(customer._id, {
+      setupState: "waiting",
+      setupExpiryInvitationId: invitationId,
+      setupExpiresAt: expiresAt,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAt(expiresAt, internal.customers.expirePreparedSetup, {
+      customerId: customer._id,
+      invitationId,
     });
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
@@ -304,6 +373,9 @@ export const claim = mutation({
       userId,
       email,
       status: "active",
+      setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       updatedAt: now,
     });
     await ctx.db.patch(invitation._id, { usedAt: now });

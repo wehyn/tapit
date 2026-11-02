@@ -128,6 +128,9 @@ export const finishAcceptance = internalMutation({
     await ctx.db.patch(customer._id, {
       userId: args.userId,
       status: "active",
+      setupState: "active",
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       updatedAt: now,
     });
     if (invitation.acceptedAt === undefined)

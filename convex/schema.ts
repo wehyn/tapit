@@ -91,6 +91,11 @@ export default defineSchema({
     role: v.union(v.literal("customer"), v.literal("admin")),
     isDemo: v.optional(v.boolean()),
     demoResetInProgress: v.optional(v.boolean()),
+    setupState: v.optional(
+      v.union(v.null(), v.literal("waiting"), v.literal("draft"), v.literal("active")),
+    ),
+    setupExpiryInvitationId: v.optional(v.id("invitations")),
+    setupExpiresAt: v.optional(v.number()),
     status: v.union(
       v.literal("pending"),
       v.literal("invited"),
@@ -109,6 +114,7 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_role", ["role"])
     .index("by_scope", ["scope"])
+    .index("by_scope_and_setupState", ["scope", "setupState"])
     .index("by_scope_and_role", ["scope", "role"])
     .index("by_scope_and_status", ["scope", "status"])
     .index("by_deletionStatus_and_deletionRequestedAt", ["deletionStatus", "deletionRequestedAt"]),
@@ -485,11 +491,18 @@ export default defineSchema({
     usedAt: v.optional(v.number()),
     acceptedAt: v.optional(v.number()),
     invalidatedAt: v.optional(v.number()),
+    setupExpiryScheduled: v.optional(v.boolean()),
     createdByUserId: v.id("users"),
     createdAt: v.number(),
   })
     .index("by_tokenHash", ["tokenHash"])
     .index("by_customerId", ["customerId"])
+    .index("by_customerId_and_kind", ["customerId", "kind"])
+    .index("by_customerId_and_kind_and_scope", ["customerId", "kind", "scope"])
+    .index(
+      "by_customerId_and_kind_and_scope_and_invalidatedAt_and_acceptedAt_and_usedAt_and_expiresAt",
+      ["customerId", "kind", "scope", "invalidatedAt", "acceptedAt", "usedAt", "expiresAt"],
+    )
     .index("by_expiresAt", ["expiresAt"])
     .index("by_acceptedAt", ["acceptedAt"])
     .index("by_invalidatedAt", ["invalidatedAt"])
