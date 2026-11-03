@@ -1,12 +1,40 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
+import type { PublicProfileProjection } from "@/lib/domain";
+import { WorkspacePreview } from "@/components/workspace/WorkspacePreview";
 import { Button } from "@/components/ui/Button";
 import { Chip } from "@/components/ui/Chip";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import type { PreparedFormValues, PreparedStep } from "./types";
-import { initials } from "./presentation";
+
+function preparedProfileProjection(values: PreparedFormValues): PublicProfileProjection {
+  const bio = values.bio?.trim();
+  const email = values.contactEmail?.trim();
+  const phone = values.phone?.trim();
+  const website = values.website?.trim();
+
+  return {
+    id: "prepared-preview",
+    slug: values.slug.trim(),
+    name: values.name.trim(),
+    ...(bio ? { bio } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+    ...(website ? { website } : {}),
+    theme: "paper",
+    links: values.links
+      .filter((link) => link.label.trim() || link.url.trim())
+      .map((link, index) => ({
+        id: `prepared-${index}`,
+        label: link.label.trim(),
+        destination: link.url.trim(),
+        enabled: true,
+      })),
+  };
+}
 
 export function PreviewScreen({
   values,
@@ -23,7 +51,9 @@ export function PreviewScreen({
   onSave: () => void;
   busy: boolean;
 }) {
+  const profile = useMemo(() => preparedProfileProjection(values), [values]);
   const host = "tapit.com";
+  const firstName = values.name.trim().split(/\s+/)[0] || "their";
   const sections: { title: string; step: PreparedStep; lines: string[] }[] = [
     {
       title: "Profile",
@@ -57,8 +87,8 @@ export function PreviewScreen({
       <div>
         <h1 className="text-2xl font-semibold text-tapit-ink">Preview before you create</h1>
         <p className="mt-2 text-sm text-tapit-muted">
-          This is how {values.name.split(/\s+/)[0] || "their"}&apos;s profile will look. Nothing is
-          published until they claim it.
+          This is how {firstName}&apos;s profile will look. Nothing is published until they claim
+          it.
         </p>
       </div>
       <div className="grid items-start gap-4 lg:grid-cols-2">
@@ -68,33 +98,12 @@ export function PreviewScreen({
             <Icon name="shield" size={17} /> {host}/
             <strong className="text-tapit-ink">{values.slug}</strong>
           </p>
-          <div className="flex flex-col items-center gap-3 rounded-card bg-tapit-paper p-6 text-center">
-            <span className="grid size-16 place-items-center rounded-full bg-tapit-accent-soft text-xl font-semibold text-tapit-accent-strong">
-              {initials(values.name)}
-            </span>
-            <h2 className="text-xl font-semibold text-tapit-ink">{values.name || "Your name"}</h2>
-            <p className="text-sm text-tapit-muted">
-              {values.bio || "Add a short introduction to your profile."}
-            </p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {values.contactEmail ? <Chip>Email</Chip> : null}
-              {values.phone ? <Chip>Call</Chip> : null}
-              {values.website ? <Chip>Website</Chip> : null}
-              {values.contactEmail || values.phone || values.website ? null : (
-                <span className="text-sm text-tapit-muted">Contact options will appear here.</span>
-              )}
-            </div>
-            {values.links.length ? (
-              values.links.map((link, i) => (
-                <Chip key={`${link.label}-${i}`}>{link.label || "Link"}</Chip>
-              ))
-            ) : (
-              <div className="w-full space-y-2">
-                <div className="h-11 rounded-control bg-tapit-soft-surface" />
-                <div className="h-11 rounded-control bg-tapit-soft-surface" />
-              </div>
-            )}
-          </div>
+          <WorkspacePreview
+            preview={profile}
+            profileLayout="slug"
+            profileUrl={`/${profile.slug}`}
+            theme="paper"
+          />
         </section>
         <div className="flex flex-col gap-3">
           {sections.map(({ title, step, lines }) => (

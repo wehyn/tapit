@@ -15,11 +15,79 @@ test("admin manages prepared and active customers in one list", async ({ page })
   await expect(existingActive.getByRole("link", { name: "Open setup link" })).toBeVisible();
   await page.getByRole("button", { name: "Set up for someone" }).click();
   await page.getByLabel("Display name").fill("Kai Rivera");
-  await page.getByLabel("Role or bio").fill("Independent designer");
+  await page.getByLabel("Role or bio").fill("  Independent designer  ");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByLabel("Email").fill("kai.contact@example.test");
+  await page.getByLabel("Phone").fill("+15550100142");
+  await page.getByLabel("Website").fill("https://kai-rivera.example");
   await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Other", exact: true }).click();
+  await page.getByLabel("Label").fill("  Portfolio  ");
+  await page.getByLabel("URL").fill("https://example.test/kai");
   await page.getByRole("button", { name: "Continue to preview" }).click();
+  const profilePreview = page.getByTestId("profile-preview-frame");
+  await expect(profilePreview.getByRole("heading", { name: "Kai Rivera" })).toBeVisible();
+  await expect(profilePreview.getByText("Independent designer", { exact: true })).toBeVisible();
+  const emailAction = profilePreview.getByRole("link", { name: "Email", exact: true });
+  await expect(emailAction).toBeVisible();
+  await expect(emailAction).toHaveAttribute("href", "mailto:kai.contact@example.test");
+  await expect(profilePreview.getByRole("link", { name: "Phone", exact: true })).toHaveAttribute(
+    "href",
+    "tel:+15550100142",
+  );
+  await expect(profilePreview.getByRole("link", { name: "Website", exact: true })).toHaveAttribute(
+    "href",
+    "https://kai-rivera.example",
+  );
+  await expect(profilePreview.getByText("tapit.app/kai-rivera", { exact: true })).toBeVisible();
+  await expect(profilePreview.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  const brandLink = profilePreview.getByRole("link", { name: "Made with Tapit", exact: true });
+  await expect(brandLink).toHaveAttribute("target", "_blank");
+  const brandTabPromise = page.waitForEvent("popup");
+  await brandLink.click();
+  const brandTab = await brandTabPromise;
+  await expect(brandTab).toHaveURL(/\/$/);
+  await brandTab.close();
+  await expect(page.getByRole("heading", { name: "Preview before you create" })).toBeVisible();
+  await expect(profilePreview.getByRole("heading", { name: "Kai Rivera" })).toBeVisible();
+  const previewLinks = profilePreview
+    .getByRole("list", { name: "Profile links" })
+    .getByRole("link");
+  await expect(previewLinks).toHaveCount(1);
+  await expect(previewLinks).toHaveText("Portfolio");
+  await expect(previewLinks).toHaveAttribute("href", "https://example.test/kai");
+  await expect(page.getByText("Not published", { exact: true })).toBeVisible();
+  const hasImageBackground = await profilePreview.evaluate((frame) =>
+    Array.from(frame.querySelectorAll<HTMLElement>("*")).some((element) =>
+      getComputedStyle(element).backgroundImage.includes("url("),
+    ),
+  );
+  expect(await profilePreview.locator("img").count()).toBe(0);
+  expect(hasImageBackground).toBe(false);
+  const createAccount = page.getByRole("button", { name: "Create account" });
+  await expect(createAccount).toBeEnabled();
+  const backButton = page.getByRole("button", { name: "Back", exact: true });
+  for (const width of [1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await expect(profilePreview).toBeVisible();
+    await backButton.scrollIntoViewIfNeeded();
+    await expect(backButton).toBeVisible();
+    await createAccount.scrollIntoViewIfNeeded();
+    await expect(createAccount).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      width,
+    );
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await profilePreview.getByTestId("profile-preview-device").evaluate((screen) => {
+    screen.scrollTop = 0;
+  });
+  await page.screenshot({
+    path: "test-results/prepared-profile-preview.png",
+    fullPage: true,
+    style: "nextjs-portal { display: none !important; }",
+  });
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page.getByRole("heading", { name: "Account prepared" })).toBeVisible();
   await page.getByRole("button", { name: "Back to customers" }).click();
