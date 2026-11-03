@@ -4,6 +4,7 @@
 
 Record the candidate commit, Preview application URL, Preview Convex deployment reference, Production application
 URL, Production Convex deployment reference, release owner, and incident contact before approving a release.
+Vercel's build gate and first matching Production rollout are documented in the [release build guide](vercel-release-build.md).
 
 ## Google OAuth deployment gates
 

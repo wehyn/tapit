@@ -173,6 +173,8 @@ contract variables, storage-state creation, and the run procedure.
   dropped if it is missing or too short. Never put it in a `NEXT_PUBLIC_*` variable.
 - Live deployments also need `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `SITE_URL`, `JWT_PRIVATE_KEY`, `JWKS`, and
   `TAPIT_ADMIN_EMAILS` in Convex (see `.env.example`); generate a distinct signing-key pair per deployment.
+- Vercel uses a guarded Convex release build. See the [Vercel release build guide](docs/vercel-release-build.md)
+  for its environment variables and the first matching Production rollout.
 - Production must start from a fresh deployment and a controlled first-admin allowlist; never seed it from live
   E2E or hosted-demo data. See the [launch-readiness contract](docs/launch-readiness.md) for Preview/Production
   targets, go/no-go gates, and evidence requirements.
