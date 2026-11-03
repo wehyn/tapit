@@ -4,6 +4,11 @@ import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 import { components } from "./components";
 import { sameScope } from "./admin";
+import {
+  invitationState,
+  transitionCustomerStatus,
+  transitionInvitationState,
+} from "../src/lib/domain/state-machines";
 
 const invitationAttemptLimiter = new RateLimiter(components.rateLimiter, {
   selfServiceSignup: { kind: "fixed window", rate: 3, period: HOUR },
@@ -125,9 +130,11 @@ export const finishAcceptance = internalMutation({
     if (invitation.expiresAt !== undefined && invitation.expiresAt <= Date.now())
       throw new Error("This invitation is invalid or expired.");
     const now = Date.now();
+    if (invitation.acceptedAt === undefined)
+      transitionInvitationState(invitationState(invitation, now), "accept");
     await ctx.db.patch(customer._id, {
       userId: args.userId,
-      status: "active",
+      status: transitionCustomerStatus(customer.status, "accept_invitation"),
       setupState: "active",
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,

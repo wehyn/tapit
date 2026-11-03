@@ -11,6 +11,7 @@ import {
 import type { Id } from "./_generated/dataModel";
 import { activeOrderAccount } from "./cardOrderSettings";
 import { isActiveCustomer, requireAdministrator, sameScope } from "./admin";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 const INTENT_TTL_MS = 60 * 60 * 1000;
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -61,7 +62,7 @@ async function failProcessingUpload(
   )
     return;
   await ctx.db.patch(upload._id, {
-    status: "failed",
+    status: transitionUploadStatus("receipt", upload.status, "fail"),
     storageId: undefined,
     processingAt: undefined,
     availableAt: Date.now(),
@@ -125,11 +126,16 @@ export const attach = mutation({
 
     const previousId = order.receiptUploadId;
     await ctx.db.patch(orderId, { receiptUploadId: uploadId, updatedAt: Date.now() });
-    await ctx.db.patch(uploadId, { status: "attached" });
+    await ctx.db.patch(uploadId, {
+      status: transitionUploadStatus("receipt", upload.status, "attach"),
+    });
     if (previousId !== undefined && previousId !== uploadId) {
       const previous = await ctx.db.get(previousId);
       if (previous?.status === "attached") {
-        await ctx.db.patch(previousId, { status: "replaced", availableAt: Date.now() });
+        await ctx.db.patch(previousId, {
+          status: transitionUploadStatus("receipt", previous.status, "replace"),
+          availableAt: Date.now(),
+        });
         await ctx.scheduler.runAfter(RETENTION_MS, internal.cardOrderReceipts.cleanup, {
           uploadId: previousId,
         });
@@ -204,7 +210,7 @@ export const prepareUpload = internalMutation({
     )
       throw new ConvexError("This upload request is no longer available.");
     await ctx.db.patch(upload._id, {
-      status: "processing",
+      status: transitionUploadStatus("receipt", upload.status, "start_processing"),
       processingAt: Date.now(),
       storageId: args.storageId,
       fileName: args.fileName,
@@ -300,7 +306,7 @@ export const register = internalMutation({
     )
       throw new ConvexError("Order is not awaiting payment.");
     await ctx.db.patch(upload._id, {
-      status: "available",
+      status: transitionUploadStatus("receipt", upload.status, "make_available"),
       contentType: args.contentType,
       byteSize: args.byteSize,
       availableAt: Date.now(),

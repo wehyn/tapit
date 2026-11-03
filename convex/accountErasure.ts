@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
+import { transitionCardStatus, transitionCustomerStatus } from "../src/lib/domain/state-machines";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { analyticsRateLimiter, analyticsRateLimitNames } from "./analytics";
 import { deleteProfileMedia } from "./profileMedia";
@@ -72,7 +73,7 @@ async function eraseProfilePass(
       if (mode === "demoReset") await ctx.db.delete(card._id);
       else
         await ctx.db.patch(card._id, {
-          status: "inactive",
+          status: transitionCardStatus(card.status, { type: "erase_customer" }),
           profileId: undefined,
           assignmentReason: undefined,
           assignedAt: undefined,
@@ -458,7 +459,7 @@ async function eraseAccountDataPass(
       deletionStatus: "active",
       deletionRequestedAt: undefined,
       demoResetInProgress: undefined,
-      status: "pending",
+      status: transitionCustomerStatus(customer.status, "reset_demo"),
       setupState: null,
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,

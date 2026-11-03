@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { inspectProfileStorage } from "./profileStorageReferences";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 const ORPHAN_GRACE_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_JOB_BATCH = 8;
@@ -251,7 +252,7 @@ export const prepareProfileForErasure = internalMutation({
     for (const job of page.page) {
       if (job.status !== "failed" || job.actorUserId !== undefined || job.accessMode !== undefined)
         await ctx.db.patch(job._id, {
-          status: "failed",
+          status: transitionUploadStatus("profile_job", job.status, "fail"),
           actorUserId: undefined,
           accessMode: undefined,
         });

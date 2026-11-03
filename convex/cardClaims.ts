@@ -6,6 +6,11 @@ import { mutation } from "./_generated/server";
 import { customerForAuthUser, isActiveCustomer, sameScope } from "./admin";
 import { digest } from "./cards";
 import { components } from "./components";
+import {
+  claimChallengeState,
+  claimCodeState,
+  transitionCardStatus,
+} from "../src/lib/domain/state-machines";
 const CLAIM_CODE_PATTERN = /^[A-HJ-NP-Z2-9]{8}$/;
 
 function normalizeClaimCode(value: string): string | null {
@@ -61,8 +66,7 @@ export const verifyCode = mutation({
     )
       return { ok: false as const };
     const claimCodeHash = card.claimCodeHash;
-    if (claimCodeHash === undefined) return { ok: false as const };
-    if (card.claimCodeInvalidatedAt !== undefined || card.claimCodeClaimedAt !== undefined)
+    if (claimCodeHash === undefined || claimCodeState(card, now) !== "issued")
       return { ok: false as const };
     if ((await digest(code)) !== claimCodeHash) return { ok: false as const };
     const challenge = challengeValue();
@@ -94,7 +98,7 @@ export const complete = mutation({
     if (challenge === null) {
       throw new Error("The claim code is invalid or unavailable.");
     }
-    if (challenge.usedAt !== undefined || challenge.expiresAt <= Date.now()) failure();
+    if (claimChallengeState(challenge, Date.now()) !== "active") failure();
     if (challenge.userId !== userId) failure();
     const card = await ctx.db.get(challenge.cardId);
     const customer = await customerForAuthUser(ctx, userId);
@@ -107,8 +111,7 @@ export const complete = mutation({
     if (
       (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||
       card.correctionRequestedAt !== undefined ||
-      card.claimCodeInvalidatedAt !== undefined ||
-      card.claimCodeClaimedAt !== undefined ||
+      claimCodeState(card, Date.now()) !== "issued" ||
       card.claimCodeHash !== challenge.claimCodeHash
     ) {
       throw new Error("The claim code is invalid or unavailable.");
@@ -146,7 +149,10 @@ export const complete = mutation({
     await ctx.db.patch(card._id, {
       claimCodeClaimedAt: now,
       profileId: profile._id,
-      status: profile.status === "published" ? "active" : "claimable",
+      status: transitionCardStatus(card.status, {
+        type: "claim",
+        published: profile.status === "published",
+      }),
       updatedAt: now,
     });
     await ctx.db.insert("auditLogs", {

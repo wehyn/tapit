@@ -2,6 +2,8 @@
 
 This document makes the app's lifecycle behavior visible in one place. It records the states and transitions implemented in the current code, including lifecycles inferred from timestamps or composed from multiple fields. The source files remain authoritative; update this catalog when their behavior changes.
 
+Runtime transition rules shared by Convex and local demo paths live in [`src/lib/domain/state-machines.ts`](../src/lib/domain/state-machines.ts). Existing reducers such as the prepared-customer wizard and setup-link claim screen keep their UI-specific transitions in their component modules.
+
 ## Account and setup
 
 ### Customer account and deletion
@@ -16,6 +18,8 @@ stateDiagram-v2
   Pending --> Deleted: pending account removed
   Invited --> Active: invitation accepted or setup claimed
   Invited --> Deleted: prepared draft removed
+  Deleted --> Pending: eligible Google account restarts without a profile
+  Active --> Pending: reset Demo account
   Active --> Active: request deletion [deletionStatus = requested]
   Active --> Deleted: deletion approved
 ```
@@ -111,7 +115,7 @@ Sources: [`setup-claim-state.ts`](../src/components/auth/setup-claim-state.ts), 
 
 ### Profile publication
 
-Owner publication transitions are `draft | unpublished → published` and `published → unpublished`. The administrator status mutation accepts any of the four profile statuses from any current status; setting `published` requires a valid existing published snapshot. This means the admin path also allows direct transitions such as `draft → suspended` and `suspended → draft`.
+Owner publication transitions are `draft | unpublished → published`, `published → published` when saving a new published snapshot, and `published → unpublished`. The administrator status mutation accepts any of the four profile statuses from any current status; setting `published` requires a valid existing published snapshot. This means the admin path also allows direct transitions such as `draft → suspended` and `suspended → draft`.
 
 The editable draft and the last published snapshot are separate data. Public projection is available only when status is `published` and a published snapshot exists. Publication also reconciles eligible claimable cards.
 
@@ -128,7 +132,8 @@ stateDiagram-v2
   Claimable --> Active: profile published or card claimed
   Claimable --> Lost
   Active --> Inactive: deactivate
-  Active --> Replaced: replace with another card
+  Active --> Claimable: reassign to unpublished profile
+  Claimable --> Active: reassign to published profile
   Active --> Lost
   Inactive --> Lost
   Replaced --> Lost
@@ -141,7 +146,7 @@ stateDiagram-v2
   Lost --> Active: administrator reactivates for published profile
 ```
 
-Archiving is an orthogonal flag allowed for inactive/replaced cards, and restoring clears that flag. Lost-card public resolution (`return` or `inactive`) is also separate from the card status.
+The domain transition requires a replacement ID for `active → replaced`, but the current administrator "Add replacement" action creates a new active card and leaves the old card's status unchanged. `replaced` remains a schema state that reactivation can consume, but the current action does not enter it. Archiving is an orthogonal flag allowed for inactive/replaced cards, and restoring clears that flag. Lost-card public resolution (`return` or `inactive`) is also separate from the card status.
 
 Sources: [`src/lib/domain/index.ts`](../src/lib/domain/index.ts), [`convex/cards.ts`](../convex/cards.ts), [`convex/schema.ts`](../convex/schema.ts).
 
@@ -192,9 +197,9 @@ Several upload workflows have their own persisted status machines alongside the 
 
 | Record | States and transitions | Source |
 | --- | --- | --- |
-| Profile image/media upload job | `pending → attached \| failed` | [`convex/schema.ts`](../convex/schema.ts), [`convex/profileImages.ts`](../convex/profileImages.ts), [`convex/profileMedia.ts`](../convex/profileMedia.ts) |
+| Profile image/media upload job | `pending → attached \| failed`; erasure cleanup can mark an attached job failed | [`convex/schema.ts`](../convex/schema.ts), [`convex/profileImages.ts`](../convex/profileImages.ts), [`convex/profileMedia.ts`](../convex/profileMedia.ts) |
 | Card design upload | `pending → processing → available → attached` | [`convex/schema.ts`](../convex/schema.ts), [`convex/cardOrderDesigns.ts`](../convex/cardOrderDesigns.ts) |
-| Payment QR upload | `pending → processing → available → attached` | [`convex/schema.ts`](../convex/schema.ts), [`convex/cardOrderPaymentQr.ts`](../convex/cardOrderPaymentQr.ts) |
+| Payment QR upload | `pending → processing → available → attached`; replacing the configured QR returns the prior attached upload to available | [`convex/schema.ts`](../convex/schema.ts), [`convex/cardOrderPaymentQr.ts`](../convex/cardOrderPaymentQr.ts) |
 | Order receipt upload | `pending → processing → available → attached`; processing may fail, and an attached receipt may become `replaced` | [`convex/schema.ts`](../convex/schema.ts), [`convex/cardOrderReceipts.ts`](../convex/cardOrderReceipts.ts) |
 | Local profile-media preview | `queued → uploading`; failure may set `failed` | [`profile-media-preview.ts`](../src/lib/profile-media-preview.ts) |
 

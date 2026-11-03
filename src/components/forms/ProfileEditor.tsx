@@ -20,6 +20,7 @@ import {
   type PublicationIssue,
   type ProfileTheme,
 } from "@/lib/domain";
+import { transitionCardStatus } from "@/lib/domain/state-machines";
 import {
   getDemoProfileForSession,
   getDemoProfiles,
@@ -479,7 +480,10 @@ function DemoProfileEditor({
             card.profileId === profile.id &&
             card.status === "claimable" &&
             card.claimedAt !== undefined
-              ? { ...card, status: "active" }
+              ? {
+                  ...card,
+                  status: transitionCardStatus(card.status, { type: "publish_profile" }),
+                }
               : card,
           ),
           audits: [

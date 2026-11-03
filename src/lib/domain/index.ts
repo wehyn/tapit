@@ -3,6 +3,12 @@
 import type { Id } from "../../../convex/_generated/dataModel";
 import { isReservedProfileSlug } from "./reserved-profile-slug";
 import {
+  canTransitionCardStatus,
+  transitionCardStatus,
+  transitionDeletionStatus,
+  transitionProfileStatus,
+} from "./state-machines";
+import {
   defaultProfileLayoutOrder,
   defaultProfileCustomizationForTheme,
   normalizeProfileCustomization,
@@ -414,7 +420,11 @@ export function publishProfile(
         })()),
     publishedAt,
   };
-  return { ...profile, status: "published", published: snapshot };
+  return {
+    ...profile,
+    status: transitionProfileStatus(profile.status, "published", "owner"),
+    published: snapshot,
+  };
 }
 
 function stableSerialize(value: unknown): string {
@@ -548,17 +558,8 @@ export function canManageCard(actor: Actor): boolean {
   return isAdministrator(actor);
 }
 
-const CARD_TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {
-  registered: ["claimable", "active", "lost"],
-  claimable: ["active", "lost"],
-  active: ["inactive", "replaced", "lost"],
-  inactive: ["lost"],
-  replaced: ["lost"],
-  lost: [],
-};
-
 export function canTransitionCard(from: CardStatus, to: CardStatus): boolean {
-  return CARD_TRANSITIONS[from].includes(to);
+  return canTransitionCardStatus(from, to);
 }
 
 export function transitionCard(
@@ -585,13 +586,19 @@ export function transitionCard(
 }
 
 export function requestDeletion(status: DeletionStatus): DeletionStatus {
-  if (status !== "active") throw new Error("Only an active account can request deletion.");
-  return "requested";
+  try {
+    return transitionDeletionStatus(status, "request");
+  } catch {
+    throw new Error("Only an active account can request deletion.");
+  }
 }
 
 export function approveDeletion(status: DeletionStatus): DeletionStatus {
-  if (status !== "requested") throw new Error("Deletion must be requested before approval.");
-  return "deleted";
+  try {
+    return transitionDeletionStatus(status, "approve");
+  } catch {
+    throw new Error("Deletion must be requested before approval.");
+  }
 }
 
 /** Immediately hides a profile and retires every card assigned to it. */
@@ -600,10 +607,17 @@ export function applyDeletion(
   cards: readonly CardRecord[],
 ): DeletionTransition {
   return {
-    profile: { ...profile, status: "unpublished" },
+    profile: {
+      ...profile,
+      status: transitionProfileStatus(profile.status, "unpublished", "system"),
+    },
     cards: cards.map((card) =>
-      card.profileId === profile.id && (card.status === "active" || card.status === "registered")
-        ? { ...card, status: "inactive" }
+      card.profileId === profile.id &&
+      (card.status === "active" || card.status === "claimable" || card.status === "registered")
+        ? {
+            ...card,
+            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+          }
         : { ...card },
     ),
   };

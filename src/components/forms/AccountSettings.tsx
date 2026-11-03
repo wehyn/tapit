@@ -15,6 +15,11 @@ import {
 } from "@/lib/demo/store";
 import { hashDemoPassword, verifyDemoPassword } from "@/lib/demo/password";
 import { resetCurrentDemoAccountData } from "@/lib/demo/card-order-assets";
+import {
+  transitionCardStatus,
+  transitionDeletionStatus,
+  transitionProfileStatus,
+} from "@/lib/domain/state-machines";
 
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Chip, StatusChip } from "@/components/ui/Chip";
@@ -235,14 +240,23 @@ function DemoAccountSettings() {
     updateDemoState((current) => ({
       ...updateDemoProfile(current, profile.id, (currentProfile) => ({
         ...currentProfile,
-        status: "unpublished",
+        status: transitionProfileStatus(currentProfile.status, "unpublished", "system"),
       })),
       customers: current.customers.map((candidate) =>
-        candidate.id === customer.id ? { ...candidate, deletionStatus: "requested" } : candidate,
+        candidate.id === customer.id
+          ? {
+              ...candidate,
+              deletionStatus: transitionDeletionStatus(candidate.deletionStatus, "request"),
+            }
+          : candidate,
       ),
       cards: current.cards.map((card) =>
-        card.profileId === profile.id && (card.status === "active" || card.status === "registered")
-          ? { ...card, status: "inactive" }
+        card.profileId === profile.id &&
+        (card.status === "active" || card.status === "claimable" || card.status === "registered")
+          ? {
+              ...card,
+              status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+            }
           : card,
       ),
       audits: [
@@ -283,7 +297,7 @@ function DemoAccountSettings() {
       updateDemoState((current) => ({
         ...updateDemoProfile(current, profile.id, (currentProfile) => ({
           ...currentProfile,
-          status: "unpublished",
+          status: transitionProfileStatus(currentProfile.status, "unpublished", "owner"),
         })),
         audits: [
           {

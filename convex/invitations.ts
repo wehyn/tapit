@@ -5,6 +5,13 @@ import type { Id } from "./_generated/dataModel";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { requireAdministrator, sameScope } from "./admin";
 import { internal } from "./_generated/api";
+import {
+  invitationState,
+  transitionPreparedSetup,
+  transitionCustomerStatus,
+  transitionInvitationState,
+} from "../src/lib/domain/state-machines";
+import { deriveSetupState } from "./preparedSetup";
 
 async function latestLivePreparedInvitation(
   ctx: MutationCtx,
@@ -110,6 +117,7 @@ export const revoke = mutation({
     }
     if (invitation.invalidatedAt === undefined) {
       const now = Date.now();
+      transitionInvitationState(invitationState(invitation, now), "revoke");
       await ctx.db.patch(invitation._id, { invalidatedAt: now });
       if (invitation.kind === "prepared_setup") {
         const customer = await ctx.db.get(invitation.customerId);
@@ -123,8 +131,14 @@ export const revoke = mutation({
             });
           } else {
             const nextLive = await latestLivePreparedInvitation(ctx, customer, now);
+            const currentSetupState = deriveSetupState(customer, [invitation], now) ?? "draft";
             await ctx.db.patch(customer._id, {
-              setupState: nextLive === null ? "draft" : "waiting",
+              setupState:
+                nextLive !== null
+                  ? transitionPreparedSetup(currentSetupState, "issue_link")
+                  : currentSetupState === "waiting"
+                    ? transitionPreparedSetup(currentSetupState, "revoke_link")
+                    : "draft",
               setupExpiryInvitationId: nextLive?._id,
               setupExpiresAt: nextLive?.expiresAt,
               updatedAt: now,
@@ -239,6 +253,10 @@ export const generate = mutation({
       .unique();
     if (duplicate !== null) throw new Error("That setup token is already registered.");
     const now = Date.now();
+    const setupState = transitionPreparedSetup(
+      deriveSetupState(customer, invitations, now) ?? "draft",
+      "issue_link",
+    );
     for (const invitation of invitations) {
       if (
         invitation.kind === "prepared_setup" &&
@@ -259,7 +277,7 @@ export const generate = mutation({
       createdAt: now,
     });
     await ctx.db.patch(customer._id, {
-      setupState: "waiting",
+      setupState,
       setupExpiryInvitationId: invitationId,
       setupExpiresAt: expiresAt,
       updatedAt: now,
@@ -369,11 +387,16 @@ export const claim = mutation({
       await ctx.db.delete(linked._id);
     }
     const now = Date.now();
+    transitionInvitationState(invitationState(invitation, now), "accept");
+    const setupState = transitionPreparedSetup(
+      deriveSetupState(customer, [invitation], now) ?? "waiting",
+      "claim",
+    );
     await ctx.db.patch(customer._id, {
       userId,
       email,
-      status: "active",
-      setupState: "active",
+      status: transitionCustomerStatus(customer.status, "accept_invitation"),
+      setupState,
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
       updatedAt: now,

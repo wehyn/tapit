@@ -32,6 +32,16 @@ import { components } from "./components";
 import { allocateProfileSlug } from "./profileSlug";
 import { deriveSetupState, latestSetupExpiry } from "./preparedSetup";
 import { replaceProfileLinks } from "./links";
+import {
+  transitionCardStatus,
+  transitionCustomerStatus,
+  transitionDeletionStatus,
+  transitionDeletionRequestStatus,
+  invitationState,
+  transitionInvitationState,
+  transitionPreparedSetup,
+  transitionProfileStatus,
+} from "../src/lib/domain/state-machines";
 
 const emptyProfile = (slug: string) => ({
   name: "",
@@ -193,7 +203,7 @@ export const expirePreparedSetup = internalMutation({
       return null;
     }
     await ctx.db.patch(customer._id, {
-      setupState: "draft",
+      setupState: transitionPreparedSetup(customer.setupState ?? "waiting", "expire_link"),
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
       updatedAt: now,
@@ -468,6 +478,8 @@ export const deletePreparedDraft = mutation({
       invitations.some((invitation) => !sameScope(account, invitation))
     )
       throw new Error("Prepared customer unavailable.");
+    transitionPreparedSetup(deriveSetupState(customer, invitations, Date.now()), "delete_draft");
+    transitionCustomerStatus(customer.status, "delete_prepared");
     const now = Date.now();
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
@@ -651,7 +663,7 @@ export const completeSelfServiceOnboarding = mutation({
     });
     await ctx.db.patch(customer._id, {
       profileId,
-      status: "active",
+      status: transitionCustomerStatus(customer.status, "complete_onboarding"),
       setupState: "active",
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
@@ -685,7 +697,7 @@ export const deletePendingAccount = mutation({
       throw new Error("Pending account without a profile required.");
     const now = Date.now();
     await ctx.db.patch(customer._id, {
-      status: "deleted",
+      status: transitionCustomerStatus(customer.status, "delete_pending"),
       setupState: null,
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
@@ -822,14 +834,14 @@ export const resetDemoAccount = mutation({
       const profile = await ctx.db.get(customer.profileId);
       if (profile !== null && profile.ownerId === customer._id)
         await ctx.db.patch(profile._id, {
-          status: "unpublished",
+          status: transitionProfileStatus(profile.status, "unpublished", "system"),
           published: undefined,
           unpublishedAt: now,
           updatedAt: now,
         });
     }
     await ctx.db.patch(customer._id, {
-      status: "pending",
+      status: transitionCustomerStatus(customer.status, "reset_demo"),
       setupState: null,
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
@@ -974,11 +986,13 @@ export const completeSetup = mutation({
 
     const now = Date.now();
     const shouldRecordAcceptance = invitation.acceptedAt == null;
+    if (shouldRecordAcceptance)
+      transitionInvitationState(invitationState(invitation, now), "accept");
     const shouldRecordLink = customer.userId !== userId || customer.status !== "active";
     await ctx.db.patch(customer._id, {
       userId,
       scope: invitation.scope,
-      status: "active",
+      status: transitionCustomerStatus(customer.status, "accept_invitation"),
       setupState: "active",
       setupExpiryInvitationId: undefined,
       setupExpiresAt: undefined,
@@ -1212,12 +1226,12 @@ export const requestDeletion = mutation({
       throw new Error("Customer profile not found.");
     const now = Date.now();
     await ctx.db.patch(customer._id, {
-      deletionStatus: "requested",
+      deletionStatus: transitionDeletionStatus(customer.deletionStatus, "request"),
       deletionRequestedAt: now,
       updatedAt: now,
     });
     await ctx.db.patch(profile._id, {
-      status: "unpublished",
+      status: transitionProfileStatus(profile.status, "unpublished", "system"),
       unpublishedAt: now,
       updatedAt: now,
     });
@@ -1235,7 +1249,11 @@ export const requestDeletion = mutation({
             card.status === "active" || card.status === "claimable" || card.status === "registered",
         )
         .map((card) =>
-          ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
+          ctx.db.patch(card._id, {
+            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+            deactivatedAt: now,
+            updatedAt: now,
+          }),
         ),
     );
     const requestId = await ctx.db.insert("deletionRequests", {
@@ -1330,16 +1348,16 @@ export const approveDeletion = mutation({
     const liveInvitation = await latestLivePreparedSetupInvitation(ctx, customer, now);
     const setupState = hasPreparedSetup ? (liveInvitation === null ? "draft" : "waiting") : null;
     await ctx.db.patch(request._id, {
-      status: "approved",
+      status: transitionDeletionRequestStatus(request.status, "approve"),
       processedAt: now,
       processedByUserId: userId,
     });
     await ctx.db.patch(customer._id, {
-      status: "deleted",
+      status: transitionCustomerStatus(customer.status, "approve_deletion"),
       setupState,
       setupExpiryInvitationId: setupState === "waiting" ? liveInvitation?._id : undefined,
       setupExpiresAt: setupState === "waiting" ? liveInvitation?.expiresAt : undefined,
-      deletionStatus: "deleted",
+      deletionStatus: transitionDeletionStatus(customer.deletionStatus, "approve"),
       updatedAt: now,
     });
     if (
@@ -1354,7 +1372,7 @@ export const approveDeletion = mutation({
       });
     }
     await ctx.db.patch(profile._id, {
-      status: "unpublished",
+      status: transitionProfileStatus(profile.status, "unpublished", "system"),
       unpublishedAt: profile.unpublishedAt ?? now,
       updatedAt: now,
     });
@@ -1372,7 +1390,11 @@ export const approveDeletion = mutation({
             card.status === "active" || card.status === "claimable" || card.status === "registered",
         )
         .map((card) =>
-          ctx.db.patch(card._id, { status: "inactive", deactivatedAt: now, updatedAt: now }),
+          ctx.db.patch(card._id, {
+            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+            deactivatedAt: now,
+            updatedAt: now,
+          }),
         ),
     );
     await deleteProfileMedia(ctx, profile._id);

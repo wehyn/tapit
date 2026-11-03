@@ -12,6 +12,7 @@ import {
 } from "./_generated/server";
 import { customerForAuthUser, isActiveCustomer, requireAdministrator, sameScope } from "./admin";
 import { activeOrderAccount } from "./cardOrderSettings";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 const INTENT_TTL_MS = 60 * 60 * 1000;
 const RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -88,7 +89,7 @@ export const prepareUpload = internalMutation({
     if (metadata === null || metadata._creationTime < upload.createdAt)
       throw new ConvexError("This file was not created for this upload request.");
     await ctx.db.patch(upload._id, {
-      status: "processing",
+      status: transitionUploadStatus("payment_qr", upload.status, "start_processing"),
       processingAt: Date.now(),
       storageId: args.storageId,
       fileName: args.fileName.trim().slice(0, 255),
@@ -137,7 +138,7 @@ export const register = internalMutation({
     )
       throw new ConvexError("This upload request is no longer available.");
     await ctx.db.patch(upload._id, {
-      status: "available",
+      status: transitionUploadStatus("payment_qr", upload.status, "make_available"),
       contentType: args.contentType,
       byteSize: args.byteSize,
       processingAt: undefined,
@@ -256,12 +257,16 @@ export const setPaymentMethodQr = mutation({
     }
     const previousId = method.qrUploadId;
     await ctx.db.patch(methodId, { qrUploadId: uploadId ?? undefined, updatedAt: Date.now() });
-    if (next !== null) await ctx.db.patch(next._id, { status: "attached", attachedAt: Date.now() });
+    if (next !== null)
+      await ctx.db.patch(next._id, {
+        status: transitionUploadStatus("payment_qr", next.status, "attach"),
+        attachedAt: Date.now(),
+      });
     if (previousId !== undefined) {
       const previous = await ctx.db.get(previousId);
       if (previous !== null)
         await ctx.db.patch(previousId, {
-          status: "available",
+          status: transitionUploadStatus("payment_qr", previous.status, "replace"),
           availableAt: Date.now(),
           attachedAt: undefined,
         });

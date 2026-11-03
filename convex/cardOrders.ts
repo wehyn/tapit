@@ -13,6 +13,7 @@ import {
   isCardOrderOfferExpired,
 } from "../src/lib/card-ordering";
 import schema from "./schema";
+import { transitionCardOrder } from "../src/lib/domain/state-machines";
 
 const designSource = v.union(
   v.object({ kind: v.literal("upload"), uploadId: v.id("cardOrderDesignUploads") }),
@@ -445,21 +446,26 @@ async function updateOrder(
   });
 }
 
+function orderLifecycleState(order: Doc<"cardOrders">) {
+  return {
+    paymentStatus: order.paymentStatus,
+    fulfillmentStatus: order.fulfillmentStatus,
+    commissionStatus: order.commissionStatus,
+    hasReferral: order.referralCodeId !== undefined,
+  } as const;
+}
+
 export const quoteShipping = mutation({
   args: { orderId: v.id("cardOrders"), shippingQuoteCentavos: v.number() },
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.fulfillmentStatus !== "awaiting_shipping_quote" ||
-      access.order.paymentStatus !== "unpaid"
-    )
-      throw new Error("Order is not awaiting a shipping quote.");
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "quote_shipping");
     if (!Number.isSafeInteger(args.shippingQuoteCentavos) || args.shippingQuoteCentavos < 0)
       throw new Error("Shipping quote must be non-negative integer centavos.");
     await updateOrder(ctx, access, "shipping_quoted", {
       shippingQuoteCentavos: args.shippingQuoteCentavos,
-      fulfillmentStatus: "awaiting_payment",
+      ...transition,
     });
     return null;
   },
@@ -470,16 +476,10 @@ export const markPaymentReceived = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.fulfillmentStatus !== "awaiting_payment" ||
-      access.order.paymentStatus !== "unpaid" ||
-      access.order.shippingQuoteCentavos === undefined
-    )
+    if (access.order.shippingQuoteCentavos === undefined)
       throw new Error("Order is not awaiting payment.");
-    await updateOrder(ctx, access, "payment_received", {
-      paymentStatus: "received",
-      fulfillmentStatus: "processing",
-    });
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "receive_payment");
+    await updateOrder(ctx, access, "payment_received", transition);
     return null;
   },
 });
@@ -489,12 +489,8 @@ export const markDelivered = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.fulfillmentStatus !== "processing" ||
-      access.order.paymentStatus !== "received"
-    )
-      throw new Error("Paid processing order required.");
-    await updateOrder(ctx, access, "delivered", { fulfillmentStatus: "delivered" });
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "deliver");
+    await updateOrder(ctx, access, "delivered", transition);
     return null;
   },
 });
@@ -504,20 +500,8 @@ export const cancelOrder = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.paymentStatus !== "unpaid" ||
-      !["awaiting_shipping_quote", "awaiting_payment"].includes(access.order.fulfillmentStatus)
-    )
-      throw new Error("Only an unpaid open order can be cancelled.");
-    await updateOrder(ctx, access, "cancelled", {
-      fulfillmentStatus: "cancelled",
-      commissionStatus:
-        access.order.commissionStatus === "paid"
-          ? "paid"
-          : access.order.referralCodeId === undefined
-            ? "none"
-            : "void",
-    });
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "cancel");
+    await updateOrder(ctx, access, "cancelled", transition);
     return null;
   },
 });
@@ -527,21 +511,8 @@ export const refundOrder = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.paymentStatus !== "received" ||
-      !["processing", "delivered"].includes(access.order.fulfillmentStatus)
-    )
-      throw new Error("Only a paid order can be refunded.");
-    await updateOrder(ctx, access, "refunded", {
-      paymentStatus: "refunded",
-      fulfillmentStatus: access.order.fulfillmentStatus === "delivered" ? "delivered" : "cancelled",
-      commissionStatus:
-        access.order.commissionStatus === "paid"
-          ? "paid"
-          : access.order.referralCodeId === undefined
-            ? "none"
-            : "void",
-    });
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "refund");
+    await updateOrder(ctx, access, "refunded", transition);
     return null;
   },
 });
@@ -551,13 +522,11 @@ export const markCommissionEligible = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.fulfillmentStatus !== "delivered" ||
-      access.order.paymentStatus !== "received" ||
-      access.order.commissionStatus !== "pending"
-    )
-      throw new Error("Delivered referral order required.");
-    await updateOrder(ctx, access, "commission_eligible", { commissionStatus: "eligible" });
+    const transition = transitionCardOrder(
+      orderLifecycleState(access.order),
+      "commission_eligible",
+    );
+    await updateOrder(ctx, access, "commission_eligible", transition);
     return null;
   },
 });
@@ -567,15 +536,10 @@ export const recordCommissionPayout = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const access = await adminOrder(ctx, args.orderId);
-    if (
-      access.order.commissionStatus !== "eligible" ||
-      access.order.fulfillmentStatus !== "delivered" ||
-      access.order.paymentStatus !== "received"
-    )
-      throw new Error("Eligible delivered order required.");
+    const transition = transitionCardOrder(orderLifecycleState(access.order), "pay_commission");
     const payoutReference = deliveryText(args.payoutReference, "Payout reference", 200);
     await updateOrder(ctx, access, "commission_paid", {
-      commissionStatus: "paid",
+      ...transition,
       payoutReference,
     });
     return null;

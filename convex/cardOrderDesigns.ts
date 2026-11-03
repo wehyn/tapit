@@ -18,6 +18,7 @@ import {
 } from "./admin";
 import { inspectProfileStorage } from "./profileStorageReferences";
 import schema from "./schema";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 type DesignStorageContext = Pick<QueryCtx | MutationCtx, "db" | "storage">;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -132,7 +133,7 @@ export const prepareUpload = internalMutation({
     const fileName = args.fileName.trim().slice(0, 255);
     if (!fileName) throw new Error("The file name is required.");
     await ctx.db.patch(intent._id, {
-      status: "processing",
+      status: transitionUploadStatus("design", intent.status, "start_processing"),
       processingAt: Date.now(),
       storageId: args.storageId,
       fileName,
@@ -181,7 +182,7 @@ export const register = internalMutation({
     await ctx.db.patch(intent._id, {
       contentType: args.contentType,
       byteSize: args.byteSize,
-      status: "available",
+      status: transitionUploadStatus("design", intent.status, "make_available"),
       processingAt: undefined,
       availableAt: Date.now(),
     });
@@ -376,7 +377,10 @@ export async function attachCardOrderDesignUpload(
   ) {
     throw new Error("The uploaded card design is unavailable.");
   }
-  await ctx.db.patch(upload._id, { status: "attached", orderId });
+  await ctx.db.patch(upload._id, {
+    status: transitionUploadStatus("design", upload.status, "attach"),
+    orderId,
+  });
 }
 
 async function orderDesignUrl(

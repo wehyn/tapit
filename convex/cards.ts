@@ -17,6 +17,7 @@ import { components } from "./components";
 import schema from "./schema";
 import { cardTokenFromUrl } from "../src/lib/card-url";
 import { DEFAULT_SUPPORT_URL } from "../src/lib/support";
+import { claimCodeState, transitionCardStatus } from "../src/lib/domain/state-machines";
 
 const resolveResultValidator = v.union(
   v.object({ status: v.literal("missing") }),
@@ -77,8 +78,10 @@ export const resolve = query({
       return { status: "inactive" as const };
     if (card.status === "registered") return { status: "setup" as const };
     if (card.status === "claimable") {
-      if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
-      if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
+      const claimState = claimCodeState(card, Date.now());
+      if (claimState === "invalidated" || claimState === "expired")
+        return { status: "unavailable" as const };
+      if (claimState !== "claimed") return { status: "claim" as const };
       const userId = await getAuthUserId(ctx);
       const customer = userId === null ? null : await customerForAuthUser(ctx, userId);
       const profile = card.profileId === undefined ? null : await ctx.db.get(card.profileId);
@@ -99,8 +102,10 @@ export const resolve = query({
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (profile === null || !isActiveCustomer(owner)) return { status: "unavailable" as const };
-    if (card.claimCodeInvalidatedAt !== undefined) return { status: "unavailable" as const };
-    if (card.claimCodeClaimedAt === undefined) return { status: "claim" as const };
+    const claimState = claimCodeState(card, Date.now());
+    if (claimState === "invalidated" || claimState === "expired")
+      return { status: "unavailable" as const };
+    if (claimState !== "claimed") return { status: "claim" as const };
     const projection = await projectPublicProfile(ctx, profile);
     if (projection === null) return { status: "unavailable" as const };
     const redirectDestination = resolvePublishedRedirectDestination(profile.published?.redirect);
@@ -178,13 +183,11 @@ export const myCards = query({
               canDisable:
                 card.status === "active" &&
                 card.archivedAt === undefined &&
-                card.claimCodeClaimedAt !== undefined &&
-                card.claimCodeInvalidatedAt === undefined &&
+                claimCodeState(card, Date.now()) === "claimed" &&
                 !pending,
               canMarkLost:
                 card.status !== "lost" &&
-                card.claimCodeClaimedAt !== undefined &&
-                card.claimCodeInvalidatedAt === undefined &&
+                claimCodeState(card, Date.now()) === "claimed" &&
                 !pending,
               canSetLostResolution: card.status === "lost" && !pending,
               canReactivate:
@@ -220,7 +223,11 @@ export const ownerDisable = mutation({
     if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
       throw new Error("Resolve the pending assignment correction before changing this card.");
     const now = Date.now();
-    await ctx.db.patch(card._id, { status: "inactive", ownerDisabledAt: now, updatedAt: now });
+    await ctx.db.patch(card._id, {
+      status: transitionCardStatus(card.status, { type: "deactivate" }),
+      ownerDisabledAt: now,
+      updatedAt: now,
+    });
     await ctx.db.insert("auditLogs", {
       scope: customer.scope,
       actorUserId: userId,
@@ -255,7 +262,7 @@ export const ownerMarkLost = mutation({
       throw new Error("Resolve the pending assignment correction before marking this card lost.");
     const now = Date.now();
     await ctx.db.patch(card._id, {
-      status: "lost",
+      status: transitionCardStatus(card.status, { type: "mark_lost" }),
       lostCardResolution: args.lostCardResolution,
       ownerDisabledAt: undefined,
       updatedAt: now,
@@ -336,7 +343,10 @@ export const ownerReactivate = mutation({
       (profile.published === undefined || validateProfileContent(profile.published).length > 0)
     )
       throw new Error("A valid published profile is required.");
-    const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
+    const status = transitionCardStatus(card.status, {
+      type: "reactivate_owner",
+      published: profile.status === "published",
+    });
     const now = Date.now();
     await ctx.db.patch(card._id, {
       status,
@@ -516,7 +526,10 @@ export const attach = mutation({
       if (profile.published === undefined || validateProfileContent(profile.published).length > 0)
         throw new Error("A valid published profile is required.");
     }
-    const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
+    const status = transitionCardStatus(card.status, {
+      type: "attach",
+      published: profile.status === "published",
+    });
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
@@ -589,9 +602,14 @@ export const reassign = mutation({
       throw new Error("The destination profile is not assignable.");
     }
 
+    const nextStatus = transitionCardStatus(card.status, {
+      type: "reassign",
+      published: profile.status === "published",
+    });
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
+      status: nextStatus,
       assignedAt: now,
       updatedAt: now,
       claimCodeHash: undefined,
@@ -709,10 +727,7 @@ export const claimStatus = query({
     if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
     return {
       status: card.status,
-      hasClaimCode:
-        card.claimCodeHash !== undefined &&
-        card.claimCodeInvalidatedAt === undefined &&
-        card.claimCodeClaimedAt === undefined,
+      hasClaimCode: claimCodeState(card, Date.now()) === "issued",
       claimedAt: card.claimCodeClaimedAt ?? null,
     };
   },
@@ -791,7 +806,7 @@ export const assign = mutation({
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
-      status: "active",
+      status: transitionCardStatus(card.status, { type: "attach", published: true }),
       assignedAt: now,
       updatedAt: now,
     });
@@ -884,7 +899,11 @@ export const reactivate = mutation({
     const now = Date.now();
     if (card.status === "lost" && card.profileId === undefined) {
       await ctx.db.patch(card._id, {
-        status: "registered",
+        status: transitionCardStatus(card.status, {
+          type: "reactivate_admin",
+          published: false,
+          hasProfile: false,
+        }),
         claimCodeHash: undefined,
         claimCodeGeneratedAt: undefined,
         claimCodeExpiresAt: undefined,
@@ -923,7 +942,11 @@ export const reactivate = mutation({
       (profile.published === undefined || validateProfileContent(profile.published).length > 0)
     )
       throw new Error("A valid published profile is required.");
-    const status = profile.status === "published" ? ("active" as const) : ("claimable" as const);
+    const status = transitionCardStatus(card.status, {
+      type: "reactivate_admin",
+      published: profile.status === "published",
+      hasProfile: true,
+    });
     await ctx.db.patch(card._id, {
       status,
       claimCodeInvalidatedAt: now,
@@ -960,7 +983,7 @@ export const deactivate = mutation({
       throw new Error("Resolve the pending assignment correction before deactivating this card.");
     const now = Date.now();
     await ctx.db.patch(card._id, {
-      status: "inactive",
+      status: transitionCardStatus(card.status, { type: "deactivate" }),
       deactivatedAt: now,
       ownerDisabledAt: undefined,
       updatedAt: now,
@@ -1067,7 +1090,11 @@ export const markLost = mutation({
     if (openCorrection !== null)
       throw new Error("Resolve the pending assignment correction before marking this card lost.");
     const now = Date.now();
-    await ctx.db.patch(card._id, { status: "lost", ownerDisabledAt: undefined, updatedAt: now });
+    await ctx.db.patch(card._id, {
+      status: transitionCardStatus(card.status, { type: "mark_lost" }),
+      ownerDisabledAt: undefined,
+      updatedAt: now,
+    });
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
       actorUserId: userId,
