@@ -9,9 +9,9 @@ Set these variables in the Vercel environment that builds the app:
 | Build target | `NEXT_PUBLIC_DEMO_MODE` | `NEXT_PUBLIC_DEMO_STORAGE` | `CONVEX_DEPLOY_KEY` |
 | --- | --- | --- | --- |
 | Local build or Preview demo | `true` or unset | `local` or unset | Not used |
-| Live Preview | `false` | Not used | A `dev:<deployment>|<secret>` or `preview:<team>:<project>|<secret>` key |
+| Live Preview | `false` | Not used | A `dev:<deployment>\|<secret>` or `preview:<team>:<project>\|<secret>` key |
 | Live Production | `false` | Not used | A `prod:` deployment key |
-| Hosted demo Preview | `true` | `convex` | A `dev:<deployment>|<secret>` or `preview:<team>:<project>|<secret>` key |
+| Hosted demo Preview | `true` | `convex` | A `dev:<deployment>\|<secret>` or `preview:<team>:<project>\|<secret>` key |
 
 Set `CONVEX_DEPLOY_KEY` as a secret Vercel variable. The release script rejects project keys because they do not select one deployment. Live builds also require `VERCEL_ENV` to be `preview` or `production`.
 
