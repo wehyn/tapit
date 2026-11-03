@@ -197,6 +197,7 @@ export function PublicProfile({
   profileId,
   showOwnerShortcut = false,
   claimHref,
+  footerLinkTarget,
   preview = false,
   mobileLayout = false,
   fitPhonePreviewContent = false,
@@ -211,6 +212,7 @@ export function PublicProfile({
   profileId?: string;
   showOwnerShortcut?: boolean;
   claimHref?: string;
+  footerLinkTarget?: "_self" | "_blank";
   preview?: boolean;
   mobileLayout?: boolean;
   fitPhonePreviewContent?: boolean;
@@ -784,6 +786,8 @@ export function PublicProfile({
                 aria-label="Made with Tapit"
                 className="mx-auto inline-flex min-h-11 items-center gap-2 rounded-control px-2 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-tapit-focus"
                 href="/"
+                rel={footerLinkTarget === "_blank" ? "noreferrer" : undefined}
+                target={footerLinkTarget}
               >
                 <span className="grid size-5 place-items-center rounded-control bg-tapit-accent text-white">
                   <Icon aria-hidden="true" name="fingerprint" size={12} />

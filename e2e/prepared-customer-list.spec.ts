@@ -41,6 +41,15 @@ test("admin manages prepared and active customers in one list", async ({ page })
   );
   await expect(profilePreview.getByText("tapit.app/kai-rivera", { exact: true })).toBeVisible();
   await expect(profilePreview.getByRole("region", { name: "Profile hero" })).toBeVisible();
+  const brandLink = profilePreview.getByRole("link", { name: "Made with Tapit", exact: true });
+  await expect(brandLink).toHaveAttribute("target", "_blank");
+  const brandTabPromise = page.waitForEvent("popup");
+  await brandLink.click();
+  const brandTab = await brandTabPromise;
+  await expect(brandTab).toHaveURL(/\/$/);
+  await brandTab.close();
+  await expect(page.getByRole("heading", { name: "Preview before you create" })).toBeVisible();
+  await expect(profilePreview.getByRole("heading", { name: "Kai Rivera" })).toBeVisible();
   const previewLinks = profilePreview
     .getByRole("list", { name: "Profile links" })
     .getByRole("link");
@@ -71,6 +80,9 @@ test("admin manages prepared and active customers in one list", async ({ page })
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.evaluate(() => window.scrollTo(0, 0));
+  await profilePreview.getByTestId("profile-preview-device").evaluate((screen) => {
+    screen.scrollTop = 0;
+  });
   await page.screenshot({
     path: "test-results/prepared-profile-preview.png",
     fullPage: true,

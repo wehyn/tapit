@@ -177,6 +177,7 @@ export function WorkspacePreview({
     <PublicProfile
       preview={profileLayout === "preview"}
       mobileLayout={profileLayout === "slug"}
+      footerLinkTarget={profileLayout === "slug" ? "_blank" : undefined}
       fitPhonePreviewContent={fitPhonePreviewContent}
       profile={preview}
       profileUrl={profileUrl}
