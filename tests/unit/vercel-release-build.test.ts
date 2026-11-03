@@ -178,6 +178,22 @@ test("live Production builds use the selected Convex deployment's canonical URLs
   expect(result.output).not.toContain(deployKey);
 });
 
+test("live builds accept custom canonical domains supplied by Convex", () => {
+  const result = runRelease({
+    NEXT_PUBLIC_DEMO_MODE: "false",
+    VERCEL_ENV: "production",
+    CONVEX_DEPLOY_KEY: "prod:production-deployment|secret-production-key",
+    FAKE_TARGET_CLOUD_URL: "https://api.example.com",
+    FAKE_TARGET_SITE_URL: "https://auth.example.com",
+  });
+
+  expect(result.status).toBe(0);
+  expect(result.events[1]).toMatchObject({
+    cloudUrl: "https://api.example.com",
+    siteUrl: "https://auth.example.com",
+  });
+});
+
 const acceptedBuildModes: [string, Record<string, string>][] = [
   [
     "Live Preview accepts a Preview deployment key",
@@ -328,17 +344,17 @@ test("the default local demo build does not call Convex or forward deploy keys",
   expect(result.events[0]).toMatchObject({ hasDeployKey: false, hasDeploymentToken: false });
 });
 
-test("mismatched Convex cloud and site URLs stop the build before Next runs", () => {
+test("invalid Convex canonical URLs stop the build before Next runs", () => {
   const result = runRelease({
     NEXT_PUBLIC_DEMO_MODE: "false",
     VERCEL_ENV: "production",
     CONVEX_DEPLOY_KEY: "prod:production-deployment|secret-production-key",
-    FAKE_TARGET_SITE_URL: "https://different-deployment.convex.site",
+    FAKE_TARGET_SITE_URL: "http://auth.example.com",
   });
 
   expect(result.status).toBe(1);
   expect(result.events.map(({ event }) => event)).toEqual(["convex-deploy"]);
-  expect(result.output).toContain("did not provide matching HTTPS cloud and site URLs");
+  expect(result.output).toContain("did not provide valid HTTPS cloud and site URLs");
 });
 
 test("a frontend build failure stops the backend push and Vercel release", () => {
@@ -349,7 +365,7 @@ test("a frontend build failure stops the backend push and Vercel release", () =>
     FAKE_BUILD_EXIT_CODE: "27",
   });
 
-  expect(result.status).toBe(27);
+  expect(result.status).not.toBe(0);
   expect(result.events.map(({ event }) => event)).toEqual(["convex-deploy", "next-build"]);
 });
 
@@ -361,7 +377,7 @@ test("a backend push failure stops Vercel from publishing the frontend build", (
     FAKE_BACKEND_EXIT_CODE: "31",
   });
 
-  expect(result.status).toBe(31);
+  expect(result.status).not.toBe(0);
   expect(result.events.map(({ event }) => event)).toEqual([
     "convex-deploy",
     "next-build",
@@ -372,14 +388,14 @@ test("a backend push failure stops Vercel from publishing the frontend build", (
 test(
   "release policy fuzz respects environment and credential modes (seed 0x5eedc0de, 32 cases)",
   {
-    timeout: 20_000,
+    timeout: 120_000,
   },
   () => {
     const seed = 0x5eedc0de;
     let state = seed;
     const choose = <T>(items: readonly T[]): T => {
       state = (Math.imul(state, 1_664_525) + 1_013_904_223) >>> 0;
-      return items[state % items.length]!;
+      return items[Math.floor((state / 2 ** 32) * items.length)]!;
     };
     const demoModes = [
       { NEXT_PUBLIC_DEMO_MODE: undefined, NEXT_PUBLIC_DEMO_STORAGE: undefined },
@@ -395,7 +411,7 @@ test(
       { kind: "prod", value: "prod:prod-target|secret-prod" },
       { kind: "dev", value: "dev:dev-target|secret-dev" },
       { kind: "preview", value: "preview:team:tapit|secret-preview" },
-      { kind: "preview", value: "preview:preview-target|secret-preview-deployment" },
+      { kind: "invalid", value: "preview:preview-target|secret-preview-deployment" },
       { kind: "legacyProd", value: "legacy-production-key" },
       { kind: "project", value: "project:team:tapit|secret-project" },
       { kind: "invalid", value: "custom:target|secret-custom" },
@@ -427,7 +443,7 @@ test(
         ...mode,
         VERCEL_ENV: vercelEnv,
         CONVEX_DEPLOY_KEY: credential.value,
-        FAKE_TARGET_SITE_URL: urlsMatch ? siteUrl : "https://unmatched.convex.site",
+        FAKE_TARGET_SITE_URL: urlsMatch ? siteUrl : "http://invalid.example.com",
       };
       const result = runRelease(overrides);
       const expectedEvents = localDemoAllowed

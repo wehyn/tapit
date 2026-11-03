@@ -15,7 +15,7 @@ function classifyDeployKey(key) {
   if (!secret || extraParts.length > 0) return "invalid";
 
   const [kind, ...scope] = prefix.split(":");
-  if (kind === "preview" && (scope.length === 1 || scope.length === 2)) {
+  if (kind === "preview" && scope.length === 2 && scope.every(Boolean)) {
     return "preview";
   }
   if ((kind === "dev" || kind === "prod") && scope.length === 1) {
@@ -68,7 +68,7 @@ function resolveBuildPlan(env) {
   return { kind: "convex", target };
 }
 
-function hasMatchingConvexUrls(env) {
+function hasValidConvexUrls(env) {
   try {
     const cloudUrl = new URL(env.NEXT_PUBLIC_CONVEX_URL);
     const siteUrl = new URL(env.NEXT_PUBLIC_CONVEX_SITE_URL);
@@ -81,21 +81,16 @@ function hasMatchingConvexUrls(env) {
       !url.search &&
       !url.hash;
 
-    return (
-      cleanHttpsOrigin(cloudUrl) &&
-      cleanHttpsOrigin(siteUrl) &&
-      cloudUrl.hostname.endsWith(".convex.cloud") &&
-      siteUrl.hostname === cloudUrl.hostname.replace(/\.convex\.cloud$/, ".convex.site")
-    );
+    return cleanHttpsOrigin(cloudUrl) && cleanHttpsOrigin(siteUrl);
   } catch {
     return false;
   }
 }
 
 function runNextBuild(env, { validateTarget = false } = {}) {
-  if (validateTarget && !hasMatchingConvexUrls(env)) {
+  if (validateTarget && !hasValidConvexUrls(env)) {
     console.error(
-      "Vercel release build refused: Convex CLI did not provide matching HTTPS cloud and site URLs.",
+      "Vercel release build refused: Convex CLI did not provide valid HTTPS cloud and site URLs.",
     );
     return 1;
   }
