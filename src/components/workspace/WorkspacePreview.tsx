@@ -37,12 +37,14 @@ async function writeClipboard(text: string) {
 export function WorkspacePreview({
   preview,
   profileUrl,
+  profileLayout = "preview",
   showProfileUrl = false,
   fitPhonePreviewContent = false,
   theme = preview.theme,
 }: {
   preview: PublicProfileProjection;
   profileUrl: string;
+  profileLayout?: "preview" | "slug";
   showProfileUrl?: boolean;
   fitPhonePreviewContent?: boolean;
   theme?: ProfileTheme;
@@ -161,7 +163,7 @@ export function WorkspacePreview({
       observer?.disconnect();
       window.removeEventListener("resize", measureFit);
     };
-  }, [fitPhonePreviewContent, preview, theme]);
+  }, [fitPhonePreviewContent, preview, profileLayout, theme]);
 
   async function copyUrl() {
     const absoluteUrl = new URL(profileUrl, window.location.origin).href;
@@ -173,7 +175,8 @@ export function WorkspacePreview({
 
   const publicProfile = (
     <PublicProfile
-      preview
+      preview={profileLayout === "preview"}
+      mobileLayout={profileLayout === "slug"}
       fitPhonePreviewContent={fitPhonePreviewContent}
       profile={preview}
       profileUrl={profileUrl}
