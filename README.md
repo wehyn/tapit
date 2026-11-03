@@ -13,6 +13,8 @@ The product is defined by:
 - [`docs/plan.md`](docs/plan.md): MVP delivery plan. Feature-level designs live in `docs/specs/`,
   `docs/superpowers/specs/`, and `docs/plans/`; user-visible changes are logged in
   [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+- [`docs/state-machines.md`](docs/state-machines.md): lifecycle states and transitions across account setup,
+  profiles, cards, uploads, and card orders.
 
 ## Quick start
 
