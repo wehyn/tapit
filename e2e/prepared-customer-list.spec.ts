@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { customerRow, customerRows, openCustomerDetails } from "./support/customer-rows";
 import { signInAsAdmin } from "./support/demo-harness";
 
 test("admin manages prepared and active customers in one list", async ({ page }) => {
@@ -8,11 +9,14 @@ test("admin manages prepared and active customers in one list", async ({ page })
   const search = page.getByRole("searchbox", { name: "Search customers" });
   await expect(search).toHaveCount(1);
   await expect(page.getByRole("heading", { name: "Customers" })).toBeVisible();
-  const existingActive = page.locator("article").filter({ hasText: "mara@example.test" }).first();
-  await expect(existingActive).toContainText("Active");
+  await expect(customerRow(page, "mara@example.test")).toContainText("Active");
+  await expect(page.getByText("More actions")).toHaveCount(0);
+  const existingActive = await openCustomerDetails(page, "mara@example.test");
   await expect(existingActive.getByRole("link", { name: "View profile" })).toBeVisible();
   await expect(existingActive.getByRole("link", { name: "View cards" })).toBeVisible();
   await expect(existingActive.getByRole("link", { name: "Open setup link" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(existingActive).toBeHidden();
   await page.getByRole("button", { name: "Set up for someone" }).click();
   await page.getByLabel("Display name").fill("Kai Rivera");
   await page.getByLabel("Role or bio").fill("  Independent designer  ");
@@ -92,7 +96,7 @@ test("admin manages prepared and active customers in one list", async ({ page })
   await expect(page.getByRole("heading", { name: "Account prepared" })).toBeVisible();
   await page.getByRole("button", { name: "Back to customers" }).click();
 
-  const kai = page.locator("article").filter({ hasText: "Kai Rivera" });
+  const kai = customerRows(page, "Kai Rivera");
   await expect(kai).toHaveCount(1);
   await expect(kai).toContainText("Waiting for user");
   await expect(kai).not.toContainText("Setup: Complete");
@@ -100,77 +104,75 @@ test("admin manages prepared and active customers in one list", async ({ page })
   const match = summary.match(/tapit\.com\/([a-z0-9-]+)/);
   expect(match?.[1]).toBeTruthy();
   await search.fill("Kai Rivera");
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).toHaveCount(1);
+  await expect(customerRows(page, "Kai Rivera")).toHaveCount(1);
   await search.fill(match![1]!);
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).toHaveCount(1);
+  await expect(customerRows(page, "Kai Rivera")).toHaveCount(1);
   await search.fill("");
-  await page.getByRole("button", { name: "Waiting" }).click();
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).toHaveCount(1);
-  await expect(page.locator("article").filter({ hasText: "mara@example.test" })).toHaveCount(0);
-  await kai.getByRole("button", { name: "Edit" }).click();
+  await page.getByRole("button", { name: "Waiting", exact: true }).click();
+  await expect(customerRows(page, "Kai Rivera")).toHaveCount(1);
+  await expect(customerRows(page, "mara@example.test")).toHaveCount(0);
+  const kaiEdit = await openCustomerDetails(page, "Kai Rivera");
+  await expect(kaiEdit).toContainText("Link expires in");
+  await kaiEdit.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByRole("heading", { name: "Edit prepared account" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
-  await kai.getByRole("button", { name: "Regenerate link" }).click();
+  const kaiRegenerate = await openCustomerDetails(page, "Kai Rivera");
+  await kaiRegenerate.getByRole("button", { name: "Regenerate link" }).click();
   await expect(page.getByRole("heading", { name: "New link ready" })).toBeVisible();
   await page.getByRole("button", { name: "Back to customers" }).click();
-  await kai.getByRole("button", { name: "Revoke" }).click();
+  const kaiRevoke = await openCustomerDetails(page, "Kai Rivera");
+  await kaiRevoke.getByRole("button", { name: "Revoke", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Revoke link" }).click();
   await expect(
     page.getByText("Link revoked. The account is kept as an unclaimed draft."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Drafts" }).click();
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).toContainText(
-    "Unclaimed draft",
-  );
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).not.toContainText(
-    "Setup: Complete",
-  );
-  await page
-    .locator("article")
-    .filter({ hasText: "Kai Rivera" })
-    .getByRole("button", { name: "Generate link" })
-    .click();
+  await page.getByRole("button", { name: "Drafts", exact: true }).click();
+  await expect(customerRows(page, "Kai Rivera")).toContainText("Unclaimed draft");
+  await expect(customerRows(page, "Kai Rivera")).not.toContainText("Setup: Complete");
+  const kaiGenerate = await openCustomerDetails(page, "Kai Rivera");
+  await expect(kaiGenerate).toContainText("No active link");
+  await kaiGenerate.getByRole("button", { name: "Generate link" }).click();
   await expect(page.getByRole("heading", { name: "Link generated" })).toBeVisible();
   await page.getByRole("button", { name: "Back to customers" }).click();
-  await page.getByRole("button", { name: "Waiting" }).click();
-  await page
-    .locator("article")
-    .filter({ hasText: "Kai Rivera" })
-    .getByRole("button", { name: "Revoke" })
-    .click();
+  await page.getByRole("button", { name: "Waiting", exact: true }).click();
+  const kaiRevokeAgain = await openCustomerDetails(page, "Kai Rivera");
+  await kaiRevokeAgain.getByRole("button", { name: "Revoke", exact: true }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Revoke link" }).click();
   await expect(
     page.getByText("Link revoked. The account is kept as an unclaimed draft."),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Drafts" }).click();
-  await page
-    .locator("article")
-    .filter({ hasText: "Kai Rivera" })
-    .getByRole("button", { name: "Delete draft" })
-    .click();
+  await page.getByRole("button", { name: "Drafts", exact: true }).click();
+  const kaiDelete = await openCustomerDetails(page, "Kai Rivera");
+  await kaiDelete.getByRole("button", { name: "Delete draft" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Delete draft" }).click();
   await expect(page.getByText("Draft deleted.")).toBeVisible();
-  await expect(page.locator("article").filter({ hasText: "Kai Rivera" })).toHaveCount(0);
+  await expect(customerRows(page, "Kai Rivera")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Active" }).click();
-  const mara = page.locator("article").filter({ hasText: "mara@example.test" }).first();
+  await page.getByRole("button", { name: "Active", exact: true }).click();
+  const mara = customerRow(page, "mara@example.test");
   await search.fill("mara@example.test");
-  await expect(page.locator("article").filter({ hasText: "mara@example.test" })).toHaveCount(1);
+  await expect(customerRows(page, "mara@example.test")).toHaveCount(1);
   await search.fill("");
   await expect(mara).toContainText("customer");
-  await mara.getByText("More actions").click();
   page.on("dialog", (dialog) => dialog.accept());
-  await mara.getByRole("button", { name: "Promote to Demo" }).click();
+  const toDemo = await openCustomerDetails(page, "mara@example.test");
+  await toDemo.getByRole("button", { name: "Promote to Demo" }).click();
   await expect(mara).toContainText("Demo");
-  await mara.getByRole("button", { name: "Promote to Administrator" }).click();
+  const toAdministrator = await openCustomerDetails(page, "mara@example.test");
+  await toAdministrator.getByRole("button", { name: "Promote to Administrator" }).click();
   await expect(mara).toContainText("admin");
-  await mara.getByRole("button", { name: "Demote to customer" }).click();
+  const toCustomer = await openCustomerDetails(page, "mara@example.test");
+  await toCustomer.getByRole("button", { name: "Demote to customer" }).click();
   await expect(mara).toContainText("customer");
-  await mara.getByRole("button", { name: "Replace invitation" }).click();
+  const toReplace = await openCustomerDetails(page, "mara@example.test");
+  await toReplace.getByRole("button", { name: "Replace invitation" }).click();
   await expect(page.getByRole("link", { name: /\/setup\// })).toBeVisible();
-  await expect(mara.getByRole("link", { name: "Open setup link" })).toBeVisible();
-  await mara.getByRole("button", { name: "Revoke invitation" }).click();
-  await expect(mara.getByRole("button", { name: "Revoke invitation" })).toHaveCount(0);
+  const toRevoke = await openCustomerDetails(page, "mara@example.test");
+  await expect(toRevoke.getByRole("link", { name: "Open setup link" })).toBeVisible();
+  await toRevoke.getByRole("button", { name: "Revoke invitation" }).click();
+  const afterRevoke = await openCustomerDetails(page, "mara@example.test");
+  await expect(afterRevoke.getByRole("button", { name: "Revoke invitation" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByText("Invite an account by email").click();
   await page.getByLabel("Customer email").fill("legacy-invite@example.test");
   await page.getByLabel("Initial profile name").fill("Legacy Invite");

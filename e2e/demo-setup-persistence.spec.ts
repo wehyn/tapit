@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { customerRows, openCustomerDetails } from "./support/customer-rows";
 import { resetDemoHarness, signInAsAdmin } from "./support/demo-harness";
 
 const DEMO_STATE_KEY = "tapit:demo-state:v1";
@@ -12,12 +13,14 @@ async function createInvitation(page: Page, email: string): Promise<string> {
   await page.getByLabel("Customer email").fill(email);
   await page.getByRole("button", { name: "Create and invite" }).click();
 
-  const customerRecord = page.locator("article").filter({ hasText: email });
-  await expect(customerRecord).toHaveCount(1);
-  const setupLink = customerRecord.getByRole("link", { name: "Open setup link", exact: true });
+  await expect(customerRows(page, email)).toHaveCount(1);
+  const details = await openCustomerDetails(page, email);
+  const setupLink = details.getByRole("link", { name: "Open setup link", exact: true });
   await expect(setupLink).toBeVisible();
   const href = await setupLink.getAttribute("href");
   if (!href) throw new Error("Expected the invited customer setup link.");
+  await page.keyboard.press("Escape");
+  await expect(details).toBeHidden();
 
   await page.getByRole("button", { name: "Account menu for admin@tapit.local" }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();

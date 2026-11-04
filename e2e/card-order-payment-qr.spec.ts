@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { openCustomerDetails } from "./support/customer-rows";
 import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
 async function clearDemoSession(page: import("@playwright/test").Page) {
@@ -166,8 +167,8 @@ test("payment QR replacement and removal preserve the order snapshot and text in
   await clearDemoSession(page);
   await signInAsAdmin(page);
   await page.goto("/admin/customers");
-  const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
-  await customer.getByRole("button", { name: "Approve deletion" }).click();
+  const details = await openCustomerDetails(page, "mara@example.test");
+  await details.getByRole("button", { name: "Approve deletion" }).click();
   const approvalDialog = page.getByRole("dialog", { name: "Approve account deletion?" });
   await approvalDialog.getByRole("button", { name: "Approve deletion" }).click();
   await expect(

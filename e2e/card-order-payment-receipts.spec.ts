@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { openCustomerDetails } from "./support/customer-rows";
 import { resetDemoHarness, signInAsAdmin, signInAsCustomer } from "./support/demo-harness";
 
 async function clearDemoSession(page: Page) {
@@ -355,13 +356,13 @@ test("card order receipts stay private and never mark payment received", async (
   await clearDemoSession(page);
   await signInAsAdmin(page);
   await page.goto("/admin/customers");
-  const customer = page.locator("article").filter({ hasText: "mara@example.test" }).first();
-  await customer.getByRole("button", { name: "Approve deletion" }).click();
+  const details = await openCustomerDetails(page, "mara@example.test");
+  await details.getByRole("button", { name: "Approve deletion" }).click();
   const approvalDialog = page.getByRole("dialog", { name: "Approve account deletion?" });
   await failNextReceiptCursorDelete(page);
   await approvalDialog.getByRole("button", { name: "Approve deletion" }).click();
   await expect(page.getByText(/Deletion approval could not be completed|aborted/i)).toBeVisible();
-  await expect(customer.getByRole("button", { name: "Approve deletion" })).toBeVisible();
+  await expect(approvalDialog).toBeVisible();
   await expect.poll(() => storedReceiptCount(page)).toBe(1);
   await approvalDialog.getByRole("button", { name: "Approve deletion" }).click();
   await expect(
