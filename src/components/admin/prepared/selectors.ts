@@ -48,6 +48,21 @@ export type CustomerAction =
   | "Revoke owner access"
   | "Approve deletion";
 
+const primaryActionNames: ReadonlySet<CustomerAction> = new Set([
+  "Edit",
+  "Generate link",
+  "View profile",
+  "View cards",
+  "Open setup link",
+]);
+
+export function splitActions(actions: CustomerAction[]) {
+  return {
+    primary: actions.filter((action) => primaryActionNames.has(action)),
+    manage: actions.filter((action) => !primaryActionNames.has(action)),
+  };
+}
+
 export function actionsForRow(row: PreparedRow): CustomerAction[] {
   if (row.setupState === null) {
     if (row.status !== "invited") return [];
