@@ -13,6 +13,7 @@ import { hashDemoPassword } from "@/lib/demo/password";
 import { isHostedDemoMode, isLocalDemoMode } from "@/lib/demo/mode";
 import { clearDemoSession, setDemoSession, updateDemoState, useDemoState } from "@/lib/demo/store";
 import { hashSetupToken } from "@/lib/auth/setup-token";
+import { transitionCustomerStatus } from "@/lib/domain/state-machines";
 import { useAuthActions, useConvexAuth } from "@convex-dev/auth/react";
 import { useAction, useConvex, useMutation, useQuery } from "convex/react";
 
@@ -279,7 +280,12 @@ function DemoSetupForm({ token, nextPath }: { token: string; nextPath?: string }
           ...current,
           customers: current.customers.map((candidate) =>
             candidate.id === account.id
-              ? { ...candidate, status: "active", setupToken: undefined, passwordHash }
+              ? {
+                  ...candidate,
+                  status: transitionCustomerStatus(candidate.status, "accept_invitation"),
+                  setupToken: undefined,
+                  passwordHash,
+                }
               : candidate,
           ),
         }));

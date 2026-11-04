@@ -1,4 +1,5 @@
 import type { Doc } from "./_generated/dataModel";
+import { invitationState } from "../src/lib/domain/state-machines";
 
 export type SetupState = "waiting" | "draft" | "active";
 
@@ -16,11 +17,8 @@ export function deriveSetupState(
     (invitation) =>
       invitation.kind === "prepared_setup" &&
       invitation.scope === customer.scope &&
-      invitation.usedAt === undefined &&
-      invitation.acceptedAt === undefined &&
-      invitation.invalidatedAt === undefined &&
-      invitation.expiresAt !== undefined &&
-      invitation.expiresAt > now,
+      invitationState(invitation, now) === "usable" &&
+      invitation.expiresAt !== undefined,
   );
   return hasLiveInvitation ? "waiting" : "draft";
 }
@@ -36,11 +34,8 @@ export function latestSetupExpiry(
         (invitation) =>
           invitation.kind === "prepared_setup" &&
           invitation.scope === customer.scope &&
-          invitation.usedAt === undefined &&
-          invitation.acceptedAt === undefined &&
-          invitation.invalidatedAt === undefined &&
-          invitation.expiresAt !== undefined &&
-          invitation.expiresAt > now,
+          invitationState(invitation, now) === "usable" &&
+          invitation.expiresAt !== undefined,
       )
       .map((invitation) => invitation.expiresAt!)
       .sort((left, right) => right - left)[0] ?? null

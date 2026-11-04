@@ -26,6 +26,12 @@ import {
 import type { PreparedProfileInput } from "@/lib/demo/store";
 import type { ActiveCustomerRow, PreparedRow } from "./types";
 import type { PreparedFilter } from "./selectors";
+import {
+  transitionCardStatus,
+  transitionCustomerStatus,
+  transitionDeletionStatus,
+  transitionProfileStatus,
+} from "@/lib/domain/state-machines";
 
 type Result = {
   rows: PreparedRow[];
@@ -468,7 +474,7 @@ export function useDemoPreparedAccounts(): Result {
         const withProfile = profile
           ? updateDemoProfile(current, profile.id, (currentProfile) => ({
               ...currentProfile,
-              status: "unpublished",
+              status: transitionProfileStatus(currentProfile.status, "unpublished", "system"),
             }))
           : current;
         return {
@@ -477,8 +483,8 @@ export function useDemoPreparedAccounts(): Result {
             candidate.id === customerId
               ? {
                   ...candidate,
-                  status: "deleted",
-                  deletionStatus: "deleted",
+                  status: transitionCustomerStatus(candidate.status, "approve_deletion"),
+                  deletionStatus: transitionDeletionStatus(candidate.deletionStatus, "approve"),
                   setupToken: undefined,
                 }
               : candidate,
@@ -488,7 +494,10 @@ export function useDemoPreparedAccounts(): Result {
             (card.status === "active" ||
               card.status === "claimable" ||
               card.status === "registered")
-              ? { ...card, status: "inactive" }
+              ? {
+                  ...card,
+                  status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+                }
               : card,
           ),
           audits: [

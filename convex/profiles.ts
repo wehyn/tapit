@@ -37,6 +37,8 @@ import {
 import { replaceProfileLinks } from "./links";
 import { IMAGE_REVISION_CONFLICT, IMAGE_UPLOAD_PENDING } from "./storage";
 import { validateLimitedProfileContent } from "../src/lib/domain";
+import { transitionProfileStatus } from "../src/lib/domain/state-machines";
+import { transitionCardStatus } from "../src/lib/domain/state-machines";
 
 const DRAFT_REVISION_CONFLICT =
   "The profile draft changed while you were editing. Refresh and try again.";
@@ -433,7 +435,11 @@ export const publish = mutation({
     if (pendingMediaUpload !== null) throw new Error(MEDIA_UPLOAD_PENDING);
     const owner = await ctx.db.get(profile.ownerId);
     if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
-    if (profile.status === "suspended") throw new Error("A suspended profile cannot be published.");
+    try {
+      transitionProfileStatus(profile.status, "published", "owner");
+    } catch {
+      throw new Error("A suspended profile cannot be published.");
+    }
     const errors = validateProfileContent(profile.draft);
     if (errors.length > 0) throw new Error(errors.join(" "));
     const limitedErrors = hasCardOwnerFeatures ? [] : validateLimitedProfileContent(profile.draft);
@@ -498,7 +504,7 @@ export const publish = mutation({
     const oldPublishedMediaIds = profileMediaAssetIds(profile.published?.media);
     await ctx.db.patch(profile._id, {
       slug: profile.draft.slug,
-      status: "published",
+      status: transitionProfileStatus(profile.status, "published", "owner"),
       published,
       publishedAt: now,
       updatedAt: now,
@@ -506,7 +512,12 @@ export const publish = mutation({
     await Promise.all(
       attachedCards
         .filter((card) => card.status === "claimable" && card.claimCodeClaimedAt !== undefined)
-        .map((card) => ctx.db.patch(card._id, { status: "active", updatedAt: now })),
+        .map((card) =>
+          ctx.db.patch(card._id, {
+            status: transitionCardStatus(card.status, { type: "publish_profile" }),
+            updatedAt: now,
+          }),
+        ),
     );
     if (oldPublishedStorageId !== undefined && oldPublishedStorageId !== published.imageStorageId)
       await removeIfUnreferenced(ctx, oldPublishedStorageId, profile._id);
@@ -552,7 +563,7 @@ export const unpublishMine = mutation({
 
     const now = Date.now();
     await ctx.db.patch(profile._id, {
-      status: "unpublished",
+      status: transitionProfileStatus(profile.status, "unpublished", "owner"),
       unpublishedAt: now,
       updatedAt: now,
     });
@@ -577,7 +588,8 @@ export const setStatus = mutation({
   handler: async (ctx, args) => {
     const { userId, profile } = await profileAccess(ctx, args.profileId);
     const account = await requireAdministrator(ctx);
-    if (args.status === "published") {
+    const nextStatus = transitionProfileStatus(profile.status, args.status, "administrator");
+    if (nextStatus === "published") {
       const owner = await ctx.db.get(profile.ownerId);
       if (!isActiveCustomer(owner)) throw new Error("The profile owner account is not active.");
       if (profile.published === undefined)
@@ -620,45 +632,50 @@ export const setStatus = mutation({
       }
       const now = Date.now();
       await ctx.db.patch(profile._id, {
-        status: args.status,
+        status: nextStatus,
         updatedAt: now,
       });
       await Promise.all(
         attachedCards
           .filter((card) => card.status === "claimable" && card.claimCodeClaimedAt !== undefined)
-          .map((card) => ctx.db.patch(card._id, { status: "active", updatedAt: now })),
+          .map((card) =>
+            ctx.db.patch(card._id, {
+              status: transitionCardStatus(card.status, { type: "publish_profile" }),
+              updatedAt: now,
+            }),
+          ),
       );
       await ctx.db.insert("auditLogs", {
         scope: profile.scope,
         actorUserId: userId,
         actorLabel: "Administrator",
-        action: `profile.${args.status}`,
+        action: `profile.${nextStatus}`,
         profileId: profile._id,
         accountId: account.account._id,
         occurredAt: now,
         before: profile.status,
-        after: args.status,
+        after: nextStatus,
       });
-      return { status: args.status };
+      return { status: nextStatus };
     }
     const now = Date.now();
     await ctx.db.patch(profile._id, {
-      status: args.status,
+      status: nextStatus,
       updatedAt: now,
-      ...(args.status === "unpublished" ? { unpublishedAt: now } : {}),
-      ...(args.status === "suspended" ? { suspendedAt: now } : {}),
+      ...(nextStatus === "unpublished" ? { unpublishedAt: now } : {}),
+      ...(nextStatus === "suspended" ? { suspendedAt: now } : {}),
     });
     await ctx.db.insert("auditLogs", {
       scope: profile.scope,
       actorUserId: userId,
       actorLabel: "Administrator",
-      action: `profile.${args.status}`,
+      action: `profile.${nextStatus}`,
       profileId: profile._id,
       accountId: account.account._id,
       occurredAt: now,
       before: profile.status,
-      after: args.status,
+      after: nextStatus,
     });
-    return { status: args.status };
+    return { status: nextStatus };
   },
 });

@@ -18,6 +18,7 @@ import {
 import { inspectProfileStorage, profileMediaAssetIds } from "./profileStorageReferences";
 import { profileMediaValidator } from "./validators";
 import { safeUploadError, withUploadStorage } from "./uploadErrors";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 export { profileMediaAssetIds } from "./profileStorageReferences";
 
@@ -362,7 +363,7 @@ export async function deleteProfileMedia(
       (directStorageIds.length === 0 && recoveredCandidates.length === 0);
     if (hasRecoveryState) {
       await ctx.db.patch(job._id, {
-        status: "failed",
+        status: transitionUploadStatus("profile_job", job.status, "fail"),
         actorUserId: undefined,
         accessMode: undefined,
       });
@@ -396,7 +397,7 @@ export async function deleteProfileMedia(
     }
     if (!recoveryIsSafe) {
       await ctx.db.patch(job._id, {
-        status: "failed",
+        status: transitionUploadStatus("profile_job", job.status, "fail"),
         actorUserId: undefined,
         accessMode: undefined,
       });
@@ -607,7 +608,9 @@ export const attach = internalMutation({
         accountId: profile.ownerId,
         occurredAt: Date.now(),
       });
-    await ctx.db.patch(job._id, { status: "attached" });
+    await ctx.db.patch(job._id, {
+      status: transitionUploadStatus("profile_job", job.status, "attach"),
+    });
     const url = await withUploadStorage("profile media attach getUrl", () =>
       ctx.storage.getUrl(args.storageId),
     );
@@ -641,7 +644,10 @@ export const compensateUpload = internalMutation({
       job?.previewStorageId ?? args.previewStorageId,
     ])
       if (id !== undefined) await ctx.storage.delete(id);
-    if (job !== null) await ctx.db.patch(job._id, { status: "failed" });
+    if (job !== null)
+      await ctx.db.patch(job._id, {
+        status: transitionUploadStatus("profile_job", job.status, "fail"),
+      });
     return null;
   },
 });

@@ -18,6 +18,7 @@ import {
 import schema from "./schema";
 import { isActiveCustomer, sameScope } from "./admin";
 import { withUploadStorage } from "./uploadErrors";
+import { transitionUploadStatus } from "../src/lib/domain/state-machines";
 
 type UploadAccessMode = "owner" | "admin";
 
@@ -231,7 +232,9 @@ export const attach = internalMutation({
     );
     if (imageUrl === null) throw new ConvexError("The uploaded image was not found.");
     if (args.uploadJobId !== undefined)
-      await ctx.db.patch(args.uploadJobId, { status: "attached" });
+      await ctx.db.patch(args.uploadJobId, {
+        status: transitionUploadStatus("profile_job", job!.status, "attach"),
+      });
     return { imageUrl, imageRevision: currentRevision + 1, draftRevision };
   },
 });
@@ -361,7 +364,9 @@ export const compensateUpload = internalMutation({
       if (largeMapping !== null || smallMapping !== null) return null;
     }
     for (const id of ids) await ctx.storage.delete(id);
-    await ctx.db.patch(job._id, { status: "failed" });
+    await ctx.db.patch(job._id, {
+      status: transitionUploadStatus("profile_job", job.status, "fail"),
+    });
     return null;
   },
 });

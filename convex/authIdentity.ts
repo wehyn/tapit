@@ -1,6 +1,7 @@
 import type { Doc } from "./_generated/dataModel";
 import { AdminProfileInconsistentError, ensureAdminPersonalProfile } from "./adminProfile";
 import type { MutationCtx } from "./_generated/server";
+import { transitionCustomerStatus } from "../src/lib/domain/state-machines";
 
 export type GoogleIdentityProfile = {
   provider: string;
@@ -105,7 +106,7 @@ export async function ensureGoogleApplicationAccount(
       const now = Date.now();
       await ctx.db.patch(existing._id, {
         email,
-        status: "pending",
+        status: transitionCustomerStatus(existing.status, "restart_deleted_customer"),
         setupState: null,
         setupExpiryInvitationId: undefined,
         setupExpiresAt: undefined,

@@ -22,6 +22,7 @@ import {
   type PublishedProfileSnapshot,
   type ProfileStatus,
 } from "@/lib/domain";
+import { transitionProfileStatus } from "@/lib/domain/state-machines";
 import {
   stripProfileMediaUrls,
   type ProfileMediaImage,
@@ -804,7 +805,7 @@ function DemoProfilesManager() {
     updateDemoState((current) => ({
       ...updateDemoProfile(current, profile.id, (currentProfile) => ({
         ...currentProfile,
-        status,
+        status: transitionProfileStatus(currentProfile.status, status, "administrator"),
       })),
       audits: [
         {

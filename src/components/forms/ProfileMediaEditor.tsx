@@ -20,6 +20,7 @@ import {
   type ProfileMediaPresentation,
 } from "@/lib/profile-media";
 import type { PendingProfileMediaUpload } from "@/lib/profile-media-preview";
+import { transitionPendingMediaUpload } from "@/lib/domain/state-machines";
 import { validateProfileImageFile } from "@/lib/profile-image";
 
 export type ProfileMediaEditorProps = {
@@ -229,7 +230,11 @@ export function ProfileMediaEditor({
       if (!isCurrentUpload(pending, requestId)) return;
       const message =
         uploadFailure instanceof Error ? uploadFailure.message : "Image upload failed.";
-      const nextPending = { ...pending, status: "failed" as const, error: message };
+      const nextPending = {
+        ...pending,
+        status: transitionPendingMediaUpload(pending.status, "fail"),
+        error: message,
+      };
       backgroundPending.current = nextPending;
       setUploadFailure({
         message,
@@ -260,7 +265,7 @@ export function ProfileMediaEditor({
         file.name.trim().slice(0, MAX_PROFILE_MEDIA_ALT_TEXT_LENGTH) || "Selected background image",
       positionX: 50,
       positionY: 50,
-      status: "uploading",
+      status: transitionPendingMediaUpload("queued", "start"),
     };
     const requestId = uploadRequests.current.background;
     backgroundPending.current = pending;
@@ -278,7 +283,11 @@ export function ProfileMediaEditor({
         const first = slideshowQueueRef.current[0];
         if (!first || first.status === "failed") break;
         if (backgroundPending.current !== null || busy) break;
-        const uploading = { ...first, status: "uploading" as const, error: undefined };
+        const uploading = {
+          ...first,
+          status: transitionPendingMediaUpload(first.status, "start"),
+          error: undefined,
+        };
         setQueue([uploading, ...slideshowQueueRef.current.slice(1)]);
         const requestId = ++uploadRequests.current.slideshow;
         activeRequest.current = {
@@ -306,7 +315,11 @@ export function ProfileMediaEditor({
         } catch (error) {
           if (!isCurrentUpload(uploading, requestId)) break;
           const message = error instanceof Error ? error.message : "Image upload failed.";
-          const failed = { ...uploading, status: "failed" as const, error: message };
+          const failed = {
+            ...uploading,
+            status: transitionPendingMediaUpload(uploading.status, "fail"),
+            error: message,
+          };
           activeRequest.current = undefined;
           setQueue([failed, ...slideshowQueueRef.current.slice(1)]);
           break;
@@ -382,7 +395,11 @@ export function ProfileMediaEditor({
     const pending = backgroundPending.current;
     if (!pending || pending.status !== "failed") return;
     const requestId = ++uploadRequests.current.background;
-    const retrying = { ...pending, status: "uploading" as const, error: undefined };
+    const retrying = {
+      ...pending,
+      status: transitionPendingMediaUpload(pending.status, "start"),
+      error: undefined,
+    };
     backgroundPending.current = retrying;
     activeRequest.current = { target: "background", requestId, previewUrl: pending.previewUrl };
     setUploadFailure(undefined);

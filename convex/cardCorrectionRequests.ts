@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { customerForAuthUser, isActiveCustomer, requireAdministrator, sameScope } from "./admin";
 import { digest } from "./cards";
+import { transitionCardStatus, transitionCorrectionStatus } from "../src/lib/domain/state-machines";
 
 const unavailable = () => new Error("Correction request unavailable.");
 
@@ -179,13 +180,16 @@ export const correctAssignment = mutation({
     const now = Date.now();
     await ctx.db.patch(card._id, {
       profileId: profile._id,
-      status: profile.status === "published" ? "active" : "claimable",
+      status: transitionCardStatus(card.status, {
+        type: "reassign",
+        published: profile.status === "published",
+      }),
       correctionRequestedAt: undefined,
       assignedAt: now,
       updatedAt: now,
     });
     await ctx.db.patch(request._id, {
-      status: "corrected",
+      status: transitionCorrectionStatus(request.status, "resolve"),
       resolvedAt: now,
       resolvedByUserId: userId,
       resolvedProfileId: profile._id,

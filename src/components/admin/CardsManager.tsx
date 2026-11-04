@@ -11,6 +11,7 @@ import {
   transitionCard,
   validatePublication,
 } from "@/lib/domain";
+import { transitionCardStatus, transitionCorrectionStatus } from "@/lib/domain/state-machines";
 import { cardTokenFromUrl, cardUrlFromToken, normalizeCardUrl } from "@/lib/card-url";
 import type { DemoCard } from "@/lib/demo/fixtures";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -460,12 +461,17 @@ function DemoCardsManager() {
             ? {
                 ...candidate,
                 profileId: currentTarget.id,
-                status: currentTarget.status === "published" ? "active" : "claimable",
+                status: transitionCardStatus(currentCard.status, {
+                  type: "reassign",
+                  published: currentTarget.status === "published",
+                }),
               }
             : candidate,
         ),
         cardCorrectionRequests: (current.cardCorrectionRequests ?? []).map((candidate) =>
-          candidate.id === requestId ? { ...candidate, status: "corrected" } : candidate,
+          candidate.id === requestId
+            ? { ...candidate, status: transitionCorrectionStatus(candidate.status, "resolve") }
+            : candidate,
         ),
         audits: [
           {
@@ -1122,7 +1128,11 @@ function DemoCardsManager() {
           ...current,
           cards: current.cards.map((candidate) =>
             candidate.id === card.id
-              ? { ...candidate, status: "lost", ownerDisabledAt: undefined }
+              ? {
+                  ...candidate,
+                  status: transitionCardStatus(candidate.status, { type: "mark_lost" }),
+                  ownerDisabledAt: undefined,
+                }
               : candidate,
           ),
           audits: [

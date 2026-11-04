@@ -6,6 +6,13 @@ import { normalizeSignupEmail, validateSignupEmail } from "../auth/signup";
 import { cardTokenFromUrl, normalizeCardUrl } from "../card-url";
 import { isValidReferralFixedPriceCentavos, manilaStartOfDayTimestamp } from "../card-ordering";
 import { normalizeProfileSlug, validateProfileSlug, type AnalyticsSource } from "../domain";
+import {
+  invitationState,
+  transitionCardStatus,
+  transitionCustomerStatus,
+  transitionInvitationState,
+  transitionPreparedSetup,
+} from "../domain/state-machines";
 import { validateProfileContent } from "../../../convex/validators";
 import {
   createDefaultDemoState,
@@ -1106,10 +1113,7 @@ function deriveSetupLifecycle(
   }
   const liveInvitations = invitations.filter(
     (candidate) =>
-      candidate.customerId === customer.id &&
-      candidate.invalidatedAt === undefined &&
-      candidate.usedAt === undefined &&
-      candidate.expiresAt > now,
+      candidate.customerId === customer.id && invitationState(candidate, now) === "usable",
   );
   const invitation = liveInvitations.at(-1);
   return invitation === undefined
@@ -1294,6 +1298,7 @@ export async function generateLink(
       throw new Error("Prepared customer cannot receive a setup link.");
     }
     const lifecycle = deriveSetupLifecycle(customer, current.setupInvitations, now);
+    transitionPreparedSetup(lifecycle.state, "issue_link");
     const liveInvitationIds = new Set(lifecycle.liveInvitations.map((invitation) => invitation.id));
     const invitations = current.setupInvitations.map((invitation) =>
       liveInvitationIds.has(invitation.id) ? { ...invitation, invalidatedAt: now } : invitation,
@@ -1332,6 +1337,7 @@ export function revokeLink(customerId: string): void {
       throw new Error("Setup link cannot be revoked.");
     }
     const lifecycle = deriveSetupLifecycle(customer, current.setupInvitations, now);
+    transitionPreparedSetup(lifecycle.state, "revoke_link");
     const operationId = reserveSetupTokenId();
     const liveInvitationIds = new Set(lifecycle.liveInvitations.map((invitation) => invitation.id));
     return {
@@ -1366,6 +1372,10 @@ export function deletePreparedDraft(customerId: string): void {
     ) {
       throw new Error("Prepared customer cannot be deleted.");
     }
+    transitionPreparedSetup(
+      deriveSetupLifecycle(customer, current.setupInvitations, now).state,
+      "delete_draft",
+    );
     const profile = getDemoProfileById(current, customer.profileId);
     const profiles = getDemoProfiles(current).filter(
       (profile) => profile.id !== customer.profileId,
@@ -1461,6 +1471,11 @@ export async function claimSetup(token: string): Promise<boolean> {
       )
     )
       return current;
+    transitionInvitationState(invitationState(invitation, now), "accept");
+    transitionPreparedSetup(
+      deriveSetupLifecycle(customer, current.setupInvitations, now).state,
+      "claim",
+    );
     claimed = true;
     const operationId = reserveSetupTokenId();
     return {
@@ -1468,7 +1483,11 @@ export async function claimSetup(token: string): Promise<boolean> {
       nextSetupTokenId: Math.max(current.nextSetupTokenId, operationId + 1),
       customers: current.customers.map((candidate) =>
         candidate.id === customer.id
-          ? { ...candidate, email: claimingSession.email, status: "active" }
+          ? {
+              ...candidate,
+              email: claimingSession.email,
+              status: transitionCustomerStatus(candidate.status, "accept_invitation"),
+            }
           : candidate,
       ),
       setupInvitations: current.setupInvitations.map((candidate) =>
@@ -1960,7 +1979,11 @@ export function disableMyDemoCard(cardId: string): void {
       ...current,
       cards: current.cards.map((candidate) =>
         candidate.id === card.id
-          ? { ...candidate, status: "inactive", ownerDisabledAt: now }
+          ? {
+              ...candidate,
+              status: transitionCardStatus(candidate.status, { type: "deactivate" }),
+              ownerDisabledAt: now,
+            }
           : candidate,
       ),
       audits: [
@@ -2001,7 +2024,7 @@ export function markMyDemoCardLost(
         candidate.id === card.id
           ? {
               ...candidate,
-              status: "lost",
+              status: transitionCardStatus(card.status, { type: "mark_lost" }),
               ownerDisabledAt: undefined,
               lostCardResolution: resolution,
             }
@@ -2076,7 +2099,10 @@ export function startMyDemoCardReactivation(cardId: string): void {
         candidate.id === card.id
           ? {
               ...candidate,
-              status: profile.status === "published" ? "active" : "claimable",
+              status: transitionCardStatus(card.status, {
+                type: "reactivate_owner",
+                published: profile.status === "published",
+              }),
               claimCode: undefined,
               claimCodeExpiresAt: undefined,
               claimCodeInvalidatedAt: now,
@@ -2341,7 +2367,10 @@ export function completeDemoCardClaim(cardToken: string, challenge: string, emai
               claimChallengeEmail: undefined,
               claimedAt,
               profileId: profile.id,
-              status: profile.status === "published" ? "active" : "claimable",
+              status: transitionCardStatus(card.status, {
+                type: "claim",
+                published: profile.status === "published",
+              }),
             }
           : candidate,
       ),
