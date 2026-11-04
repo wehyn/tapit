@@ -78,9 +78,8 @@ export const resolve = query({
       return { status: "inactive" as const };
     if (card.status === "registered") return { status: "setup" as const };
     if (card.status === "claimable") {
-      const claimState = claimCodeState(card, Date.now());
-      if (claimState === "invalidated" || claimState === "expired")
-        return { status: "unavailable" as const };
+      const claimState = claimCodeState(card);
+      if (claimState === "invalidated") return { status: "unavailable" as const };
       if (claimState !== "claimed") return { status: "claim" as const };
       const userId = await getAuthUserId(ctx);
       const customer = userId === null ? null : await customerForAuthUser(ctx, userId);
@@ -102,9 +101,8 @@ export const resolve = query({
     const profile = await ctx.db.get(card.profileId);
     const owner = profile === null ? null : await ctx.db.get(profile.ownerId);
     if (profile === null || !isActiveCustomer(owner)) return { status: "unavailable" as const };
-    const claimState = claimCodeState(card, Date.now());
-    if (claimState === "invalidated" || claimState === "expired")
-      return { status: "unavailable" as const };
+    const claimState = claimCodeState(card);
+    if (claimState === "invalidated") return { status: "unavailable" as const };
     if (claimState !== "claimed") return { status: "claim" as const };
     const projection = await projectPublicProfile(ctx, profile);
     if (projection === null) return { status: "unavailable" as const };
@@ -183,12 +181,9 @@ export const myCards = query({
               canDisable:
                 card.status === "active" &&
                 card.archivedAt === undefined &&
-                claimCodeState(card, Date.now()) === "claimed" &&
+                claimCodeState(card) === "claimed" &&
                 !pending,
-              canMarkLost:
-                card.status !== "lost" &&
-                claimCodeState(card, Date.now()) === "claimed" &&
-                !pending,
+              canMarkLost: card.status !== "lost" && claimCodeState(card) === "claimed" && !pending,
               canSetLostResolution: card.status === "lost" && !pending,
               canReactivate:
                 card.status === "inactive" &&
@@ -727,7 +722,7 @@ export const claimStatus = query({
     if (card === null || !sameScope(account, card)) throw new Error("Card not found.");
     return {
       status: card.status,
-      hasClaimCode: claimCodeState(card, Date.now()) === "issued",
+      hasClaimCode: claimCodeState(card) === "issued",
       claimedAt: card.claimCodeClaimedAt ?? null,
     };
   },

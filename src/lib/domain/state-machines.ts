@@ -20,7 +20,7 @@ const CUSTOMER_TRANSITIONS: Record<
   delete_prepared: { invited: "deleted" },
   approve_deletion: { active: "deleted" },
   restart_deleted_customer: { deleted: "pending" },
-  reset_demo: { active: "pending", pending: "pending" },
+  reset_demo: { active: "pending", invited: "pending", pending: "pending" },
 };
 
 export function transitionCustomerStatus(
@@ -53,7 +53,9 @@ export type DeletionStatus = "active" | "requested" | "deleted";
 export function transitionDeletionStatus(from: DeletionStatus, event: "request" | "approve") {
   const transitions: Record<typeof event, Partial<Record<DeletionStatus, DeletionStatus>>> = {
     request: { active: "requested" },
-    approve: { requested: "deleted" },
+    // Older records can have an open deletion request while the customer row
+    // still says active; the request record remains the approval authority.
+    approve: { active: "deleted", requested: "deleted" },
   };
   const to = transitions[event][from];
   if (to === undefined) throw new Error(`Invalid deletion transition: ${from} via ${event}.`);
@@ -83,7 +85,7 @@ export function transitionPreparedSetup(
   if (event === "revoke_link" && from === "waiting") return "draft";
   if (event === "expire_link" && from === "waiting") return "draft";
   if (event === "claim" && from === "waiting") return "active";
-  if (event === "delete_draft" && from === "draft") return null;
+  if (event === "delete_draft" && (from === "draft" || from === "waiting")) return null;
   throw new Error(`Invalid prepared setup transition: ${from ?? "none"} via ${event}.`);
 }
 
@@ -242,7 +244,7 @@ export function transitionInvitationState(
   throw new Error(`Invalid invitation transition: ${from} via ${event}.`);
 }
 
-export type ClaimCodeState = "missing" | "issued" | "claimed" | "invalidated" | "expired";
+export type ClaimCodeState = "missing" | "issued" | "claimed" | "invalidated";
 export type ClaimCodeLifecycle = {
   claimCodeHash?: string;
   claimCodeExpiresAt?: number;
@@ -250,11 +252,10 @@ export type ClaimCodeLifecycle = {
   claimCodeClaimedAt?: number;
 };
 
-export function claimCodeState(code: ClaimCodeLifecycle, now: number): ClaimCodeState {
+export function claimCodeState(code: ClaimCodeLifecycle): ClaimCodeState {
   if (code.claimCodeInvalidatedAt !== undefined) return "invalidated";
   if (code.claimCodeClaimedAt !== undefined) return "claimed";
   if (code.claimCodeHash === undefined) return "missing";
-  if (code.claimCodeExpiresAt !== undefined && code.claimCodeExpiresAt <= now) return "expired";
   return "issued";
 }
 

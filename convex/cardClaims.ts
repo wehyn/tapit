@@ -66,7 +66,7 @@ export const verifyCode = mutation({
     )
       return { ok: false as const };
     const claimCodeHash = card.claimCodeHash;
-    if (claimCodeHash === undefined || claimCodeState(card, now) !== "issued")
+    if (claimCodeHash === undefined || claimCodeState(card) !== "issued")
       return { ok: false as const };
     if ((await digest(code)) !== claimCodeHash) return { ok: false as const };
     const challenge = challengeValue();
@@ -111,7 +111,7 @@ export const complete = mutation({
     if (
       (card.status !== "registered" && card.status !== "claimable" && card.status !== "active") ||
       card.correctionRequestedAt !== undefined ||
-      claimCodeState(card, Date.now()) !== "issued" ||
+      claimCodeState(card) !== "issued" ||
       card.claimCodeHash !== challenge.claimCodeHash
     ) {
       throw new Error("The claim code is invalid or unavailable.");
