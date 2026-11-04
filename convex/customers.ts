@@ -87,17 +87,15 @@ async function latestLivePreparedSetupInvitation(
 ) {
   const invitation = await ctx.db
     .query("invitations")
-    .withIndex(
-      "by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires",
-      (q) =>
-        q
-          .eq("customerId", customer._id)
-          .eq("kind", "prepared_setup")
-          .eq("scope", customer.scope)
-          .eq("invalidatedAt", undefined)
-          .eq("acceptedAt", undefined)
-          .eq("usedAt", undefined)
-          .gt("expiresAt", now),
+    .withIndex("by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires", (q) =>
+      q
+        .eq("customerId", customer._id)
+        .eq("kind", "prepared_setup")
+        .eq("scope", customer.scope)
+        .eq("invalidatedAt", undefined)
+        .eq("acceptedAt", undefined)
+        .eq("usedAt", undefined)
+        .gt("expiresAt", now),
     )
     .order("desc")
     .first();

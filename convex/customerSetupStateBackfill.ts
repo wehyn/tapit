@@ -313,17 +313,15 @@ export const processInvitationBatch = internalMutation({
       currentExpiryInvitation.expiresAt > now;
     const indexedLiveInvitation = await ctx.db
       .query("invitations")
-      .withIndex(
-        "by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires",
-        (q) =>
-          q
-            .eq("customerId", currentCustomer._id)
-            .eq("kind", "prepared_setup")
-            .eq("scope", currentCustomer.scope)
-            .eq("invalidatedAt", undefined)
-            .eq("acceptedAt", undefined)
-            .eq("usedAt", undefined)
-            .gt("expiresAt", now),
+      .withIndex("by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires", (q) =>
+        q
+          .eq("customerId", currentCustomer._id)
+          .eq("kind", "prepared_setup")
+          .eq("scope", currentCustomer.scope)
+          .eq("invalidatedAt", undefined)
+          .eq("acceptedAt", undefined)
+          .eq("usedAt", undefined)
+          .gt("expiresAt", now),
       )
       .order("desc")
       .first();

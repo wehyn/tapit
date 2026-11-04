@@ -499,10 +499,15 @@ export default defineSchema({
     .index("by_customerId", ["customerId"])
     .index("by_customerId_and_kind", ["customerId", "kind"])
     .index("by_customerId_and_kind_and_scope", ["customerId", "kind", "scope"])
-    .index(
-      "by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires",
-      ["customerId", "kind", "scope", "invalidatedAt", "acceptedAt", "usedAt", "expiresAt"],
-    )
+    .index("by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires", [
+      "customerId",
+      "kind",
+      "scope",
+      "invalidatedAt",
+      "acceptedAt",
+      "usedAt",
+      "expiresAt",
+    ])
     .index("by_expiresAt", ["expiresAt"])
     .index("by_acceptedAt", ["acceptedAt"])
     .index("by_invalidatedAt", ["invalidatedAt"])
