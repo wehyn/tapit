@@ -314,7 +314,7 @@ export const processInvitationBatch = internalMutation({
     const indexedLiveInvitation = await ctx.db
       .query("invitations")
       .withIndex(
-        "by_customerId_and_kind_and_scope_and_invalidatedAt_and_acceptedAt_and_usedAt_and_expiresAt",
+        "by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires",
         (q) =>
           q
             .eq("customerId", currentCustomer._id)
