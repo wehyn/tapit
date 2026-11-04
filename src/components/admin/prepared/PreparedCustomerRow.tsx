@@ -13,9 +13,10 @@ import {
 } from "./PreparedRowParts";
 import type { PreparedRow } from "./types";
 
-// Shared with the column header in PreparedAccountsList so the two stay aligned.
+// Shared with the column header in PreparedAccountsList so the two stay aligned. The phone status
+// track is capped so several chips wrap instead of squeezing the name column to nothing.
 export const customerColumns =
-  "grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[minmax(0,2.2fr)_9rem_5.5rem_3rem_1.25rem]";
+  "grid-cols-[minmax(0,1fr)_fit-content(45%)] md:grid-cols-[minmax(0,2.2fr)_9rem_5.5rem_3rem_1.25rem]";
 
 export function PreparedCustomerRow({
   row,
@@ -44,7 +45,7 @@ export function PreparedCustomerRow({
           <p className="truncate text-sm text-tapit-muted">{rowContact(row)}</p>
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1 justify-self-end md:justify-self-start">
+      <div className="flex flex-wrap items-center justify-end gap-1 md:justify-start">
         <RowStatus row={row} />
       </div>
       <p className="hidden text-sm capitalize text-tapit-muted md:block">
