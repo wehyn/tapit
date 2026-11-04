@@ -1,13 +1,10 @@
 import { contextForIdentity, expect, signInWithGoogle, test } from "./fixtures/live";
 import type { Page } from "@playwright/test";
+import { customerRow, openCustomerDetails } from "./support/customer-rows";
 
 let setupPath = process.env.TAPIT_LIVE_SETUP_PATH;
 let replacedSetupPath: string | undefined;
 let customerProfileSlug: string | undefined;
-
-function accountRow(page: Page, email: string) {
-  return page.locator("article").filter({ hasText: email }).first();
-}
 
 async function extractSetupPath(page: Page) {
   const text = await page.getByText(/Reusable until revoked:/).innerText();
@@ -179,11 +176,12 @@ test.describe("live Google OAuth journeys", () => {
     const page = await context.newPage();
     try {
       await page.goto("/admin/customers");
-      const row = accountRow(page, liveEnv.invitedEmail);
+      const row = customerRow(page, liveEnv.invitedEmail);
       await expect(row.getByText(/Profile: Live invited customer · \/[a-z0-9-]+/)).toBeVisible();
 
       const previousPath = setupPath;
-      await row.getByRole("button", { name: "Replace invitation" }).click();
+      const details = await openCustomerDetails(page, liveEnv.invitedEmail);
+      await details.getByRole("button", { name: "Replace invitation" }).click();
       await expect(page.getByText("The previous link is invalid immediately.")).toBeVisible();
       replacedSetupPath = await extractSetupPath(page);
       expect(replacedSetupPath).not.toBe(previousPath);
@@ -253,15 +251,17 @@ test.describe("live Google OAuth journeys", () => {
       ).toBeVisible();
       await expect(page.getByRole("link", { name: "Reset password" })).toHaveCount(0);
 
-      const customer = accountRow(page, liveEnv.customerEmail);
+      const customer = customerRow(page, liveEnv.customerEmail);
       page.on("dialog", (dialog) => dialog.accept());
-      await customer.getByText("More actions").click();
-      await customer.getByRole("button", { name: "Promote to Demo" }).click();
+      const toDemo = await openCustomerDetails(page, liveEnv.customerEmail);
+      await toDemo.getByRole("button", { name: "Promote to Demo" }).click();
       await expect(customer).toContainText("Demo");
-      await customer.getByRole("button", { name: "Promote to Administrator" }).click();
+      const toAdministrator = await openCustomerDetails(page, liveEnv.customerEmail);
+      await toAdministrator.getByRole("button", { name: "Promote to Administrator" }).click();
       await expect(customer).toContainText("admin");
-      await expect(customer).toContainText("Account");
-      await customer.getByRole("button", { name: "Demote to customer" }).click();
+      const demoted = await openCustomerDetails(page, liveEnv.customerEmail);
+      await expect(demoted).toContainText("Account");
+      await demoted.getByRole("button", { name: "Demote to customer" }).click();
       await expect(customer).toContainText("customer");
 
       await page.goto("/admin/profiles");
@@ -283,10 +283,10 @@ test.describe("live Google OAuth journeys", () => {
     const page = await context.newPage();
     try {
       await page.goto("/admin/customers");
-      const invited = accountRow(page, liveEnv.invitedEmail);
-      await expect(invited.getByText("Invitation: accepted")).toBeVisible();
+      const invited = await openCustomerDetails(page, liveEnv.invitedEmail);
+      await expect(invited).toContainText("Invitation");
+      await expect(invited).toContainText("accepted");
       page.on("dialog", (dialog) => dialog.accept());
-      await invited.getByText("More actions").click();
       await invited.getByRole("button", { name: "Revoke invitation" }).click();
 
       const revokedContext = await browser.newContext({ baseURL: liveEnv.baseURL });

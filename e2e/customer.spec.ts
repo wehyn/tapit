@@ -10,6 +10,7 @@ import {
   signInAsAdmin,
   signInAsCustomer,
 } from "./support/demo-harness";
+import { customerRow, openCustomerDetails } from "./support/customer-rows";
 
 const navigationTourSteps = [
   { label: "Profile", description: "Edit your profile details and what people see." },
@@ -3644,9 +3645,10 @@ test("Demo customer resets linked data and onboards again with the same identity
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/admin\/customers$/);
   await page.getByLabel("Search customers").fill(email);
-  const customer = page.locator("article").filter({ hasText: email }).first();
+  const customer = customerRow(page, email);
+  const details = await openCustomerDetails(page, email);
   await page.once("dialog", (dialog) => dialog.accept());
-  await customer.getByRole("button", { name: "Promote to Demo" }).click();
+  await details.getByRole("button", { name: "Promote to Demo" }).click();
   await expect(customer.getByText("Demo", { exact: true })).toBeVisible();
 
   await page.getByRole("button", { name: /^Account menu for admin@tapit\.local$/ }).click();

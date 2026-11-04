@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 import { Button } from "./Button";
+import { useDialogFocus } from "./use-dialog-focus";
 
 export function ConfirmDialog({
   cancelLabel = "Cancel",
@@ -23,41 +22,7 @@ export function ConfirmDialog({
   open: boolean;
   title: string;
 }) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<Element | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    triggerRef.current = document.activeElement;
-    dialogRef.current?.focus();
-    function trapFocus(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        onCancel();
-        return;
-      }
-      if (event.key !== "Tab" || dialogRef.current === null) return;
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => !element.hasAttribute("disabled"));
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (first === undefined || last === undefined) return;
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-    document.addEventListener("keydown", trapFocus);
-    return () => {
-      document.removeEventListener("keydown", trapFocus);
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
-    };
-  }, [onCancel, open]);
+  const dialogRef = useDialogFocus<HTMLDivElement>(open, onCancel);
 
   if (!open) return null;
   return (

@@ -42,6 +42,11 @@ function mockOwnerOverride(updateOverride: ReturnType<typeof vi.fn>) {
   );
 }
 
+function openDetails(name = "First Example") {
+  fireEvent.click(screen.getByRole("button", { name }));
+  return within(screen.getByRole("dialog", { name }));
+}
+
 function mockActiveCustomer(cardOwnerAccessOverride: boolean, isDemo = false) {
   convexHooks.usePaginatedQuery.mockImplementation(
     (query: unknown, args: { setupState?: string }) => ({
@@ -118,7 +123,7 @@ describe("paginated administrator account lists", () => {
     mockActiveCustomer(false);
 
     render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(openDetails().getByRole("button", { name: "Grant owner access" }));
     const dialog = screen.getByRole("dialog", { name: "Grant owner access?" });
     expect(dialog).toHaveTextContent("first@example.test");
     expect(dialog).toHaveTextContent("does not record a card claim");
@@ -132,7 +137,7 @@ describe("paginated administrator account lists", () => {
     mockActiveCustomer(true);
 
     render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Revoke owner access" }));
+    fireEvent.click(openDetails().getByRole("button", { name: "Revoke owner access" }));
     const dialog = screen.getByRole("dialog", { name: "Revoke owner access?" });
     expect(dialog).toHaveTextContent("first@example.test");
     expect(dialog).toHaveTextContent("successfully claimed card remains");
@@ -146,7 +151,7 @@ describe("paginated administrator account lists", () => {
     mockActiveCustomer(false);
 
     render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(openDetails().getByRole("button", { name: "Grant owner access" }));
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
         name: "Cancel",
@@ -162,7 +167,7 @@ describe("paginated administrator account lists", () => {
     mockActiveCustomer(false);
 
     render(<CustomersManager />);
-    fireEvent.click(screen.getByRole("button", { name: "Grant owner access" }));
+    fireEvent.click(openDetails().getByRole("button", { name: "Grant owner access" }));
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
         name: "Grant access",
@@ -191,8 +196,12 @@ describe("paginated administrator account lists", () => {
     });
 
     render(<CustomersManager />);
-    const [grantButton] = await screen.findAllByRole("button", { name: "Grant owner access" });
-    fireEvent.click(grantButton as HTMLElement);
+    fireEvent.click(await screen.findByRole("button", { name: "Mara Velasquez" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Mara Velasquez" })).getByRole("button", {
+        name: "Grant owner access",
+      }),
+    );
     fireEvent.click(
       within(screen.getByRole("dialog", { name: "Grant owner access?" })).getByRole("button", {
         name: "Grant access",
@@ -221,8 +230,9 @@ describe("paginated administrator account lists", () => {
     mockActiveCustomer(false);
 
     const { unmount } = render(<CustomersManager />);
-    expect(screen.queryByRole("button", { name: "Promote to Administrator" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Promote to Demo" }));
+    const customerDetails = openDetails();
+    expect(customerDetails.queryByRole("button", { name: "Promote to Administrator" })).toBeNull();
+    fireEvent.click(customerDetails.getByRole("button", { name: "Promote to Demo" }));
     expect(await screen.findByText("Customer promoted to Demo.")).toBeInTheDocument();
     expect(promoteToDemo).toHaveBeenCalledWith({ customerId: "customers:1" });
     expect(setRole).not.toHaveBeenCalled();
@@ -230,8 +240,9 @@ describe("paginated administrator account lists", () => {
 
     mockActiveCustomer(false, true);
     render(<CustomersManager />);
-    expect(screen.queryByRole("button", { name: "Promote to Demo" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Promote to Administrator" }));
+    const demoDetails = openDetails();
+    expect(demoDetails.queryByRole("button", { name: "Promote to Demo" })).toBeNull();
+    fireEvent.click(demoDetails.getByRole("button", { name: "Promote to Administrator" }));
     expect(await screen.findByText("Role updated to administrator.")).toBeInTheDocument();
     expect(setRole).toHaveBeenCalledWith({ customerId: "customers:1", role: "admin" });
     confirm.mockRestore();

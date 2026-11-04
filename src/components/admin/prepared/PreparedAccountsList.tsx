@@ -6,7 +6,7 @@ import { Field } from "@/components/ui/Field";
 import { Icon } from "@/components/ui/Icon";
 import { Notice } from "@/components/ui/Notice";
 import { Segmented } from "@/components/ui/Segmented";
-import { PreparedCustomerRow } from "./PreparedCustomerRow";
+import { PreparedCustomerRow, customerColumns } from "./PreparedCustomerRow";
 import { CopyButton } from "./CopyButton";
 import type { PreparedFilter } from "./selectors";
 import type { PreparedRow } from "./types";
@@ -110,24 +110,38 @@ export function PreparedAccountsList({
             <Notice>Search covers loaded pages only. Load more to continue searching.</Notice>
           ) : null}
           {rows.length ? (
-            rows.map((row) => (
-              <PreparedCustomerRow
-                key={row.id}
-                row={row}
-                onEdit={() => onEdit(row)}
-                onGenerate={() => onGenerate(row)}
-                onRevoke={() => onRevoke(row)}
-                onDelete={() => onDelete(row)}
-                onLegacyRevoke={() => onLegacyRevoke(row)}
-                onLegacyReplace={() => onLegacyReplace(row)}
-                onChangeRole={(role) => row.setupState === "active" && onChangeRole(row, role)}
-                onOwnerAccess={(enabled) =>
-                  row.setupState === "active" && onOwnerAccess(row, enabled)
-                }
-                onPromoteToDemo={() => row.setupState === "active" && onPromoteToDemo(row)}
-                onApproveDeletion={() => row.setupState === "active" && onApproveDeletion(row)}
-              />
-            ))
+            <div className="overflow-hidden rounded-card bg-tapit-surface shadow-card">
+              <div
+                aria-hidden="true"
+                className={`hidden gap-x-4 bg-tapit-soft-surface px-6 py-3 text-xs font-semibold uppercase tracking-wider text-tapit-muted md:grid ${customerColumns}`}
+              >
+                <span>User</span>
+                <span>Status</span>
+                <span>Role</span>
+                <span>Cards</span>
+                <span />
+              </div>
+              <ul aria-label="Customer accounts" className="flex flex-col gap-1 p-2">
+                {rows.map((row) => (
+                  <PreparedCustomerRow
+                    key={row.id}
+                    row={row}
+                    onEdit={() => onEdit(row)}
+                    onGenerate={() => onGenerate(row)}
+                    onRevoke={() => onRevoke(row)}
+                    onDelete={() => onDelete(row)}
+                    onLegacyRevoke={() => onLegacyRevoke(row)}
+                    onLegacyReplace={() => onLegacyReplace(row)}
+                    onChangeRole={(role) => row.setupState === "active" && onChangeRole(row, role)}
+                    onOwnerAccess={(enabled) =>
+                      row.setupState === "active" && onOwnerAccess(row, enabled)
+                    }
+                    onPromoteToDemo={() => row.setupState === "active" && onPromoteToDemo(row)}
+                    onApproveDeletion={() => row.setupState === "active" && onApproveDeletion(row)}
+                  />
+                ))}
+              </ul>
+            </div>
           ) : (
             <Notice>No customer accounts match this search.</Notice>
           )}

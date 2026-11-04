@@ -1,5 +1,9 @@
 # Change log
 
+## 2026-11-04 — Admin user details drawer
+
+- Customer rows are compact and selecting a row opens that user's details drawer. The row shows identity, status, role, and card count, and collapses to identity and status on phones. The drawer holds the account details and every action, including View profile, View cards, owner access, role changes, and invitation links. The separate More actions control is gone, and the drawer closes with its Close button, Escape, or the backdrop.
+
 ## 2026-10-31 — Customer card management
 
 - Customers can view cards assigned to their profile, including unclaimed and archived cards, and can disable eligible claimed cards, report eligible cards lost, choose the public lost-card page, and start reactivation with a fresh administrator-issued claim code.
