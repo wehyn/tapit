@@ -218,6 +218,8 @@ Content: customer list, email, profile/status summary, setup status, and creatio
 
 Actions: create account, send or resend setup invitation when supported, open profile, open cards, and initiate deletion handling.
 
+Rules: each customer is one compact row with a single keyboard-focusable button as its trigger, stretched over the whole row. Selecting the row opens a details drawer that holds the account details and every action, so the row carries no separate actions menu. The drawer is a modal dialog named for the customer. It traps focus, dismisses with Close, Escape, or the backdrop, and returns focus to the row. The row collapses to identity and status on phones.
+
 ### Administrator Profiles page
 
 Purpose: support and govern customer profiles.
