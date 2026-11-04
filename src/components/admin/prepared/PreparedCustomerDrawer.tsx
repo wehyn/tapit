@@ -148,7 +148,7 @@ export function PreparedCustomerDrawer({
       <div
         aria-labelledby={titleId}
         aria-modal="true"
-        className="flex h-full w-full max-w-md flex-col gap-6 overflow-y-auto overscroll-contain bg-tapit-surface p-6 shadow-card sm:rounded-l-card"
+        className="flex h-full w-full max-w-md flex-col gap-6 overflow-y-auto overscroll-contain bg-tapit-surface p-6 shadow-card outline-none! sm:rounded-l-card"
         ref={dialogRef}
         role="dialog"
         tabIndex={-1}
