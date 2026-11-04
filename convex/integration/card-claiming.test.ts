@@ -536,6 +536,11 @@ describe("card claiming contracts", () => {
     expect(await t.run((ctx) => ctx.db.get(cardId))).not.toHaveProperty("claimCodeExpiresAt");
     // Legacy timestamps are advisory only; an old past expiry does not invalidate a package code.
     await t.run(async (ctx) => await ctx.db.patch(cardId, { claimCodeExpiresAt: 1 }));
+    const listedCards = await admin.query(api.cards.adminList, {});
+    expect(listedCards.find((card) => card._id === cardId)).not.toHaveProperty("claimCodeHash");
+    expect(listedCards.find((card) => card._id === cardId)).not.toHaveProperty(
+      "claimCodeExpiresAt",
+    );
     const paginatedCards = await admin.query(api.cards.adminListPaginated, {
       paginationOpts: { numItems: 10, cursor: null },
     });
@@ -588,6 +593,16 @@ describe("card claiming contracts", () => {
         token: firstToken,
       }),
     ).rejects.toThrow("already registered");
+    await t.run((ctx) =>
+      ctx.db.patch(cardId, {
+        ownerDisabledAt: 2,
+        lostCardResolution: "return",
+        correctionRequestedAt: 3,
+      }),
+    );
+    expect(
+      (await admin.query(api.cards.adminList, {})).find((card) => card._id === cardId),
+    ).toMatchObject({ ownerDisabledAt: 2, lostCardResolution: "return", correctionRequestedAt: 3 });
   });
 
   it("commits failed claim-code attempts against the verification limit", async () => {

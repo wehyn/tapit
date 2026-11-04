@@ -371,27 +371,7 @@ export const ownerReactivate = mutation({
 
 export const adminList = query({
   args: {},
-  returns: v.array(
-    v.object({
-      _id: v.id("cards"),
-      _creationTime: v.number(),
-      scope: v.optional(v.literal("demo")),
-      cardUrl: v.string(),
-      token: v.string(),
-      profileId: v.optional(v.id("profiles")),
-      status: cardStatusValidator,
-      replacedByCardId: v.optional(v.id("cards")),
-      assignmentReason: v.optional(v.string()),
-      createdAt: v.number(),
-      updatedAt: v.number(),
-      assignedAt: v.optional(v.number()),
-      deactivatedAt: v.optional(v.number()),
-      archivedAt: v.optional(v.number()),
-      claimCodeGeneratedAt: v.optional(v.number()),
-      claimCodeInvalidatedAt: v.optional(v.number()),
-      claimCodeClaimedAt: v.optional(v.number()),
-    }),
-  ),
+  returns: v.array(schema.doc("cards").omit("claimCodeHash", "claimCodeExpiresAt")),
   handler: async (ctx) => {
     const { account } = await requireAdministrator(ctx);
     const cards = await ctx.db
@@ -401,6 +381,7 @@ export const adminList = query({
     return cards.map((card) => {
       const safeCard = { ...card };
       delete safeCard.claimCodeHash;
+      delete safeCard.claimCodeExpiresAt;
       return safeCard;
     });
   },
