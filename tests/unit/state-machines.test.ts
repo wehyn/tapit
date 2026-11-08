@@ -90,6 +90,20 @@ describe("card order machine", () => {
     ).toMatchObject({ commissionStatus: "none" });
   });
 
+  it("keeps a paid commission paid when a paid order is refunded", () => {
+    const paid = {
+      paymentStatus: "received",
+      fulfillmentStatus: "delivered",
+      commissionStatus: "paid",
+      hasReferral: true,
+    } as const;
+    expect(transitionCardOrder(paid, "refund")).toMatchObject({
+      paymentStatus: "refunded",
+      fulfillmentStatus: "delivered",
+      commissionStatus: "paid",
+    });
+  });
+
   it("derives awaiting-payment from the machine", () => {
     expect(isCardOrderAwaitingPayment(quoted)).toBe(true);
     expect(isCardOrderAwaitingPayment({ ...quoted, paymentStatus: "received" })).toBe(false);
