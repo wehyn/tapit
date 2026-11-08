@@ -5,6 +5,7 @@ import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 import { api } from "../../../convex/_generated/api";
+import { canTransitionCardOrder } from "@/lib/domain/state-machines";
 
 import {
   cancelDemoCardOrder,
@@ -307,26 +308,13 @@ function OrderCard({
   const [shippingPesos, setShippingPesos] = useState("");
   const [payoutReference, setPayoutReference] = useState("");
   const [inputError, setInputError] = useState("");
-  const awaitingQuote =
-    order.fulfillmentStatus === "awaiting_shipping_quote" && order.paymentStatus === "unpaid";
-  const awaitingPayment =
-    order.fulfillmentStatus === "awaiting_payment" && order.paymentStatus === "unpaid";
-  const processingPaid =
-    order.fulfillmentStatus === "processing" && order.paymentStatus === "received";
-  const canCancel =
-    order.paymentStatus === "unpaid" &&
-    ["awaiting_shipping_quote", "awaiting_payment"].includes(order.fulfillmentStatus);
-  const canRefund =
-    order.paymentStatus === "received" &&
-    ["processing", "delivered"].includes(order.fulfillmentStatus);
-  const canMarkCommissionEligible =
-    order.fulfillmentStatus === "delivered" &&
-    order.paymentStatus === "received" &&
-    order.commissionStatus === "pending";
-  const canRecordPayout =
-    order.fulfillmentStatus === "delivered" &&
-    order.paymentStatus === "received" &&
-    order.commissionStatus === "eligible";
+  const awaitingQuote = canTransitionCardOrder(order, "quote_shipping");
+  const awaitingPayment = canTransitionCardOrder(order, "receive_payment");
+  const processingPaid = canTransitionCardOrder(order, "deliver");
+  const canCancel = canTransitionCardOrder(order, "cancel");
+  const canRefund = canTransitionCardOrder(order, "refund");
+  const canMarkCommissionEligible = canTransitionCardOrder(order, "commission_eligible");
+  const canRecordPayout = canTransitionCardOrder(order, "pay_commission");
 
   function submitShippingQuote(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

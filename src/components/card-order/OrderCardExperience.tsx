@@ -7,6 +7,7 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { isCardOrderAwaitingPayment } from "@/lib/domain/state-machines";
 import { AuthLoadingState } from "@/components/auth/AuthLoadingState";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -1441,10 +1442,7 @@ function OrderSummaryCard({
   const cardTotal = order.cardPriceCentavos - order.discountCentavos;
   const totalDue =
     order.shippingQuoteCentavos === undefined ? null : cardTotal + order.shippingQuoteCentavos;
-  const amountLabel =
-    order.paymentStatus === "unpaid" && order.fulfillmentStatus === "awaiting_payment"
-      ? "Amount due"
-      : "Order total";
+  const amountLabel = isCardOrderAwaitingPayment(order) ? "Amount due" : "Order total";
   return (
     <Card className={`gap-0 ${prominent ? "bg-tapit-success-soft" : "p-4 sm:p-6"}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1536,8 +1534,7 @@ function DemoCustomerReceipt({ order }: { order: CustomerOrder }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [order.id, order.receipt?.receiptKey]);
-  const canUpload =
-    order.paymentStatus === "unpaid" && order.fulfillmentStatus === "awaiting_payment";
+  const canUpload = isCardOrderAwaitingPayment(order);
   return (
     <section aria-label="Payment receipt" className="mt-4 rounded-control bg-tapit-paper p-4">
       {order.receipt ? (
@@ -1648,8 +1645,7 @@ function LiveCustomerReceipt({ order }: { order: CustomerOrder }) {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
-  const canUpload =
-    order.paymentStatus === "unpaid" && order.fulfillmentStatus === "awaiting_payment";
+  const canUpload = isCardOrderAwaitingPayment(order);
 
   async function uploadReceipt() {
     if (file === null || uploading) return;

@@ -1,5 +1,6 @@
 "use client";
 
+import { isCardOrderAwaitingPayment } from "../domain/state-machines";
 import type { DemoCardOrder } from "./fixtures";
 import { withDemoCardOrderCommitLock } from "./card-order-assets";
 import { refreshDemoAccessSnapshot, resolveDemoSessionAccess, updateDemoState } from "./store";
@@ -100,7 +101,7 @@ export async function attachDemoCardOrderReceipt(orderId: string, file: File): P
     (item) => item.id === orderId && item.customerId === owner.id,
   );
   if (!order) throw new Error("Order unavailable.");
-  if (order.paymentStatus !== "unpaid" || order.fulfillmentStatus !== "awaiting_payment")
+  if (!isCardOrderAwaitingPayment(order))
     throw new Error("Receipt upload is available only while awaiting payment.");
   const contentType = await validate(file);
   const receipt: Receipt = {
@@ -116,12 +117,7 @@ export async function attachDemoCardOrderReceipt(orderId: string, file: File): P
       const latest = current();
       const live = latest.state.cardOrders.find((item) => item.id === orderId);
       if (latest.account.id !== owner.id) throw new Error("Account session changed. Try again.");
-      if (
-        !live ||
-        live.customerId !== owner.id ||
-        live.paymentStatus !== "unpaid" ||
-        live.fulfillmentStatus !== "awaiting_payment"
-      )
+      if (!live || live.customerId !== owner.id || !isCardOrderAwaitingPayment(live))
         throw new Error("Receipt upload is available only for your unpaid order awaiting payment.");
       await store("readwrite", (s) =>
         s.add({ ...receipt, ownerId: owner.id, orderId, blob: file } satisfies StoredReceipt),
@@ -133,9 +129,7 @@ export async function attachDemoCardOrderReceipt(orderId: string, file: File): P
         const stateOrder = state.cardOrders.find((item) => item.id === orderId);
         const persistedOrder = latest.snapshot.state.cardOrders.find((item) => item.id === orderId);
         const canAttach = (candidate: DemoCardOrder | undefined) =>
-          candidate?.customerId === owner.id &&
-          candidate.paymentStatus === "unpaid" &&
-          candidate.fulfillmentStatus === "awaiting_payment";
+          candidate?.customerId === owner.id && isCardOrderAwaitingPayment(candidate);
         if (active.kind !== "active" || active.account.id !== owner.id) {
           throw new Error("Account session changed. Try again.");
         }

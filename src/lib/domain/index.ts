@@ -7,7 +7,12 @@ import {
   transitionCardStatus,
   transitionDeletionStatus,
   transitionProfileStatus,
+  type CardStatus,
+  type DeletionStatus,
+  type ProfileStatus,
 } from "./state-machines";
+
+export type { CardStatus, DeletionStatus, ProfileStatus };
 import {
   defaultProfileLayoutOrder,
   defaultProfileCustomizationForTheme,
@@ -27,10 +32,7 @@ import {
 } from "../profile-media";
 
 export type Role = "customer" | "admin";
-export type ProfileStatus = "draft" | "published" | "unpublished" | "suspended";
-export type CardStatus = "registered" | "claimable" | "active" | "inactive" | "replaced" | "lost";
 export type AnalyticsSource = "nfc" | "qr" | "direct" | "unknown";
-export type DeletionStatus = "active" | "requested" | "deleted";
 export type ProfileTheme = "paper" | "moss" | "night" | "custom";
 export type PublicationIssueKind = "profile" | "links" | "customization" | "media";
 export type PublicationIssue = { kind: PublicationIssueKind; message: string };

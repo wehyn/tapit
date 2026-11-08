@@ -10,7 +10,7 @@ import {
   calculateReferralDiscountForPriceCentavos,
   calculatePromoAdjustedPriceCentavos,
   CARD_REGULAR_PRICE_CENTAVOS,
-  isCardOrderOfferExpired,
+  cardOrderOfferAvailability,
 } from "../src/lib/card-ordering";
 import schema from "./schema";
 import { transitionCardOrder } from "../src/lib/domain/state-machines";
@@ -213,9 +213,8 @@ export const placeOrder = mutation({
       promoCode &&
       (offer === null ||
         !sameScope(customer, offer) ||
-        isCardOrderOfferExpired(offer.expiresOn, now) ||
-        (offer.code === "FOUNDING" && !foundingVerified) ||
-        (offer.usageLimit !== undefined && offer.usageCount >= offer.usageLimit))
+        cardOrderOfferAvailability(offer, now) !== "available" ||
+        (offer.code === "FOUNDING" && !foundingVerified))
     )
       throw new Error("Promo code is unavailable for this order.");
     if (

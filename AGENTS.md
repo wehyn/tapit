@@ -47,6 +47,7 @@ For code or test work, read [CODING_STANDARDS.md](CODING_STANDARDS.md). For loca
 ## Which doc for which task
 
 - Product behaviour and acceptance criteria: [docs/spec.md](docs/spec.md). The root `spec.md` is a single feature spec (card-order codes and payment uploads, issues #151–153), not the product spec; other feature designs are in `docs/specs/`, `docs/superpowers/specs/`, and `docs/plans/`.
+- Lifecycles and status fields: [docs/state-machines.md](docs/state-machines.md). Use the transition and `can…` helpers in `src/lib/domain/state-machines.ts` instead of re-writing status checks.
 - Notable user-visible changes: [docs/CHANGELOG.md](docs/CHANGELOG.md).
 - Live/hosted-demo E2E and Google OAuth: [docs/live-e2e.md](docs/live-e2e.md).
 - Preview/Production release gates: [docs/launch-readiness.md](docs/launch-readiness.md).

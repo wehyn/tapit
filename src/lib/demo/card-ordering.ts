@@ -9,9 +9,10 @@ import {
   manilaStartOfDayTimestamp,
   type CardOrderPlacementResult,
   type CardOrderPrice,
-  isCardOrderOfferExpired,
+  cardOrderOfferAvailability,
   isValidReferralFixedPriceCentavos,
 } from "../card-ordering";
+import { canTransitionCardOrder } from "../domain/state-machines";
 import {
   withDemoCardOrderAssetReservation,
   withDemoCardOrderCommitLock,
@@ -519,8 +520,10 @@ export function previewDemoCardOrderCodes(input: {
     promoInput === undefined ||
     (Number.isFinite(input.currentTime) &&
       offer !== undefined &&
-      !isCardOrderOfferExpired(offer.expiresOn, input.currentTime) &&
-      (offer.usageLimit === undefined || offerUsageCount(state, offer.id) < offer.usageLimit));
+      cardOrderOfferAvailability(
+        { ...offer, usageCount: offerUsageCount(state, offer.id) },
+        input.currentTime,
+      ) === "available");
   const referralValid =
     referralInput === undefined ||
     (referral?.active === true &&
@@ -605,9 +608,10 @@ export async function placeDemoCardOrder(
     if (
       (normalizedPromo &&
         (!offer ||
-          isCardOrderOfferExpired(offer.expiresOn) ||
-          (offer.usageLimit !== undefined &&
-            offerUsageCount(current, offer.id) >= offer.usageLimit))) ||
+          cardOrderOfferAvailability({
+            ...offer,
+            usageCount: offerUsageCount(current, offer.id),
+          }) !== "available")) ||
       (normalizedReferral &&
         (!referral?.active ||
           (referral.offerId !== undefined && referral.offerId !== null) ||
@@ -793,7 +797,7 @@ export function quoteDemoCardOrderShipping(
   shippingQuoteCentavos: number,
 ): Promise<void> {
   return changeOrder(orderId, "shipping_quoted", (order) => {
-    if (order.fulfillmentStatus !== "awaiting_shipping_quote" || order.paymentStatus !== "unpaid") {
+    if (!canTransitionCardOrder(order, "quote_shipping")) {
       throw new Error("Order is not awaiting a shipping quote.");
     }
     if (!Number.isSafeInteger(shippingQuoteCentavos) || shippingQuoteCentavos < 0) {
@@ -806,8 +810,7 @@ export function quoteDemoCardOrderShipping(
 export function markDemoCardOrderPaymentReceived(orderId: string): Promise<void> {
   return changeOrder(orderId, "payment_received", (order) => {
     if (
-      order.fulfillmentStatus !== "awaiting_payment" ||
-      order.paymentStatus !== "unpaid" ||
+      !canTransitionCardOrder(order, "receive_payment") ||
       order.shippingQuoteCentavos === undefined
     ) {
       throw new Error("Order is not awaiting payment.");
@@ -818,7 +821,7 @@ export function markDemoCardOrderPaymentReceived(orderId: string): Promise<void>
 
 export function markDemoCardOrderDelivered(orderId: string): Promise<void> {
   return changeOrder(orderId, "delivered", (order) => {
-    if (order.fulfillmentStatus !== "processing" || order.paymentStatus !== "received") {
+    if (!canTransitionCardOrder(order, "deliver")) {
       throw new Error("Paid processing order required.");
     }
     return { fulfillmentStatus: "delivered" };
@@ -831,10 +834,7 @@ function stoppedCommission(order: DemoCardOrder): DemoCardOrder["commissionStatu
 
 export function cancelDemoCardOrder(orderId: string): Promise<void> {
   return changeOrder(orderId, "cancelled", (order) => {
-    if (
-      order.paymentStatus !== "unpaid" ||
-      !["awaiting_shipping_quote", "awaiting_payment"].includes(order.fulfillmentStatus)
-    ) {
+    if (!canTransitionCardOrder(order, "cancel")) {
       throw new Error("Only an unpaid open order can be cancelled.");
     }
     return { fulfillmentStatus: "cancelled", commissionStatus: stoppedCommission(order) };
@@ -843,10 +843,7 @@ export function cancelDemoCardOrder(orderId: string): Promise<void> {
 
 export function refundDemoCardOrder(orderId: string): Promise<void> {
   return changeOrder(orderId, "refunded", (order) => {
-    if (
-      order.paymentStatus !== "received" ||
-      !["processing", "delivered"].includes(order.fulfillmentStatus)
-    ) {
+    if (!canTransitionCardOrder(order, "refund")) {
       throw new Error("Only a paid order can be refunded.");
     }
     return {
@@ -859,11 +856,7 @@ export function refundDemoCardOrder(orderId: string): Promise<void> {
 
 export function markDemoCardOrderCommissionEligible(orderId: string): Promise<void> {
   return changeOrder(orderId, "commission_eligible", (order) => {
-    if (
-      order.fulfillmentStatus !== "delivered" ||
-      order.paymentStatus !== "received" ||
-      order.commissionStatus !== "pending"
-    ) {
+    if (!canTransitionCardOrder(order, "commission_eligible")) {
       throw new Error("Delivered referral order required.");
     }
     return { commissionStatus: "eligible" };
@@ -875,11 +868,7 @@ export function recordDemoCardOrderCommissionPayout(
   reference: string,
 ): Promise<void> {
   return changeOrder(orderId, "commission_paid", (order) => {
-    if (
-      order.commissionStatus !== "eligible" ||
-      order.fulfillmentStatus !== "delivered" ||
-      order.paymentStatus !== "received"
-    ) {
+    if (!canTransitionCardOrder(order, "pay_commission")) {
       throw new Error("Eligible delivered order required.");
     }
     return {
