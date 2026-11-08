@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
+import { isCardOrderOfferExpired } from "@/lib/card-ordering";
 import { isLocalDemoMode } from "@/lib/demo/mode";
 import * as demoOrdering from "@/lib/demo/card-ordering";
 import { useDemoState } from "@/lib/demo/store";
@@ -259,7 +260,7 @@ function CodesWorkspace({
                   </p>
                   <p className="mt-1 text-sm text-tapit-muted">
                     {offer.expiresOn
-                      ? `Expires ${offer.expiresOn}${offer.expiresOn <= new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()) ? " · Expired" : ""}`
+                      ? `Expires ${offer.expiresOn}${isCardOrderOfferExpired(offer.expiresOn) ? " · Expired" : ""}`
                       : "No expiry"}
                   </p>
                   <p className="mt-1 text-sm text-tapit-muted">

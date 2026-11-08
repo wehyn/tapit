@@ -453,3 +453,24 @@ export function transitionCardOrder(state: CardOrderState, event: CardOrderEvent
       throw new Error("Eligible delivered order required.");
   }
 }
+
+/**
+ * Whether `event` is legal for an order right now. Derived by attempting the
+ * transition so UI gating, demo mutations, and Convex can never disagree.
+ */
+export type CardOrderGate = Pick<CardOrderState, "paymentStatus" | "fulfillmentStatus"> &
+  Partial<Pick<CardOrderState, "commissionStatus">>;
+
+export function canTransitionCardOrder(order: CardOrderGate, event: CardOrderEvent): boolean {
+  try {
+    transitionCardOrder({ commissionStatus: "none", ...order, hasReferral: false }, event);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The customer owes payment: the order is quoted and unpaid. */
+export function isCardOrderAwaitingPayment(order: CardOrderGate): boolean {
+  return canTransitionCardOrder(order, "receive_payment");
+}

@@ -15,7 +15,7 @@ import {
   CARD_REGULAR_PRICE_CENTAVOS,
   calculatePromoAdjustedPriceCentavos,
   calculateReferralDiscountForPriceCentavos,
-  isCardOrderOfferExpired,
+  cardOrderOfferAvailability,
   isValidReferralFixedPriceCentavos,
 } from "../src/lib/card-ordering";
 
@@ -467,9 +467,8 @@ export const previewOrderCodes = query({
       (Number.isFinite(args.currentTime) &&
         offer !== null &&
         sameScope(customer, offer) &&
-        !isCardOrderOfferExpired(offer.expiresOn, args.currentTime) &&
-        (offer.code !== "FOUNDING" || foundingVerified) &&
-        (offer.usageLimit === undefined || offer.usageCount < offer.usageLimit));
+        cardOrderOfferAvailability(offer, args.currentTime) === "available" &&
+        (offer.code !== "FOUNDING" || foundingVerified));
     const referralValid =
       referralCode === undefined ||
       (referral?.active === true &&

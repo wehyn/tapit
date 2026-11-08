@@ -74,6 +74,16 @@ export function isCardOrderOfferExpired(expiresOn: string | undefined, now = Dat
   return expiresAt === null || now >= expiresAt;
 }
 
+/** Single source for promo-offer availability across Convex, demo, and admin UI. */
+export function cardOrderOfferAvailability(
+  offer: { expiresOn?: string; usageCount: number; usageLimit?: number },
+  now = Date.now(),
+): "available" | "expired" | "exhausted" {
+  if (isCardOrderOfferExpired(offer.expiresOn, now)) return "expired";
+  if (offer.usageLimit !== undefined && offer.usageCount >= offer.usageLimit) return "exhausted";
+  return "available";
+}
+
 export function percentageCentavos(amountCentavos: number, percent: number): number {
   if (!Number.isSafeInteger(amountCentavos) || amountCentavos < 0) {
     throw new RangeError("amountCentavos must be a non-negative safe integer.");
