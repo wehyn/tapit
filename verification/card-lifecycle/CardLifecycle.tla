@@ -168,6 +168,14 @@ Replace ==
   /\ UNCHANGED <<reqPeer, status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
+\* customers.requestDeletion and customers.approveDeletion retire the owner's cards.
+\* They close a pending correction too (found by review: they used to leave it open).
+RetireForDeletion ==
+  /\ status \in {"registered", "claimable", "active"}
+  /\ status' = "inactive" /\ correction' = FALSE
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver, chal,
+                 chalVer, ownerDisabled, claimsOnCode, badClaim>>
+
 \* profiles.publish: a claimed card waiting on an unpublished profile goes live.
 PublishProfile ==
   /\ hasProfile /\ ~published
@@ -200,7 +208,7 @@ Next ==
   \/ AdminAttach \/ GenerateCode \/ InvalidateCode \/ VerifyCode \/ CompleteClaim
   \/ RequestCorrection \/ ResolveCorrection \/ AdminReassign \/ OwnerDisable
   \/ AdminDeactivate \/ MarkLost \/ OwnerReactivate \/ AdminReactivate \/ Replace
-  \/ PublishProfile \/ UnpublishProfile \/ PeerChanges \/ RequesterPeerChanges
+  \/ RetireForDeletion \/ PublishProfile \/ UnpublishProfile \/ PeerChanges \/ RequesterPeerChanges
 
 Spec == Init /\ [][Next]_vars
 

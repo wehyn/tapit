@@ -55,6 +55,7 @@ export const step = (action) =>
     OwnerReactivate: "owner switches the card back on",
     AdminReactivate: "admin reactivates the card",
     Replace: null,
+    RetireForDeletion: "the owner deletes their account",
     PublishProfile: "owner publishes the profile",
     UnpublishProfile: null,
     PeerChanges: null,

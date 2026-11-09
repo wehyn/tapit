@@ -11,7 +11,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import {
   isActiveCustomer,
   isHostedDemo,
@@ -34,6 +34,7 @@ import { deriveSetupState, latestSetupExpiry } from "./preparedSetup";
 import { replaceProfileLinks } from "./links";
 import {
   transitionCardStatus,
+  transitionCorrectionStatus,
   transitionCustomerStatus,
   transitionDeletionStatus,
   transitionDeletionRequestStatus,
@@ -89,6 +90,42 @@ const customerSetupListRowValidator = schema.doc("customers").extend({
 });
 
 const CUSTOMER_SETUP_STATE_BACKFILL_KEY = "customerSetupStateBackfill";
+
+// Retiring a card also closes any open assignment correction on it: an inactive card
+// can no longer be corrected, and nothing else clears the flag, so it would be stuck.
+async function retireCardsForDeletion(
+  ctx: MutationCtx,
+  cards: Doc<"cards">[],
+  now: number,
+  resolvedByUserId: Id<"users">,
+) {
+  await Promise.all(
+    cards
+      .filter(
+        (card) =>
+          card.status === "active" || card.status === "claimable" || card.status === "registered",
+      )
+      .map(async (card) => {
+        await ctx.db.patch(card._id, {
+          status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+          correctionRequestedAt: undefined,
+          deactivatedAt: now,
+          updatedAt: now,
+        });
+        const open = await ctx.db
+          .query("cardCorrectionRequests")
+          .withIndex("by_cardId_and_status", (q) => q.eq("cardId", card._id).eq("status", "open"))
+          .take(100);
+        for (const request of open)
+          await ctx.db.patch(request._id, {
+            status: transitionCorrectionStatus(request.status, "resolve"),
+            resolvedAt: now,
+            resolvedByUserId,
+            updatedAt: now,
+          });
+      }),
+  );
+}
 
 function prepareProfile(profile: {
   name: string;
@@ -1218,20 +1255,7 @@ export const requestDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     if (cards.some((card) => !sameScope(customer, card)))
       throw new Error("Profile cards belong to another scope.");
-    await Promise.all(
-      cards
-        .filter(
-          (card) =>
-            card.status === "active" || card.status === "claimable" || card.status === "registered",
-        )
-        .map((card) =>
-          ctx.db.patch(card._id, {
-            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
-            deactivatedAt: now,
-            updatedAt: now,
-          }),
-        ),
-    );
+    await retireCardsForDeletion(ctx, cards, now, userId);
     const requestId = await ctx.db.insert("deletionRequests", {
       scope: customer.scope,
       customerId: customer._id,
@@ -1340,20 +1364,7 @@ export const approveDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     if (cards.some((card) => !sameScope(account, card)))
       throw new Error("Profile cards belong to another scope.");
-    await Promise.all(
-      cards
-        .filter(
-          (card) =>
-            card.status === "active" || card.status === "claimable" || card.status === "registered",
-        )
-        .map((card) =>
-          ctx.db.patch(card._id, {
-            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
-            deactivatedAt: now,
-            updatedAt: now,
-          }),
-        ),
-    );
+    await retireCardsForDeletion(ctx, cards, now, userId);
     await deleteProfileMedia(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,

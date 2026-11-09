@@ -672,6 +672,10 @@ function DemoCardsManager() {
         card.profileId !== pending.sourceProfileId ||
         card.status !== pending.sourceStatus ||
         (card.status !== "active" && card.status !== "claimable") ||
+        card.correctionRequestedAt !== undefined ||
+        current.cardCorrectionRequests?.some(
+          (request) => request.token === card.token && request.status === "pending",
+        ) ||
         source === undefined ||
         sourceOwner === undefined ||
         destination === undefined ||
@@ -1341,6 +1345,7 @@ function DemoCardsManager() {
                           </select>
                           <Button
                             disabled={
+                              correctionPending ||
                               !profiles.some((candidate) => candidate.id !== card.profileId)
                             }
                             onClick={() => {
@@ -2154,6 +2159,7 @@ function LiveCardsManager() {
                           <Button
                             disabled={
                               pending ||
+                              correctionPending ||
                               !profiles.some((candidate) => candidate._id !== card.profileId)
                             }
                             onClick={() => {
