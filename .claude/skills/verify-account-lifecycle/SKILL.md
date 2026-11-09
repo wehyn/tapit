@@ -40,7 +40,7 @@ One account (with a `profiled` flag for `profileId`), starting either self-servi
 - `convex/customers.ts`: `createPrepared`, `createSelfServiceAccount`, `completeSelfServiceOnboarding`, `deletePendingAccount`, `deletePreparedDraft`, `expirePreparedSetup`, `requestDeletion`, `approveDeletion`.
 - `convex/invitations.ts`: `generate`, `revoke`, `replace`, `claim`. `convex/authIdentity.ts`: restart of a deleted customer.
 - `verification/account-lifecycle/`, `tests/verification/account-lifecycle-model.test.ts`, `convex/integration/account-lifecycle-model.test.ts`.
-- Sync commit: `91ec266c908683fc5f975b4a109148bf28e5fa4a`.
+- Sync commit: `aa04762d2741769d98c7e496f072ea97003e9851`.
 
 After any covered file changes, re-read the model against the new code, re-run all checks, and move the sync commit forward only once you have confirmed the model still describes the code at that commit.
 

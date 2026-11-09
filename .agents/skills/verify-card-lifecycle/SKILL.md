@@ -48,7 +48,7 @@ Observed, not a rule: nothing limits a profile to one live card. `attach`, `assi
 - `replace` only inserts a second active card on the same profile and leaves the old card untouched (`remaining-operations.test.ts` asserts this); the model does the same. Status `replaced` is never written by a mutation today (`mark_replaced` is unused), so it only appears on legacy rows; the model keeps it for `reactivate`.
 - `convex/cardClaims.ts`: `verifyCode`, `complete`. `convex/cardCorrectionRequests.ts`: request and resolve. `convex/profiles.ts`: publish activating claimed claimable cards. `convex/customers.ts`: `retireCardsForDeletion`, called by `requestDeletion` and `approveDeletion`.
 - `verification/card-lifecycle/`, `tests/verification/card-lifecycle-model.test.ts`, `convex/integration/card-lifecycle-model.test.ts`.
-- Sync commit: `91ec266c908683fc5f975b4a109148bf28e5fa4a`.
+- Sync commit: `aa04762d2741769d98c7e496f072ea97003e9851`.
 
 After any covered file changes, re-read the model against the new mutation guards, re-run all checks, and move the sync commit forward only once you have confirmed the model still describes the code at that commit.
 

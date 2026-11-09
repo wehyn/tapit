@@ -41,7 +41,7 @@ Observed, not a rule: refunding a delivered order whose commission is already pa
 - `src/lib/domain/state-machines.ts`: `transitionCardOrder` (all seven events), `canTransitionCardOrder`, `isCardOrderAwaitingPayment`.
 - `convex/cardOrders.ts`: `quoteShipping`, `markPaymentReceived`, `markDelivered`, `cancelOrder`, `refundOrder`, `markCommissionEligible`, `recordCommissionPayout`; the initial state set in the order-creation mutation (`commissionStatus: hasReferrer ? "pending" : "none"`).
 - `verification/card-order/`: model, config, chart view. `tests/verification/card-order-model.test.ts`: walk of the real function.
-- Sync commit: `91ec266c908683fc5f975b4a109148bf28e5fa4a`.
+- Sync commit: `aa04762d2741769d98c7e496f072ea97003e9851`.
 
 After any covered file changes, re-read the model against the new code, re-run all checks, and move the sync commit forward only once you have confirmed the model still describes the code at that commit.
 
