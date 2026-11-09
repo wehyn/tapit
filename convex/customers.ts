@@ -11,7 +11,7 @@ import {
   query,
   type MutationCtx,
 } from "./_generated/server";
-import type { Doc, Id } from "./_generated/dataModel";
+import type { Id } from "./_generated/dataModel";
 import {
   isActiveCustomer,
   isHostedDemo,
@@ -89,28 +89,6 @@ const customerSetupListRowValidator = schema.doc("customers").extend({
 });
 
 const CUSTOMER_SETUP_STATE_BACKFILL_KEY = "customerSetupStateBackfill";
-
-async function latestLivePreparedSetupInvitation(
-  ctx: MutationCtx,
-  customer: Doc<"customers">,
-  now: number,
-) {
-  const invitation = await ctx.db
-    .query("invitations")
-    .withIndex("by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires", (q) =>
-      q
-        .eq("customerId", customer._id)
-        .eq("kind", "prepared_setup")
-        .eq("scope", customer.scope)
-        .eq("invalidatedAt", undefined)
-        .eq("acceptedAt", undefined)
-        .eq("usedAt", undefined)
-        .gt("expiresAt", now),
-    )
-    .order("desc")
-    .first();
-  return invitation !== null && sameScope(customer, invitation) ? invitation : null;
-}
 
 function prepareProfile(profile: {
   name: string;
@@ -1336,15 +1314,6 @@ export const approveDeletion = mutation({
       throw new Error("Customer profile not found.");
 
     const now = Date.now();
-    const preparedInvitation = await ctx.db
-      .query("invitations")
-      .withIndex("by_customerId_and_kind_and_scope", (q) =>
-        q.eq("customerId", customer._id).eq("kind", "prepared_setup").eq("scope", customer.scope),
-      )
-      .first();
-    const hasPreparedSetup = preparedInvitation !== null && sameScope(customer, preparedInvitation);
-    const liveInvitation = await latestLivePreparedSetupInvitation(ctx, customer, now);
-    const setupState = hasPreparedSetup ? (liveInvitation === null ? "draft" : "waiting") : null;
     await ctx.db.patch(request._id, {
       status: transitionDeletionRequestStatus(request.status, "approve"),
       processedAt: now,
@@ -1352,23 +1321,13 @@ export const approveDeletion = mutation({
     });
     await ctx.db.patch(customer._id, {
       status: transitionCustomerStatus(customer.status, "approve_deletion"),
-      setupState,
-      setupExpiryInvitationId: setupState === "waiting" ? liveInvitation?._id : undefined,
-      setupExpiresAt: setupState === "waiting" ? liveInvitation?.expiresAt : undefined,
+      // Only an active (claimed) account reaches approval, so no setup link can be live.
+      setupState: null,
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       deletionStatus: transitionDeletionStatus(customer.deletionStatus, "approve"),
       updatedAt: now,
     });
-    if (
-      setupState === "waiting" &&
-      liveInvitation !== null &&
-      liveInvitation.setupExpiryScheduled !== true
-    ) {
-      await ctx.db.patch(liveInvitation._id, { setupExpiryScheduled: true });
-      await ctx.scheduler.runAt(liveInvitation.expiresAt!, internal.customers.expirePreparedSetup, {
-        customerId: customer._id,
-        invitationId: liveInvitation._id,
-      });
-    }
     await ctx.db.patch(profile._id, {
       status: transitionProfileStatus(profile.status, "unpublished", "system"),
       unpublishedAt: profile.unpublishedAt ?? now,
