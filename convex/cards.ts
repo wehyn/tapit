@@ -557,6 +557,8 @@ export const reassign = mutation({
       (card.status !== "active" && card.status !== "claimable")
     )
       throw new Error("The card assignment has changed. Refresh and try again.");
+    if (correctionPending(card) || (await hasOpenCorrection(ctx, card._id)))
+      throw new Error("Resolve the pending assignment correction before reassigning this card.");
     if (args.profileId === args.expectedProfileId)
       throw new Error("The card is already assigned to that profile.");
     const oldOwner = await ctx.db.get(oldProfile.ownerId);

@@ -34,6 +34,7 @@ import { deriveSetupState, latestSetupExpiry } from "./preparedSetup";
 import { replaceProfileLinks } from "./links";
 import {
   transitionCardStatus,
+  transitionCorrectionStatus,
   transitionCustomerStatus,
   transitionDeletionStatus,
   transitionDeletionRequestStatus,
@@ -90,26 +91,40 @@ const customerSetupListRowValidator = schema.doc("customers").extend({
 
 const CUSTOMER_SETUP_STATE_BACKFILL_KEY = "customerSetupStateBackfill";
 
-async function latestLivePreparedSetupInvitation(
+// Retiring a card also closes any open assignment correction on it: an inactive card
+// can no longer be corrected, and nothing else clears the flag, so it would be stuck.
+async function retireCardsForDeletion(
   ctx: MutationCtx,
-  customer: Doc<"customers">,
+  cards: Doc<"cards">[],
   now: number,
+  resolvedByUserId: Id<"users">,
 ) {
-  const invitation = await ctx.db
-    .query("invitations")
-    .withIndex("by_customerId_kind_scope_invalidatedAt_acceptedAt_usedAt_expires", (q) =>
-      q
-        .eq("customerId", customer._id)
-        .eq("kind", "prepared_setup")
-        .eq("scope", customer.scope)
-        .eq("invalidatedAt", undefined)
-        .eq("acceptedAt", undefined)
-        .eq("usedAt", undefined)
-        .gt("expiresAt", now),
-    )
-    .order("desc")
-    .first();
-  return invitation !== null && sameScope(customer, invitation) ? invitation : null;
+  await Promise.all(
+    cards
+      .filter(
+        (card) =>
+          card.status === "active" || card.status === "claimable" || card.status === "registered",
+      )
+      .map(async (card) => {
+        await ctx.db.patch(card._id, {
+          status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
+          correctionRequestedAt: undefined,
+          deactivatedAt: now,
+          updatedAt: now,
+        });
+        const open = await ctx.db
+          .query("cardCorrectionRequests")
+          .withIndex("by_cardId_and_status", (q) => q.eq("cardId", card._id).eq("status", "open"))
+          .take(100);
+        for (const request of open)
+          await ctx.db.patch(request._id, {
+            status: transitionCorrectionStatus(request.status, "resolve"),
+            resolvedAt: now,
+            resolvedByUserId,
+            updatedAt: now,
+          });
+      }),
+  );
 }
 
 function prepareProfile(profile: {
@@ -1240,20 +1255,7 @@ export const requestDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     if (cards.some((card) => !sameScope(customer, card)))
       throw new Error("Profile cards belong to another scope.");
-    await Promise.all(
-      cards
-        .filter(
-          (card) =>
-            card.status === "active" || card.status === "claimable" || card.status === "registered",
-        )
-        .map((card) =>
-          ctx.db.patch(card._id, {
-            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
-            deactivatedAt: now,
-            updatedAt: now,
-          }),
-        ),
-    );
+    await retireCardsForDeletion(ctx, cards, now, userId);
     const requestId = await ctx.db.insert("deletionRequests", {
       scope: customer.scope,
       customerId: customer._id,
@@ -1336,15 +1338,6 @@ export const approveDeletion = mutation({
       throw new Error("Customer profile not found.");
 
     const now = Date.now();
-    const preparedInvitation = await ctx.db
-      .query("invitations")
-      .withIndex("by_customerId_and_kind_and_scope", (q) =>
-        q.eq("customerId", customer._id).eq("kind", "prepared_setup").eq("scope", customer.scope),
-      )
-      .first();
-    const hasPreparedSetup = preparedInvitation !== null && sameScope(customer, preparedInvitation);
-    const liveInvitation = await latestLivePreparedSetupInvitation(ctx, customer, now);
-    const setupState = hasPreparedSetup ? (liveInvitation === null ? "draft" : "waiting") : null;
     await ctx.db.patch(request._id, {
       status: transitionDeletionRequestStatus(request.status, "approve"),
       processedAt: now,
@@ -1352,23 +1345,13 @@ export const approveDeletion = mutation({
     });
     await ctx.db.patch(customer._id, {
       status: transitionCustomerStatus(customer.status, "approve_deletion"),
-      setupState,
-      setupExpiryInvitationId: setupState === "waiting" ? liveInvitation?._id : undefined,
-      setupExpiresAt: setupState === "waiting" ? liveInvitation?.expiresAt : undefined,
+      // Only an active (claimed) account reaches approval, so no setup link can be live.
+      setupState: null,
+      setupExpiryInvitationId: undefined,
+      setupExpiresAt: undefined,
       deletionStatus: transitionDeletionStatus(customer.deletionStatus, "approve"),
       updatedAt: now,
     });
-    if (
-      setupState === "waiting" &&
-      liveInvitation !== null &&
-      liveInvitation.setupExpiryScheduled !== true
-    ) {
-      await ctx.db.patch(liveInvitation._id, { setupExpiryScheduled: true });
-      await ctx.scheduler.runAt(liveInvitation.expiresAt!, internal.customers.expirePreparedSetup, {
-        customerId: customer._id,
-        invitationId: liveInvitation._id,
-      });
-    }
     await ctx.db.patch(profile._id, {
       status: transitionProfileStatus(profile.status, "unpublished", "system"),
       unpublishedAt: profile.unpublishedAt ?? now,
@@ -1381,20 +1364,7 @@ export const approveDeletion = mutation({
     if (cards.length > 1000) throw new Error("Too many cards are assigned to this profile.");
     if (cards.some((card) => !sameScope(account, card)))
       throw new Error("Profile cards belong to another scope.");
-    await Promise.all(
-      cards
-        .filter(
-          (card) =>
-            card.status === "active" || card.status === "claimable" || card.status === "registered",
-        )
-        .map((card) =>
-          ctx.db.patch(card._id, {
-            status: transitionCardStatus(card.status, { type: "retire_for_deletion" }),
-            deactivatedAt: now,
-            updatedAt: now,
-          }),
-        ),
-    );
+    await retireCardsForDeletion(ctx, cards, now, userId);
     await deleteProfileMedia(ctx, profile._id);
     await ctx.db.insert("auditLogs", {
       scope: account.scope,
