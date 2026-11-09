@@ -110,6 +110,7 @@ ResolveCorrection ==
                  claimsOnCode, badClaim>>
 
 \* cards.reassign: move a live card to another profile, retiring its code.
+\* The ~correction guard was added after TLC found a card stuck behind a correction.
 AdminReassign ==
   /\ Live(status) /\ ~correction
   /\ \E p \in BOOLEAN : published' = p /\ status' = PubStatus(p)
@@ -156,11 +157,11 @@ AdminReactivate ==
   /\ UNCHANGED <<hasProfile, published, peerLive, ver, chal, chalVer, correction,
                  claimsOnCode, badClaim>>
 
-\* cards.replace: the old card is retired, a new card takes over elsewhere.
+\* cards.replace adds a second active card on the same profile and leaves this one as it is.
 Replace ==
   /\ status = "active" /\ hasProfile /\ ~correction
-  /\ status' = "replaced"
-  /\ UNCHANGED <<hasProfile, published, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ peerLive' = TRUE
+  /\ UNCHANGED <<status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* profiles.publish: a claimed card waiting on an unpublished profile goes live.
@@ -208,6 +209,9 @@ ClaimNeedsProfile == claimed => (hasProfile /\ hash)
 OneClaimPerCode == claimsOnCode <= 1
 \* A claim never commits on a code that was replaced, invalidated or already used.
 NoClaimOnDeadCode == ~badClaim
+\* A pending correction can always be resolved: its code is neither invalidated nor used.
+\* (Resolving needs a usable code, and nothing can issue or invalidate one meanwhile.)
+CorrectionCanResolve == correction => (hash /\ ~invalidated /\ ~claimed)
 \* A pending correction freezes a card that is live.
 CorrectionFreezesCard == correction => Live(status)
 \* Only a card the customer switched off has the owner-disabled mark.

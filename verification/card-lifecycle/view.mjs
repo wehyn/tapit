@@ -54,7 +54,7 @@ export const step = (action) =>
     MarkLost: "the card is marked lost",
     OwnerReactivate: "owner switches the card back on",
     AdminReactivate: "admin reactivates the card",
-    Replace: "admin replaces the card",
+    Replace: null,
     PublishProfile: "owner publishes the profile",
     UnpublishProfile: null,
     PeerChanges: null,

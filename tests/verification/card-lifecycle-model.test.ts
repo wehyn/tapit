@@ -57,7 +57,7 @@ describe("card lifecycle model conformance", () => {
     );
   });
 
-  it("ResolveCorrection, PublishProfile, AdminDeactivate, MarkLost, Replace", () => {
+  it("PublishProfile, AdminDeactivate, MarkLost (and the unused mark_replaced event)", () => {
     expect(outcomes({ type: "publish_profile" })).toEqual(only({ claimable: "active" }));
     expect(outcomes({ type: "deactivate" })).toEqual(only({ active: "inactive" }));
     expect(outcomes({ type: "mark_replaced", replacementCardId: "new" })).toEqual(
