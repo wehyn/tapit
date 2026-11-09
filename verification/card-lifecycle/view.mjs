@@ -58,4 +58,5 @@ export const step = (action) =>
     PublishProfile: "owner publishes the profile",
     UnpublishProfile: null,
     PeerChanges: null,
+    RequesterPeerChanges: null,
   })[action] ?? action;

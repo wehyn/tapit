@@ -6,13 +6,16 @@
 \* convex/profiles.ts (publish), src/lib/domain/state-machines.ts.
 EXTENDS Naturals
 
-CONSTANT MaxVer \* how many claim codes an administrator may issue
+CONSTANTS
+  MaxVer,  \* how many claim codes an administrator may issue
+  Churn    \* whether the requester's profile may gain or lose a live card (off only to draw the chart)
 
 VARIABLES
   status,        \* cards.status
   hasProfile,    \* cards.profileId is set
   published,     \* the card's profile is published
   peerLive,      \* another card on the same profile is active or claimable
+  reqPeer,       \* the correction requester's profile already has a live card
   hash,          \* cards.claimCodeHash is set
   invalidated,   \* cards.claimCodeInvalidatedAt is set
   claimed,       \* cards.claimCodeClaimedAt is set
@@ -24,7 +27,7 @@ VARIABLES
   claimsOnCode,  \* history: claims committed against the current code
   badClaim       \* history: a claim committed with a stale, invalidated or claimed code
 
-vars == <<status, hasProfile, published, peerLive, hash, invalidated, claimed, ver,
+vars == <<status, hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver,
           chal, chalVer, correction, ownerDisabled, claimsOnCode, badClaim>>
 
 Statuses == {"registered", "claimable", "active", "inactive", "replaced", "lost"}
@@ -40,7 +43,7 @@ CodeState ==
 
 Init ==
   /\ status = "registered" /\ hasProfile = FALSE /\ published = FALSE
-  /\ peerLive \in BOOLEAN
+  /\ peerLive \in BOOLEAN /\ reqPeer = FALSE
   /\ hash = FALSE /\ invalidated = FALSE /\ claimed = FALSE /\ ver = 0
   /\ chal = "none" /\ chalVer = 0
   /\ correction = FALSE /\ ownerDisabled = FALSE
@@ -52,7 +55,7 @@ AdminAttach ==
   /\ \E p \in BOOLEAN :
        /\ status' = PubStatus(p) /\ published' = p
   /\ hasProfile' = TRUE
-  /\ UNCHANGED <<peerLive, hash, invalidated, claimed, ver, chal, chalVer, correction,
+  /\ UNCHANGED <<peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer, correction,
                  ownerDisabled, claimsOnCode, badClaim>>
 
 \* cards.generateClaimCode
@@ -60,14 +63,14 @@ GenerateCode ==
   /\ (status = "registered" /\ ~hasProfile) \/ (Live(status) /\ hasProfile)
   /\ ~correction /\ ~claimed /\ ver < MaxVer
   /\ hash' = TRUE /\ invalidated' = FALSE /\ ver' = ver + 1 /\ claimsOnCode' = 0
-  /\ UNCHANGED <<status, hasProfile, published, peerLive, claimed, chal, chalVer,
+  /\ UNCHANGED <<status, hasProfile, published, peerLive, reqPeer, claimed, chal, chalVer,
                  correction, ownerDisabled, badClaim>>
 
 \* cards.invalidateClaimCode
 InvalidateCode ==
   /\ ~correction
   /\ invalidated' = TRUE
-  /\ UNCHANGED <<status, hasProfile, published, peerLive, hash, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<status, hasProfile, published, peerLive, reqPeer, hash, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* cardClaims.verifyCode: the customer types the code and gets a challenge.
@@ -75,7 +78,7 @@ VerifyCode ==
   /\ status \in {"registered", "claimable", "active"}
   /\ ~correction /\ CodeState = "issued"
   /\ chal' = "active" /\ chalVer' = ver
-  /\ UNCHANGED <<status, hasProfile, published, peerLive, hash, invalidated, claimed, ver,
+  /\ UNCHANGED <<status, hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* cardClaims.complete
@@ -90,23 +93,24 @@ CompleteClaim ==
   /\ hasProfile' = TRUE /\ claimed' = TRUE /\ chal' = "used"
   /\ claimsOnCode' = claimsOnCode + 1
   /\ badClaim' = (badClaim \/ chalVer # ver \/ invalidated \/ claimed)
-  /\ UNCHANGED <<peerLive, hash, invalidated, ver, chalVer, correction, ownerDisabled>>
+  /\ UNCHANGED <<peerLive, reqPeer, hash, invalidated, ver, chalVer, correction, ownerDisabled>>
 
 \* cardCorrectionRequests: a customer finds the card assigned to the wrong profile.
 RequestCorrection ==
   /\ chal = "active" /\ chalVer = ver /\ Live(status) /\ ~correction
   /\ hash /\ ~invalidated /\ ~claimed
   /\ correction' = TRUE /\ chal' = "used"
-  /\ UNCHANGED <<status, hasProfile, published, peerLive, hash, invalidated, claimed, ver,
+  /\ UNCHANGED <<status, hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver,
                  chalVer, ownerDisabled, claimsOnCode, badClaim>>
 
 \* An administrator resolves the correction onto the requester's profile.
 ResolveCorrection ==
   /\ correction /\ Live(status) /\ ~invalidated /\ ~claimed
   /\ \E p \in BOOLEAN : published' = p /\ status' = PubStatus(p)
-  /\ peerLive' = FALSE \* the requester's profile must have no other live card
+  /\ ~reqPeer \* cardCorrectionRequests.correctAssignment refuses a requester profile with a live card
+  /\ peerLive' = FALSE
   /\ correction' = FALSE
-  /\ UNCHANGED <<hasProfile, hash, invalidated, claimed, ver, chal, chalVer, ownerDisabled,
+  /\ UNCHANGED <<reqPeer, hasProfile, hash, invalidated, claimed, ver, chal, chalVer, ownerDisabled,
                  claimsOnCode, badClaim>>
 
 \* cards.reassign: move a live card to another profile, retiring its code.
@@ -116,27 +120,27 @@ AdminReassign ==
   /\ \E p \in BOOLEAN : published' = p /\ status' = PubStatus(p)
   /\ peerLive' \in BOOLEAN
   /\ hash' = FALSE /\ claimed' = FALSE /\ invalidated' = TRUE
-  /\ UNCHANGED <<hasProfile, ver, chal, chalVer, correction, ownerDisabled, claimsOnCode, badClaim>>
+  /\ UNCHANGED <<reqPeer, hasProfile, ver, chal, chalVer, correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* cards.ownerDisable
 OwnerDisable ==
   /\ status = "active" /\ claimed /\ ~invalidated /\ ~correction
   /\ status' = "inactive" /\ ownerDisabled' = TRUE
-  /\ UNCHANGED <<hasProfile, published, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, claimsOnCode, badClaim>>
 
 \* cards.deactivate
 AdminDeactivate ==
   /\ status = "active" /\ ~correction
   /\ status' = "inactive" /\ ownerDisabled' = FALSE
-  /\ UNCHANGED <<hasProfile, published, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, claimsOnCode, badClaim>>
 
 \* cards.markLost and cards.ownerMarkLost
 MarkLost ==
   /\ status # "lost" /\ ~correction
   /\ status' = "lost" /\ ownerDisabled' = FALSE
-  /\ UNCHANGED <<hasProfile, published, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, claimsOnCode, badClaim>>
 
 \* cards.ownerReactivate: back on, but the old code is retired.
@@ -144,7 +148,7 @@ OwnerReactivate ==
   /\ status = "inactive" /\ ownerDisabled /\ ~correction
   /\ status' = PubStatus(published)
   /\ hash' = FALSE /\ invalidated' = TRUE /\ claimed' = FALSE /\ ownerDisabled' = FALSE
-  /\ UNCHANGED <<hasProfile, published, peerLive, ver, chal, chalVer, correction,
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, ver, chal, chalVer, correction,
                  claimsOnCode, badClaim>>
 
 \* cards.reactivate
@@ -154,14 +158,14 @@ AdminReactivate ==
        THEN /\ status' = "registered" /\ hash' = FALSE
        ELSE /\ hasProfile /\ status' = PubStatus(published) /\ hash' = hash
   /\ invalidated' = TRUE /\ claimed' = FALSE /\ ownerDisabled' = FALSE
-  /\ UNCHANGED <<hasProfile, published, peerLive, ver, chal, chalVer, correction,
+  /\ UNCHANGED <<hasProfile, published, peerLive, reqPeer, ver, chal, chalVer, correction,
                  claimsOnCode, badClaim>>
 
 \* cards.replace adds a second active card on the same profile and leaves this one as it is.
 Replace ==
   /\ status = "active" /\ hasProfile /\ ~correction
   /\ peerLive' = TRUE
-  /\ UNCHANGED <<status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<reqPeer, status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* profiles.publish: a claimed card waiting on an unpublished profile goes live.
@@ -169,27 +173,34 @@ PublishProfile ==
   /\ hasProfile /\ ~published
   /\ published' = TRUE
   /\ status' = IF status = "claimable" /\ claimed THEN "active" ELSE status
-  /\ UNCHANGED <<hasProfile, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<hasProfile, peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 UnpublishProfile ==
   /\ hasProfile /\ published
   /\ published' = FALSE
-  /\ UNCHANGED <<status, hasProfile, peerLive, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<status, hasProfile, peerLive, reqPeer, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
 
 \* An administrator attaches or moves another card on or off this card's profile.
 PeerChanges ==
   /\ hasProfile
   /\ peerLive' = ~peerLive
-  /\ UNCHANGED <<status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
+  /\ UNCHANGED <<reqPeer, status, hasProfile, published, hash, invalidated, claimed, ver, chal, chalVer,
                  correction, ownerDisabled, claimsOnCode, badClaim>>
+
+\* An administrator attaches or removes a card on the correction requester's profile.
+RequesterPeerChanges ==
+  /\ Churn
+  /\ reqPeer' = ~reqPeer
+  /\ UNCHANGED <<status, hasProfile, published, peerLive, hash, invalidated, claimed, ver, chal,
+                 chalVer, correction, ownerDisabled, claimsOnCode, badClaim>>
 
 Next ==
   \/ AdminAttach \/ GenerateCode \/ InvalidateCode \/ VerifyCode \/ CompleteClaim
   \/ RequestCorrection \/ ResolveCorrection \/ AdminReassign \/ OwnerDisable
   \/ AdminDeactivate \/ MarkLost \/ OwnerReactivate \/ AdminReactivate \/ Replace
-  \/ PublishProfile \/ UnpublishProfile \/ PeerChanges
+  \/ PublishProfile \/ UnpublishProfile \/ PeerChanges \/ RequesterPeerChanges
 
 Spec == Init /\ [][Next]_vars
 
@@ -197,7 +208,7 @@ TypeOK ==
   /\ status \in Statuses /\ chal \in {"none", "active", "used"}
   /\ ver \in 0..MaxVer /\ chalVer \in 0..MaxVer /\ claimsOnCode \in 0..2
   /\ {hasProfile, published, peerLive, hash, invalidated, claimed, correction,
-      ownerDisabled, badClaim} \subseteq BOOLEAN
+      ownerDisabled, badClaim, reqPeer} \subseteq BOOLEAN
 
 \* A card with no profile is registered; every other live card has a profile.
 StatusMatchesProfile ==

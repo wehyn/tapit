@@ -34,6 +34,6 @@ export const step = (action) =>
     DeletePending: "customer abandons sign-up",
     RequestDeletion: "customer requests deletion",
     ApproveDeletion: "admin approves deletion",
-    RestartAccount: "customer signs in again",
+    RestartAccount: "customer who never got a profile signs in again",
     Done: null,
   })[action] ?? action;

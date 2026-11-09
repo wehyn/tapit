@@ -32,7 +32,7 @@ Rule `DeletedHasNoSetup`: a deleted account carries no prepared setup. `approveD
 
 ## Scope and assumptions
 
-One account, starting either self-service (pending) or prepared (invited with a live link). Each action is one mutation, one transaction. Left out: roles, scopes and demo data, profiles and cards (deletion also unpublishes and retires them), the erasure passes that delete rows after approval, invitation expiry timestamps (expiry is a nondeterministic action), the legacy `createCustomer` flow with `setupState: null`, `setupExpiryInvitationId`, email checks and Google verification, and the `reset_demo` event. A second deletion request after `RestartAccount` is allowed by the model, as by the code.
+One account (with a `profiled` flag for `profileId`), starting either self-service (pending) or prepared (invited with a live link). Each action is one mutation, one transaction. Left out: roles, scopes and demo data, profiles and cards (deletion also unpublishes and retires them), the erasure passes that delete rows after approval, invitation expiry timestamps (expiry is a nondeterministic action), the legacy `createCustomer` flow with `setupState: null`, `setupExpiryInvitationId`, email checks and Google verification, and the `reset_demo` event. `RestartAccount` is allowed only for an account that never got a profile (an abandoned sign-up): `ensureGoogleApplicationAccount` requires `profileId === undefined`, and approval keeps the profile, so an approved deletion is final in the model. Real erasure passes that might later clear `profileId` are not modelled.
 
 ## Coverage record
 
